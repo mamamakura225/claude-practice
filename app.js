@@ -1,3 +1,20 @@
+/* ===== Firebase ===== */
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
+import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBEN2Cd1CGzC3aN9hHS4m8o1MCnF6z5oBk",
+  authDomain: "dtask-d08b6.firebaseapp.com",
+  projectId: "dtask-d08b6",
+  storageBucket: "dtask-d08b6.firebasestorage.app",
+  messagingSenderId: "459534305297",
+  appId: "1:459534305297:web:f30a96b68d3fc2dc3e49b0"
+};
+
+const fbApp   = initializeApp(firebaseConfig);
+const db      = getFirestore(fbApp);
+const DATA_DOC = doc(db, 'dtask', 'data');
+
 /* ===== State ===== */
 const state = {
   tasks: [],
@@ -13,24 +30,40 @@ const state = {
   theme: 'light',
 };
 
-/* ===== localStorage ===== */
-const TASKS_KEY = 'dtask_tasks';
-const CATS_KEY  = 'dtask_categories';
+/* ===== Storage ===== */
 const THEME_KEY = 'dtask_theme';
 
-function loadStorage() {
-  try {
-    state.tasks      = JSON.parse(localStorage.getItem(TASKS_KEY))  || [];
-    state.categories = JSON.parse(localStorage.getItem(CATS_KEY))   || [];
-  } catch {
-    state.tasks = [];
-    state.categories = [];
-  }
-  state.theme = localStorage.getItem(THEME_KEY) || 'light';
+function setSyncStatus(msg) {
+  const el = document.getElementById('syncIndicator');
+  if (el) el.textContent = msg;
 }
 
-function saveTasks()      { localStorage.setItem(TASKS_KEY, JSON.stringify(state.tasks)); }
-function saveCategories() { localStorage.setItem(CATS_KEY,  JSON.stringify(state.categories)); }
+async function saveCloud() {
+  setSyncStatus('同期中…');
+  await setDoc(DATA_DOC, { tasks: state.tasks, categories: state.categories });
+  setSyncStatus('✓ 保存済み');
+  setTimeout(() => setSyncStatus(''), 2000);
+}
+
+async function loadStorage() {
+  state.theme = localStorage.getItem(THEME_KEY) || 'light';
+
+  const snap = await getDoc(DATA_DOC);
+  if (snap.exists()) {
+    const d = snap.data();
+    state.tasks      = d.tasks      || [];
+    state.categories = d.categories || [];
+  } else {
+    // 初回: localStorageにデータがあればFirestoreへ移行
+    try {
+      state.tasks      = JSON.parse(localStorage.getItem('dtask_tasks'))      || [];
+      state.categories = JSON.parse(localStorage.getItem('dtask_categories')) || [];
+    } catch {
+      state.tasks = []; state.categories = [];
+    }
+    if (state.tasks.length || state.categories.length) await saveCloud();
+  }
+}
 
 /* ===== Theme ===== */
 function applyTheme(theme) {
@@ -78,7 +111,7 @@ function escHtml(str) {
 /* ===== Task CRUD ===== */
 function addTask(data) {
   state.tasks.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
-  saveTasks();
+  saveCloud();
   render();
 }
 
@@ -86,7 +119,7 @@ function updateTask(id, data) {
   const idx = state.tasks.findIndex(t => t.id === id);
   if (idx < 0) return;
   state.tasks[idx] = { ...state.tasks[idx], ...data };
-  saveTasks();
+  saveCloud();
   render();
 }
 
@@ -96,12 +129,12 @@ function deleteTask(id) {
     card.classList.add('removing');
     setTimeout(() => {
       state.tasks = state.tasks.filter(t => t.id !== id);
-      saveTasks();
+      saveCloud();
       render();
     }, 230);
   } else {
     state.tasks = state.tasks.filter(t => t.id !== id);
-    saveTasks();
+    saveCloud();
     render();
   }
 }
@@ -110,14 +143,14 @@ function toggleDone(id) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
   task.status = task.status === 'done' ? 'todo' : 'done';
-  saveTasks();
+  saveCloud();
   render();
 }
 
 /* ===== Category CRUD ===== */
 function addCategory(name, color) {
   state.categories.push({ id: uid(), name, color });
-  saveCategories();
+  saveCloud();
   renderSidebar();
   populateCategorySelect();
 }
@@ -125,8 +158,7 @@ function addCategory(name, color) {
 function deleteCategory(id) {
   state.categories = state.categories.filter(c => c.id !== id);
   state.tasks.forEach(t => { if (t.categoryId === id) t.categoryId = ''; });
-  saveCategories();
-  saveTasks();
+  saveCloud();
   if (state.filters.categoryId === id) state.filters.categoryId = '';
   renderSidebar();
   populateCategorySelect();
@@ -491,11 +523,21 @@ function addRipple(e) {
 }
 
 /* ===== Init ===== */
-function init() {
-  loadStorage();
+async function init() {
+  await loadStorage();
   applyTheme(state.theme);
   renderSidebar();
   render();
+
+  /* リアルタイム同期: 他デバイスの変更を自動反映 */
+  onSnapshot(DATA_DOC, (snap) => {
+    if (!snap.exists()) return;
+    const d = snap.data();
+    state.tasks      = d.tasks      || [];
+    state.categories = d.categories || [];
+    renderSidebar();
+    render();
+  });
 
   /* Theme toggle */
   document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
