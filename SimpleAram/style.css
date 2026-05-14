@@ -1,0 +1,166 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Helvetica Neue', Arial, sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.container {
+  text-align: center;
+  background: #16213e;
+  padding: 48px 40px;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  width: 340px;
+}
+
+h1 {
+  font-size: 1.4rem;
+  letter-spacing: 4px;
+  color: #a8b2d8;
+  margin-bottom: 32px;
+  text-transform: uppercase;
+}
+
+.clock {
+  font-size: 3.6rem;
+  font-weight: 300;
+  letter-spacing: 4px;
+  color: #e2e8f0;
+  margin-bottom: 40px;
+  font-variant-numeric: tabular-nums;
+}
+
+.alarm-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+}
+
+.alarm-section label {
+  font-size: 0.85rem;
+  letter-spacing: 2px;
+  color: #a8b2d8;
+  text-transform: uppercase;
+}
+
+#alarm-time {
+  background: #0f3460;
+  border: none;
+  border-radius: 10px;
+  color: #e2e8f0;
+  font-size: 2rem;
+  padding: 10px 20px;
+  text-align: center;
+  outline: none;
+  cursor: pointer;
+  width: 180px;
+  letter-spacing: 2px;
+}
+
+#alarm-time:focus {
+  box-shadow: 0 0 0 2px #4a90e2;
+}
+
+#set-btn {
+  background: #4a90e2;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  padding: 12px 40px;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  width: 180px;
+}
+
+#set-btn:hover {
+  background: #357abd;
+}
+
+#set-btn:active {
+  transform: scale(0.97);
+}
+
+#set-btn.active {
+  background: #e05c5c;
+}
+
+#set-btn.active:hover {
+  background: #c0392b;
+}
+
+.status {
+  margin-top: 28px;
+  font-size: 0.85rem;
+  color: #718096;
+  letter-spacing: 1px;
+  min-height: 20px;
+}
+
+.status.active {
+  color: #68d391;
+}
+
+/* アラーム通知オーバーレイ */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  justify-content: center;
+  align-items: center;
+  z-index: 100;
+}
+
+.overlay.show {
+  display: flex;
+}
+
+.alert-box {
+  background: #16213e;
+  border-radius: 20px;
+  padding: 48px 40px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  animation: pop 0.3s ease;
+}
+
+.alert-box p {
+  font-size: 1.4rem;
+  margin-bottom: 24px;
+  color: #68d391;
+  letter-spacing: 2px;
+}
+
+.alert-box button {
+  background: #e05c5c;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 1rem;
+  letter-spacing: 2px;
+  padding: 12px 40px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.alert-box button:hover {
+  background: #c0392b;
+}
+
+@keyframes pop {
+  from { transform: scale(0.8); opacity: 0; }
+  to   { transform: scale(1);   opacity: 1; }
+}

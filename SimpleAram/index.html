@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SimpleAram - アラームアプリ</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <h1>SimpleAram</h1>
+
+    <div class="clock" id="clock">00:00:00</div>
+
+    <div class="alarm-section">
+      <label for="alarm-time">アラーム時刻</label>
+      <input type="time" id="alarm-time">
+      <button id="set-btn" onclick="toggleAlarm()">セット</button>
+    </div>
+
+    <div class="status" id="status">アラームは設定されていません</div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div class="alert-box">
+      <p>アラームの時間です！</p>
+      <button onclick="dismissAlarm()">閉じる</button>
+    </div>
+  </div>
+
+  <audio id="alarm-sound" loop>
+    <source src="https://www.soundjay.com/misc/sounds/bell-ringing-05.mp3" type="audio/mpeg">
+  </audio>
+
+  <script src="app.js"></script>
+</body>
+</html>
