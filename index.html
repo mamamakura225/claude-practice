@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>dタスク</title>
+  <link rel="stylesheet" href="style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- ヘッダー -->
+  <header class="header">
+    <div class="header-left">
+      <button class="hamburger" id="hamburgerBtn" aria-label="メニュー">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="logo"><span class="logo-d">d</span>タスク</div>
+    </div>
+    <div class="header-center">
+      <div class="view-toggle">
+        <button class="view-btn active" id="listViewBtn">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="0" y="2" width="16" height="2" rx="1"/>
+            <rect x="0" y="7" width="16" height="2" rx="1"/>
+            <rect x="0" y="12" width="16" height="2" rx="1"/>
+          </svg>
+          リスト
+        </button>
+        <button class="view-btn" id="kanbanViewBtn">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="0" y="0" width="4" height="16" rx="1"/>
+            <rect x="6" y="0" width="4" height="16" rx="1"/>
+            <rect x="12" y="0" width="4" height="16" rx="1"/>
+          </svg>
+          ボード
+        </button>
+      </div>
+    </div>
+    <div class="header-right">
+      <!-- モバイル用アイコンのみのビュー切り替え -->
+      <div class="view-toggle-mobile">
+        <button class="view-btn-icon active" id="listViewBtnMobile" title="リスト">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="0" y="2" width="16" height="2" rx="1"/>
+            <rect x="0" y="7" width="16" height="2" rx="1"/>
+            <rect x="0" y="12" width="16" height="2" rx="1"/>
+          </svg>
+        </button>
+        <button class="view-btn-icon" id="kanbanViewBtnMobile" title="ボード">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+            <rect x="0" y="0" width="4" height="16" rx="1"/>
+            <rect x="6" y="0" width="4" height="16" rx="1"/>
+            <rect x="12" y="0" width="4" height="16" rx="1"/>
+          </svg>
+        </button>
+      </div>
+      <button class="btn-primary" id="addTaskBtn">＋ タスク追加</button>
+    </div>
+  </header>
+
+  <!-- サイドバーオーバーレイ（モバイル用） -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- メインレイアウト -->
+  <div class="app-layout">
+
+    <!-- サイドバー -->
+    <aside class="sidebar" id="sidebar">
+
+      <div class="sidebar-section">
+        <h3 class="sidebar-title">フィルター</h3>
+        <div class="filter-group">
+          <label class="filter-label">ステータス</label>
+          <select id="statusFilter" class="filter-select">
+            <option value="">すべて</option>
+            <option value="todo">未着手</option>
+            <option value="inprogress">進行中</option>
+            <option value="done">完了</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">優先度</label>
+          <select id="priorityFilter" class="filter-select">
+            <option value="">すべて</option>
+            <option value="high">高</option>
+            <option value="medium">中</option>
+            <option value="low">低</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">並べ替え</label>
+          <select id="sortOrder" class="filter-select">
+            <option value="createdAt">作成日順</option>
+            <option value="deadline">締め切り順</option>
+            <option value="priority">優先度順</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-title-row">
+          <h3 class="sidebar-title">カテゴリ</h3>
+          <button class="btn-icon-small" id="addCategoryBtn" title="カテゴリを追加">＋</button>
+        </div>
+        <div id="categoryFilter" class="category-filter">
+          <button class="category-chip active" data-category-id="">すべて</button>
+        </div>
+        <div id="categoryList" class="category-manage-list"></div>
+      </div>
+
+    </aside>
+
+    <!-- メインコンテンツ -->
+    <main class="main-content">
+
+      <!-- リストビュー -->
+      <div id="listView" class="view-container">
+        <div id="taskList" class="task-list">
+          <div class="empty-state" id="listEmpty">
+            <div class="empty-icon">📋</div>
+            <p>タスクがありません</p>
+            <p class="empty-sub">「タスク追加」ボタンから追加してください</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- カンバンビュー -->
+      <div id="kanbanView" class="view-container hidden">
+        <div class="kanban-board">
+          <div class="kanban-column">
+            <div class="kanban-col-header todo-header">
+              <span class="col-title">未着手</span>
+              <span class="col-count" id="todoCount">0</span>
+            </div>
+            <div class="kanban-cards" id="todoCards"></div>
+          </div>
+          <div class="kanban-column">
+            <div class="kanban-col-header inprogress-header">
+              <span class="col-title">進行中</span>
+              <span class="col-count" id="inprogressCount">0</span>
+            </div>
+            <div class="kanban-cards" id="inprogressCards"></div>
+          </div>
+          <div class="kanban-column">
+            <div class="kanban-col-header done-header">
+              <span class="col-title">完了</span>
+              <span class="col-count" id="doneCount">0</span>
+            </div>
+            <div class="kanban-cards" id="doneCards"></div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- タスクモーダル -->
+  <div class="modal-overlay hidden" id="taskModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 class="modal-title" id="taskModalTitle">タスク追加</h2>
+        <button class="modal-close" id="closeTaskModal">✕</button>
+      </div>
+      <form id="taskForm" class="modal-body">
+        <input type="hidden" id="taskId">
+        <div class="form-group">
+          <label class="form-label">タイトル <span class="required">*</span></label>
+          <input type="text" id="taskTitle" class="form-input" placeholder="タスクのタイトルを入力" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">詳細</label>
+          <textarea id="taskDescription" class="form-textarea" placeholder="詳細・メモを入力..." rows="3"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">期限</label>
+            <input type="date" id="taskDeadline" class="form-input">
+          </div>
+          <div class="form-group">
+            <label class="form-label">優先度</label>
+            <select id="taskPriority" class="form-select">
+              <option value="high">高</option>
+              <option value="medium" selected>中</option>
+              <option value="low">低</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">カテゴリ</label>
+            <select id="taskCategory" class="form-select">
+              <option value="">なし</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">ステータス</label>
+            <select id="taskStatus" class="form-select">
+              <option value="todo">未着手</option>
+              <option value="inprogress">進行中</option>
+              <option value="done">完了</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" id="cancelTaskModal">キャンセル</button>
+          <button type="submit" class="btn-primary">保存</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- カテゴリモーダル -->
+  <div class="modal-overlay hidden" id="categoryModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h2 class="modal-title">カテゴリ追加</h2>
+        <button class="modal-close" id="closeCategoryModal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="form-label">カテゴリ名 <span class="required">*</span></label>
+          <input type="text" id="categoryName" class="form-input" placeholder="例：仕事、プライベート">
+        </div>
+        <div class="form-group">
+          <label class="form-label">カラー</label>
+          <div class="color-picker-row">
+            <input type="color" id="categoryColor" class="color-input" value="#CC0033">
+            <span id="categoryColorHex">#CC0033</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="cancelCategoryModal">キャンセル</button>
+          <button class="btn-primary" id="saveCategoryBtn">追加</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- FAB（モバイル用タスク追加ボタン） -->
+  <button class="fab" id="fabAddTask" aria-label="タスク追加">＋</button>
+
+  <script src="app.js"></script>
+</body>
+</html>
