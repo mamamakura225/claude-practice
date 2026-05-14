@@ -8,12 +8,15 @@ const state = {
     priority: '',
     status: '',
     sort: 'createdAt',
+    search: '',
   },
+  theme: 'light',
 };
 
 /* ===== localStorage ===== */
 const TASKS_KEY = 'dtask_tasks';
 const CATS_KEY  = 'dtask_categories';
+const THEME_KEY = 'dtask_theme';
 
 function loadStorage() {
   try {
@@ -23,10 +26,24 @@ function loadStorage() {
     state.tasks = [];
     state.categories = [];
   }
+  state.theme = localStorage.getItem(THEME_KEY) || 'light';
 }
 
 function saveTasks()      { localStorage.setItem(TASKS_KEY, JSON.stringify(state.tasks)); }
 function saveCategories() { localStorage.setItem(CATS_KEY,  JSON.stringify(state.categories)); }
+
+/* ===== Theme ===== */
+function applyTheme(theme) {
+  document.body.dataset.theme = theme;
+  localStorage.setItem(THEME_KEY, theme);
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+}
+
+function toggleTheme() {
+  state.theme = state.theme === 'dark' ? 'light' : 'dark';
+  applyTheme(state.theme);
+}
 
 /* ===== Utility ===== */
 function uid() {
@@ -130,6 +147,13 @@ function getFilteredTasks() {
     tasks = tasks.filter(t => t.priority === state.filters.priority);
   if (state.filters.status)
     tasks = tasks.filter(t => t.status === state.filters.status);
+  if (state.filters.search) {
+    const q = state.filters.search.toLowerCase();
+    tasks = tasks.filter(t =>
+      t.title.toLowerCase().includes(q) ||
+      (t.description && t.description.toLowerCase().includes(q))
+    );
+  }
 
   tasks.sort((a, b) => {
     if (state.filters.sort === 'deadline') {
@@ -298,8 +322,26 @@ function populateCategorySelect() {
   if (cur) sel.value = cur;
 }
 
+/* ===== Render: Stats Bar ===== */
+function renderStats() {
+  const el = document.getElementById('statsBar');
+  if (!el) return;
+  const all = getFilteredTasks();
+  const total = all.length;
+  if (total === 0) { el.style.display = 'none'; return; }
+  const done = all.filter(t => t.status === 'done').length;
+  const pct = Math.round((done / total) * 100);
+  el.style.display = '';
+  document.getElementById('statsText').textContent = `${done} / ${total} 完了`;
+  document.getElementById('statsPct').textContent = `${pct}%`;
+  const bar = document.getElementById('statsProgressBar');
+  bar.style.width = '0%';
+  requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = `${pct}%`; }));
+}
+
 /* ===== Render (full) ===== */
 function render() {
+  renderStats();
   if (state.currentView === 'list') renderListView();
   else renderKanbanView();
 }
@@ -451,8 +493,25 @@ function addRipple(e) {
 /* ===== Init ===== */
 function init() {
   loadStorage();
+  applyTheme(state.theme);
   renderSidebar();
   render();
+
+  /* Theme toggle */
+  document.getElementById('themeToggleBtn').addEventListener('click', toggleTheme);
+
+  /* Search */
+  document.getElementById('searchInput').addEventListener('input', e => {
+    state.filters.search = e.target.value;
+    document.getElementById('searchClear').style.display = e.target.value ? 'flex' : 'none';
+    render();
+  });
+  document.getElementById('searchClear').addEventListener('click', () => {
+    state.filters.search = '';
+    document.getElementById('searchInput').value = '';
+    document.getElementById('searchClear').style.display = 'none';
+    render();
+  });
 
   /* Hamburger */
   document.getElementById('hamburgerBtn').addEventListener('click', toggleSidebar);

@@ -55,6 +55,7 @@
           </svg>
         </button>
       </div>
+      <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="テーマ切り替え" title="ダークモード切り替え">🌙</button>
       <button class="btn-primary" id="addTaskBtn">＋ タスク追加</button>
     </div>
   </header>
@@ -113,6 +114,26 @@
 
     <!-- メインコンテンツ -->
     <main class="main-content">
+
+      <!-- 検索バー -->
+      <div class="search-bar-wrap">
+        <div class="search-bar">
+          <span class="search-icon">🔍</span>
+          <input type="search" id="searchInput" class="search-input" placeholder="タスクを検索..." autocomplete="off">
+          <button class="search-clear" id="searchClear" style="display:none" aria-label="クリア">✕</button>
+        </div>
+      </div>
+
+      <!-- 統計バー -->
+      <div class="stats-bar" id="statsBar" style="display:none">
+        <div class="stats-info">
+          <span class="stats-text" id="statsText">0 / 0 完了</span>
+          <span class="stats-pct" id="statsPct">0%</span>
+        </div>
+        <div class="stats-track">
+          <div class="stats-fill" id="statsProgressBar"></div>
+        </div>
+      </div>
 
       <!-- リストビュー -->
       <div id="listView" class="view-container">
