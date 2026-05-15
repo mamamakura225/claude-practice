@@ -545,6 +545,23 @@ function addRipple(e) {
   circle.addEventListener('animationend', () => circle.remove(), { once: true });
 }
 
+/* ===== Swipe Debug Overlay ===== */
+function getOrCreateDebug() {
+  let d = document.getElementById('_swipe_dbg');
+  if (!d) {
+    d = document.createElement('div');
+    d.id = '_swipe_dbg';
+    d.style.cssText = 'position:fixed;bottom:80px;left:0;right:0;background:rgba(0,0,0,.85);color:#0f0;font:12px monospace;padding:6px;z-index:9999;max-height:100px;overflow:auto;pointer-events:none;';
+    d.textContent = '--- swipe debug ---';
+    document.body.appendChild(d);
+  }
+  return d;
+}
+function dbgLog(msg) {
+  const d = getOrCreateDebug();
+  d.textContent = msg + '\n' + d.textContent.slice(0, 400);
+}
+
 /* ===== Swipe Gesture (タッチイベントをカードに直接付与) ===== */
 function attachSwipeListeners(card, wrapper, id) {
   let startX = 0, startY = 0, currentX = 0;
@@ -585,6 +602,7 @@ function attachSwipeListeners(card, wrapper, id) {
     currentX = t.clientX;
     active = true;
     canceled = false;
+    dbgLog('START x=' + Math.round(t.clientX));
   }, { passive: true });
 
   card.addEventListener('touchmove', (e) => {
@@ -601,6 +619,7 @@ function attachSwipeListeners(card, wrapper, id) {
     }
 
     // 横スワイプ確定 → ブラウザのスクロールを止める（passive:falseが必須）
+    dbgLog('MOVE dx=' + Math.round(dx) + ' dy=' + Math.round(dy));
     e.preventDefault();
     currentX = t.clientX;
     card.style.transform = `translateX(${dx}px)`;
@@ -629,6 +648,7 @@ function attachSwipeListeners(card, wrapper, id) {
   }, { passive: true });
 
   card.addEventListener('touchcancel', () => {
+    dbgLog('CANCEL! active=' + active);
     if (!active) return;
     snapBack();
     reset();
