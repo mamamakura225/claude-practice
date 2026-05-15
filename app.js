@@ -605,6 +605,8 @@ function onTouchMove(e) {
   const dy = t.clientY - swipeState.startY;
 
   if (!swipeState.card.classList.contains('is-swiping')) {
+    // 最低8px動いてから方向を判定（微小なズレで即キャンセルされないようにする）
+    if (Math.abs(dx) + Math.abs(dy) < 8) return;
     if (Math.abs(dy) > Math.abs(dx)) { swipeState.canceled = true; return; }
     swipeState.card.classList.add('is-swiping');
   }
@@ -663,7 +665,7 @@ function onTouchCancel() {
 function initSwipeGestures() {
   const listEl = document.getElementById('taskList');
   if (!listEl) return;
-  listEl.addEventListener('touchstart',  onTouchStart,  { passive: true });
+  listEl.addEventListener('touchstart',  onTouchStart,  { passive: false });
   listEl.addEventListener('touchmove',   onTouchMove,   { passive: false });
   listEl.addEventListener('touchend',    onTouchEnd,    { passive: true });
   listEl.addEventListener('touchcancel', onTouchCancel, { passive: true });
