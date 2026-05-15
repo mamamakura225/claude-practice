@@ -544,10 +544,6 @@ function addRipple(e) {
 }
 
 /* ===== Swipe Gesture Helpers ===== */
-function isMobile() {
-  return window.matchMedia('(max-width: 767px)').matches;
-}
-
 function snapBack(card) {
   card.classList.remove('is-swiping');
   card.classList.add('snap-back');
@@ -581,37 +577,40 @@ function resetSwipeState() {
   swipeState.canceled = false;
 }
 
-/* ===== Swipe Touch Handlers ===== */
-function onTouchStart(e) {
-  if (!isMobile()) return;
+/* ===== Swipe Pointer Handlers (PointerEvent API) ===== */
+function onPointerDown(e) {
+  // タッチ操作のみ（マウス・ペン除外）
+  if (e.pointerType !== 'touch') return;
   const card = e.target.closest('.task-card');
   if (!card || card.classList.contains('removing')) return;
+
   swipeDidMove = false;
-  const t = e.touches[0];
   swipeState.active   = true;
-  swipeState.startX   = t.clientX;
-  swipeState.startY   = t.clientY;
-  swipeState.currentX = t.clientX;
+  swipeState.startX   = e.clientX;
+  swipeState.startY   = e.clientY;
+  swipeState.currentX = e.clientX;
   swipeState.card     = card;
   swipeState.wrapper  = card.closest('.swipe-wrapper');
   swipeState.id       = card.dataset.id;
   swipeState.canceled = false;
+
+  // 指がリスト外に出ても追跡し続けるためキャプチャ
+  e.currentTarget.setPointerCapture(e.pointerId);
 }
 
-function onTouchMove(e) {
+function onPointerMove(e) {
   if (!swipeState.active || swipeState.canceled) return;
-  const t  = e.touches[0];
-  const dx = t.clientX - swipeState.startX;
-  const dy = t.clientY - swipeState.startY;
+  const dx = e.clientX - swipeState.startX;
+  const dy = e.clientY - swipeState.startY;
 
   if (!swipeState.card.classList.contains('is-swiping')) {
-    // 最低8px動いてから方向を判定（微小なズレで即キャンセルされないようにする）
+    // 最低8px動いてから方向判定
     if (Math.abs(dx) + Math.abs(dy) < 8) return;
     if (Math.abs(dy) > Math.abs(dx)) { swipeState.canceled = true; return; }
     swipeState.card.classList.add('is-swiping');
   }
 
-  swipeState.currentX = t.clientX;
+  swipeState.currentX = e.clientX;
   if (Math.abs(dx) > 5) swipeDidMove = true;
   swipeState.card.style.transform = `translateX(${dx}px)`;
 
@@ -625,7 +624,7 @@ function onTouchMove(e) {
   }
 }
 
-function onTouchEnd(e) {
+function onPointerUp(e) {
   if (!swipeState.active) return;
   swipeState.active = false;
   const { card, wrapper, id, canceled } = swipeState;
@@ -654,7 +653,7 @@ function onTouchEnd(e) {
   resetSwipeState();
 }
 
-function onTouchCancel() {
+function onPointerCancel() {
   if (!swipeState.active) return;
   if (swipeState.card) snapBack(swipeState.card);
   swipeState.active = false;
@@ -664,10 +663,10 @@ function onTouchCancel() {
 function initSwipeGestures() {
   const listEl = document.getElementById('taskList');
   if (!listEl) return;
-  listEl.addEventListener('touchstart',  onTouchStart,  { passive: false });
-  listEl.addEventListener('touchmove',   onTouchMove,   { passive: true });
-  listEl.addEventListener('touchend',    onTouchEnd,    { passive: true });
-  listEl.addEventListener('touchcancel', onTouchCancel, { passive: true });
+  listEl.addEventListener('pointerdown',   onPointerDown);
+  listEl.addEventListener('pointermove',   onPointerMove);
+  listEl.addEventListener('pointerup',     onPointerUp);
+  listEl.addEventListener('pointercancel', onPointerCancel);
 }
 
 /* ===== Init ===== */
