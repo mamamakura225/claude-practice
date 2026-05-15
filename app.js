@@ -600,6 +600,8 @@ function attachSwipeListeners(card, wrapper, id) {
       card.classList.add('is-swiping');
     }
 
+    // 横スワイプ確定 → ブラウザのスクロールを止める（passive:falseが必須）
+    e.preventDefault();
     currentX = t.clientX;
     card.style.transform = `translateX(${dx}px)`;
     wrapper.classList.toggle('swiping',          Math.abs(dx) > 10);
@@ -607,7 +609,7 @@ function attachSwipeListeners(card, wrapper, id) {
     wrapper.classList.toggle('swiping-right',    dx > 10);
     wrapper.classList.toggle('trigger-delete',   dx < -SWIPE_AUTO_TRIGGER);
     wrapper.classList.toggle('trigger-complete', dx > SWIPE_AUTO_TRIGGER);
-  }, { passive: true });
+  }, { passive: false }); // falseにしてpreventDefault()を有効化
 
   card.addEventListener('touchend', () => {
     if (!active) return;
