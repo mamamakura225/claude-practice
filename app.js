@@ -611,7 +611,6 @@ function onTouchMove(e) {
     swipeState.card.classList.add('is-swiping');
   }
 
-  e.preventDefault();
   swipeState.currentX = t.clientX;
   if (Math.abs(dx) > 5) swipeDidMove = true;
   swipeState.card.style.transform = `translateX(${dx}px)`;
@@ -666,7 +665,7 @@ function initSwipeGestures() {
   const listEl = document.getElementById('taskList');
   if (!listEl) return;
   listEl.addEventListener('touchstart',  onTouchStart,  { passive: false });
-  listEl.addEventListener('touchmove',   onTouchMove,   { passive: false });
+  listEl.addEventListener('touchmove',   onTouchMove,   { passive: true });
   listEl.addEventListener('touchend',    onTouchEnd,    { passive: true });
   listEl.addEventListener('touchcancel', onTouchCancel, { passive: true });
 }
