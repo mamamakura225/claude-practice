@@ -30,6 +30,15 @@ const state = {
   theme: 'light',
 };
 
+/* ===== Swipe Gesture State ===== */
+const SWIPE_THRESHOLD    = 80;
+const SWIPE_AUTO_TRIGGER = 160;
+const swipeState = {
+  active: false, startX: 0, startY: 0, currentX: 0,
+  card: null, wrapper: null, id: null, canceled: false,
+};
+let swipeDidMove = false;
+
 /* ===== Storage ===== */
 const THEME_KEY = 'dtask_theme';
 
@@ -226,7 +235,7 @@ function renderListView() {
   const tasks     = getFilteredTasks();
 
   // remove old cards (keep empty state)
-  container.querySelectorAll('.task-card').forEach(el => el.remove());
+  container.querySelectorAll('.swipe-wrapper, .task-card').forEach(el => el.remove());
 
   if (tasks.length === 0) {
     empty.style.display = '';
@@ -257,7 +266,19 @@ function renderListView() {
         <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除">🗑️</button>
       </div>
     `;
-    container.appendChild(card);
+    // .task-card を .swipe-wrapper で包む
+    const wrapper = document.createElement('div');
+    wrapper.className = 'swipe-wrapper';
+    const bgComplete = document.createElement('div');
+    bgComplete.className = 'swipe-bg-complete';
+    bgComplete.textContent = '✓';
+    const bgDelete = document.createElement('div');
+    bgDelete.className = 'swipe-bg-delete';
+    bgDelete.textContent = '🗑';
+    wrapper.appendChild(bgComplete);
+    wrapper.appendChild(bgDelete);
+    wrapper.appendChild(card);
+    container.appendChild(wrapper);
   });
 }
 
@@ -522,6 +543,132 @@ function addRipple(e) {
   circle.addEventListener('animationend', () => circle.remove(), { once: true });
 }
 
+/* ===== Swipe Gesture Helpers ===== */
+function isMobile() {
+  return window.matchMedia('(max-width: 767px)').matches;
+}
+
+function snapBack(card) {
+  card.classList.remove('is-swiping');
+  card.classList.add('snap-back');
+  card.style.transform = '';
+  card.addEventListener('transitionend', () => card.classList.remove('snap-back'), { once: true });
+}
+
+function snapCardOutAndDelete(card, wrapper, id) {
+  card.classList.remove('is-swiping');
+  card.classList.add('snap-back');
+  card.style.transform = 'translateX(-110%)';
+  card.addEventListener('transitionend', () => {
+    wrapper.remove();
+    state.tasks = state.tasks.filter(t => t.id !== id);
+    saveCloud();
+    render();
+  }, { once: true });
+}
+
+function resetSwipeState() {
+  if (swipeState.wrapper) {
+    swipeState.wrapper.classList.remove(
+      'swiping', 'swiping-left', 'swiping-right',
+      'trigger-delete', 'trigger-complete'
+    );
+  }
+  if (swipeState.card) swipeState.card.classList.remove('is-swiping');
+  swipeState.card    = null;
+  swipeState.wrapper = null;
+  swipeState.id      = null;
+  swipeState.canceled = false;
+}
+
+/* ===== Swipe Touch Handlers ===== */
+function onTouchStart(e) {
+  if (!isMobile()) return;
+  const card = e.target.closest('.task-card');
+  if (!card || card.classList.contains('removing')) return;
+  swipeDidMove = false;
+  const t = e.touches[0];
+  swipeState.active   = true;
+  swipeState.startX   = t.clientX;
+  swipeState.startY   = t.clientY;
+  swipeState.currentX = t.clientX;
+  swipeState.card     = card;
+  swipeState.wrapper  = card.closest('.swipe-wrapper');
+  swipeState.id       = card.dataset.id;
+  swipeState.canceled = false;
+}
+
+function onTouchMove(e) {
+  if (!swipeState.active || swipeState.canceled) return;
+  const t  = e.touches[0];
+  const dx = t.clientX - swipeState.startX;
+  const dy = t.clientY - swipeState.startY;
+
+  if (!swipeState.card.classList.contains('is-swiping')) {
+    if (Math.abs(dy) > Math.abs(dx)) { swipeState.canceled = true; return; }
+    swipeState.card.classList.add('is-swiping');
+  }
+
+  e.preventDefault();
+  swipeState.currentX = t.clientX;
+  if (Math.abs(dx) > 5) swipeDidMove = true;
+  swipeState.card.style.transform = `translateX(${dx}px)`;
+
+  const w = swipeState.wrapper;
+  if (w) {
+    w.classList.toggle('swiping',          Math.abs(dx) > 10);
+    w.classList.toggle('swiping-left',     dx < -10);
+    w.classList.toggle('swiping-right',    dx >  10);
+    w.classList.toggle('trigger-delete',   dx < -SWIPE_AUTO_TRIGGER);
+    w.classList.toggle('trigger-complete', dx >  SWIPE_AUTO_TRIGGER);
+  }
+}
+
+function onTouchEnd(e) {
+  if (!swipeState.active) return;
+  swipeState.active = false;
+  const { card, wrapper, id, canceled } = swipeState;
+
+  if (canceled || !card?.classList.contains('is-swiping')) {
+    resetSwipeState();
+    return;
+  }
+
+  const dx = swipeState.currentX - swipeState.startX;
+  wrapper?.classList.remove('swiping', 'swiping-left', 'swiping-right', 'trigger-delete', 'trigger-complete');
+
+  // ゴーストクリック防止
+  if (swipeDidMove) {
+    e.target.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
+  }
+
+  if (dx < -SWIPE_AUTO_TRIGGER) {
+    snapCardOutAndDelete(card, wrapper, id); // 左スワイプ → 削除
+  } else if (dx > SWIPE_AUTO_TRIGGER) {
+    snapBack(card);                          // 右スワイプ → スナップバック後に完了切替
+    setTimeout(() => toggleDone(id), 280);
+  } else {
+    snapBack(card);                          // しきい値未満 → スナップバック
+  }
+  resetSwipeState();
+}
+
+function onTouchCancel() {
+  if (!swipeState.active) return;
+  if (swipeState.card) snapBack(swipeState.card);
+  swipeState.active = false;
+  resetSwipeState();
+}
+
+function initSwipeGestures() {
+  const listEl = document.getElementById('taskList');
+  if (!listEl) return;
+  listEl.addEventListener('touchstart',  onTouchStart,  { passive: true });
+  listEl.addEventListener('touchmove',   onTouchMove,   { passive: false });
+  listEl.addEventListener('touchend',    onTouchEnd,    { passive: true });
+  listEl.addEventListener('touchcancel', onTouchCancel, { passive: true });
+}
+
 /* ===== Init ===== */
 async function init() {
   await loadStorage();
@@ -631,6 +778,9 @@ async function init() {
   /* Global delegation */
   document.addEventListener('click', handleGlobalClick);
   document.addEventListener('change', handleGlobalChange);
+
+  /* Swipe gestures (mobile list view) */
+  initSwipeGestures();
 }
 
 document.addEventListener('DOMContentLoaded', init);
