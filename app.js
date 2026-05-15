@@ -545,19 +545,12 @@ function addRipple(e) {
   circle.addEventListener('animationend', () => circle.remove(), { once: true });
 }
 
-/* ===== Swipe Gesture (カードに直接付与) ===== */
+/* ===== Swipe Gesture (タッチイベントをカードに直接付与) ===== */
 function attachSwipeListeners(card, wrapper, id) {
   let startX = 0, startY = 0, currentX = 0;
-  let active = false, canceled = false, didMove = false;
+  let active = false, canceled = false;
 
-  function cleanup() {
-    wrapper.classList.remove('swiping', 'swiping-left', 'swiping-right',
-                              'trigger-delete', 'trigger-complete');
-    card.classList.remove('is-swiping');
-    active = false; canceled = false; didMove = false;
-  }
-
-  function doSnapBack() {
+  function snapBack() {
     card.classList.remove('is-swiping');
     card.classList.add('snap-back');
     card.style.transform = '';
@@ -576,70 +569,71 @@ function attachSwipeListeners(card, wrapper, id) {
     }, { once: true });
   }
 
-  card.addEventListener('pointerdown', (e) => {
-    if (e.pointerType !== 'touch') return;
+  function reset() {
+    wrapper.classList.remove('swiping', 'swiping-left', 'swiping-right',
+                              'trigger-delete', 'trigger-complete');
+    card.classList.remove('is-swiping');
+    active = false;
+    canceled = false;
+  }
+
+  card.addEventListener('touchstart', (e) => {
     if (card.classList.contains('removing')) return;
-    active = true; canceled = false; didMove = false;
-    startX = e.clientX; startY = e.clientY; currentX = e.clientX;
-    // カード自身にキャプチャ → pointermove/upがカードに届く
-    card.setPointerCapture(e.pointerId);
-  });
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    currentX = t.clientX;
+    active = true;
+    canceled = false;
+  }, { passive: true });
 
-  card.addEventListener('pointermove', (e) => {
+  card.addEventListener('touchmove', (e) => {
     if (!active || canceled) return;
-    const dx = e.clientX - startX;
-    const dy = e.clientY - startY;
+    const t = e.touches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
 
+    // 方向判定（8px動くまで待つ）
     if (!card.classList.contains('is-swiping')) {
-      if (Math.abs(dx) + Math.abs(dy) < 8) return;       // まだ判定しない
-      if (Math.abs(dy) > Math.abs(dx)) { canceled = true; return; } // 縦スクロール優先
+      if (Math.abs(dx) + Math.abs(dy) < 8) return;
+      if (Math.abs(dy) >= Math.abs(dx)) { canceled = true; return; } // 縦 → スクロール優先
       card.classList.add('is-swiping');
     }
 
-    currentX = e.clientX;
-    if (Math.abs(dx) > 5) didMove = true;
+    currentX = t.clientX;
     card.style.transform = `translateX(${dx}px)`;
-
     wrapper.classList.toggle('swiping',          Math.abs(dx) > 10);
     wrapper.classList.toggle('swiping-left',     dx < -10);
     wrapper.classList.toggle('swiping-right',    dx > 10);
     wrapper.classList.toggle('trigger-delete',   dx < -SWIPE_AUTO_TRIGGER);
     wrapper.classList.toggle('trigger-complete', dx > SWIPE_AUTO_TRIGGER);
-  });
+  }, { passive: true });
 
-  card.addEventListener('pointerup', (e) => {
+  card.addEventListener('touchend', () => {
     if (!active) return;
     const wasSwiping = card.classList.contains('is-swiping');
     const dx = currentX - startX;
-    wrapper.classList.remove('swiping', 'swiping-left', 'swiping-right',
-                              'trigger-delete', 'trigger-complete');
-    cleanup();
-
-    if (!wasSwiping) return; // タップ → クリックイベントをそのまま通す
-
-    // スワイプ後のゴーストクリック防止
-    if (didMove) {
-      e.target.addEventListener('click', ev => ev.stopPropagation(), { once: true, capture: true });
-    }
+    reset();
+    if (!wasSwiping) return;
 
     if (dx < -SWIPE_AUTO_TRIGGER) {
       doDelete();
     } else if (dx > SWIPE_AUTO_TRIGGER) {
-      doSnapBack();
+      snapBack();
       setTimeout(() => toggleDone(id), 280);
     } else {
-      doSnapBack();
+      snapBack();
     }
-  });
+  }, { passive: true });
 
-  card.addEventListener('pointercancel', () => {
+  card.addEventListener('touchcancel', () => {
     if (!active) return;
-    doSnapBack();
-    cleanup();
-  });
+    snapBack();
+    reset();
+  }, { passive: true });
 }
 
-function initSwipeGestures() { /* カード生成時にattachSwipeListeners()で付与するため不要 */ }
+function initSwipeGestures() { /* attachSwipeListeners()でカード生成時に付与 */ }
 
 /* ===== Init ===== */
 async function init() {
