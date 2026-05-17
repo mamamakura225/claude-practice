@@ -109,6 +109,7 @@ function isOverdue(dateStr) {
 function normalizeTask(t) {
   return {
     tags: [],
+    subtasks: [],
     ...t,
   };
 }
@@ -250,6 +251,16 @@ function tagChipsHtml(tags) {
   return tags.map(t => `<span class="tag-chip">#${escHtml(t)}</span>`).join('');
 }
 
+function subtaskProgressHtml(subtasks) {
+  if (!subtasks || subtasks.length === 0) return '';
+  const done = subtasks.filter(s => s.done).length;
+  const pct = Math.round((done / subtasks.length) * 100);
+  return `<span class="subtask-progress" title="サブタスク進捗">
+    <span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
+    <span class="subtask-progress-text">${done}/${subtasks.length}</span>
+  </span>`;
+}
+
 /* ===== Render: List View ===== */
 function renderListView() {
   const container = document.getElementById('taskList');
@@ -280,6 +291,7 @@ function renderListView() {
           ${priorityBadgeHtml(task.priority)}
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
+          ${subtaskProgressHtml(task.subtasks)}
           <span class="badge badge-low">${STATUS_LABEL[task.status] || task.status}</span>
         </div>
         ${task.tags && task.tags.length ? `<div class="task-tags">${tagChipsHtml(task.tags)}</div>` : ''}
@@ -344,6 +356,7 @@ function renderKanbanView() {
           ${priorityBadgeHtml(task.priority)}
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
+          ${subtaskProgressHtml(task.subtasks)}
         </div>
         ${task.tags && task.tags.length ? `<div class="kanban-card-tags">${tagChipsHtml(task.tags)}</div>` : ''}
         <div class="kanban-card-footer">
@@ -425,6 +438,38 @@ function render() {
   else renderKanbanView();
 }
 
+/* ===== Modal: Subtask rows ===== */
+function appendSubtaskRow(subtask = { id: uid(), title: '', done: false }) {
+  const list = document.getElementById('subtaskList');
+  const row = document.createElement('div');
+  row.className = 'subtask-row';
+  row.dataset.id = subtask.id;
+  row.innerHTML = `
+    <input type="checkbox" class="subtask-check" ${subtask.done ? 'checked' : ''}>
+    <input type="text" class="subtask-title-input" value="${escHtml(subtask.title)}" placeholder="サブタスクのタイトル">
+    <button type="button" class="subtask-remove-btn" title="削除">✕</button>
+  `;
+  row.querySelector('.subtask-remove-btn').addEventListener('click', () => row.remove());
+  list.appendChild(row);
+}
+
+function collectSubtasks() {
+  const rows = document.querySelectorAll('#subtaskList .subtask-row');
+  const result = [];
+  rows.forEach(row => {
+    const titleInput = row.querySelector('.subtask-title-input');
+    const checkInput = row.querySelector('.subtask-check');
+    const title = titleInput.value.trim();
+    if (!title) return;
+    result.push({
+      id: row.dataset.id || uid(),
+      title,
+      done: checkInput.checked,
+    });
+  });
+  return result;
+}
+
 /* ===== Modal: Task ===== */
 function openTaskModal(task = null) {
   const modal    = document.getElementById('taskModal');
@@ -432,6 +477,8 @@ function openTaskModal(task = null) {
   const idInput  = document.getElementById('taskId');
 
   populateCategorySelect();
+
+  document.getElementById('subtaskList').innerHTML = '';
 
   if (task) {
     title.textContent                                = 'タスク編集';
@@ -443,6 +490,7 @@ function openTaskModal(task = null) {
     document.getElementById('taskCategory').value    = task.categoryId || '';
     document.getElementById('taskStatus').value      = task.status;
     document.getElementById('taskTags').value        = (task.tags || []).join(', ');
+    (task.subtasks || []).forEach(st => appendSubtaskRow(st));
   } else {
     title.textContent = 'タスク追加';
     document.getElementById('taskForm').reset();
@@ -515,6 +563,7 @@ function handleTaskFormSubmit(e) {
     categoryId:  document.getElementById('taskCategory').value,
     status:      document.getElementById('taskStatus').value,
     tags,
+    subtasks:    collectSubtasks(),
   };
   if (!data.title) return;
 
@@ -728,6 +777,13 @@ async function init() {
 
   /* Task form */
   document.getElementById('taskForm').addEventListener('submit', handleTaskFormSubmit);
+
+  /* Subtask add button */
+  document.getElementById('addSubtaskBtn').addEventListener('click', () => {
+    appendSubtaskRow();
+    const list = document.getElementById('subtaskList');
+    list.lastElementChild?.querySelector('.subtask-title-input')?.focus();
+  });
 
   /* Category modal open */
   document.getElementById('addCategoryBtn').addEventListener('click', openCategoryModal);
