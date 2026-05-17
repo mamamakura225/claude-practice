@@ -60,7 +60,7 @@ async function loadStorage() {
   const snap = await getDoc(DATA_DOC);
   if (snap.exists()) {
     const d = snap.data();
-    state.tasks      = d.tasks      || [];
+    state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
   } else {
     // 初回: localStorageにデータがあればFirestoreへ移行
@@ -70,6 +70,7 @@ async function loadStorage() {
     } catch {
       state.tasks = []; state.categories = [];
     }
+    state.tasks = state.tasks.map(normalizeTask);
     if (state.tasks.length || state.categories.length) await saveCloud();
   }
 }
@@ -105,6 +106,13 @@ function isOverdue(dateStr) {
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
+function normalizeTask(t) {
+  return {
+    tags: [],
+    ...t,
+  };
+}
+
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 const PRIORITY_LABEL = { high: '高', medium: '中', low: '低' };
 const STATUS_LABEL   = { todo: '未着手', inprogress: '進行中', done: '完了' };
@@ -119,7 +127,7 @@ function escHtml(str) {
 
 /* ===== Task CRUD ===== */
 function addTask(data) {
-  state.tasks.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
+  state.tasks.push(normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data }));
   saveCloud();
   render();
 }
@@ -189,11 +197,20 @@ function getFilteredTasks() {
   if (state.filters.status)
     tasks = tasks.filter(t => t.status === state.filters.status);
   if (state.filters.search) {
-    const q = state.filters.search.toLowerCase();
-    tasks = tasks.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      (t.description && t.description.toLowerCase().includes(q))
-    );
+    const raw = state.filters.search.trim();
+    if (raw.startsWith('#') && raw.length > 1) {
+      const tagQuery = raw.slice(1).toLowerCase();
+      tasks = tasks.filter(t =>
+        (t.tags || []).some(tag => tag.toLowerCase() === tagQuery)
+      );
+    } else {
+      const q = raw.toLowerCase();
+      tasks = tasks.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q)) ||
+        (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+      );
+    }
   }
 
   tasks.sort((a, b) => {
@@ -228,6 +245,11 @@ function deadlineBadgeHtml(deadline) {
   return `<span class="badge-deadline${over ? ' overdue' : ''}">📅 ${formatDate(deadline)}${over ? ' (期限切れ)' : ''}</span>`;
 }
 
+function tagChipsHtml(tags) {
+  if (!tags || tags.length === 0) return '';
+  return tags.map(t => `<span class="tag-chip">#${escHtml(t)}</span>`).join('');
+}
+
 /* ===== Render: List View ===== */
 function renderListView() {
   const container = document.getElementById('taskList');
@@ -260,6 +282,7 @@ function renderListView() {
           ${deadlineBadgeHtml(task.deadline)}
           <span class="badge badge-low">${STATUS_LABEL[task.status] || task.status}</span>
         </div>
+        ${task.tags && task.tags.length ? `<div class="task-tags">${tagChipsHtml(task.tags)}</div>` : ''}
       </div>
       <div class="task-actions">
         <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集">✏️</button>
@@ -322,6 +345,7 @@ function renderKanbanView() {
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
         </div>
+        ${task.tags && task.tags.length ? `<div class="kanban-card-tags">${tagChipsHtml(task.tags)}</div>` : ''}
         <div class="kanban-card-footer">
           <select class="kanban-status-select" data-action="status" data-id="${task.id}">${statusOptions}</select>
           <div class="kanban-actions">
@@ -418,12 +442,14 @@ function openTaskModal(task = null) {
     document.getElementById('taskPriority').value    = task.priority;
     document.getElementById('taskCategory').value    = task.categoryId || '';
     document.getElementById('taskStatus').value      = task.status;
+    document.getElementById('taskTags').value        = (task.tags || []).join(', ');
   } else {
     title.textContent = 'タスク追加';
     document.getElementById('taskForm').reset();
     idInput.value = '';
     document.getElementById('taskPriority').value = 'medium';
     document.getElementById('taskStatus').value   = 'todo';
+    document.getElementById('taskTags').value     = '';
   }
 
   modal.classList.remove('hidden');
@@ -479,6 +505,8 @@ function handleGlobalChange(e) {
 function handleTaskFormSubmit(e) {
   e.preventDefault();
   const id = document.getElementById('taskId').value;
+  const tags = document.getElementById('taskTags').value
+    .split(',').map(s => s.trim()).filter(Boolean);
   const data = {
     title:       document.getElementById('taskTitle').value.trim(),
     description: document.getElementById('taskDescription').value.trim(),
@@ -486,6 +514,7 @@ function handleTaskFormSubmit(e) {
     priority:    document.getElementById('taskPriority').value,
     categoryId:  document.getElementById('taskCategory').value,
     status:      document.getElementById('taskStatus').value,
+    tags,
   };
   if (!data.title) return;
 
@@ -654,7 +683,7 @@ async function init() {
   onSnapshot(DATA_DOC, (snap) => {
     if (!snap.exists()) return;
     const d = snap.data();
-    state.tasks      = d.tasks      || [];
+    state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
     renderSidebar();
     render();
