@@ -1010,7 +1010,11 @@ a { color: inherit; text-decoration: none; }
 }
 
 .task-card.is-swiping {
+  animation: none !important; /* cardInアニメーションがinline transformを上書きするのを防ぐ */
   transition: box-shadow 0.2s ease;
+}
+.task-card.is-swiping:hover {
+  transform: none; /* :hoverのtranslateY(-2px)がスワイプを邪魔しないように */
 }
 .task-card.snap-back {
   transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),

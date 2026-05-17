@@ -561,14 +561,17 @@ function attachSwipeListeners(card, wrapper, id) {
   function snapBack() {
     card.classList.remove('is-swiping');
     card.classList.add('snap-back');
-    card.style.transform = '';
-    card.addEventListener('transitionend', () => card.classList.remove('snap-back'), { once: true });
+    card.style.setProperty('transform', 'translateX(0)', 'important');
+    card.addEventListener('transitionend', () => {
+      card.classList.remove('snap-back');
+      card.style.removeProperty('transform');
+    }, { once: true });
   }
 
   function doDelete() {
     card.classList.remove('is-swiping');
     card.classList.add('snap-back');
-    card.style.transform = 'translateX(-100vw)'; /* 画面外まで飛ばす */
+    card.style.setProperty('transform', 'translateX(-100vw)', 'important');
     card.style.opacity = '0';
     // transitionend は信頼性が低いため setTimeout で確実に削除
     setTimeout(() => {
@@ -614,7 +617,7 @@ function attachSwipeListeners(card, wrapper, id) {
     // 横スワイプ確定 → ブラウザのスクロールを止める（passive:falseが必須）
     e.preventDefault();
     currentX = t.clientX;
-    card.style.transform = `translateX(${dx}px)`;
+    card.style.setProperty('transform', `translateX(${dx}px)`, 'important');
     wrapper.classList.toggle('swiping',          Math.abs(dx) > 10);
     wrapper.classList.toggle('swiping-left',     dx < -10);
     wrapper.classList.toggle('swiping-right',    dx > 10);
