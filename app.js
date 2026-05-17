@@ -546,13 +546,6 @@ function addRipple(e) {
 }
 
 
-/* ===== Swipe Debug ===== */
-function dbgLog(msg) {
-  let d = document.getElementById('_dbg');
-  if (!d) { d = document.createElement('div'); d.id = '_dbg'; d.style.cssText = 'position:fixed;bottom:80px;left:0;right:0;background:rgba(0,0,0,.85);color:#0f0;font:11px monospace;padding:4px;z-index:9999;max-height:90px;overflow:auto;pointer-events:none;'; document.body.appendChild(d); }
-  d.textContent = msg + '\n' + d.textContent.slice(0, 500);
-}
-
 /* ===== Swipe Gesture (タッチイベントをカードに直接付与) ===== */
 function attachSwipeListeners(card, wrapper, id) {
   let startX = 0, startY = 0, currentX = 0;
@@ -598,7 +591,6 @@ function attachSwipeListeners(card, wrapper, id) {
     currentX = t.clientX;
     active = true;
     canceled = false;
-    dbgLog('START');
   }, { passive: false }); // falseでブラウザにJS優先を伝える
 
   card.addEventListener('touchmove', (e) => {
@@ -629,26 +621,21 @@ function attachSwipeListeners(card, wrapper, id) {
     if (!active) return;
     const wasSwiping = card.classList.contains('is-swiping');
     const dx = currentX - startX;
-    dbgLog('END dx=' + Math.round(dx) + ' swiping=' + wasSwiping + ' thr=' + SWIPE_AUTO_TRIGGER);
     reset();
     if (!wasSwiping) return;
 
     if (dx < -SWIPE_AUTO_TRIGGER) {
-      dbgLog('→DELETE');
       doDelete();
     } else if (dx > SWIPE_AUTO_TRIGGER) {
-      dbgLog('→COMPLETE');
       snapBack();
       setTimeout(() => toggleDone(id), 280);
     } else {
-      dbgLog('→SNAPBACK');
       snapBack();
     }
   }, { passive: true });
 
   card.addEventListener('touchcancel', () => {
     if (!active) return;
-    dbgLog('CANCEL! active=' + active);
     snapBack();
     reset();
   }, { passive: true });
