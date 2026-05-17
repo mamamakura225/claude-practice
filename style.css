@@ -1162,3 +1162,25 @@ a { color: inherit; text-decoration: none; }
   color: var(--status-inprogress);
   font-weight: 500;
 }
+
+/* ===== Drag & Drop ===== */
+.task-card.dragging,
+.kanban-card.dragging {
+  opacity: 0.4;
+}
+#taskList.drop-target,
+.kanban-cards.drop-target {
+  outline: 2px dashed var(--primary);
+  outline-offset: -2px;
+  background: var(--primary-bg);
+}
+@media (hover: hover) {
+  .task-card[draggable="true"],
+  .kanban-card[draggable="true"] {
+    cursor: grab;
+  }
+  .task-card.dragging,
+  .kanban-card.dragging {
+    cursor: grabbing;
+  }
+}

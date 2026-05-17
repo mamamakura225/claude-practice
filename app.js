@@ -24,7 +24,7 @@ const state = {
     categoryId: '',
     priority: '',
     status: '',
-    sort: 'createdAt',
+    sort: 'manual',
     search: '',
   },
   theme: 'light',
@@ -123,6 +123,7 @@ function normalizeTask(t) {
     tags: [],
     subtasks: [],
     recurrence: null,
+    order: 0,
     ...t,
   };
 }
@@ -256,6 +257,9 @@ function getFilteredTasks() {
   }
 
   tasks.sort((a, b) => {
+    if (state.filters.sort === 'manual') {
+      return (a.order ?? 0) - (b.order ?? 0);
+    }
     if (state.filters.sort === 'deadline') {
       const da = a.deadline || '9999-99-99';
       const db = b.deadline || '9999-99-99';
@@ -363,6 +367,8 @@ function renderListView() {
     container.appendChild(wrapper);
     // スワイプリスナーをカードに直接付与
     attachSwipeListeners(card, wrapper, task.id);
+    // D&Dハンドラ (デスクトップのみ)
+    attachCardDragHandlers(card);
   });
 }
 
@@ -416,6 +422,7 @@ function renderKanbanView() {
         </div>
       `;
       container.appendChild(card);
+      attachCardDragHandlers(card);
     });
   });
 }
@@ -773,6 +780,133 @@ function attachSwipeListeners(card, wrapper, id) {
 
 function initSwipeGestures() { /* attachSwipeListeners()でカード生成時に付与 */ }
 
+/* ===== Drag & Drop (desktop only) ===== */
+const isDndDesktop = () => window.matchMedia('(hover: hover)').matches;
+const dragState = { id: null };
+
+function attachCardDragHandlers(card) {
+  if (!isDndDesktop()) return;
+  card.draggable = true;
+  card.addEventListener('dragstart', e => {
+    dragState.id = card.dataset.id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+    card.classList.add('dragging');
+    card.closest('.swipe-wrapper')?.classList.add('dragging');
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    card.closest('.swipe-wrapper')?.classList.remove('dragging');
+    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+    dragState.id = null;
+  });
+}
+
+function getDragAfterElement(container, y, selector) {
+  const items = [...container.querySelectorAll(`${selector}:not(.dragging)`)];
+  return items.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset, element: child };
+    }
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function syncManualSort() {
+  if (state.filters.sort !== 'manual') {
+    state.filters.sort = 'manual';
+    const sel = document.getElementById('sortOrder');
+    if (sel) sel.value = 'manual';
+  }
+}
+
+function handleListDragOver(e) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = document.getElementById('taskList');
+  container.classList.add('drop-target');
+
+  const draggingWrapper = container.querySelector('.swipe-wrapper.dragging');
+  if (!draggingWrapper) return;
+  const afterWrapper = getDragAfterElement(container, e.clientY, '.swipe-wrapper');
+  if (!afterWrapper) container.appendChild(draggingWrapper);
+  else if (afterWrapper !== draggingWrapper) container.insertBefore(draggingWrapper, afterWrapper);
+}
+
+function handleListDrop(e) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = document.getElementById('taskList');
+  container.classList.remove('drop-target');
+
+  const newOrder = [...container.querySelectorAll('.swipe-wrapper .task-card[data-id]')]
+                     .map(c => c.dataset.id);
+  newOrder.forEach((tid, idx) => {
+    const t = state.tasks.find(tt => tt.id === tid);
+    if (t) t.order = idx;
+  });
+
+  syncManualSort();
+  saveCloud();
+  render();
+}
+
+function handleKanbanDragOver(e) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = e.currentTarget;
+  container.classList.add('drop-target');
+
+  const draggedCard = document.querySelector(`.kanban-card[data-id="${dragState.id}"]`);
+  if (!draggedCard) return;
+  const afterEl = getDragAfterElement(container, e.clientY, '.kanban-card');
+  if (!afterEl) container.appendChild(draggedCard);
+  else if (afterEl !== draggedCard) container.insertBefore(draggedCard, afterEl);
+}
+
+function handleKanbanDragLeave(e) {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('drop-target');
+}
+
+function handleKanbanDrop(e, status) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = document.getElementById(`${status}Cards`);
+  container.classList.remove('drop-target');
+
+  const task = state.tasks.find(t => t.id === dragState.id);
+  if (!task) return;
+
+  const newIds = [...container.querySelectorAll('.kanban-card[data-id]')].map(c => c.dataset.id);
+  newIds.forEach((tid, idx) => {
+    const t = state.tasks.find(tt => tt.id === tid);
+    if (t) t.order = idx;
+  });
+
+  if (task.status !== status) task.status = status;
+
+  syncManualSort();
+  saveCloud();
+  render();
+}
+
+function initDragDropZones() {
+  if (!isDndDesktop()) return;
+  const list = document.getElementById('taskList');
+  list.addEventListener('dragover', handleListDragOver);
+  list.addEventListener('dragleave', e => { if (e.target === list) list.classList.remove('drop-target'); });
+  list.addEventListener('drop', handleListDrop);
+
+  ['todo', 'inprogress', 'done'].forEach(status => {
+    const col = document.getElementById(`${status}Cards`);
+    col.addEventListener('dragover', handleKanbanDragOver);
+    col.addEventListener('dragleave', handleKanbanDragLeave);
+    col.addEventListener('drop', e => handleKanbanDrop(e, status));
+  });
+}
+
 /* ===== Init ===== */
 async function init() {
   await loadStorage();
@@ -892,6 +1026,9 @@ async function init() {
 
   /* Swipe gestures (mobile list view) */
   initSwipeGestures();
+
+  /* D&D drop zones (desktop only) */
+  initDragDropZones();
 }
 
 document.addEventListener('DOMContentLoaded', init);

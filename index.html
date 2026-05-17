@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=17">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -93,6 +93,7 @@
         <div class="filter-group">
           <label class="filter-label">並べ替え</label>
           <select id="sortOrder" class="filter-select">
+            <option value="manual">手動順</option>
             <option value="createdAt">作成日順</option>
             <option value="deadline">締め切り順</option>
             <option value="priority">優先度順</option>
@@ -280,6 +281,6 @@
   <!-- FAB（モバイル用タスク追加ボタン） -->
   <button class="fab" id="fabAddTask" aria-label="タスク追加">＋</button>
 
-  <script type="module" src="app.js?v=16"></script>
+  <script type="module" src="app.js?v=17"></script>
 </body>
 </html>
