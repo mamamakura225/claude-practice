@@ -970,15 +970,28 @@ a { color: inherit; text-decoration: none; }
   position: relative;
   border-radius: var(--radius);
   overflow: hidden;
-  /* ラッパー背景をスワイプ方向で切り替える（カードのGPUレイヤーに隠れない） */
-  transition: background 0.1s ease;
 }
-.swipe-wrapper.swiping-left   { background: #ef4444; }
-.swipe-wrapper.swiping-right  { background: #16a34a; }
-.swipe-wrapper.trigger-delete   { background: #dc2626; }
-.swipe-wrapper.trigger-complete { background: #15803d; }
 
-/* アイコンはカードが動いた端に表示 */
+/* カード自体の背景グラデーションを変える
+   （will-change:transformのGPUレイヤー問題を回避。カードは必ず見える） */
+.swipe-wrapper > .task-card {
+  position: relative;
+  z-index: 1;
+}
+.swipe-wrapper.swiping-left .task-card {
+  background: linear-gradient(to left, #ef4444, var(--card-bg) 60%);
+}
+.swipe-wrapper.swiping-right .task-card {
+  background: linear-gradient(to right, #16a34a, var(--card-bg) 60%);
+}
+.swipe-wrapper.trigger-delete .task-card {
+  background: linear-gradient(to left, #dc2626, var(--card-bg) 35%);
+}
+.swipe-wrapper.trigger-complete .task-card {
+  background: linear-gradient(to right, #15803d, var(--card-bg) 35%);
+}
+
+/* アイコン */
 .swipe-bg-delete,
 .swipe-bg-complete {
   position: absolute;
@@ -990,25 +1003,19 @@ a { color: inherit; text-decoration: none; }
   transition: opacity 0.1s ease;
   pointer-events: none;
   user-select: none;
-  z-index: 0;
+  z-index: 2;
 }
-.swipe-bg-delete  { right: 20px; }
-.swipe-bg-complete { left: 20px; }
+.swipe-bg-delete  { right: 16px; }
+.swipe-bg-complete { left: 16px; }
 .swipe-wrapper.swiping-left  .swipe-bg-delete  { opacity: 1; }
 .swipe-wrapper.swiping-right .swipe-bg-complete { opacity: 1; }
-
-/* カードをラッパー背景より必ず前面に */
-.swipe-wrapper > .task-card {
-  position: relative;
-  z-index: 1;
-}
 
 .task-card.is-swiping {
   transition: box-shadow 0.2s ease;
 }
 .task-card.snap-back {
   transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.2s ease, opacity 0.18s ease !important;
+              background 0.15s ease, box-shadow 0.2s ease, opacity 0.18s ease !important;
 }
 
 /* ===== Landscape Mobile Optimization ===== */
