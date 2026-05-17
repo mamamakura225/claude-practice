@@ -568,7 +568,7 @@ function attachSwipeListeners(card, wrapper, id) {
   function doDelete() {
     card.classList.remove('is-swiping');
     card.classList.add('snap-back');
-    card.style.transform = 'translateX(-110%)';
+    card.style.transform = 'translateX(-100vw)'; /* 画面外まで飛ばす */
     card.style.opacity = '0';
     // transitionend は信頼性が低いため setTimeout で確実に削除
     setTimeout(() => {
