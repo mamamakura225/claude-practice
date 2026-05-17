@@ -569,12 +569,14 @@ function attachSwipeListeners(card, wrapper, id) {
     card.classList.remove('is-swiping');
     card.classList.add('snap-back');
     card.style.transform = 'translateX(-110%)';
-    card.addEventListener('transitionend', () => {
+    card.style.opacity = '0';
+    // transitionend は信頼性が低いため setTimeout で確実に削除
+    setTimeout(() => {
       wrapper.remove();
       state.tasks = state.tasks.filter(t => t.id !== id);
       saveCloud();
       render();
-    }, { once: true });
+    }, 350);
   }
 
   function reset() {
