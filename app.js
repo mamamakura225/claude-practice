@@ -30,6 +30,15 @@ const state = {
   theme: 'light',
 };
 
+/* ===== Swipe Gesture State ===== */
+const SWIPE_THRESHOLD    = 40;
+const SWIPE_AUTO_TRIGGER = 100;
+const swipeState = {
+  active: false, startX: 0, startY: 0, currentX: 0,
+  card: null, wrapper: null, id: null, canceled: false,
+};
+let swipeDidMove = false;
+
 /* ===== Storage ===== */
 const THEME_KEY = 'dtask_theme';
 
@@ -226,7 +235,7 @@ function renderListView() {
   const tasks     = getFilteredTasks();
 
   // remove old cards (keep empty state)
-  container.querySelectorAll('.task-card').forEach(el => el.remove());
+  container.querySelectorAll('.swipe-wrapper, .task-card').forEach(el => el.remove());
 
   if (tasks.length === 0) {
     empty.style.display = '';
@@ -257,7 +266,21 @@ function renderListView() {
         <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除">🗑️</button>
       </div>
     `;
-    container.appendChild(card);
+    // .task-card を .swipe-wrapper で包む
+    const wrapper = document.createElement('div');
+    wrapper.className = 'swipe-wrapper';
+    const bgComplete = document.createElement('div');
+    bgComplete.className = 'swipe-bg-complete';
+    bgComplete.textContent = '✓';
+    const bgDelete = document.createElement('div');
+    bgDelete.className = 'swipe-bg-delete';
+    bgDelete.textContent = '🗑';
+    wrapper.appendChild(bgComplete);
+    wrapper.appendChild(bgDelete);
+    wrapper.appendChild(card);
+    container.appendChild(wrapper);
+    // スワイプリスナーをカードに直接付与
+    attachSwipeListeners(card, wrapper, task.id);
   });
 }
 
@@ -522,6 +545,104 @@ function addRipple(e) {
   circle.addEventListener('animationend', () => circle.remove(), { once: true });
 }
 
+
+/* ===== Swipe Gesture (タッチイベントをカードに直接付与) ===== */
+function attachSwipeListeners(card, wrapper, id) {
+  let startX = 0, startY = 0, currentX = 0;
+  let active = false, canceled = false;
+
+  function snapBack() {
+    card.classList.remove('is-swiping');
+    card.classList.add('snap-back');
+    card.style.setProperty('transform', 'translateX(0)', 'important');
+    card.addEventListener('transitionend', () => {
+      card.classList.remove('snap-back');
+      card.style.removeProperty('transform');
+    }, { once: true });
+  }
+
+  function doDelete() {
+    card.classList.remove('is-swiping');
+    card.classList.add('snap-back');
+    card.style.setProperty('transform', 'translateX(-100vw)', 'important');
+    card.style.opacity = '0';
+    // transitionend は信頼性が低いため setTimeout で確実に削除
+    setTimeout(() => {
+      wrapper.remove();
+      state.tasks = state.tasks.filter(t => t.id !== id);
+      saveCloud();
+      render();
+    }, 350);
+  }
+
+  function reset() {
+    wrapper.classList.remove('swiping', 'swiping-left', 'swiping-right',
+                              'trigger-delete', 'trigger-complete');
+    card.classList.remove('is-swiping');
+    active = false;
+    canceled = false;
+  }
+
+  card.addEventListener('touchstart', (e) => {
+    if (card.classList.contains('removing')) return;
+    const t = e.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    currentX = t.clientX;
+    active = true;
+    canceled = false;
+  }, { passive: false }); // falseでブラウザにJS優先を伝える
+
+  card.addEventListener('touchmove', (e) => {
+    if (!active || canceled) return;
+    const t = e.touches[0];
+    const dx = t.clientX - startX;
+    const dy = t.clientY - startY;
+
+    // 方向判定（8px動くまで待つ）
+    if (!card.classList.contains('is-swiping')) {
+      if (Math.abs(dx) + Math.abs(dy) < 8) return;
+      if (Math.abs(dy) >= Math.abs(dx)) { canceled = true; return; } // 縦 → スクロール優先
+      card.classList.add('is-swiping');
+    }
+
+    // 横スワイプ確定 → ブラウザのスクロールを止める（passive:falseが必須）
+    e.preventDefault();
+    currentX = t.clientX;
+    card.style.setProperty('transform', `translateX(${dx}px)`, 'important');
+    wrapper.classList.toggle('swiping',          Math.abs(dx) > 10);
+    wrapper.classList.toggle('swiping-left',     dx < -10);
+    wrapper.classList.toggle('swiping-right',    dx > 10);
+    wrapper.classList.toggle('trigger-delete',   dx < -SWIPE_AUTO_TRIGGER);
+    wrapper.classList.toggle('trigger-complete', dx > SWIPE_AUTO_TRIGGER);
+  }, { passive: false }); // falseにしてpreventDefault()を有効化
+
+  card.addEventListener('touchend', () => {
+    if (!active) return;
+    const wasSwiping = card.classList.contains('is-swiping');
+    const dx = currentX - startX;
+    reset();
+    if (!wasSwiping) return;
+
+    if (dx < -SWIPE_AUTO_TRIGGER) {
+      doDelete();
+    } else if (dx > SWIPE_AUTO_TRIGGER) {
+      snapBack();
+      setTimeout(() => toggleDone(id), 280);
+    } else {
+      snapBack();
+    }
+  }, { passive: true });
+
+  card.addEventListener('touchcancel', () => {
+    if (!active) return;
+    snapBack();
+    reset();
+  }, { passive: true });
+}
+
+function initSwipeGestures() { /* attachSwipeListeners()でカード生成時に付与 */ }
+
 /* ===== Init ===== */
 async function init() {
   await loadStorage();
@@ -631,6 +752,9 @@ async function init() {
   /* Global delegation */
   document.addEventListener('click', handleGlobalClick);
   document.addEventListener('change', handleGlobalChange);
+
+  /* Swipe gestures (mobile list view) */
+  initSwipeGestures();
 }
 
 document.addEventListener('DOMContentLoaded', init);
