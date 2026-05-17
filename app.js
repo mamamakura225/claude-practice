@@ -31,8 +31,8 @@ const state = {
 };
 
 /* ===== Swipe Gesture State ===== */
-const SWIPE_THRESHOLD    = 80;
-const SWIPE_AUTO_TRIGGER = 160;
+const SWIPE_THRESHOLD    = 40;
+const SWIPE_AUTO_TRIGGER = 100;
 const swipeState = {
   active: false, startX: 0, startY: 0, currentX: 0,
   card: null, wrapper: null, id: null, canceled: false,
@@ -545,21 +545,12 @@ function addRipple(e) {
   circle.addEventListener('animationend', () => circle.remove(), { once: true });
 }
 
-/* ===== Swipe Debug Overlay ===== */
-function getOrCreateDebug() {
-  let d = document.getElementById('_swipe_dbg');
-  if (!d) {
-    d = document.createElement('div');
-    d.id = '_swipe_dbg';
-    d.style.cssText = 'position:fixed;bottom:80px;left:0;right:0;background:rgba(0,0,0,.85);color:#0f0;font:12px monospace;padding:6px;z-index:9999;max-height:100px;overflow:auto;pointer-events:none;';
-    d.textContent = '--- swipe debug ---';
-    document.body.appendChild(d);
-  }
-  return d;
-}
+
+/* ===== Swipe Debug ===== */
 function dbgLog(msg) {
-  const d = getOrCreateDebug();
-  d.textContent = msg + '\n' + d.textContent.slice(0, 400);
+  let d = document.getElementById('_dbg');
+  if (!d) { d = document.createElement('div'); d.id = '_dbg'; d.style.cssText = 'position:fixed;bottom:80px;left:0;right:0;background:rgba(0,0,0,.85);color:#0f0;font:11px monospace;padding:4px;z-index:9999;max-height:90px;overflow:auto;pointer-events:none;'; document.body.appendChild(d); }
+  d.textContent = msg + '\n' + d.textContent.slice(0, 500);
 }
 
 /* ===== Swipe Gesture (タッチイベントをカードに直接付与) ===== */
@@ -602,8 +593,8 @@ function attachSwipeListeners(card, wrapper, id) {
     currentX = t.clientX;
     active = true;
     canceled = false;
-    dbgLog('START x=' + Math.round(t.clientX));
-  }, { passive: true });
+    dbgLog('START');
+  }, { passive: false }); // falseでブラウザにJS優先を伝える
 
   card.addEventListener('touchmove', (e) => {
     if (!active || canceled) return;
@@ -619,7 +610,6 @@ function attachSwipeListeners(card, wrapper, id) {
     }
 
     // 横スワイプ確定 → ブラウザのスクロールを止める（passive:falseが必須）
-    dbgLog('MOVE dx=' + Math.round(dx) + ' dy=' + Math.round(dy));
     e.preventDefault();
     currentX = t.clientX;
     card.style.transform = `translateX(${dx}px)`;
@@ -634,22 +624,26 @@ function attachSwipeListeners(card, wrapper, id) {
     if (!active) return;
     const wasSwiping = card.classList.contains('is-swiping');
     const dx = currentX - startX;
+    dbgLog('END dx=' + Math.round(dx) + ' swiping=' + wasSwiping + ' thr=' + SWIPE_AUTO_TRIGGER);
     reset();
     if (!wasSwiping) return;
 
     if (dx < -SWIPE_AUTO_TRIGGER) {
+      dbgLog('→DELETE');
       doDelete();
     } else if (dx > SWIPE_AUTO_TRIGGER) {
+      dbgLog('→COMPLETE');
       snapBack();
       setTimeout(() => toggleDone(id), 280);
     } else {
+      dbgLog('→SNAPBACK');
       snapBack();
     }
   }, { passive: true });
 
   card.addEventListener('touchcancel', () => {
-    dbgLog('CANCEL! active=' + active);
     if (!active) return;
+    dbgLog('CANCEL! active=' + active);
     snapBack();
     reset();
   }, { passive: true });
