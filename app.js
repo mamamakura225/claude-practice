@@ -106,13 +106,28 @@ function isOverdue(dateStr) {
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
+function addDays(dateStr, n) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function addMonths(dateStr, n) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 function normalizeTask(t) {
   return {
     tags: [],
     subtasks: [],
+    recurrence: null,
     ...t,
   };
 }
+
+const RECURRENCE_LABEL = { daily: '毎日', weekly: '毎週', monthly: '毎月' };
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 const PRIORITY_LABEL = { high: '高', medium: '中', low: '低' };
@@ -160,9 +175,35 @@ function deleteTask(id) {
 function toggleDone(id) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
+  const becomingDone = task.status !== 'done';
   task.status = task.status === 'done' ? 'todo' : 'done';
+
+  if (becomingDone && task.recurrence && task.recurrence.type) {
+    spawnNextRecurrence(task);
+  }
+
   saveCloud();
   render();
+}
+
+function nextRecurrenceDeadline(deadline, recurrence) {
+  const base = deadline || new Date().toISOString().slice(0, 10);
+  if (recurrence.type === 'daily')   return addDays(base, 1);
+  if (recurrence.type === 'weekly')  return addDays(base, 7);
+  if (recurrence.type === 'monthly') return addMonths(base, 1);
+  return base;
+}
+
+function spawnNextRecurrence(task) {
+  const next = normalizeTask({
+    ...task,
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    status: 'todo',
+    deadline: nextRecurrenceDeadline(task.deadline, task.recurrence),
+    subtasks: (task.subtasks || []).map(s => ({ ...s, id: uid(), done: false })),
+  });
+  state.tasks.push(next);
 }
 
 /* ===== Category CRUD ===== */
@@ -251,6 +292,11 @@ function tagChipsHtml(tags) {
   return tags.map(t => `<span class="tag-chip">#${escHtml(t)}</span>`).join('');
 }
 
+function recurrenceBadgeHtml(recurrence) {
+  if (!recurrence || !recurrence.type) return '';
+  return `<span class="badge-recurrence">🔁 ${RECURRENCE_LABEL[recurrence.type] || recurrence.type}</span>`;
+}
+
 function subtaskProgressHtml(subtasks) {
   if (!subtasks || subtasks.length === 0) return '';
   const done = subtasks.filter(s => s.done).length;
@@ -291,6 +337,7 @@ function renderListView() {
           ${priorityBadgeHtml(task.priority)}
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
+          ${recurrenceBadgeHtml(task.recurrence)}
           ${subtaskProgressHtml(task.subtasks)}
           <span class="badge badge-low">${STATUS_LABEL[task.status] || task.status}</span>
         </div>
@@ -356,6 +403,7 @@ function renderKanbanView() {
           ${priorityBadgeHtml(task.priority)}
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
+          ${recurrenceBadgeHtml(task.recurrence)}
           ${subtaskProgressHtml(task.subtasks)}
         </div>
         ${task.tags && task.tags.length ? `<div class="kanban-card-tags">${tagChipsHtml(task.tags)}</div>` : ''}
@@ -490,14 +538,16 @@ function openTaskModal(task = null) {
     document.getElementById('taskCategory').value    = task.categoryId || '';
     document.getElementById('taskStatus').value      = task.status;
     document.getElementById('taskTags').value        = (task.tags || []).join(', ');
+    document.getElementById('taskRecurrence').value  = (task.recurrence && task.recurrence.type) || '';
     (task.subtasks || []).forEach(st => appendSubtaskRow(st));
   } else {
     title.textContent = 'タスク追加';
     document.getElementById('taskForm').reset();
     idInput.value = '';
-    document.getElementById('taskPriority').value = 'medium';
-    document.getElementById('taskStatus').value   = 'todo';
-    document.getElementById('taskTags').value     = '';
+    document.getElementById('taskPriority').value   = 'medium';
+    document.getElementById('taskStatus').value     = 'todo';
+    document.getElementById('taskTags').value       = '';
+    document.getElementById('taskRecurrence').value = '';
   }
 
   modal.classList.remove('hidden');
@@ -555,6 +605,7 @@ function handleTaskFormSubmit(e) {
   const id = document.getElementById('taskId').value;
   const tags = document.getElementById('taskTags').value
     .split(',').map(s => s.trim()).filter(Boolean);
+  const recurrenceType = document.getElementById('taskRecurrence').value;
   const data = {
     title:       document.getElementById('taskTitle').value.trim(),
     description: document.getElementById('taskDescription').value.trim(),
@@ -564,6 +615,7 @@ function handleTaskFormSubmit(e) {
     status:      document.getElementById('taskStatus').value,
     tags,
     subtasks:    collectSubtasks(),
+    recurrence:  recurrenceType ? { type: recurrenceType, interval: 1 } : null,
   };
   if (!data.title) return;
 

@@ -1151,3 +1151,14 @@ a { color: inherit; text-decoration: none; }
   background: var(--primary);
   transition: width 0.3s ease;
 }
+
+/* ===== Recurrence badge ===== */
+.badge-recurrence {
+  display: inline-block;
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--status-inprogress-bg);
+  color: var(--status-inprogress);
+  font-weight: 500;
+}
