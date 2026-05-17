@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=16">
+  <link rel="stylesheet" href="style.css?v=18">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -93,6 +93,7 @@
         <div class="filter-group">
           <label class="filter-label">並べ替え</label>
           <select id="sortOrder" class="filter-select">
+            <option value="manual">手動順</option>
             <option value="createdAt">作成日順</option>
             <option value="deadline">締め切り順</option>
             <option value="priority">優先度順</option>
@@ -194,6 +195,11 @@
           <label class="form-label">詳細</label>
           <textarea id="taskDescription" class="form-textarea" placeholder="詳細・メモを入力..." rows="3"></textarea>
         </div>
+        <div class="form-group">
+          <label class="form-label">サブタスク</label>
+          <div id="subtaskList" class="subtask-list"></div>
+          <button type="button" class="subtask-add-btn" id="addSubtaskBtn">＋ サブタスクを追加</button>
+        </div>
         <div class="form-row">
           <div class="form-group">
             <label class="form-label">期限</label>
@@ -207,6 +213,15 @@
               <option value="low">低</option>
             </select>
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">繰り返し</label>
+          <select id="taskRecurrence" class="form-select">
+            <option value="">なし</option>
+            <option value="daily">毎日</option>
+            <option value="weekly">毎週</option>
+            <option value="monthly">毎月</option>
+          </select>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -223,6 +238,10 @@
               <option value="done">完了</option>
             </select>
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">タグ</label>
+          <input type="text" id="taskTags" class="form-input" placeholder="カンマ区切りで入力 (例: 重要, レビュー待ち)">
         </div>
         <div class="modal-footer">
           <button type="button" class="btn-secondary" id="cancelTaskModal">キャンセル</button>
@@ -262,6 +281,6 @@
   <!-- FAB（モバイル用タスク追加ボタン） -->
   <button class="fab" id="fabAddTask" aria-label="タスク追加">＋</button>
 
-  <script type="module" src="app.js?v=16"></script>
+  <script type="module" src="app.js?v=17"></script>
 </body>
 </html>

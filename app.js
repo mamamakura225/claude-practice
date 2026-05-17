@@ -24,7 +24,7 @@ const state = {
     categoryId: '',
     priority: '',
     status: '',
-    sort: 'createdAt',
+    sort: 'manual',
     search: '',
   },
   theme: 'light',
@@ -60,7 +60,7 @@ async function loadStorage() {
   const snap = await getDoc(DATA_DOC);
   if (snap.exists()) {
     const d = snap.data();
-    state.tasks      = d.tasks      || [];
+    state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
   } else {
     // 初回: localStorageにデータがあればFirestoreへ移行
@@ -70,6 +70,7 @@ async function loadStorage() {
     } catch {
       state.tasks = []; state.categories = [];
     }
+    state.tasks = state.tasks.map(normalizeTask);
     if (state.tasks.length || state.categories.length) await saveCloud();
   }
 }
@@ -105,6 +106,30 @@ function isOverdue(dateStr) {
   return new Date(dateStr) < new Date(new Date().toDateString());
 }
 
+function addDays(dateStr, n) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function addMonths(dateStr, n) {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  d.setMonth(d.getMonth() + n);
+  return d.toISOString().slice(0, 10);
+}
+
+function normalizeTask(t) {
+  return {
+    tags: [],
+    subtasks: [],
+    recurrence: null,
+    order: 0,
+    ...t,
+  };
+}
+
+const RECURRENCE_LABEL = { daily: '毎日', weekly: '毎週', monthly: '毎月' };
+
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 const PRIORITY_LABEL = { high: '高', medium: '中', low: '低' };
 const STATUS_LABEL   = { todo: '未着手', inprogress: '進行中', done: '完了' };
@@ -119,7 +144,7 @@ function escHtml(str) {
 
 /* ===== Task CRUD ===== */
 function addTask(data) {
-  state.tasks.push({ id: uid(), createdAt: new Date().toISOString(), ...data });
+  state.tasks.push(normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data }));
   saveCloud();
   render();
 }
@@ -151,9 +176,35 @@ function deleteTask(id) {
 function toggleDone(id) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
+  const becomingDone = task.status !== 'done';
   task.status = task.status === 'done' ? 'todo' : 'done';
+
+  if (becomingDone && task.recurrence && task.recurrence.type) {
+    spawnNextRecurrence(task);
+  }
+
   saveCloud();
   render();
+}
+
+function nextRecurrenceDeadline(deadline, recurrence) {
+  const base = deadline || new Date().toISOString().slice(0, 10);
+  if (recurrence.type === 'daily')   return addDays(base, 1);
+  if (recurrence.type === 'weekly')  return addDays(base, 7);
+  if (recurrence.type === 'monthly') return addMonths(base, 1);
+  return base;
+}
+
+function spawnNextRecurrence(task) {
+  const next = normalizeTask({
+    ...task,
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    status: 'todo',
+    deadline: nextRecurrenceDeadline(task.deadline, task.recurrence),
+    subtasks: (task.subtasks || []).map(s => ({ ...s, id: uid(), done: false })),
+  });
+  state.tasks.push(next);
 }
 
 /* ===== Category CRUD ===== */
@@ -189,14 +240,26 @@ function getFilteredTasks() {
   if (state.filters.status)
     tasks = tasks.filter(t => t.status === state.filters.status);
   if (state.filters.search) {
-    const q = state.filters.search.toLowerCase();
-    tasks = tasks.filter(t =>
-      t.title.toLowerCase().includes(q) ||
-      (t.description && t.description.toLowerCase().includes(q))
-    );
+    const raw = state.filters.search.trim();
+    if (raw.startsWith('#') && raw.length > 1) {
+      const tagQuery = raw.slice(1).toLowerCase();
+      tasks = tasks.filter(t =>
+        (t.tags || []).some(tag => tag.toLowerCase() === tagQuery)
+      );
+    } else {
+      const q = raw.toLowerCase();
+      tasks = tasks.filter(t =>
+        t.title.toLowerCase().includes(q) ||
+        (t.description && t.description.toLowerCase().includes(q)) ||
+        (t.tags || []).some(tag => tag.toLowerCase().includes(q))
+      );
+    }
   }
 
   tasks.sort((a, b) => {
+    if (state.filters.sort === 'manual') {
+      return (a.order ?? 0) - (b.order ?? 0);
+    }
     if (state.filters.sort === 'deadline') {
       const da = a.deadline || '9999-99-99';
       const db = b.deadline || '9999-99-99';
@@ -226,6 +289,26 @@ function deadlineBadgeHtml(deadline) {
   if (!deadline) return '';
   const over = isOverdue(deadline);
   return `<span class="badge-deadline${over ? ' overdue' : ''}">📅 ${formatDate(deadline)}${over ? ' (期限切れ)' : ''}</span>`;
+}
+
+function tagChipsHtml(tags) {
+  if (!tags || tags.length === 0) return '';
+  return tags.map(t => `<span class="tag-chip">#${escHtml(t)}</span>`).join('');
+}
+
+function recurrenceBadgeHtml(recurrence) {
+  if (!recurrence || !recurrence.type) return '';
+  return `<span class="badge-recurrence">🔁 ${RECURRENCE_LABEL[recurrence.type] || recurrence.type}</span>`;
+}
+
+function subtaskProgressHtml(subtasks) {
+  if (!subtasks || subtasks.length === 0) return '';
+  const done = subtasks.filter(s => s.done).length;
+  const pct = Math.round((done / subtasks.length) * 100);
+  return `<span class="subtask-progress" title="サブタスク進捗">
+    <span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
+    <span class="subtask-progress-text">${done}/${subtasks.length}</span>
+  </span>`;
 }
 
 /* ===== Render: List View ===== */
@@ -258,8 +341,11 @@ function renderListView() {
           ${priorityBadgeHtml(task.priority)}
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
+          ${recurrenceBadgeHtml(task.recurrence)}
+          ${subtaskProgressHtml(task.subtasks)}
           <span class="badge badge-low">${STATUS_LABEL[task.status] || task.status}</span>
         </div>
+        ${task.tags && task.tags.length ? `<div class="task-tags">${tagChipsHtml(task.tags)}</div>` : ''}
       </div>
       <div class="task-actions">
         <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集">✏️</button>
@@ -281,6 +367,8 @@ function renderListView() {
     container.appendChild(wrapper);
     // スワイプリスナーをカードに直接付与
     attachSwipeListeners(card, wrapper, task.id);
+    // D&Dハンドラ (デスクトップのみ)
+    attachCardDragHandlers(card);
   });
 }
 
@@ -321,7 +409,10 @@ function renderKanbanView() {
           ${priorityBadgeHtml(task.priority)}
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
+          ${recurrenceBadgeHtml(task.recurrence)}
+          ${subtaskProgressHtml(task.subtasks)}
         </div>
+        ${task.tags && task.tags.length ? `<div class="kanban-card-tags">${tagChipsHtml(task.tags)}</div>` : ''}
         <div class="kanban-card-footer">
           <select class="kanban-status-select" data-action="status" data-id="${task.id}">${statusOptions}</select>
           <div class="kanban-actions">
@@ -331,6 +422,7 @@ function renderKanbanView() {
         </div>
       `;
       container.appendChild(card);
+      attachCardDragHandlers(card);
     });
   });
 }
@@ -401,6 +493,38 @@ function render() {
   else renderKanbanView();
 }
 
+/* ===== Modal: Subtask rows ===== */
+function appendSubtaskRow(subtask = { id: uid(), title: '', done: false }) {
+  const list = document.getElementById('subtaskList');
+  const row = document.createElement('div');
+  row.className = 'subtask-row';
+  row.dataset.id = subtask.id;
+  row.innerHTML = `
+    <input type="checkbox" class="subtask-check" ${subtask.done ? 'checked' : ''}>
+    <input type="text" class="subtask-title-input" value="${escHtml(subtask.title)}" placeholder="サブタスクのタイトル">
+    <button type="button" class="subtask-remove-btn" title="削除">✕</button>
+  `;
+  row.querySelector('.subtask-remove-btn').addEventListener('click', () => row.remove());
+  list.appendChild(row);
+}
+
+function collectSubtasks() {
+  const rows = document.querySelectorAll('#subtaskList .subtask-row');
+  const result = [];
+  rows.forEach(row => {
+    const titleInput = row.querySelector('.subtask-title-input');
+    const checkInput = row.querySelector('.subtask-check');
+    const title = titleInput.value.trim();
+    if (!title) return;
+    result.push({
+      id: row.dataset.id || uid(),
+      title,
+      done: checkInput.checked,
+    });
+  });
+  return result;
+}
+
 /* ===== Modal: Task ===== */
 function openTaskModal(task = null) {
   const modal    = document.getElementById('taskModal');
@@ -408,6 +532,8 @@ function openTaskModal(task = null) {
   const idInput  = document.getElementById('taskId');
 
   populateCategorySelect();
+
+  document.getElementById('subtaskList').innerHTML = '';
 
   if (task) {
     title.textContent                                = 'タスク編集';
@@ -418,12 +544,17 @@ function openTaskModal(task = null) {
     document.getElementById('taskPriority').value    = task.priority;
     document.getElementById('taskCategory').value    = task.categoryId || '';
     document.getElementById('taskStatus').value      = task.status;
+    document.getElementById('taskTags').value        = (task.tags || []).join(', ');
+    document.getElementById('taskRecurrence').value  = (task.recurrence && task.recurrence.type) || '';
+    (task.subtasks || []).forEach(st => appendSubtaskRow(st));
   } else {
     title.textContent = 'タスク追加';
     document.getElementById('taskForm').reset();
     idInput.value = '';
-    document.getElementById('taskPriority').value = 'medium';
-    document.getElementById('taskStatus').value   = 'todo';
+    document.getElementById('taskPriority').value   = 'medium';
+    document.getElementById('taskStatus').value     = 'todo';
+    document.getElementById('taskTags').value       = '';
+    document.getElementById('taskRecurrence').value = '';
   }
 
   modal.classList.remove('hidden');
@@ -479,6 +610,9 @@ function handleGlobalChange(e) {
 function handleTaskFormSubmit(e) {
   e.preventDefault();
   const id = document.getElementById('taskId').value;
+  const tags = document.getElementById('taskTags').value
+    .split(',').map(s => s.trim()).filter(Boolean);
+  const recurrenceType = document.getElementById('taskRecurrence').value;
   const data = {
     title:       document.getElementById('taskTitle').value.trim(),
     description: document.getElementById('taskDescription').value.trim(),
@@ -486,6 +620,9 @@ function handleTaskFormSubmit(e) {
     priority:    document.getElementById('taskPriority').value,
     categoryId:  document.getElementById('taskCategory').value,
     status:      document.getElementById('taskStatus').value,
+    tags,
+    subtasks:    collectSubtasks(),
+    recurrence:  recurrenceType ? { type: recurrenceType, interval: 1 } : null,
   };
   if (!data.title) return;
 
@@ -643,6 +780,133 @@ function attachSwipeListeners(card, wrapper, id) {
 
 function initSwipeGestures() { /* attachSwipeListeners()でカード生成時に付与 */ }
 
+/* ===== Drag & Drop (desktop only) ===== */
+const isDndDesktop = () => window.matchMedia('(hover: hover)').matches;
+const dragState = { id: null };
+
+function attachCardDragHandlers(card) {
+  if (!isDndDesktop()) return;
+  card.draggable = true;
+  card.addEventListener('dragstart', e => {
+    dragState.id = card.dataset.id;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', card.dataset.id);
+    card.classList.add('dragging');
+    card.closest('.swipe-wrapper')?.classList.add('dragging');
+  });
+  card.addEventListener('dragend', () => {
+    card.classList.remove('dragging');
+    card.closest('.swipe-wrapper')?.classList.remove('dragging');
+    document.querySelectorAll('.drop-target').forEach(el => el.classList.remove('drop-target'));
+    dragState.id = null;
+  });
+}
+
+function getDragAfterElement(container, y, selector) {
+  const items = [...container.querySelectorAll(`${selector}:not(.dragging)`)];
+  return items.reduce((closest, child) => {
+    const box = child.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if (offset < 0 && offset > closest.offset) {
+      return { offset, element: child };
+    }
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
+}
+
+function syncManualSort() {
+  if (state.filters.sort !== 'manual') {
+    state.filters.sort = 'manual';
+    const sel = document.getElementById('sortOrder');
+    if (sel) sel.value = 'manual';
+  }
+}
+
+function handleListDragOver(e) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = document.getElementById('taskList');
+  container.classList.add('drop-target');
+
+  const draggingWrapper = container.querySelector('.swipe-wrapper.dragging');
+  if (!draggingWrapper) return;
+  const afterWrapper = getDragAfterElement(container, e.clientY, '.swipe-wrapper');
+  if (!afterWrapper) container.appendChild(draggingWrapper);
+  else if (afterWrapper !== draggingWrapper) container.insertBefore(draggingWrapper, afterWrapper);
+}
+
+function handleListDrop(e) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = document.getElementById('taskList');
+  container.classList.remove('drop-target');
+
+  const newOrder = [...container.querySelectorAll('.swipe-wrapper .task-card[data-id]')]
+                     .map(c => c.dataset.id);
+  newOrder.forEach((tid, idx) => {
+    const t = state.tasks.find(tt => tt.id === tid);
+    if (t) t.order = idx;
+  });
+
+  syncManualSort();
+  saveCloud();
+  render();
+}
+
+function handleKanbanDragOver(e) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = e.currentTarget;
+  container.classList.add('drop-target');
+
+  const draggedCard = document.querySelector(`.kanban-card[data-id="${dragState.id}"]`);
+  if (!draggedCard) return;
+  const afterEl = getDragAfterElement(container, e.clientY, '.kanban-card');
+  if (!afterEl) container.appendChild(draggedCard);
+  else if (afterEl !== draggedCard) container.insertBefore(draggedCard, afterEl);
+}
+
+function handleKanbanDragLeave(e) {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('drop-target');
+}
+
+function handleKanbanDrop(e, status) {
+  if (!dragState.id) return;
+  e.preventDefault();
+  const container = document.getElementById(`${status}Cards`);
+  container.classList.remove('drop-target');
+
+  const task = state.tasks.find(t => t.id === dragState.id);
+  if (!task) return;
+
+  const newIds = [...container.querySelectorAll('.kanban-card[data-id]')].map(c => c.dataset.id);
+  newIds.forEach((tid, idx) => {
+    const t = state.tasks.find(tt => tt.id === tid);
+    if (t) t.order = idx;
+  });
+
+  if (task.status !== status) task.status = status;
+
+  syncManualSort();
+  saveCloud();
+  render();
+}
+
+function initDragDropZones() {
+  if (!isDndDesktop()) return;
+  const list = document.getElementById('taskList');
+  list.addEventListener('dragover', handleListDragOver);
+  list.addEventListener('dragleave', e => { if (e.target === list) list.classList.remove('drop-target'); });
+  list.addEventListener('drop', handleListDrop);
+
+  ['todo', 'inprogress', 'done'].forEach(status => {
+    const col = document.getElementById(`${status}Cards`);
+    col.addEventListener('dragover', handleKanbanDragOver);
+    col.addEventListener('dragleave', handleKanbanDragLeave);
+    col.addEventListener('drop', e => handleKanbanDrop(e, status));
+  });
+}
+
 /* ===== Init ===== */
 async function init() {
   await loadStorage();
@@ -654,7 +918,7 @@ async function init() {
   onSnapshot(DATA_DOC, (snap) => {
     if (!snap.exists()) return;
     const d = snap.data();
-    state.tasks      = d.tasks      || [];
+    state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
     renderSidebar();
     render();
@@ -699,6 +963,13 @@ async function init() {
 
   /* Task form */
   document.getElementById('taskForm').addEventListener('submit', handleTaskFormSubmit);
+
+  /* Subtask add button */
+  document.getElementById('addSubtaskBtn').addEventListener('click', () => {
+    appendSubtaskRow();
+    const list = document.getElementById('subtaskList');
+    list.lastElementChild?.querySelector('.subtask-title-input')?.focus();
+  });
 
   /* Category modal open */
   document.getElementById('addCategoryBtn').addEventListener('click', openCategoryModal);
@@ -755,6 +1026,9 @@ async function init() {
 
   /* Swipe gestures (mobile list view) */
   initSwipeGestures();
+
+  /* D&D drop zones (desktop only) */
+  initDragDropZones();
 }
 
 document.addEventListener('DOMContentLoaded', init);
