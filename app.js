@@ -486,15 +486,27 @@ function recurrenceBadgeHtml(recurrence) {
 }
 
 function subtaskProgressHtml(subtasks, taskId, expanded) {
-  if (!subtasks || subtasks.length === 0) return '';
-  const done = subtasks.filter(s => s.done).length;
-  const pct = Math.round((done / subtasks.length) * 100);
-  const inner = `<span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
-    <span class="subtask-progress-text">${done}/${subtasks.length}</span>`;
-  // taskId 省略時（kanban 等）は従来通り非インタラクティブな span
+  const len = subtasks?.length || 0;
+  // taskId 省略時（後方互換）：0件は非表示、それ以外は非インタラクティブな span
   if (!taskId) {
-    return `<span class="subtask-progress" title="サブタスク進捗">${inner}</span>`;
+    if (len === 0) return '';
+    const done = subtasks.filter(s => s.done).length;
+    const pct = Math.round((done / len) * 100);
+    return `<span class="subtask-progress" title="サブタスク進捗">
+      <span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
+      <span class="subtask-progress-text">${done}/${len}</span>
+    </span>`;
   }
+  // 0件：追加導線ボタン（クリックで展開＋入力フォーカス）
+  if (len === 0) {
+    return `<button type="button" class="subtask-progress subtask-toggle subtask-toggle-empty"
+      data-action="add-subtask-empty" data-id="${taskId}"
+      title="サブタスクを追加">＋ サブタスク</button>`;
+  }
+  const done = subtasks.filter(s => s.done).length;
+  const pct = Math.round((done / len) * 100);
+  const inner = `<span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
+    <span class="subtask-progress-text">${done}/${len}</span>`;
   return `<button type="button" class="subtask-progress subtask-toggle"
     data-action="toggle-subtasks" data-id="${taskId}"
     aria-expanded="${expanded ? 'true' : 'false'}"
@@ -537,9 +549,9 @@ function renderListView() {
           <span class="badge badge-low">${STATUS_LABEL[task.status] || task.status}</span>
         </div>
         ${task.tags && task.tags.length ? `<div class="task-tags">${tagChipsHtml(task.tags)}</div>` : ''}
-        ${task.subtasks?.length && uiState.expanded.has(task.id)
+        ${uiState.expanded.has(task.id)
           ? `<div class="task-subtasks-inline" id="subtasks-${task.id}" role="group" aria-label="サブタスク">
-              ${task.subtasks.map(s => `
+              ${(task.subtasks || []).map(s => `
                 <div class="subtask-inline-row">
                   <input type="checkbox" class="subtask-inline-check"
                          data-action="toggle-subtask" data-id="${task.id}" data-sid="${s.id}"
@@ -623,9 +635,9 @@ function renderKanbanView() {
           ${subtaskProgressHtml(task.subtasks, task.id, uiState.expanded.has(task.id))}
         </div>
         ${task.tags && task.tags.length ? `<div class="kanban-card-tags">${tagChipsHtml(task.tags)}</div>` : ''}
-        ${task.subtasks?.length && uiState.expanded.has(task.id)
+        ${uiState.expanded.has(task.id)
           ? `<div class="task-subtasks-inline kanban-subtasks-inline" id="subtasks-${task.id}" role="group" aria-label="サブタスク">
-              ${task.subtasks.map(s => `
+              ${(task.subtasks || []).map(s => `
                 <div class="subtask-inline-row">
                   <input type="checkbox" class="subtask-inline-check"
                          data-action="toggle-subtask" data-id="${task.id}" data-sid="${s.id}"
@@ -878,6 +890,14 @@ function startAddSubtask(btn) {
   input.focus();
 
   let done = false;
+  const finalize = () => {
+    // commit/cancel 後、サブタスクが 0 件のままなら展開も解除（空のまま開きっぱなしを防ぐ）
+    if (!task.subtasks || task.subtasks.length === 0) {
+      uiState.expanded.delete(taskId);
+      saveExpanded();
+    }
+    render();
+  };
   const commit = () => {
     if (done) return;
     done = true;
@@ -886,12 +906,12 @@ function startAddSubtask(btn) {
       task.subtasks.push({ id: uid(), title, done: false });
       saveCloud();
     }
-    render();
+    finalize();
   };
   const cancel = () => {
     if (done) return;
     done = true;
-    render();
+    finalize();
   };
 
   input.addEventListener('keydown', e => {
@@ -933,6 +953,15 @@ function handleGlobalClick(e) {
   }
   if (action === 'edit-subtask') { startEditSubtask(el); return; }
   if (action === 'add-subtask')  { startAddSubtask(el);  return; }
+  if (action === 'add-subtask-empty') {
+    // 0件タスクの導線：展開 → 再描画後にインライン入力を自動オープン
+    uiState.expanded.add(id);
+    saveExpanded();
+    render();
+    const btn = document.querySelector(`.subtask-inline-add[data-action="add-subtask"][data-id="${id}"]`);
+    if (btn) startAddSubtask(btn);
+    return;
+  }
 }
 
 function handleGlobalChange(e) {

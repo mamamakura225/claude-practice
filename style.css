@@ -1480,6 +1480,20 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 }
 .subtask-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
 
+/* 0件タスクの追加導線チップ */
+.subtask-toggle-empty {
+  font-size: 11px;
+  color: var(--text-sub);
+  border: 1px dashed var(--border);
+  padding: 1px 8px;
+}
+.subtask-toggle-empty:hover,
+.subtask-toggle-empty:focus-visible {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--border);
+}
+
 .task-subtasks-inline {
   margin-top: 8px;
   padding: 8px 4px 4px;
