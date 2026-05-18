@@ -286,6 +286,75 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ===== Search Bar ===== */
+/* ===== Quick Add ===== */
+.quick-add-wrap { margin-bottom: 12px; }
+.quick-add-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--card-bg);
+  border: 1.5px solid var(--primary);
+  border-radius: var(--radius);
+  padding: 4px 4px 4px 14px;
+  transition: box-shadow 0.15s, border-color 0.15s;
+}
+.quick-add-bar:focus-within {
+  box-shadow: 0 0 0 3px rgba(204,0,51,0.15);
+}
+.quick-add-icon {
+  color: var(--primary);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.quick-add-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 10px 0;
+  font-size: 15px;
+  outline: none;
+  min-width: 0;
+}
+.quick-add-input::placeholder { color: var(--text-sub); }
+.quick-add-detail-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--primary-bg);
+  color: var(--primary);
+  font-size: 12.5px;
+  font-weight: 600;
+  transition: background 0.12s;
+}
+.quick-add-detail-btn:hover { background: var(--primary); color: #fff; }
+.quick-add-detail-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.quick-add-help {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-sub);
+  padding: 0 4px;
+}
+.quick-add-help kbd {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  font-size: 11px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 1px 6px;
+  color: var(--text);
+}
+@media (max-width: 767px) {
+  .quick-add-help { display: none; } /* スマホでは省略 */
+  .quick-add-detail-btn { padding: 8px 10px; font-size: 12px; }
+}
+
 .search-bar-wrap { margin-bottom: 12px; }
 .search-help {
   margin-top: 6px;

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=19">
+  <link rel="stylesheet" href="style.css?v=20">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -125,6 +125,27 @@
 
     <!-- メインコンテンツ -->
     <main class="main-content">
+
+      <!-- クイック追加バー -->
+      <div class="quick-add-wrap">
+        <div class="quick-add-bar">
+          <span class="quick-add-icon">＋</span>
+          <input
+            type="text"
+            id="quickAddInput"
+            class="quick-add-input"
+            placeholder="タイトルだけで追加（Enter）"
+            autocomplete="off"
+            maxlength="200"
+          >
+          <button class="quick-add-detail-btn" id="quickAddDetailBtn" type="button" title="詳細フォームで追加（Shift+Enter）">
+            詳細…
+          </button>
+        </div>
+        <div class="quick-add-help">
+          💡 <kbd>Enter</kbd> で即追加 ／ <kbd>Shift</kbd>+<kbd>Enter</kbd> で詳細フォーム
+        </div>
+      </div>
 
       <!-- 検索バー -->
       <div class="search-bar-wrap">
@@ -300,6 +321,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=18"></script>
+  <script type="module" src="app.js?v=19"></script>
 </body>
 </html>

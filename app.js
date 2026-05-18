@@ -1046,6 +1046,45 @@ async function init() {
   document.getElementById('addTaskBtn').addEventListener('click', () => openTaskModal());
   document.getElementById('fabAddTask').addEventListener('click', () => openTaskModal());
 
+  /* Quick add (inline, title-only) */
+  const quickAddInput = document.getElementById('quickAddInput');
+  const quickAddDetailBtn = document.getElementById('quickAddDetailBtn');
+  function quickAddSubmit() {
+    const title = quickAddInput.value.trim();
+    if (!title) return;
+    addTask({
+      title,
+      description: '',
+      deadline: '',
+      priority: 'medium',
+      categoryId: state.filters.categoryId || '',
+      status: 'todo',
+      tags: [],
+      subtasks: [],
+      recurrence: null,
+    });
+    quickAddInput.value = '';
+    quickAddInput.focus();
+  }
+  function quickAddOpenModal() {
+    const title = quickAddInput.value.trim();
+    openTaskModal();
+    if (title) {
+      document.getElementById('taskTitle').value = title;
+      if (state.filters.categoryId) {
+        document.getElementById('taskCategory').value = state.filters.categoryId;
+      }
+    }
+    quickAddInput.value = '';
+  }
+  quickAddInput.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    if (e.shiftKey) quickAddOpenModal();
+    else            quickAddSubmit();
+  });
+  quickAddDetailBtn.addEventListener('click', quickAddOpenModal);
+
   /* Task modal close */
   document.getElementById('closeTaskModal').addEventListener('click', closeTaskModal);
   document.getElementById('cancelTaskModal').addEventListener('click', closeTaskModal);
