@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -145,7 +145,7 @@
             type="text"
             id="quickAddInput"
             class="quick-add-input"
-            placeholder="タイトルだけで追加（Enter）"
+            placeholder="タイトルを入力して Enter で追加"
             autocomplete="off"
             maxlength="200"
           >
@@ -153,19 +153,15 @@
             詳細…
           </button>
         </div>
-        <div class="quick-add-help">
-          💡 <kbd>Enter</kbd> で即追加 ／ <kbd>Shift</kbd>+<kbd>Enter</kbd> で詳細フォーム
-        </div>
       </div>
 
       <!-- 検索バー -->
       <div class="search-bar-wrap">
         <div class="search-bar">
           <span class="search-icon">🔍</span>
-          <input type="search" id="searchInput" class="search-input" placeholder="タスクを検索（タイトル・詳細・タグ）" autocomplete="off">
+          <input type="search" id="searchInput" class="search-input" placeholder="検索（#タグ名 で完全一致）" autocomplete="off">
           <button class="search-clear" id="searchClear" style="display:none" aria-label="クリア">✕</button>
         </div>
-        <div class="search-help">💡 <code>#タグ名</code> と入力するとタグで完全一致検索できます</div>
       </div>
 
       <!-- 期限プリセット -->
@@ -340,6 +336,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=21"></script>
+  <script type="module" src="app.js?v=22"></script>
 </body>
 </html>
