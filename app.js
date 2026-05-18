@@ -49,6 +49,7 @@ let swipeDidMove = false;
 /* ===== Storage ===== */
 const THEME_KEY     = 'dtask_theme';
 const FONTSIZE_KEY  = 'dtask_fontsize';
+const EXPANDED_KEY  = 'dtask_expanded';
 
 const SYNC_STATES = {
   idle:    { html: '' },
@@ -104,6 +105,26 @@ async function loadStorage() {
     state.tasks = state.tasks.map(normalizeTask);
     if (state.tasks.length || state.categories.length) await saveCloud();
   }
+  loadExpanded();
+}
+
+/* ===== UI state persistence (展開状態) ===== */
+function loadExpanded() {
+  try {
+    const raw = localStorage.getItem(EXPANDED_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    const aliveIds = new Set(state.tasks.map(t => t.id));
+    uiState.expanded = new Set(arr.filter(id => aliveIds.has(id)));
+  } catch {
+    uiState.expanded = new Set();
+  }
+}
+function saveExpanded() {
+  // 削除済みタスクの ID を同時にクリーンアップ
+  const aliveIds = new Set(state.tasks.map(t => t.id));
+  const arr = [...uiState.expanded].filter(id => aliveIds.has(id));
+  uiState.expanded = new Set(arr);
+  try { localStorage.setItem(EXPANDED_KEY, JSON.stringify(arr)); } catch {}
 }
 
 /* ===== Font size (標準 / 大) ===== */
@@ -906,6 +927,7 @@ function handleGlobalClick(e) {
   if (action === 'toggle-subtasks') {
     if (uiState.expanded.has(id)) uiState.expanded.delete(id);
     else                          uiState.expanded.add(id);
+    saveExpanded();
     render();
     return;
   }
