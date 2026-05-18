@@ -519,13 +519,19 @@ function renderListView() {
         ${task.subtasks?.length && uiState.expanded.has(task.id)
           ? `<div class="task-subtasks-inline" id="subtasks-${task.id}" role="group" aria-label="サブタスク">
               ${task.subtasks.map(s => `
-                <label class="subtask-inline-row">
+                <div class="subtask-inline-row">
                   <input type="checkbox" class="subtask-inline-check"
                          data-action="toggle-subtask" data-id="${task.id}" data-sid="${s.id}"
-                         ${s.done ? 'checked' : ''}>
-                  <span class="subtask-inline-title${s.done ? ' done' : ''}">${escHtml(s.title)}</span>
-                </label>
+                         ${s.done ? 'checked' : ''}
+                         aria-label="完了切り替え">
+                  <span class="subtask-inline-title${s.done ? ' done' : ''}"
+                        data-action="edit-subtask" data-id="${task.id}" data-sid="${s.id}"
+                        title="クリックで編集">${escHtml(s.title)}</span>
+                </div>
               `).join('')}
+              <button type="button" class="subtask-inline-add"
+                      data-action="add-subtask" data-id="${task.id}"
+                      title="サブタスクを追加">＋ サブタスク追加</button>
             </div>`
           : ''}
       </div>
@@ -776,6 +782,86 @@ function closeCategoryModal() {
   document.getElementById('categoryModal').classList.add('hidden');
 }
 
+/* ===== Inline subtask edit / add (card) =====
+ * フォーカス維持のため、編集中・追加中は render() を呼ばず DOM を直接差し替える。
+ * 確定時のみ state を更新 → saveCloud() → render() で再描画する。 */
+function startEditSubtask(span) {
+  const { id: taskId, sid } = span.dataset;
+  const task = state.tasks.find(t => t.id === taskId);
+  const sub  = task?.subtasks?.find(s => s.id === sid);
+  if (!sub) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'subtask-inline-edit';
+  input.value = sub.title;
+  input.setAttribute('aria-label', 'サブタスクのタイトルを編集');
+  span.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const next = input.value.trim();
+    if (next && next !== sub.title) {
+      sub.title = next;
+      saveCloud();
+    }
+    render(); // 元の span に戻る（または新タイトルで再描画）
+  };
+  const cancel = () => {
+    if (done) return;
+    done = true;
+    render();
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
+function startAddSubtask(btn) {
+  const { id: taskId } = btn.dataset;
+  const task = state.tasks.find(t => t.id === taskId);
+  if (!task) return;
+  if (!task.subtasks) task.subtasks = [];
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'subtask-inline-edit subtask-inline-add-input';
+  input.placeholder = 'サブタスクを入力 → Enter';
+  input.setAttribute('aria-label', '新規サブタスクのタイトル');
+  btn.replaceWith(input);
+  input.focus();
+
+  let done = false;
+  const commit = () => {
+    if (done) return;
+    done = true;
+    const title = input.value.trim();
+    if (title) {
+      task.subtasks.push({ id: uid(), title, done: false });
+      saveCloud();
+    }
+    render();
+  };
+  const cancel = () => {
+    if (done) return;
+    done = true;
+    render();
+  };
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  });
+  input.addEventListener('blur', commit);
+}
+
 /* ===== Event Delegation ===== */
 function handleGlobalClick(e) {
   const el     = e.target.closest('[data-action]');
@@ -805,6 +891,8 @@ function handleGlobalClick(e) {
     render();
     return;
   }
+  if (action === 'edit-subtask') { startEditSubtask(el); return; }
+  if (action === 'add-subtask')  { startAddSubtask(el);  return; }
 }
 
 function handleGlobalChange(e) {
