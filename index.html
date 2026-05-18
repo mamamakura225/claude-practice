@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -155,6 +155,14 @@
           <button class="search-clear" id="searchClear" style="display:none" aria-label="クリア">✕</button>
         </div>
         <div class="search-help">💡 <code>#タグ名</code> と入力するとタグで完全一致検索できます</div>
+      </div>
+
+      <!-- 期限プリセット -->
+      <div class="preset-chips" role="tablist" aria-label="期限プリセット">
+        <button class="preset-chip active" data-preset="" type="button" role="tab" aria-selected="true">すべて</button>
+        <button class="preset-chip" data-preset="today" type="button" role="tab" aria-selected="false">📅 今日</button>
+        <button class="preset-chip" data-preset="week" type="button" role="tab" aria-selected="false">📆 今週</button>
+        <button class="preset-chip" data-preset="overdue" type="button" role="tab" aria-selected="false">⏰ 期限切れ</button>
       </div>
 
       <!-- 統計バー -->
@@ -321,6 +329,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=19"></script>
+  <script type="module" src="app.js?v=20"></script>
 </body>
 </html>

@@ -87,12 +87,59 @@ a { color: inherit; text-decoration: none; }
 .header-right { flex: 1; display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
 
 .sync-indicator {
-  font-size: 11px;
-  color: rgba(255,255,255,0.75);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.85);
   min-width: 56px;
-  text-align: right;
   white-space: nowrap;
+  padding: 4px 8px;
+  border-radius: 12px;
+  transition: background 0.2s, color 0.2s;
 }
+.sync-indicator:empty { padding: 0; }
+
+/* state colors */
+.sync-indicator.sync-syncing { background: rgba(255,255,255,0.12); }
+.sync-indicator.sync-saved   { background: rgba(22,163,74,0.30); color: #fff; }
+.sync-indicator.sync-error   {
+  background: #ef4444;
+  color: #fff;
+  font-weight: 600;
+}
+.sync-indicator.sync-offline {
+  background: #d97706;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* pulsing dot for syncing state */
+.sync-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  animation: syncPulse 1.1s ease-in-out infinite;
+}
+@keyframes syncPulse {
+  0%, 100% { opacity: 0.35; transform: scale(0.85); }
+  50%      { opacity: 1;    transform: scale(1.15); }
+}
+
+/* retry button inside error indicator */
+.sync-retry-btn {
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  transition: background 0.12s;
+}
+.sync-retry-btn:hover  { background: rgba(255,255,255,0.36); }
+.sync-retry-btn:active { background: rgba(255,255,255,0.5); }
+.sync-retry-btn:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
 
 .theme-toggle-btn {
   min-width: 44px;
@@ -286,6 +333,44 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ===== Search Bar ===== */
+/* ===== Preset Chips（今日/今週/期限切れ） ===== */
+.preset-chips {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+.preset-chip {
+  flex-shrink: 0;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: all 0.12s;
+}
+.preset-chip:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-bg);
+}
+.preset-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(204,0,51,0.25);
+}
+.preset-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 /* ===== Quick Add ===== */
 .quick-add-wrap { margin-bottom: 12px; }
 .quick-add-bar {

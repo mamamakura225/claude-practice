@@ -27,6 +27,7 @@ const state = {
     sort: 'manual',
     search: '',
     hideCompleted: false,
+    preset: '', // '', 'today', 'week', 'overdue'
   },
   theme: 'light',
 };
@@ -43,16 +44,39 @@ let swipeDidMove = false;
 /* ===== Storage ===== */
 const THEME_KEY = 'dtask_theme';
 
-function setSyncStatus(msg) {
+const SYNC_STATES = {
+  idle:    { html: '' },
+  syncing: { html: '<span class="sync-dot" aria-hidden="true"></span>同期中…' },
+  saved:   { html: '✓ 保存済み' },
+  error:   { html: '⚠ 保存失敗 <button class="sync-retry-btn" type="button" data-action="sync-retry">再試行</button>' },
+  offline: { html: '📵 オフライン' },
+};
+let syncIdleTimer = null;
+
+function setSyncState(stateName) {
   const el = document.getElementById('syncIndicator');
-  if (el) el.textContent = msg;
+  if (!el) return;
+  clearTimeout(syncIdleTimer);
+  el.className = `sync-indicator sync-${stateName}`;
+  el.innerHTML = SYNC_STATES[stateName].html;
+  if (stateName === 'saved') {
+    syncIdleTimer = setTimeout(() => setSyncState('idle'), 2000);
+  }
 }
 
 async function saveCloud() {
-  setSyncStatus('同期中…');
-  await setDoc(DATA_DOC, { tasks: state.tasks, categories: state.categories });
-  setSyncStatus('✓ 保存済み');
-  setTimeout(() => setSyncStatus(''), 2000);
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    setSyncState('offline');
+    return;
+  }
+  setSyncState('syncing');
+  try {
+    await setDoc(DATA_DOC, { tasks: state.tasks, categories: state.categories });
+    setSyncState('saved');
+  } catch (err) {
+    console.error('saveCloud failed', err);
+    setSyncState('error');
+  }
 }
 
 async function loadStorage() {
@@ -321,6 +345,17 @@ function getFilteredTasks() {
     tasks = tasks.filter(t => t.status === state.filters.status);
   if (state.filters.hideCompleted)
     tasks = tasks.filter(t => t.status !== 'done');
+  if (state.filters.preset) {
+    const today = new Date().toISOString().slice(0, 10);
+    if (state.filters.preset === 'today') {
+      tasks = tasks.filter(t => t.deadline === today);
+    } else if (state.filters.preset === 'week') {
+      const weekEnd = addDays(today, 6);
+      tasks = tasks.filter(t => t.deadline && t.deadline >= today && t.deadline <= weekEnd);
+    } else if (state.filters.preset === 'overdue') {
+      tasks = tasks.filter(t => t.deadline && t.deadline < today && t.status !== 'done');
+    }
+  }
   if (state.filters.search) {
     const raw = state.filters.search.trim();
     if (raw.startsWith('#') && raw.length > 1) {
@@ -681,6 +716,7 @@ function handleGlobalClick(e) {
   if (action === 'edit')        { openTaskModal(state.tasks.find(t => t.id === id)); return; }
   if (action === 'delete')      { deleteTask(id); return; }
   if (action === 'delete-cat')  { deleteCategory(id); return; }
+  if (action === 'sync-retry')  { saveCloud(); return; }
 }
 
 function handleGlobalChange(e) {
@@ -1144,6 +1180,19 @@ async function init() {
     render();
   });
 
+  /* Preset chips（今日 / 今週 / 期限切れ） */
+  document.querySelectorAll('.preset-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      state.filters.preset = chip.dataset.preset || '';
+      document.querySelectorAll('.preset-chip').forEach(c => {
+        const isActive = c === chip;
+        c.classList.toggle('active', isActive);
+        c.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      });
+      render();
+    });
+  });
+
   /* Ripple on primary buttons */
   document.querySelectorAll('.btn-primary, .btn-secondary').forEach(btn => {
     btn.addEventListener('click', addRipple);
@@ -1164,6 +1213,11 @@ async function init() {
 
   /* D&D drop zones (desktop only) */
   initDragDropZones();
+
+  /* Online / offline detection */
+  window.addEventListener('offline', () => setSyncState('offline'));
+  window.addEventListener('online',  () => saveCloud()); // 復帰時に自動リトライ
+  if (navigator.onLine === false) setSyncState('offline');
 }
 
 document.addEventListener('DOMContentLoaded', init);
