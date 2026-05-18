@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=24">
+  <link rel="stylesheet" href="style.css?v=25">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -145,9 +145,10 @@
             type="text"
             id="quickAddInput"
             class="quick-add-input"
-            placeholder="タイトルを入力して Enter で追加"
+            placeholder="タイトルを入力して Enter で追加（N キーでフォーカス）"
             autocomplete="off"
             maxlength="200"
+            title="ショートカット: N キーでここにフォーカス"
           >
           <div class="quick-add-meta" role="group" aria-label="追加メタ情報">
             <button class="quick-add-chip meta-priority" type="button" data-meta="priority-high" aria-pressed="false" title="優先度: 高">高</button>
@@ -164,7 +165,7 @@
       <div class="search-bar-wrap">
         <div class="search-bar">
           <span class="search-icon">🔍</span>
-          <input type="search" id="searchInput" class="search-input" placeholder="検索（#タグ名 で完全一致）" autocomplete="off">
+          <input type="search" id="searchInput" class="search-input" placeholder="検索（#タグ名 で完全一致 / キーボードは / でフォーカス）" autocomplete="off" title="ショートカット: / キーでここにフォーカス">
           <button class="search-clear" id="searchClear" style="display:none" aria-label="クリア">✕</button>
         </div>
       </div>
@@ -341,6 +342,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=23"></script>
+  <script type="module" src="app.js?v=24"></script>
 </body>
 </html>
