@@ -1317,6 +1317,62 @@ async function init() {
   window.addEventListener('offline', () => setSyncState('offline'));
   window.addEventListener('online',  () => saveCloud()); // 復帰時に自動リトライ
   if (navigator.onLine === false) setSyncState('offline');
+
+  /* Keyboard shortcuts */
+  document.addEventListener('keydown', handleKeyboardShortcut);
+}
+
+/* ===== Keyboard Shortcuts =====
+   N : クイック追加バーにフォーカス
+   / : 検索バーにフォーカス
+   Esc: 開いているモーダルを閉じる / フォーカス中の入力をぼかす
+*/
+function handleKeyboardShortcut(e) {
+  // モディファイア付きはブラウザ標準操作を優先
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  const target = e.target;
+  const tag    = (target?.tagName || '').toUpperCase();
+  const isTyping =
+    tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+    target?.isContentEditable;
+
+  // Esc は常に効かせる（モーダル閉じ / 入力からのフォーカス外し）
+  if (e.key === 'Escape') {
+    const taskModal = document.getElementById('taskModal');
+    const catModal  = document.getElementById('categoryModal');
+    if (taskModal && !taskModal.classList.contains('hidden')) {
+      closeTaskModal();
+      e.preventDefault();
+      return;
+    }
+    if (catModal && !catModal.classList.contains('hidden')) {
+      closeCategoryModal();
+      e.preventDefault();
+      return;
+    }
+    if (isTyping && typeof target.blur === 'function') {
+      target.blur();
+      e.preventDefault();
+    }
+    return;
+  }
+
+  // 入力中・モーダル表示中は N と / を無効化
+  if (isTyping) return;
+  const taskModalOpen = !document.getElementById('taskModal')?.classList.contains('hidden');
+  const catModalOpen  = !document.getElementById('categoryModal')?.classList.contains('hidden');
+  if (taskModalOpen || catModalOpen) return;
+
+  if (e.key === 'n' || e.key === 'N') {
+    const input = document.getElementById('quickAddInput');
+    if (input) { input.focus(); input.select?.(); e.preventDefault(); }
+    return;
+  }
+  if (e.key === '/') {
+    const input = document.getElementById('searchInput');
+    if (input) { input.focus(); input.select?.(); e.preventDefault(); }
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
