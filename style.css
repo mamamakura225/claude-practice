@@ -1567,6 +1567,18 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   outline: none;
 }
 
+/* Kanban カード内では幅が狭いのでインデントとフォントを少し詰める */
+.kanban-subtasks-inline {
+  margin-top: 6px;
+  padding: 6px 2px 2px;
+}
+.kanban-subtasks-inline .subtask-inline-row { min-height: 28px; padding: 2px; }
+.kanban-subtasks-inline .subtask-inline-title { font-size: 12px; }
+.kanban-subtasks-inline .subtask-inline-edit { font-size: 12px; padding: 2px 5px; }
+.kanban-subtasks-inline .subtask-inline-add,
+.kanban-subtasks-inline .subtask-inline-add-input { margin-left: 22px; }
+.kanban-subtasks-inline .subtask-inline-add { font-size: 11px; padding: 3px 8px; }
+
 /* ===== Recurrence badge ===== */
 .badge-recurrence {
   display: inline-block;

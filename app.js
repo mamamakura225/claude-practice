@@ -599,9 +599,27 @@ function renderKanbanView() {
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
           ${recurrenceBadgeHtml(task.recurrence)}
-          ${subtaskProgressHtml(task.subtasks)}
+          ${subtaskProgressHtml(task.subtasks, task.id, uiState.expanded.has(task.id))}
         </div>
         ${task.tags && task.tags.length ? `<div class="kanban-card-tags">${tagChipsHtml(task.tags)}</div>` : ''}
+        ${task.subtasks?.length && uiState.expanded.has(task.id)
+          ? `<div class="task-subtasks-inline kanban-subtasks-inline" id="subtasks-${task.id}" role="group" aria-label="サブタスク">
+              ${task.subtasks.map(s => `
+                <div class="subtask-inline-row">
+                  <input type="checkbox" class="subtask-inline-check"
+                         data-action="toggle-subtask" data-id="${task.id}" data-sid="${s.id}"
+                         ${s.done ? 'checked' : ''}
+                         aria-label="完了切り替え">
+                  <span class="subtask-inline-title${s.done ? ' done' : ''}"
+                        data-action="edit-subtask" data-id="${task.id}" data-sid="${s.id}"
+                        title="クリックで編集">${escHtml(s.title)}</span>
+                </div>
+              `).join('')}
+              <button type="button" class="subtask-inline-add"
+                      data-action="add-subtask" data-id="${task.id}"
+                      title="サブタスクを追加">＋ サブタスク追加</button>
+            </div>`
+          : ''}
         <div class="kanban-card-footer">
           <select class="kanban-status-select" data-action="status" data-id="${task.id}">${statusOptions}</select>
           <div class="kanban-actions">
@@ -1109,6 +1127,12 @@ function attachCardDragHandlers(card) {
   if (!isDndDesktop()) return;
   card.draggable = true;
   card.addEventListener('dragstart', e => {
+    // インライン操作領域（サブタスク展開・トグル・アクションボタン・編集 input）
+    // から発火したドラッグはキャンセル。テキスト選択やクリックを優先。
+    if (e.target.closest('.task-subtasks-inline, .subtask-toggle, .task-actions, .kanban-status-select')) {
+      e.preventDefault();
+      return;
+    }
     dragState.id = card.dataset.id;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', card.dataset.id);
