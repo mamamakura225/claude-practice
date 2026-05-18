@@ -26,6 +26,7 @@ const state = {
     status: '',
     sort: 'manual',
     search: '',
+    hideCompleted: false,
   },
   theme: 'light',
 };
@@ -80,7 +81,12 @@ function applyTheme(theme) {
   document.body.dataset.theme = theme;
   localStorage.setItem(THEME_KEY, theme);
   const btn = document.getElementById('themeToggleBtn');
-  if (btn) btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+  if (!btn) return;
+  const icon  = btn.querySelector('.theme-toggle-icon');
+  const label = btn.querySelector('.theme-toggle-label');
+  if (icon)  icon.textContent  = theme === 'dark' ? '☀️' : '🌙';
+  if (label) label.textContent = theme === 'dark' ? 'ライト' : 'ダーク';
+  btn.setAttribute('aria-label', theme === 'dark' ? 'ライトモードに切り替え' : 'ダークモードに切り替え');
 }
 
 function toggleTheme() {
@@ -142,6 +148,48 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+/* ===== Toast (with optional Undo) ===== */
+function showToast(message, undoFn, duration = 5000) {
+  const container = document.getElementById('toastContainer');
+  if (!container) return () => {};
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.setAttribute('role', 'status');
+
+  const msgEl = document.createElement('span');
+  msgEl.className = 'toast-message';
+  msgEl.textContent = message;
+  toast.appendChild(msgEl);
+
+  let dismissed = false;
+  let timer;
+  function dismiss() {
+    if (dismissed) return;
+    dismissed = true;
+    clearTimeout(timer);
+    toast.classList.add('toast-out');
+    toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+    // 念のためフォールバック
+    setTimeout(() => toast.remove(), 600);
+  }
+
+  if (undoFn) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-undo';
+    btn.textContent = '元に戻す';
+    btn.addEventListener('click', () => { undoFn(); dismiss(); });
+    toast.appendChild(btn);
+  }
+
+  container.appendChild(toast);
+  // entrance animation trigger
+  requestAnimationFrame(() => toast.classList.add('toast-in'));
+  timer = setTimeout(dismiss, duration);
+  return dismiss;
+}
+
 /* ===== Task CRUD ===== */
 function addTask(data) {
   state.tasks.push(normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data }));
@@ -158,18 +206,29 @@ function updateTask(id, data) {
 }
 
 function deleteTask(id) {
-  const card = document.querySelector(`.task-card[data-id="${id}"], .kanban-card[data-id="${id}"]`);
-  if (card) {
-    card.classList.add('removing');
-    setTimeout(() => {
-      state.tasks = state.tasks.filter(t => t.id !== id);
-      saveCloud();
-      render();
-    }, 230);
-  } else {
+  const idx = state.tasks.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  const removed = state.tasks[idx];
+
+  const finalize = () => {
     state.tasks = state.tasks.filter(t => t.id !== id);
     saveCloud();
     render();
+    showToast(`「${removed.title}」を削除しました`, () => {
+      const exists = state.tasks.some(t => t.id === removed.id);
+      if (exists) return;
+      state.tasks.splice(Math.min(idx, state.tasks.length), 0, removed);
+      saveCloud();
+      render();
+    });
+  };
+
+  const card = document.querySelector(`.task-card[data-id="${id}"], .kanban-card[data-id="${id}"]`);
+  if (card) {
+    card.classList.add('removing');
+    setTimeout(finalize, 230);
+  } else {
+    finalize();
   }
 }
 
@@ -216,13 +275,34 @@ function addCategory(name, color) {
 }
 
 function deleteCategory(id) {
-  state.categories = state.categories.filter(c => c.id !== id);
+  const idx = state.categories.findIndex(c => c.id === id);
+  if (idx < 0) return;
+  const removed       = state.categories[idx];
+  const affectedIds   = state.tasks.filter(t => t.categoryId === id).map(t => t.id);
+  const wasFiltered   = state.filters.categoryId === id;
+
+  state.categories.splice(idx, 1);
   state.tasks.forEach(t => { if (t.categoryId === id) t.categoryId = ''; });
+  if (wasFiltered) state.filters.categoryId = '';
   saveCloud();
-  if (state.filters.categoryId === id) state.filters.categoryId = '';
   renderSidebar();
   populateCategorySelect();
   render();
+
+  const msg = affectedIds.length
+    ? `カテゴリ「${removed.name}」を削除（${affectedIds.length}件のタスクが「なし」になりました）`
+    : `カテゴリ「${removed.name}」を削除しました`;
+  showToast(msg, () => {
+    if (state.categories.some(c => c.id === removed.id)) return;
+    state.categories.splice(Math.min(idx, state.categories.length), 0, removed);
+    const affectedSet = new Set(affectedIds);
+    state.tasks.forEach(t => { if (affectedSet.has(t.id)) t.categoryId = id; });
+    if (wasFiltered) state.filters.categoryId = id;
+    saveCloud();
+    renderSidebar();
+    populateCategorySelect();
+    render();
+  });
 }
 
 function getCategoryById(id) {
@@ -239,6 +319,8 @@ function getFilteredTasks() {
     tasks = tasks.filter(t => t.priority === state.filters.priority);
   if (state.filters.status)
     tasks = tasks.filter(t => t.status === state.filters.status);
+  if (state.filters.hideCompleted)
+    tasks = tasks.filter(t => t.status !== 'done');
   if (state.filters.search) {
     const raw = state.filters.search.trim();
     if (raw.startsWith('#') && raw.length > 1) {
@@ -699,6 +781,10 @@ function attachSwipeListeners(card, wrapper, id) {
   }
 
   function doDelete() {
+    const idx = state.tasks.findIndex(t => t.id === id);
+    if (idx < 0) return;
+    const removed = state.tasks[idx];
+
     card.classList.remove('is-swiping');
     card.classList.add('snap-back');
     card.style.setProperty('transform', 'translateX(-100vw)', 'important');
@@ -709,6 +795,12 @@ function attachSwipeListeners(card, wrapper, id) {
       state.tasks = state.tasks.filter(t => t.id !== id);
       saveCloud();
       render();
+      showToast(`「${removed.title}」を削除しました`, () => {
+        if (state.tasks.some(t => t.id === removed.id)) return;
+        state.tasks.splice(Math.min(idx, state.tasks.length), 0, removed);
+        saveCloud();
+        render();
+      });
     }, 350);
   }
 
@@ -1006,6 +1098,10 @@ async function init() {
   });
   document.getElementById('sortOrder').addEventListener('change', e => {
     state.filters.sort = e.target.value;
+    render();
+  });
+  document.getElementById('hideCompletedFilter').addEventListener('change', e => {
+    state.filters.hideCompleted = e.target.checked;
     render();
   });
 

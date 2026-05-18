@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=18">
+  <link rel="stylesheet" href="style.css?v=19">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -56,7 +56,10 @@
         </button>
       </div>
       <span class="sync-indicator" id="syncIndicator"></span>
-      <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="テーマ切り替え" title="ダークモード切り替え">🌙</button>
+      <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="ダークモードに切り替え" title="ダークモード切り替え">
+        <span class="theme-toggle-icon">🌙</span>
+        <span class="theme-toggle-label">ダーク</span>
+      </button>
       <button class="btn-primary" id="addTaskBtn">＋ タスク追加</button>
     </div>
   </header>
@@ -72,6 +75,12 @@
 
       <div class="sidebar-section">
         <h3 class="sidebar-title">フィルター</h3>
+        <div class="filter-group filter-group-check">
+          <label class="filter-check">
+            <input type="checkbox" id="hideCompletedFilter">
+            <span>完了タスクを隠す</span>
+          </label>
+        </div>
         <div class="filter-group">
           <label class="filter-label">ステータス</label>
           <select id="statusFilter" class="filter-select">
@@ -121,9 +130,10 @@
       <div class="search-bar-wrap">
         <div class="search-bar">
           <span class="search-icon">🔍</span>
-          <input type="search" id="searchInput" class="search-input" placeholder="タスクを検索..." autocomplete="off">
+          <input type="search" id="searchInput" class="search-input" placeholder="タスクを検索（タイトル・詳細・タグ）" autocomplete="off">
           <button class="search-clear" id="searchClear" style="display:none" aria-label="クリア">✕</button>
         </div>
+        <div class="search-help">💡 <code>#タグ名</code> と入力するとタグで完全一致検索できます</div>
       </div>
 
       <!-- 統計バー -->
@@ -143,7 +153,13 @@
           <div class="empty-state" id="listEmpty">
             <div class="empty-icon">📋</div>
             <p>タスクがありません</p>
-            <p class="empty-sub">「タスク追加」ボタンから追加してください</p>
+            <p class="empty-sub">
+              右上の <strong>「＋ タスク追加」</strong> ボタン、<br>
+              スマホでは右下の <strong>＋</strong> ボタンから追加できます。
+            </p>
+            <p class="empty-tip">
+              💡 検索バーで <code>#タグ名</code> と入力するとタグで絞り込めます
+            </p>
           </div>
         </div>
       </div>
@@ -279,8 +295,11 @@
   </div>
 
   <!-- FAB（モバイル用タスク追加ボタン） -->
-  <button class="fab" id="fabAddTask" aria-label="タスク追加">＋</button>
+  <button class="fab" id="fabAddTask" aria-label="新しいタスクを追加" title="新しいタスクを追加">＋</button>
 
-  <script type="module" src="app.js?v=17"></script>
+  <!-- トーストコンテナ（削除Undo等） -->
+  <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
+
+  <script type="module" src="app.js?v=18"></script>
 </body>
 </html>
