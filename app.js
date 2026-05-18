@@ -42,7 +42,8 @@ const swipeState = {
 let swipeDidMove = false;
 
 /* ===== Storage ===== */
-const THEME_KEY = 'dtask_theme';
+const THEME_KEY     = 'dtask_theme';
+const FONTSIZE_KEY  = 'dtask_fontsize';
 
 const SYNC_STATES = {
   idle:    { html: '' },
@@ -98,6 +99,18 @@ async function loadStorage() {
     state.tasks = state.tasks.map(normalizeTask);
     if (state.tasks.length || state.categories.length) await saveCloud();
   }
+}
+
+/* ===== Font size (標準 / 大) ===== */
+function applyFontSize(size) {
+  const normalized = size === 'large' ? 'large' : 'standard';
+  document.body.dataset.fontsize = normalized;
+  localStorage.setItem(FONTSIZE_KEY, normalized);
+  document.querySelectorAll('.fontsize-btn').forEach(btn => {
+    const isActive = btn.dataset.fontsize === normalized;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+  });
 }
 
 /* ===== Theme ===== */
@@ -288,6 +301,29 @@ function spawnNextRecurrence(task) {
     subtasks: (task.subtasks || []).map(s => ({ ...s, id: uid(), done: false })),
   });
   state.tasks.push(next);
+  return next;
+}
+
+function skipRecurrence(id) {
+  const idx = state.tasks.findIndex(t => t.id === id);
+  if (idx < 0) return;
+  const original = state.tasks[idx];
+  if (!original.recurrence || !original.recurrence.type) return;
+
+  const spawned = spawnNextRecurrence(original);
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  saveCloud();
+  render();
+
+  const dateLabel = formatDate(original.deadline) || '今回分';
+  showToast(`「${original.title}」を${dateLabel}スキップしました`, () => {
+    state.tasks = state.tasks.filter(t => t.id !== spawned.id); // 自動生成された次回分を取消
+    if (!state.tasks.some(t => t.id === original.id)) {
+      state.tasks.splice(Math.min(idx, state.tasks.length), 0, original);
+    }
+    saveCloud();
+    render();
+  });
 }
 
 /* ===== Category CRUD ===== */
@@ -465,6 +501,7 @@ function renderListView() {
         ${task.tags && task.tags.length ? `<div class="task-tags">${tagChipsHtml(task.tags)}</div>` : ''}
       </div>
       <div class="task-actions">
+        ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ（次回分は維持）" aria-label="今回だけスキップ">⏭</button>` : ''}
         <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集">✏️</button>
         <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除">🗑️</button>
       </div>
@@ -533,6 +570,7 @@ function renderKanbanView() {
         <div class="kanban-card-footer">
           <select class="kanban-status-select" data-action="status" data-id="${task.id}">${statusOptions}</select>
           <div class="kanban-actions">
+            ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ" aria-label="今回だけスキップ">⏭</button>` : ''}
             <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集">✏️</button>
             <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除">🗑️</button>
           </div>
@@ -717,6 +755,7 @@ function handleGlobalClick(e) {
   if (action === 'delete')      { deleteTask(id); return; }
   if (action === 'delete-cat')  { deleteCategory(id); return; }
   if (action === 'sync-retry')  { saveCloud(); return; }
+  if (action === 'skip')        { skipRecurrence(id); return; }
 }
 
 function handleGlobalChange(e) {
@@ -1039,6 +1078,7 @@ function initDragDropZones() {
 async function init() {
   await loadStorage();
   applyTheme(state.theme);
+  applyFontSize(localStorage.getItem(FONTSIZE_KEY) || 'standard');
   renderSidebar();
   render();
 
@@ -1178,6 +1218,11 @@ async function init() {
   document.getElementById('hideCompletedFilter').addEventListener('change', e => {
     state.filters.hideCompleted = e.target.checked;
     render();
+  });
+
+  /* Font size buttons (sidebar) */
+  document.querySelectorAll('.fontsize-btn').forEach(btn => {
+    btn.addEventListener('click', () => applyFontSize(btn.dataset.fontsize));
   });
 
   /* Preset chips（今日 / 今週 / 期限切れ） */

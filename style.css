@@ -333,6 +333,71 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* ===== Search Bar ===== */
+/* ===== Font Size Toggle (sidebar) ===== */
+.fontsize-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.fontsize-label {
+  font-size: 12px;
+  color: var(--text-sub);
+}
+.fontsize-toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+.fontsize-btn {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  color: var(--text-sub);
+  background: transparent;
+  transition: all 0.12s;
+  min-width: 44px;
+  min-height: 30px;
+}
+.fontsize-btn:hover  { background: var(--primary-bg); color: var(--primary); }
+.fontsize-btn.active { background: var(--primary); color: #fff; font-weight: 600; }
+.fontsize-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+  position: relative;
+  z-index: 1;
+}
+
+/* ===== 大きい文字サイズ（佐藤さん対応） ===== */
+body[data-fontsize="large"] {
+  font-size: 16px;
+}
+body[data-fontsize="large"] .task-title       { font-size: 17px; }
+body[data-fontsize="large"] .task-desc        { font-size: 15px; }
+body[data-fontsize="large"] .kanban-card-title{ font-size: 16px; }
+body[data-fontsize="large"] .badge            { font-size: 12.5px; padding: 3px 9px; }
+body[data-fontsize="large"] .tag-chip         { font-size: 12.5px; padding: 3px 9px; }
+body[data-fontsize="large"] .badge-deadline,
+body[data-fontsize="large"] .badge-recurrence { font-size: 12.5px; }
+body[data-fontsize="large"] .form-label       { font-size: 14px; }
+body[data-fontsize="large"] .filter-label     { font-size: 13px; }
+body[data-fontsize="large"] .filter-check     { font-size: 14px; }
+body[data-fontsize="large"] .filter-select    { font-size: 14px; padding: 8px 10px; }
+body[data-fontsize="large"] .form-input,
+body[data-fontsize="large"] .form-select,
+body[data-fontsize="large"] .form-textarea    { font-size: 16px; }
+body[data-fontsize="large"] .quick-add-input  { font-size: 17px; }
+body[data-fontsize="large"] .search-input     { font-size: 16px; }
+body[data-fontsize="large"] .empty-state p    { font-size: 17px; }
+body[data-fontsize="large"] .empty-sub        { font-size: 14.5px; }
+body[data-fontsize="large"] .empty-tip        { font-size: 14px; }
+body[data-fontsize="large"] .preset-chip      { font-size: 14px; padding: 8px 16px; }
+body[data-fontsize="large"] .category-chip    { font-size: 14px; }
+body[data-fontsize="large"] .toast            { font-size: 15px; }
+body[data-fontsize="large"] .btn-primary,
+body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
+
 /* ===== Preset Chips（今日/今週/期限切れ） ===== */
 .preset-chips {
   display: flex;
@@ -653,6 +718,7 @@ a { color: inherit; text-decoration: none; }
 }
 .btn-action:hover { background: var(--bg); color: var(--text); }
 .btn-action.delete:hover { background: var(--primary-bg); color: var(--primary); }
+.btn-action.skip:hover { background: var(--status-inprogress-bg); color: var(--status-inprogress); }
 
 /* ===== Empty State ===== */
 .empty-state {
