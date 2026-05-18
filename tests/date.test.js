@@ -3,7 +3,7 @@ import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline } fro
 
 describe('formatDate', () => {
   it('YYYY-MM-DD を YYYY/M/D に変換する', () => {
-    expect(formatDate('2025-01-05')).toBe('わざと間違った期待値');
+    expect(formatDate('2025-01-05')).toBe('2025/01/05');
   });
 
   it('月・日の0埋めを保持する', () => {
