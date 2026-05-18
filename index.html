@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=23">
+  <link rel="stylesheet" href="style.css?v=24">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -149,6 +149,11 @@
             autocomplete="off"
             maxlength="200"
           >
+          <div class="quick-add-meta" role="group" aria-label="追加メタ情報">
+            <button class="quick-add-chip meta-priority" type="button" data-meta="priority-high" aria-pressed="false" title="優先度: 高">高</button>
+            <button class="quick-add-chip meta-deadline" type="button" data-meta="deadline-today" aria-pressed="false" title="期限: 今日">今日</button>
+            <button class="quick-add-chip meta-deadline" type="button" data-meta="deadline-tomorrow" aria-pressed="false" title="期限: 明日">明日</button>
+          </div>
           <button class="quick-add-detail-btn" id="quickAddDetailBtn" type="button" title="詳細フォームで追加（Shift+Enter）">
             詳細…
           </button>
@@ -336,6 +341,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=22"></script>
+  <script type="module" src="app.js?v=23"></script>
 </body>
 </html>

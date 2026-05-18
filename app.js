@@ -1144,14 +1144,21 @@ async function init() {
   /* Quick add (inline, title-only) */
   const quickAddInput = document.getElementById('quickAddInput');
   const quickAddDetailBtn = document.getElementById('quickAddDetailBtn');
+  const quickAddMeta = { priority: 'medium', deadlinePreset: '' /* '' | 'today' | 'tomorrow' */ };
+
+  function quickAddResolveDeadline() {
+    if (quickAddMeta.deadlinePreset === 'today')    return new Date().toISOString().slice(0, 10);
+    if (quickAddMeta.deadlinePreset === 'tomorrow') return addDays(new Date().toISOString().slice(0, 10), 1);
+    return '';
+  }
   function quickAddSubmit() {
     const title = quickAddInput.value.trim();
     if (!title) return;
     addTask({
       title,
       description: '',
-      deadline: '',
-      priority: 'medium',
+      deadline: quickAddResolveDeadline(),
+      priority: quickAddMeta.priority,
       categoryId: state.filters.categoryId || '',
       status: 'todo',
       tags: [],
@@ -1160,16 +1167,20 @@ async function init() {
     });
     quickAddInput.value = '';
     quickAddInput.focus();
+    // チップは連投時のためスティッキー（リロードまで維持）
   }
   function quickAddOpenModal() {
     const title = quickAddInput.value.trim();
     openTaskModal();
     if (title) {
       document.getElementById('taskTitle').value = title;
-      if (state.filters.categoryId) {
-        document.getElementById('taskCategory').value = state.filters.categoryId;
-      }
     }
+    if (state.filters.categoryId) {
+      document.getElementById('taskCategory').value = state.filters.categoryId;
+    }
+    document.getElementById('taskPriority').value = quickAddMeta.priority;
+    const resolved = quickAddResolveDeadline();
+    if (resolved) document.getElementById('taskDeadline').value = resolved;
     quickAddInput.value = '';
   }
   quickAddInput.addEventListener('keydown', e => {
@@ -1179,6 +1190,30 @@ async function init() {
     else            quickAddSubmit();
   });
   quickAddDetailBtn.addEventListener('click', quickAddOpenModal);
+
+  /* Quick add meta chips（[高] [今日] [明日]） */
+  document.querySelectorAll('.quick-add-chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const meta = chip.dataset.meta;
+      if (meta === 'priority-high') {
+        quickAddMeta.priority = quickAddMeta.priority === 'high' ? 'medium' : 'high';
+      } else if (meta === 'deadline-today') {
+        quickAddMeta.deadlinePreset = quickAddMeta.deadlinePreset === 'today' ? '' : 'today';
+      } else if (meta === 'deadline-tomorrow') {
+        quickAddMeta.deadlinePreset = quickAddMeta.deadlinePreset === 'tomorrow' ? '' : 'tomorrow';
+      }
+      // UIへ反映
+      document.querySelectorAll('.quick-add-chip').forEach(c => {
+        let active = false;
+        if (c.dataset.meta === 'priority-high')     active = quickAddMeta.priority === 'high';
+        if (c.dataset.meta === 'deadline-today')    active = quickAddMeta.deadlinePreset === 'today';
+        if (c.dataset.meta === 'deadline-tomorrow') active = quickAddMeta.deadlinePreset === 'tomorrow';
+        c.classList.toggle('active', active);
+        c.setAttribute('aria-pressed', active ? 'true' : 'false');
+      });
+      quickAddInput.focus();
+    });
+  });
 
   /* Task modal close */
   document.getElementById('closeTaskModal').addEventListener('click', closeTaskModal);

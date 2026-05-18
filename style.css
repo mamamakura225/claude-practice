@@ -469,6 +469,40 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   min-width: 0;
 }
 .quick-add-input::placeholder { color: var(--text-sub); }
+
+/* Meta chips (高/今日/明日) */
+.quick-add-bar { flex-wrap: wrap; row-gap: 6px; }
+.quick-add-meta {
+  display: inline-flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.quick-add-chip {
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  color: var(--text-sub);
+  font-size: 12px;
+  font-weight: 500;
+  min-height: 30px;
+  transition: all 0.12s;
+}
+.quick-add-chip:hover { border-color: var(--primary); color: var(--primary); }
+.quick-add-chip.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.quick-add-chip.meta-priority.active {
+  background: var(--priority-high);
+  border-color: var(--priority-high);
+}
+.quick-add-chip:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
 .quick-add-detail-btn {
   flex-shrink: 0;
   padding: 8px 14px;
@@ -486,6 +520,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 }
 @media (max-width: 767px) {
   .quick-add-detail-btn { padding: 8px 10px; font-size: 12px; }
+  .quick-add-chip { padding: 5px 9px; font-size: 11.5px; }
 }
 
 .search-bar-wrap { margin-bottom: 12px; }
