@@ -4,8 +4,10 @@ import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstat
 
 /* ===== Utils ===== */
 import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline } from './utils/date.js';
-import { normalizeTask } from './utils/task.js';
+import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
+import { filterTasks } from './utils/filter.js';
+import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
 
 const firebaseConfig = {
   apiKey: "AIzaSyBEN2Cd1CGzC3aN9hHS4m8o1MCnF6z5oBk",
@@ -172,7 +174,6 @@ function uid() {
 
 const RECURRENCE_LABEL = { daily: '毎日', weekly: '毎週', monthly: '毎月' };
 
-const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 const PRIORITY_LABEL = { high: '高', medium: '中', low: '低' };
 const STATUS_LABEL   = { todo: '未着手', inprogress: '進行中', done: '完了' };
 
@@ -355,65 +356,9 @@ function getCategoryById(id) {
 
 /* ===== Filter & Sort ===== */
 function getFilteredTasks() {
-  let tasks = [...state.tasks];
-
-  if (state.filters.categoryId)
-    tasks = tasks.filter(t => t.categoryId === state.filters.categoryId);
-  if (state.filters.priority)
-    tasks = tasks.filter(t => t.priority === state.filters.priority);
-  if (state.filters.status)
-    tasks = tasks.filter(t => t.status === state.filters.status);
-  if (state.filters.hideCompleted)
-    tasks = tasks.filter(t => t.status !== 'done');
-  if (state.filters.preset) {
-    const today = new Date().toISOString().slice(0, 10);
-    if (state.filters.preset === 'today') {
-      tasks = tasks.filter(t => t.deadline === today);
-    } else if (state.filters.preset === 'week') {
-      const weekEnd = addDays(today, 6);
-      tasks = tasks.filter(t => t.deadline && t.deadline >= today && t.deadline <= weekEnd);
-    } else if (state.filters.preset === 'overdue') {
-      tasks = tasks.filter(t => t.deadline && t.deadline < today && t.status !== 'done');
-    }
-  }
-  if (state.filters.search) {
-    const raw = state.filters.search.trim();
-    if (raw.startsWith('#') && raw.length > 1) {
-      const tagQuery = raw.slice(1).toLowerCase();
-      tasks = tasks.filter(t =>
-        (t.tags || []).some(tag => tag.toLowerCase() === tagQuery)
-      );
-    } else {
-      const q = raw.toLowerCase();
-      tasks = tasks.filter(t =>
-        t.title.toLowerCase().includes(q) ||
-        (t.description && t.description.toLowerCase().includes(q)) ||
-        (t.tags || []).some(tag => tag.toLowerCase().includes(q))
-      );
-    }
-  }
-
-  tasks.sort((a, b) => {
-    // 完了タスクは選択中のソート種別に関わらず常に末尾
-    const aDone = a.status === 'done' ? 1 : 0;
-    const bDone = b.status === 'done' ? 1 : 0;
-    if (aDone !== bDone) return aDone - bDone;
-
-    if (state.filters.sort === 'manual') {
-      return (a.order ?? 0) - (b.order ?? 0);
-    }
-    if (state.filters.sort === 'deadline') {
-      const da = a.deadline || '9999-99-99';
-      const db = b.deadline || '9999-99-99';
-      return da.localeCompare(db);
-    }
-    if (state.filters.sort === 'priority') {
-      return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
-    }
-    return new Date(b.createdAt) - new Date(a.createdAt);
-  });
-
-  return tasks;
+  const today = new Date().toISOString().slice(0, 10);
+  const filtered = filterTasks(state.tasks, state.filters, today);
+  return sortTasks(filtered, state.filters.sort);
 }
 
 /* ===== Badge HTML ===== */
@@ -444,27 +389,23 @@ function recurrenceBadgeHtml(recurrence) {
 }
 
 function subtaskProgressHtml(subtasks, taskId, expanded) {
-  const len = subtasks?.length || 0;
+  const { total, done, percent } = calculateSubtaskProgress(subtasks);
   // taskId 省略時（後方互換）：0件は非表示、それ以外は非インタラクティブな span
   if (!taskId) {
-    if (len === 0) return '';
-    const done = subtasks.filter(s => s.done).length;
-    const pct = Math.round((done / len) * 100);
+    if (total === 0) return '';
     return `<span class="subtask-progress" title="サブタスク進捗">
-      <span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
-      <span class="subtask-progress-text">${done}/${len}</span>
+      <span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${percent}%"></span></span>
+      <span class="subtask-progress-text">${done}/${total}</span>
     </span>`;
   }
   // 0件：追加導線ボタン（クリックで展開＋入力フォーカス）
-  if (len === 0) {
+  if (total === 0) {
     return `<button type="button" class="subtask-progress subtask-toggle subtask-toggle-empty"
       data-action="add-subtask-empty" data-id="${taskId}"
       title="サブタスクを追加">＋ サブタスク</button>`;
   }
-  const done = subtasks.filter(s => s.done).length;
-  const pct = Math.round((done / len) * 100);
-  const inner = `<span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
-    <span class="subtask-progress-text">${done}/${len}</span>`;
+  const inner = `<span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${percent}%"></span></span>
+    <span class="subtask-progress-text">${done}/${total}</span>`;
   return `<button type="button" class="subtask-progress subtask-toggle"
     data-action="toggle-subtasks" data-id="${taskId}"
     aria-expanded="${expanded ? 'true' : 'false'}"
