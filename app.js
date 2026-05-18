@@ -32,6 +32,11 @@ const state = {
   theme: 'light',
 };
 
+/* ===== UI-only state (not persisted to cloud) ===== */
+const uiState = {
+  expanded: new Set(), // taskId set: インライン展開中のタスク
+};
+
 /* ===== Swipe Gesture State ===== */
 const SWIPE_THRESHOLD    = 40;
 const SWIPE_AUTO_TRIGGER = 100;
@@ -459,14 +464,21 @@ function recurrenceBadgeHtml(recurrence) {
   return `<span class="badge-recurrence">🔁 ${RECURRENCE_LABEL[recurrence.type] || recurrence.type}</span>`;
 }
 
-function subtaskProgressHtml(subtasks) {
+function subtaskProgressHtml(subtasks, taskId, expanded) {
   if (!subtasks || subtasks.length === 0) return '';
   const done = subtasks.filter(s => s.done).length;
   const pct = Math.round((done / subtasks.length) * 100);
-  return `<span class="subtask-progress" title="サブタスク進捗">
-    <span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
-    <span class="subtask-progress-text">${done}/${subtasks.length}</span>
-  </span>`;
+  const inner = `<span class="subtask-progress-bar"><span class="subtask-progress-fill" style="width:${pct}%"></span></span>
+    <span class="subtask-progress-text">${done}/${subtasks.length}</span>`;
+  // taskId 省略時（kanban 等）は従来通り非インタラクティブな span
+  if (!taskId) {
+    return `<span class="subtask-progress" title="サブタスク進捗">${inner}</span>`;
+  }
+  return `<button type="button" class="subtask-progress subtask-toggle"
+    data-action="toggle-subtasks" data-id="${taskId}"
+    aria-expanded="${expanded ? 'true' : 'false'}"
+    aria-controls="subtasks-${taskId}"
+    title="サブタスクを開閉">${inner}<span class="chevron" aria-hidden="true">▾</span></button>`;
 }
 
 /* ===== Render: List View ===== */
@@ -500,10 +512,22 @@ function renderListView() {
           ${categoryBadgeHtml(task.categoryId)}
           ${deadlineBadgeHtml(task.deadline)}
           ${recurrenceBadgeHtml(task.recurrence)}
-          ${subtaskProgressHtml(task.subtasks)}
+          ${subtaskProgressHtml(task.subtasks, task.id, uiState.expanded.has(task.id))}
           <span class="badge badge-low">${STATUS_LABEL[task.status] || task.status}</span>
         </div>
         ${task.tags && task.tags.length ? `<div class="task-tags">${tagChipsHtml(task.tags)}</div>` : ''}
+        ${task.subtasks?.length && uiState.expanded.has(task.id)
+          ? `<div class="task-subtasks-inline" id="subtasks-${task.id}" role="group" aria-label="サブタスク">
+              ${task.subtasks.map(s => `
+                <label class="subtask-inline-row">
+                  <input type="checkbox" class="subtask-inline-check"
+                         data-action="toggle-subtask" data-id="${task.id}" data-sid="${s.id}"
+                         ${s.done ? 'checked' : ''}>
+                  <span class="subtask-inline-title${s.done ? ' done' : ''}">${escHtml(s.title)}</span>
+                </label>
+              `).join('')}
+            </div>`
+          : ''}
       </div>
       <div class="task-actions">
         ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ（次回分は維持）" aria-label="今回だけスキップ">⏭</button>` : ''}
@@ -775,11 +799,28 @@ function handleGlobalClick(e) {
   if (action === 'delete-cat')  { deleteCategory(id); return; }
   if (action === 'sync-retry')  { saveCloud(); return; }
   if (action === 'skip')        { skipRecurrence(id); return; }
+  if (action === 'toggle-subtasks') {
+    if (uiState.expanded.has(id)) uiState.expanded.delete(id);
+    else                          uiState.expanded.add(id);
+    render();
+    return;
+  }
 }
 
 function handleGlobalChange(e) {
-  const el = e.target.closest('[data-action="status"]');
-  if (el) { updateTask(el.dataset.id, { status: el.value }); }
+  const statusEl = e.target.closest('[data-action="status"]');
+  if (statusEl) { updateTask(statusEl.dataset.id, { status: statusEl.value }); return; }
+
+  const subEl = e.target.closest('[data-action="toggle-subtask"]');
+  if (subEl) {
+    const { id, sid } = subEl.dataset;
+    const task = state.tasks.find(t => t.id === id);
+    const st = task?.subtasks?.find(s => s.id === sid);
+    if (!st) return;
+    st.done = subEl.checked;
+    saveCloud();
+    render(); // 進捗バー更新。uiState.expanded は維持されるので開いたまま。
+  }
 }
 
 /* ===== Task form submit ===== */
@@ -908,6 +949,12 @@ function attachSwipeListeners(card, wrapper, id) {
 
   card.addEventListener('touchstart', (e) => {
     if (card.classList.contains('removing')) return;
+    // インライン操作領域（サブタスク展開・トグル・アクションボタン）はスワイプ対象外
+    if (e.target.closest('.task-subtasks-inline, .subtask-toggle, .task-actions')) {
+      active = false;
+      canceled = true;
+      return;
+    }
     const t = e.touches[0];
     startX = t.clientX;
     startY = t.clientY;
