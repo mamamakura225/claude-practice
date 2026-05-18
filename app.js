@@ -410,6 +410,11 @@ function getFilteredTasks() {
   }
 
   tasks.sort((a, b) => {
+    // 完了タスクは選択中のソート種別に関わらず常に末尾
+    const aDone = a.status === 'done' ? 1 : 0;
+    const bDone = b.status === 'done' ? 1 : 0;
+    if (aDone !== bDone) return aDone - bDone;
+
     if (state.filters.sort === 'manual') {
       return (a.order ?? 0) - (b.order ?? 0);
     }
@@ -660,6 +665,20 @@ function appendSubtaskRow(subtask = { id: uid(), title: '', done: false }) {
     <button type="button" class="subtask-remove-btn" title="削除">✕</button>
   `;
   row.querySelector('.subtask-remove-btn').addEventListener('click', () => row.remove());
+
+  /* チェックボックスは即時保存（保存ボタン押し忘れで✓が消える事故を防止） */
+  row.querySelector('.subtask-check').addEventListener('change', e => {
+    const taskId = document.getElementById('taskId').value;
+    if (!taskId) return; // 新規作成中はフォーム送信まで保留
+    const task = state.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    const sub = (task.subtasks || []).find(s => s.id === subtask.id);
+    if (!sub) return;
+    sub.done = e.target.checked;
+    saveCloud();
+    render(); // 背後のカードの進捗バーを更新（モーダルはそのまま残る）
+  });
+
   list.appendChild(row);
 }
 
