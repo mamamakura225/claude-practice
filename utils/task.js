@@ -7,3 +7,13 @@ export function normalizeTask(t) {
     ...t,
   };
 }
+
+export function calculateSubtaskProgress(subtasks) {
+  const total = subtasks?.length || 0;
+  if (total === 0) {
+    return { total: 0, done: 0, percent: 0 };
+  }
+  const done = subtasks.filter(s => s.done).length;
+  const percent = Math.round((done / total) * 100);
+  return { total, done, percent };
+}
