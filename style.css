@@ -1454,6 +1454,71 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   transition: width 0.3s ease;
 }
 
+/* ===== Subtask inline expand (card) ===== */
+.subtask-toggle {
+  /* .subtask-progress の見た目を踏襲しつつ button 化 */
+  background: transparent;
+  border: 0;
+  padding: 2px 6px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+  /* font-size は .subtask-progress の 11px をそのまま使う */
+}
+.subtask-toggle:hover,
+.subtask-toggle:focus-visible {
+  background: var(--border);
+  outline: none;
+}
+.subtask-toggle .chevron {
+  font-size: 10px;
+  line-height: 1;
+  color: var(--text-sub);
+  transition: transform 0.2s ease;
+  margin-left: 2px;
+}
+.subtask-toggle[aria-expanded="true"] .chevron { transform: rotate(180deg); }
+
+.task-subtasks-inline {
+  margin-top: 8px;
+  padding: 8px 4px 4px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: subtasksSlideIn 0.18s ease-out;
+}
+@keyframes subtasksSlideIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.subtask-inline-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 2px;
+  min-height: 32px; /* スマホ用タップ領域 */
+  cursor: pointer;
+  user-select: none;
+}
+.subtask-inline-check {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  cursor: pointer;
+  accent-color: var(--primary);
+}
+.subtask-inline-title {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--text);
+}
+.subtask-inline-title.done {
+  text-decoration: line-through;
+  color: var(--text-sub);
+}
+
 /* ===== Recurrence badge ===== */
 .badge-recurrence {
   display: inline-block;
