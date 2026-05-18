@@ -2,6 +2,11 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
 
+/* ===== Utils ===== */
+import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline } from './utils/date.js';
+import { normalizeTask } from './utils/task.js';
+import { escHtml } from './utils/html.js';
+
 const firebaseConfig = {
   apiKey: "AIzaSyBEN2Cd1CGzC3aN9hHS4m8o1MCnF6z5oBk",
   authDomain: "dtask-d08b6.firebaseapp.com",
@@ -164,52 +169,12 @@ function uid() {
     : Date.now().toString(36) + Math.random().toString(36).slice(2);
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return null;
-  const [y, m, d] = dateStr.split('-');
-  return `${y}/${m}/${d}`;
-}
-
-function isOverdue(dateStr) {
-  if (!dateStr) return false;
-  return new Date(dateStr) < new Date(new Date().toDateString());
-}
-
-function addDays(dateStr, n) {
-  const d = dateStr ? new Date(dateStr) : new Date();
-  d.setDate(d.getDate() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function addMonths(dateStr, n) {
-  const d = dateStr ? new Date(dateStr) : new Date();
-  d.setMonth(d.getMonth() + n);
-  return d.toISOString().slice(0, 10);
-}
-
-function normalizeTask(t) {
-  return {
-    tags: [],
-    subtasks: [],
-    recurrence: null,
-    order: 0,
-    ...t,
-  };
-}
 
 const RECURRENCE_LABEL = { daily: '毎日', weekly: '毎週', monthly: '毎月' };
 
 const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
 const PRIORITY_LABEL = { high: '高', medium: '中', low: '低' };
 const STATUS_LABEL   = { todo: '未着手', inprogress: '進行中', done: '完了' };
-
-function escHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
 /* ===== Toast (with optional Undo) ===== */
 function showToast(message, undoFn, duration = 5000) {
@@ -309,13 +274,6 @@ function toggleDone(id) {
   render();
 }
 
-function nextRecurrenceDeadline(deadline, recurrence) {
-  const base = deadline || new Date().toISOString().slice(0, 10);
-  if (recurrence.type === 'daily')   return addDays(base, 1);
-  if (recurrence.type === 'weekly')  return addDays(base, 7);
-  if (recurrence.type === 'monthly') return addMonths(base, 1);
-  return base;
-}
 
 function spawnNextRecurrence(task) {
   const next = normalizeTask({
