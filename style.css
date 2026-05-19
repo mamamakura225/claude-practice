@@ -1682,3 +1682,68 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
     width: calc(100vw - 24px);
   }
 }
+
+/* ===== Shortcuts Help ===== */
+.shortcuts-help-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: transparent;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, transform 0.12s;
+}
+.shortcuts-help-btn:hover {
+  background: rgba(255,255,255,0.18);
+  transform: scale(1.05);
+}
+.shortcuts-help-btn:active { transform: scale(0.95); }
+.shortcuts-help-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.shortcuts-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.shortcuts-table td {
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+  color: var(--text);
+}
+.shortcuts-table tr:last-child td { border-bottom: none; }
+.shortcuts-table td:first-child {
+  width: 80px;
+  text-align: center;
+}
+.shortcuts-table kbd,
+.shortcuts-note kbd {
+  display: inline-block;
+  min-width: 28px;
+  padding: 3px 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  line-height: 1.2;
+  text-align: center;
+}
+.shortcuts-note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-sub);
+  line-height: 1.5;
+}
+
