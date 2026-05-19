@@ -353,8 +353,8 @@ function deleteCategory(id) {
   render();
 
   const msg = affectedIds.length
-    ? `カテゴリ「${removed.name}」を削除（${affectedIds.length}件のタスクが「なし」になりました）`
-    : `カテゴリ「${removed.name}」を削除しました`;
+    ? `プロジェクト「${removed.name}」を削除（${affectedIds.length}件のタスクが「なし」になりました）`
+    : `プロジェクト「${removed.name}」を削除しました`;
   showToast(msg, () => {
     if (state.categories.some(c => c.id === removed.id)) return;
     state.categories.splice(Math.min(idx, state.categories.length), 0, removed);
