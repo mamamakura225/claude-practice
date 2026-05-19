@@ -111,3 +111,31 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 Firebase設定は `app.js:12-19` にハードコード。Web APIキーは公開しても安全な種類だが、Firestoreセキュリティルールでアクセス制御する前提。
 
 > **既知の課題**: 環境変数化されていないため、ステージング/本番環境の分離が現状できない。
+
+## デプロイ方式
+
+GitHub Actions のテスト (Vitest + Playwright) が両方 success になった場合にのみ Vercel へデプロイする構成。テスト失敗時に本番が更新されるリスクを排除している。
+
+```
+push / PR
+   │
+   ▼
+┌─────────────┐  ┌─────────────┐
+│ Vitest      │  │ Playwright  │  ← .github/workflows/test.yml
+│ (unit)      │  │ (e2e)       │
+└──────┬──────┘  └──────┬──────┘
+       │ 両方 success    │
+       └────────┬────────┘
+                ▼
+        ┌──────────────┐
+        │ Vercel CLI   │  ← needs: [unit, e2e]
+        │  - prod (mainへのpush時)
+        │  - preview (PR時)
+        └──────────────┘
+```
+
+- **Vercelのgit自動デプロイは無効化**：`vercel.json` の `git.deploymentEnabled: false` により、Vercel が GitHub の push を受けて自動デプロイすることを止めている。
+- **CLI からのデプロイ**：`.github/workflows/test.yml` の `deploy-production` / `deploy-preview` ジョブが `vercel pull` → `vercel build` → `vercel deploy --prebuilt` を実行する。
+- **必要なGitHub Secrets**：`VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`。値はVercelダッシュボードとプロジェクトルートで `vercel link` 後に生成される `.vercel/project.json` から取得する。
+
+> **方針判断**：Vercelの「Deployment Protection」(Required Checks) は Pro プラン以上で利用可能なため、無料プランでも動かせる「GitHub Actions経由でCLIデプロイ」方式を採用した（issue #43）。
