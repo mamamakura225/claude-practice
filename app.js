@@ -611,6 +611,17 @@ function renderSidebar() {
     `;
     manageEl.appendChild(item);
   });
+
+  // ヘッダーの現在プロジェクトバッジ更新
+  const badge = document.getElementById('currentProjectBadge');
+  const activeCat = state.categories.find(c => c.id === state.filters.categoryId);
+  if (activeCat) {
+    document.getElementById('currentProjectDot').style.background = activeCat.color;
+    document.getElementById('currentProjectName').textContent = activeCat.name;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
 }
 
 /* ===== Render: Task modal category select ===== */
@@ -727,6 +738,7 @@ function openTaskModal(task = null) {
     document.getElementById('taskStatus').value     = 'todo';
     document.getElementById('taskTags').value       = '';
     document.getElementById('taskRecurrence').value = '';
+    document.getElementById('taskCategory').value = state.filters.categoryId || '';
   }
 
   modal.classList.remove('hidden');
@@ -1398,6 +1410,13 @@ async function init() {
   /* Category color preview */
   document.getElementById('categoryColor').addEventListener('input', e => {
     document.getElementById('categoryColorHex').textContent = e.target.value;
+  });
+
+  /* Current project badge: clear filter */
+  document.getElementById('currentProjectBadge').addEventListener('click', () => {
+    state.filters.categoryId = '';
+    renderSidebar();
+    render();
   });
 
   /* Filters */

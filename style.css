@@ -1747,3 +1747,33 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   line-height: 1.5;
 }
 
+/* ===== Current project badge (header) ===== */
+.current-project-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.3);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  max-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.current-project-badge:hover { background: rgba(255,255,255,0.28); }
+.current-project-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.current-project-close {
+  font-size: 11px;
+  opacity: 0.7;
+  flex-shrink: 0;
+}
