@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=26">
+  <link rel="stylesheet" href="style.css?v=27">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -55,6 +55,11 @@
           </svg>
         </button>
       </div>
+      <button class="current-project-badge hidden" id="currentProjectBadge" title="プロジェクトフィルターを解除">
+        <span class="current-project-dot" id="currentProjectDot"></span>
+        <span id="currentProjectName"></span>
+        <span class="current-project-close">✕</span>
+      </button>
       <span class="sync-indicator" id="syncIndicator"></span>
       <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="ダークモードに切り替え" title="ダークモード切り替え">
         <span class="theme-toggle-icon">🌙</span>
@@ -113,8 +118,8 @@
 
       <div class="sidebar-section">
         <div class="sidebar-title-row">
-          <h3 class="sidebar-title">カテゴリ</h3>
-          <button class="btn-icon-small" id="addCategoryBtn" title="カテゴリを追加">＋</button>
+          <h3 class="sidebar-title">プロジェクト</h3>
+          <button class="btn-icon-small" id="addCategoryBtn" title="プロジェクトを追加">＋</button>
         </div>
         <div id="categoryFilter" class="category-filter">
           <button class="category-chip active" data-category-id="">すべて</button>
@@ -284,7 +289,7 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">カテゴリ</label>
+            <label class="form-label">プロジェクト</label>
             <select id="taskCategory" class="form-select">
               <option value="">なし</option>
             </select>
@@ -310,16 +315,16 @@
     </div>
   </div>
 
-  <!-- カテゴリモーダル -->
+  <!-- プロジェクトモーダル -->
   <div class="modal-overlay hidden" id="categoryModal">
     <div class="modal modal-sm">
       <div class="modal-header">
-        <h2 class="modal-title">カテゴリ追加</h2>
+        <h2 class="modal-title">プロジェクト追加</h2>
         <button class="modal-close" id="closeCategoryModal">✕</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">カテゴリ名 <span class="required">*</span></label>
+          <label class="form-label">プロジェクト名 <span class="required">*</span></label>
           <input type="text" id="categoryName" class="form-input" placeholder="例：仕事、プライベート">
         </div>
         <div class="form-group">
@@ -376,6 +381,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=25"></script>
+  <script type="module" src="app.js?v=27"></script>
 </body>
 </html>
