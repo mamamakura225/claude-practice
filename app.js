@@ -750,6 +750,16 @@ function closeCategoryModal() {
   document.getElementById('categoryModal').classList.add('hidden');
 }
 
+/* ===== Modal: Shortcuts Help ===== */
+function openShortcutsModal() {
+  document.getElementById('shortcutsModal').classList.remove('hidden');
+  document.getElementById('closeShortcutsModal').focus();
+}
+
+function closeShortcutsModal() {
+  document.getElementById('shortcutsModal').classList.add('hidden');
+}
+
 /* ===== Inline subtask edit / add (card) =====
  * フォーカス維持のため、編集中・追加中は render() を呼ばず DOM を直接差し替える。
  * 確定時のみ state を更新 → saveCloud() → render() で再描画する。 */
@@ -1359,6 +1369,13 @@ async function init() {
     list.lastElementChild?.querySelector('.subtask-title-input')?.focus();
   });
 
+  /* Shortcuts help modal */
+  document.getElementById('shortcutsHelpBtn').addEventListener('click', openShortcutsModal);
+  document.getElementById('closeShortcutsModal').addEventListener('click', closeShortcutsModal);
+  document.getElementById('shortcutsModal').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeShortcutsModal();
+  });
+
   /* Category modal open */
   document.getElementById('addCategoryBtn').addEventListener('click', openCategoryModal);
 
@@ -1452,10 +1469,11 @@ async function init() {
 /* ===== Keyboard Shortcuts =====
    N : クイック追加バーにフォーカス
    / : 検索バーにフォーカス
+   ? : キーボードショートカット一覧モーダルを表示
    Esc: 開いているモーダルを閉じる / フォーカス中の入力をぼかす
 */
 function handleKeyboardShortcut(e) {
-  // モディファイア付きはブラウザ標準操作を優先
+  // Ctrl/Cmd/Alt 付きはブラウザ標準操作を優先（Shift は ? 入力で使うため除外）
   if (e.ctrlKey || e.metaKey || e.altKey) return;
 
   const target = e.target;
@@ -1466,8 +1484,9 @@ function handleKeyboardShortcut(e) {
 
   // Esc は常に効かせる（モーダル閉じ / 入力からのフォーカス外し）
   if (e.key === 'Escape') {
-    const taskModal = document.getElementById('taskModal');
-    const catModal  = document.getElementById('categoryModal');
+    const taskModal      = document.getElementById('taskModal');
+    const catModal       = document.getElementById('categoryModal');
+    const shortcutsModal = document.getElementById('shortcutsModal');
     if (taskModal && !taskModal.classList.contains('hidden')) {
       closeTaskModal();
       e.preventDefault();
@@ -1478,6 +1497,11 @@ function handleKeyboardShortcut(e) {
       e.preventDefault();
       return;
     }
+    if (shortcutsModal && !shortcutsModal.classList.contains('hidden')) {
+      closeShortcutsModal();
+      e.preventDefault();
+      return;
+    }
     if (isTyping && typeof target.blur === 'function') {
       target.blur();
       e.preventDefault();
@@ -1485,11 +1509,12 @@ function handleKeyboardShortcut(e) {
     return;
   }
 
-  // 入力中・モーダル表示中は N と / を無効化
+  // 入力中・モーダル表示中は N / / / ? を無効化
   if (isTyping) return;
-  const taskModalOpen = !document.getElementById('taskModal')?.classList.contains('hidden');
-  const catModalOpen  = !document.getElementById('categoryModal')?.classList.contains('hidden');
-  if (taskModalOpen || catModalOpen) return;
+  const taskModalOpen      = !document.getElementById('taskModal')?.classList.contains('hidden');
+  const catModalOpen       = !document.getElementById('categoryModal')?.classList.contains('hidden');
+  const shortcutsModalOpen = !document.getElementById('shortcutsModal')?.classList.contains('hidden');
+  if (taskModalOpen || catModalOpen || shortcutsModalOpen) return;
 
   if (e.key === 'n' || e.key === 'N') {
     const input = document.getElementById('quickAddInput');
@@ -1499,6 +1524,11 @@ function handleKeyboardShortcut(e) {
   if (e.key === '/') {
     const input = document.getElementById('searchInput');
     if (input) { input.focus(); input.select?.(); e.preventDefault(); }
+    return;
+  }
+  if (e.key === '?') {
+    openShortcutsModal();
+    e.preventDefault();
   }
 }
 
