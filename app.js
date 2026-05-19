@@ -96,7 +96,25 @@ async function saveCloud() {
 async function loadStorage() {
   state.theme = localStorage.getItem(THEME_KEY) || 'light';
 
-  const snap = await getDoc(DATA_DOC);
+  // Firestore が応答しない場合（オフライン等）でも UI を起動できるよう 5 秒でタイムアウト
+  let snap;
+  try {
+    snap = await Promise.race([
+      getDoc(DATA_DOC),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), 5000)),
+    ]);
+  } catch (err) {
+    console.warn('Firestore unavailable, falling back to localStorage', err);
+    try {
+      state.tasks      = JSON.parse(localStorage.getItem('dtask_tasks'))      || [];
+      state.categories = JSON.parse(localStorage.getItem('dtask_categories')) || [];
+    } catch {
+      state.tasks = []; state.categories = [];
+    }
+    state.tasks = state.tasks.map(normalizeTask);
+    return;
+  }
+
   if (snap.exists()) {
     const d = snap.data();
     state.tasks      = (d.tasks      || []).map(normalizeTask);
