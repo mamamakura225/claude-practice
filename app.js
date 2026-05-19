@@ -195,6 +195,36 @@ const RECURRENCE_LABEL = { daily: '毎日', weekly: '毎週', monthly: '毎月' 
 const PRIORITY_LABEL = { high: '高', medium: '中', low: '低' };
 const STATUS_LABEL   = { todo: '未着手', inprogress: '進行中', done: '完了' };
 
+/* ===== Undo stack (Ctrl+Z / Cmd+Z) =====
+   showToast に渡された undoFn を保持して、トーストが消えた後でも
+   キーボードショートカットで実行できるようにする。
+   - 保持期間: 60秒（トーストの可視時間 5秒より長い）
+   - 最大件数: 5 件（古いものから捨てる）
+*/
+const UNDO_TTL_MS = 60_000;
+const UNDO_STACK_MAX = 5;
+const undoStack = [];
+
+function pushUndo(fn) {
+  if (typeof fn !== 'function') return;
+  undoStack.push({ fn, expiresAt: Date.now() + UNDO_TTL_MS });
+  if (undoStack.length > UNDO_STACK_MAX) undoStack.shift();
+}
+
+function consumeUndoFn(fn) {
+  const idx = undoStack.findIndex(entry => entry.fn === fn);
+  if (idx >= 0) undoStack.splice(idx, 1);
+}
+
+function triggerLatestUndo() {
+  const now = Date.now();
+  while (undoStack.length && undoStack[0].expiresAt < now) undoStack.shift();
+  const entry = undoStack.pop();
+  if (!entry) return false;
+  try { entry.fn(); } catch (err) { console.error('Undo failed:', err); }
+  return true;
+}
+
 /* ===== Toast (with optional Undo) ===== */
 function showToast(message, undoFn, duration = 5000) {
   const container = document.getElementById('toastContainer');
@@ -222,11 +252,16 @@ function showToast(message, undoFn, duration = 5000) {
   }
 
   if (undoFn) {
+    pushUndo(undoFn);
     const btn = document.createElement('button');
     btn.type = 'button';
     btn.className = 'toast-undo';
     btn.textContent = '元に戻す';
-    btn.addEventListener('click', () => { undoFn(); dismiss(); });
+    btn.addEventListener('click', () => {
+      consumeUndoFn(undoFn);
+      undoFn();
+      dismiss();
+    });
     toast.appendChild(btn);
   }
 
@@ -1490,16 +1525,33 @@ async function init() {
    / : 検索バーにフォーカス
    ? : キーボードショートカット一覧モーダルを表示
    Esc: 開いているモーダルを閉じる / フォーカス中の入力をぼかす
+   Ctrl+Z / Cmd+Z : 直近のUndoを実行（入力中・モーダル中は無効）
 */
 function handleKeyboardShortcut(e) {
-  // Ctrl/Cmd/Alt 付きはブラウザ標準操作を優先（Shift は ? 入力で使うため除外）
-  if (e.ctrlKey || e.metaKey || e.altKey) return;
-
   const target = e.target;
   const tag    = (target?.tagName || '').toUpperCase();
   const isTyping =
     tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
     target?.isContentEditable;
+
+  // Ctrl+Z / Cmd+Z: 直近のUndo
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey &&
+      (e.key === 'z' || e.key === 'Z')) {
+    // 入力中はブラウザのネイティブUndo（テキスト編集）を優先
+    if (isTyping) return;
+    const taskModalOpen      = !document.getElementById('taskModal')?.classList.contains('hidden');
+    const catModalOpen       = !document.getElementById('categoryModal')?.classList.contains('hidden');
+    const shortcutsModalOpen = !document.getElementById('shortcutsModal')?.classList.contains('hidden');
+    if (taskModalOpen || catModalOpen || shortcutsModalOpen) return;
+    if (triggerLatestUndo()) {
+      e.preventDefault();
+      showToast('元に戻しました');
+    }
+    return;
+  }
+
+  // 他のCtrl/Cmd/Alt 付きはブラウザ標準操作を優先（Shift は ? 入力で使うため除外）
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
 
   // Esc は常に効かせる（モーダル閉じ / 入力からのフォーカス外し）
   if (e.key === 'Escape') {
