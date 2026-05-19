@@ -1,0 +1,12 @@
+# dtask 設計ドキュメント
+
+dtask（タスク管理SPA）の設計・仕様ドキュメント一覧。
+
+| ドキュメント | 内容 |
+|---|---|
+| [architecture.md](./architecture.md) | アーキテクチャ全体像、状態管理、レンダリング戦略、同期方式 |
+| [data-model.md](./data-model.md) | Task / Subtask / Category のスキーマ、永続化ストレージのキー設計 |
+| [features.md](./features.md) | 実装済み機能一覧、キーボードショートカット |
+| [testing.md](./testing.md) | テスト戦略（Vitest 単体 / Playwright E2E / CI） |
+
+更新ポリシー：機能追加・変更時にPRで該当ドキュメントを更新する。設計判断の理由が非自明な場合は `## 設計判断` セクションに追記する。
