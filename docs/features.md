@@ -121,6 +121,38 @@
 - 文字サイズ「標準」「大」切替
 - どちらも localStorage に永続化（`dtask_theme`, `dtask_fontsize`）
 
+## アクセシビリティ
+
+スクリーンリーダー・キーボード操作・コントラストの最低基準を満たすことを目的とする。
+
+### ARIA / セマンティクス
+
+- すべてのモーダルは `role="dialog"` / `aria-modal="true"` / `aria-labelledby` を付与
+- トグル状態のあるボタン（リスト/ボード切替、テーマ、プロジェクト絞り込みチップ、クイック追加チップ、ハンバーガー）は `aria-pressed` / `aria-expanded` で現在状態を伝達
+- 装飾的アイコン（カラードット、絵文字アイコン、SVG、進捗バー）は `aria-hidden="true"` で読み上げから除外
+- フォームの `<label>` は `for=` で input と関連付け（クリックでフォーカス可、SR で正しく読み上げ）
+- タスクの完了チェックは `<button aria-pressed>`（旧 div）で、タスクごとに `aria-label` にタイトルを含めて文脈を明示
+- 編集・削除・スキップなどアクションボタンも `aria-label` にタスクタイトルを含める
+
+### キーボード操作
+
+- Tab で主要なボタン・入力欄を順に巡回（独自フォーカス順は設定していない）
+- `:focus-visible` のアウトラインをカード操作系（task-check / btn-action / subtask-inline-title 等）に追加
+- `:focus-within` でタスクカードのアクション群（編集・削除等）を可視化（hover と同条件）
+- インライン編集の `subtask-inline-title` は `role="button"` + `tabindex="0"` で Enter/Space により活性化
+- ショートカット一覧は `?` キー（[キーボードショートカット](#キーボードショートカット) 参照）
+
+### コントラスト
+
+- 補助テキスト色 `--text-sub` を `#6B7280` → `#525965` に変更し、白系背景（`#F2F3F5`）に対しても WCAG AA（4.5:1）を満たす
+- ダークモードの `--text-sub: #9AA0AC` は `--bg: #0F1117` に対し約 8:1 で AA 達成
+
+### 未対応 / 今後の課題
+
+- Lighthouse Accessibility 監査による定量スコアの定点観測（[#30](https://github.com/mamamakura225/claude-practice/issues/30) と併せて検討）
+- モーダル開いている間のフォーカストラップ（現状は `Esc` で閉じるのみ）
+- カンバンビューの D&D 代替操作（キーボードでカードを列移動）
+
 ## XSS 対策
 
 外部入力をDOMに挿入する箇所はすべて [utils/html.js](../utils/html.js) の `escHtml` を経由。

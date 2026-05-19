@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=27">
+  <link rel="stylesheet" href="style.css?v=28">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -12,23 +12,23 @@
   <!-- ヘッダー -->
   <header class="header">
     <div class="header-left">
-      <button class="hamburger" id="hamburgerBtn" aria-label="メニュー">
-        <span></span><span></span><span></span>
+      <button class="hamburger" id="hamburgerBtn" aria-label="メニューを開閉" aria-controls="sidebar" aria-expanded="false">
+        <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
       </button>
       <div class="logo"><span class="logo-d">d</span>タスク</div>
     </div>
     <div class="header-center">
-      <div class="view-toggle">
-        <button class="view-btn active" id="listViewBtn">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+      <div class="view-toggle" role="group" aria-label="表示モード">
+        <button class="view-btn active" id="listViewBtn" type="button" aria-pressed="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
             <rect x="0" y="2" width="16" height="2" rx="1"/>
             <rect x="0" y="7" width="16" height="2" rx="1"/>
             <rect x="0" y="12" width="16" height="2" rx="1"/>
           </svg>
           リスト
         </button>
-        <button class="view-btn" id="kanbanViewBtn">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <button class="view-btn" id="kanbanViewBtn" type="button" aria-pressed="false">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
             <rect x="0" y="0" width="4" height="16" rx="1"/>
             <rect x="6" y="0" width="4" height="16" rx="1"/>
             <rect x="12" y="0" width="4" height="16" rx="1"/>
@@ -39,30 +39,30 @@
     </div>
     <div class="header-right">
       <!-- モバイル用アイコンのみのビュー切り替え -->
-      <div class="view-toggle-mobile">
-        <button class="view-btn-icon active" id="listViewBtnMobile" title="リスト">
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+      <div class="view-toggle-mobile" role="group" aria-label="表示モード">
+        <button class="view-btn-icon active" id="listViewBtnMobile" type="button" title="リスト" aria-label="リスト表示" aria-pressed="true">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
             <rect x="0" y="2" width="16" height="2" rx="1"/>
             <rect x="0" y="7" width="16" height="2" rx="1"/>
             <rect x="0" y="12" width="16" height="2" rx="1"/>
           </svg>
         </button>
-        <button class="view-btn-icon" id="kanbanViewBtnMobile" title="ボード">
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+        <button class="view-btn-icon" id="kanbanViewBtnMobile" type="button" title="ボード" aria-label="ボード表示" aria-pressed="false">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" focusable="false">
             <rect x="0" y="0" width="4" height="16" rx="1"/>
             <rect x="6" y="0" width="4" height="16" rx="1"/>
             <rect x="12" y="0" width="4" height="16" rx="1"/>
           </svg>
         </button>
       </div>
-      <button class="current-project-badge hidden" id="currentProjectBadge" title="プロジェクトフィルターを解除">
-        <span class="current-project-dot" id="currentProjectDot"></span>
+      <button type="button" class="current-project-badge hidden" id="currentProjectBadge" title="プロジェクトフィルターを解除" aria-label="プロジェクトフィルターを解除">
+        <span class="current-project-dot" id="currentProjectDot" aria-hidden="true"></span>
         <span id="currentProjectName"></span>
-        <span class="current-project-close">✕</span>
+        <span class="current-project-close" aria-hidden="true">✕</span>
       </button>
       <span class="sync-indicator" id="syncIndicator"></span>
-      <button class="theme-toggle-btn" id="themeToggleBtn" aria-label="ダークモードに切り替え" title="ダークモード切り替え">
-        <span class="theme-toggle-icon">🌙</span>
+      <button type="button" class="theme-toggle-btn" id="themeToggleBtn" aria-label="ダークモードに切り替え" aria-pressed="false" title="ダークモード切り替え">
+        <span class="theme-toggle-icon" aria-hidden="true">🌙</span>
         <span class="theme-toggle-label">ダーク</span>
       </button>
       <button class="shortcuts-help-btn" id="shortcutsHelpBtn" aria-label="キーボードショートカット一覧" title="キーボードショートカット (?)">?</button>
@@ -77,7 +77,7 @@
   <div class="app-layout">
 
     <!-- サイドバー -->
-    <aside class="sidebar" id="sidebar">
+    <aside class="sidebar" id="sidebar" aria-label="サイドバー">
 
       <div class="sidebar-section">
         <h3 class="sidebar-title">フィルター</h3>
@@ -88,7 +88,7 @@
           </label>
         </div>
         <div class="filter-group">
-          <label class="filter-label">ステータス</label>
+          <label class="filter-label" for="statusFilter">ステータス</label>
           <select id="statusFilter" class="filter-select">
             <option value="">すべて</option>
             <option value="todo">未着手</option>
@@ -97,7 +97,7 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label">優先度</label>
+          <label class="filter-label" for="priorityFilter">優先度</label>
           <select id="priorityFilter" class="filter-select">
             <option value="">すべて</option>
             <option value="high">高</option>
@@ -106,7 +106,7 @@
           </select>
         </div>
         <div class="filter-group">
-          <label class="filter-label">並べ替え</label>
+          <label class="filter-label" for="sortOrder">並べ替え</label>
           <select id="sortOrder" class="filter-select">
             <option value="manual">手動順</option>
             <option value="createdAt">作成日順</option>
@@ -121,8 +121,8 @@
           <h3 class="sidebar-title">プロジェクト</h3>
           <button class="btn-icon-small" id="addCategoryBtn" title="プロジェクトを追加">＋</button>
         </div>
-        <div id="categoryFilter" class="category-filter">
-          <button class="category-chip active" data-category-id="">すべて</button>
+        <div id="categoryFilter" class="category-filter" role="group" aria-label="プロジェクトで絞り込み">
+          <button type="button" class="category-chip active" data-category-id="" aria-pressed="true">すべて</button>
         </div>
         <div id="categoryList" class="category-manage-list"></div>
       </div>
@@ -146,7 +146,7 @@
       <!-- クイック追加バー -->
       <div class="quick-add-wrap">
         <div class="quick-add-bar">
-          <span class="quick-add-icon">＋</span>
+          <span class="quick-add-icon" aria-hidden="true">＋</span>
           <input
             type="text"
             id="quickAddInput"
@@ -154,6 +154,7 @@
             placeholder="タイトルを入力して Enter で追加（N キーでフォーカス）"
             autocomplete="off"
             maxlength="200"
+            aria-label="クイック追加：タイトルを入力して Enter で追加"
             title="ショートカット: N キーでここにフォーカス"
           >
           <div class="quick-add-meta" role="group" aria-label="追加メタ情報">
@@ -170,9 +171,9 @@
       <!-- 検索バー -->
       <div class="search-bar-wrap">
         <div class="search-bar">
-          <span class="search-icon">🔍</span>
-          <input type="search" id="searchInput" class="search-input" placeholder="検索（#タグ名 で完全一致 / キーボードは / でフォーカス）" autocomplete="off" title="ショートカット: / キーでここにフォーカス">
-          <button class="search-clear" id="searchClear" style="display:none" aria-label="クリア">✕</button>
+          <span class="search-icon" aria-hidden="true">🔍</span>
+          <input type="search" id="searchInput" class="search-input" placeholder="検索（#タグ名 で完全一致 / キーボードは / でフォーカス）" autocomplete="off" aria-label="タスクを検索" title="ショートカット: / キーでここにフォーカス">
+          <button type="button" class="search-clear" id="searchClear" style="display:none" aria-label="検索をクリア">✕</button>
         </div>
       </div>
 
@@ -185,12 +186,12 @@
       </div>
 
       <!-- 統計バー -->
-      <div class="stats-bar" id="statsBar" style="display:none">
+      <div class="stats-bar" id="statsBar" style="display:none" role="group" aria-label="完了タスクの進捗">
         <div class="stats-info">
           <span class="stats-text" id="statsText">0 / 0 完了</span>
           <span class="stats-pct" id="statsPct">0%</span>
         </div>
-        <div class="stats-track">
+        <div class="stats-track" aria-hidden="true">
           <div class="stats-fill" id="statsProgressBar"></div>
         </div>
       </div>
@@ -199,7 +200,7 @@
       <div id="listView" class="view-container">
         <div id="taskList" class="task-list">
           <div class="empty-state" id="listEmpty">
-            <div class="empty-icon">📋</div>
+            <div class="empty-icon" aria-hidden="true">📋</div>
             <p>タスクがありません</p>
             <p class="empty-sub">
               右上の <strong>「＋ タスク追加」</strong> ボタン、<br>
@@ -243,34 +244,34 @@
   </div>
 
   <!-- タスクモーダル -->
-  <div class="modal-overlay hidden" id="taskModal">
+  <div class="modal-overlay hidden" id="taskModal" role="dialog" aria-modal="true" aria-labelledby="taskModalTitle">
     <div class="modal">
       <div class="modal-header">
         <h2 class="modal-title" id="taskModalTitle">タスク追加</h2>
-        <button class="modal-close" id="closeTaskModal">✕</button>
+        <button type="button" class="modal-close" id="closeTaskModal" aria-label="閉じる">✕</button>
       </div>
       <form id="taskForm" class="modal-body">
         <input type="hidden" id="taskId">
         <div class="form-group">
-          <label class="form-label">タイトル <span class="required">*</span></label>
-          <input type="text" id="taskTitle" class="form-input" placeholder="タスクのタイトルを入力" required>
+          <label class="form-label" for="taskTitle">タイトル <span class="required" aria-hidden="true">*</span></label>
+          <input type="text" id="taskTitle" class="form-input" placeholder="タスクのタイトルを入力" required aria-required="true">
         </div>
         <div class="form-group">
-          <label class="form-label">詳細</label>
+          <label class="form-label" for="taskDescription">詳細</label>
           <textarea id="taskDescription" class="form-textarea" placeholder="詳細・メモを入力..." rows="3"></textarea>
         </div>
         <div class="form-group">
-          <label class="form-label">サブタスク</label>
-          <div id="subtaskList" class="subtask-list"></div>
+          <span class="form-label" id="subtaskListLabel">サブタスク</span>
+          <div id="subtaskList" class="subtask-list" role="group" aria-labelledby="subtaskListLabel"></div>
           <button type="button" class="subtask-add-btn" id="addSubtaskBtn">＋ サブタスクを追加</button>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">期限</label>
+            <label class="form-label" for="taskDeadline">期限</label>
             <input type="date" id="taskDeadline" class="form-input">
           </div>
           <div class="form-group">
-            <label class="form-label">優先度</label>
+            <label class="form-label" for="taskPriority">優先度</label>
             <select id="taskPriority" class="form-select">
               <option value="high">高</option>
               <option value="medium" selected>中</option>
@@ -279,7 +280,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">繰り返し</label>
+          <label class="form-label" for="taskRecurrence">繰り返し</label>
           <select id="taskRecurrence" class="form-select">
             <option value="">なし</option>
             <option value="daily">毎日</option>
@@ -289,13 +290,13 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">プロジェクト</label>
+            <label class="form-label" for="taskCategory">プロジェクト</label>
             <select id="taskCategory" class="form-select">
               <option value="">なし</option>
             </select>
           </div>
           <div class="form-group">
-            <label class="form-label">ステータス</label>
+            <label class="form-label" for="taskStatus">ステータス</label>
             <select id="taskStatus" class="form-select">
               <option value="todo">未着手</option>
               <option value="inprogress">進行中</option>
@@ -304,7 +305,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">タグ</label>
+          <label class="form-label" for="taskTags">タグ</label>
           <input type="text" id="taskTags" class="form-input" placeholder="カンマ区切りで入力 (例: 重要, レビュー待ち)">
         </div>
         <div class="modal-footer">
@@ -316,27 +317,27 @@
   </div>
 
   <!-- プロジェクトモーダル -->
-  <div class="modal-overlay hidden" id="categoryModal">
+  <div class="modal-overlay hidden" id="categoryModal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
     <div class="modal modal-sm">
       <div class="modal-header">
-        <h2 class="modal-title">プロジェクト追加</h2>
-        <button class="modal-close" id="closeCategoryModal">✕</button>
+        <h2 class="modal-title" id="categoryModalTitle">プロジェクト追加</h2>
+        <button type="button" class="modal-close" id="closeCategoryModal" aria-label="閉じる">✕</button>
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">プロジェクト名 <span class="required">*</span></label>
-          <input type="text" id="categoryName" class="form-input" placeholder="例：仕事、プライベート">
+          <label class="form-label" for="categoryName">プロジェクト名 <span class="required" aria-hidden="true">*</span></label>
+          <input type="text" id="categoryName" class="form-input" placeholder="例：仕事、プライベート" aria-required="true">
         </div>
         <div class="form-group">
-          <label class="form-label">カラー</label>
+          <label class="form-label" for="categoryColor">カラー</label>
           <div class="color-picker-row">
             <input type="color" id="categoryColor" class="color-input" value="#CC0033">
             <span id="categoryColorHex">#CC0033</span>
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary" id="cancelCategoryModal">キャンセル</button>
-          <button class="btn-primary" id="saveCategoryBtn">追加</button>
+          <button type="button" class="btn-secondary" id="cancelCategoryModal">キャンセル</button>
+          <button type="button" class="btn-primary" id="saveCategoryBtn">追加</button>
         </div>
       </div>
     </div>
@@ -385,6 +386,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=28"></script>
+  <script type="module" src="app.js?v=29"></script>
 </body>
 </html>
