@@ -175,6 +175,7 @@ function applyTheme(theme) {
   if (icon)  icon.textContent  = theme === 'dark' ? '☀️' : '🌙';
   if (label) label.textContent = theme === 'dark' ? 'ライト' : 'ダーク';
   btn.setAttribute('aria-label', theme === 'dark' ? 'ライトモードに切り替え' : 'ダークモードに切り替え');
+  btn.setAttribute('aria-pressed', theme === 'dark' ? 'true' : 'false');
 }
 
 function toggleTheme() {
@@ -487,10 +488,12 @@ function renderListView() {
     card.dataset.id = task.id;
     card.style.setProperty('--card-i', `${index * 45}ms`);
 
+    const titleText = escHtml(task.title);
+    const isDone = task.status === 'done';
     card.innerHTML = `
-      <div class="task-check${task.status === 'done' ? ' checked' : ''}" data-action="toggle" data-id="${task.id}" title="完了切り替え"></div>
+      <button type="button" class="task-check${isDone ? ' checked' : ''}" data-action="toggle" data-id="${task.id}" title="完了切り替え" aria-pressed="${isDone ? 'true' : 'false'}" aria-label="完了状態を切り替え: ${titleText}"></button>
       <div class="task-body">
-        <div class="task-title">${escHtml(task.title)}</div>
+        <div class="task-title">${titleText}</div>
         ${task.description ? `<div class="task-desc">${escHtml(task.description)}</div>` : ''}
         <div class="task-meta">
           ${priorityBadgeHtml(task.priority)}
@@ -508,10 +511,12 @@ function renderListView() {
                   <input type="checkbox" class="subtask-inline-check"
                          data-action="toggle-subtask" data-id="${task.id}" data-sid="${s.id}"
                          ${s.done ? 'checked' : ''}
-                         aria-label="完了切り替え">
+                         aria-label="サブタスク完了切り替え: ${escHtml(s.title)}">
                   <span class="subtask-inline-title${s.done ? ' done' : ''}"
                         data-action="edit-subtask" data-id="${task.id}" data-sid="${s.id}"
-                        title="クリックで編集">${escHtml(s.title)}</span>
+                        role="button" tabindex="0"
+                        title="クリックで編集"
+                        aria-label="サブタスクを編集: ${escHtml(s.title)}">${escHtml(s.title)}</span>
                 </div>
               `).join('')}
               <button type="button" class="subtask-inline-add"
@@ -521,9 +526,9 @@ function renderListView() {
           : ''}
       </div>
       <div class="task-actions">
-        ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ（次回分は維持）" aria-label="今回だけスキップ">⏭</button>` : ''}
-        <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集">✏️</button>
-        <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除">🗑️</button>
+        ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ（次回分は維持）" aria-label="今回だけスキップ: ${titleText}">⏭</button>` : ''}
+        <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集" aria-label="編集: ${titleText}">✏️</button>
+        <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除" aria-label="削除: ${titleText}">🗑️</button>
       </div>
     `;
     // .task-card を .swipe-wrapper で包む
@@ -577,8 +582,9 @@ function renderKanbanView() {
         `<option value="${v}"${task.status === v ? ' selected' : ''}>${l}</option>`
       ).join('');
 
+      const kTitleText = escHtml(task.title);
       card.innerHTML = `
-        <div class="kanban-card-title">${escHtml(task.title)}</div>
+        <div class="kanban-card-title">${kTitleText}</div>
         <div class="kanban-card-meta">
           ${priorityBadgeHtml(task.priority)}
           ${categoryBadgeHtml(task.categoryId)}
@@ -594,10 +600,12 @@ function renderKanbanView() {
                   <input type="checkbox" class="subtask-inline-check"
                          data-action="toggle-subtask" data-id="${task.id}" data-sid="${s.id}"
                          ${s.done ? 'checked' : ''}
-                         aria-label="完了切り替え">
+                         aria-label="サブタスク完了切り替え: ${escHtml(s.title)}">
                   <span class="subtask-inline-title${s.done ? ' done' : ''}"
                         data-action="edit-subtask" data-id="${task.id}" data-sid="${s.id}"
-                        title="クリックで編集">${escHtml(s.title)}</span>
+                        role="button" tabindex="0"
+                        title="クリックで編集"
+                        aria-label="サブタスクを編集: ${escHtml(s.title)}">${escHtml(s.title)}</span>
                 </div>
               `).join('')}
               <button type="button" class="subtask-inline-add"
@@ -606,11 +614,12 @@ function renderKanbanView() {
             </div>`
           : ''}
         <div class="kanban-card-footer">
-          <select class="kanban-status-select" data-action="status" data-id="${task.id}">${statusOptions}</select>
+          <label class="visually-hidden" for="kanban-status-${task.id}">${kTitleText} のステータス</label>
+          <select id="kanban-status-${task.id}" class="kanban-status-select" data-action="status" data-id="${task.id}">${statusOptions}</select>
           <div class="kanban-actions">
-            ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ" aria-label="今回だけスキップ">⏭</button>` : ''}
-            <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集">✏️</button>
-            <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除">🗑️</button>
+            ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ" aria-label="今回だけスキップ: ${kTitleText}">⏭</button>` : ''}
+            <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集" aria-label="編集: ${kTitleText}">✏️</button>
+            <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除" aria-label="削除: ${kTitleText}">🗑️</button>
           </div>
         </div>
       `;
@@ -624,12 +633,16 @@ function renderKanbanView() {
 function renderSidebar() {
   // Category filter chips
   const filterEl = document.getElementById('categoryFilter');
-  filterEl.innerHTML = `<button class="category-chip${state.filters.categoryId === '' ? ' active' : ''}" data-category-id="">すべて</button>`;
+  const allActive = state.filters.categoryId === '';
+  filterEl.innerHTML = `<button type="button" class="category-chip${allActive ? ' active' : ''}" data-category-id="" aria-pressed="${allActive ? 'true' : 'false'}">すべて</button>`;
   state.categories.forEach(cat => {
     const btn = document.createElement('button');
-    btn.className = `category-chip${state.filters.categoryId === cat.id ? ' active' : ''}`;
+    const active = state.filters.categoryId === cat.id;
+    btn.type = 'button';
+    btn.className = `category-chip${active ? ' active' : ''}`;
     btn.dataset.categoryId = cat.id;
-    btn.innerHTML = `<span class="category-dot" style="background:${cat.color}"></span>${escHtml(cat.name)}`;
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+    btn.innerHTML = `<span class="category-dot" style="background:${cat.color}" aria-hidden="true"></span>${escHtml(cat.name)}`;
     filterEl.appendChild(btn);
   });
 
@@ -640,9 +653,9 @@ function renderSidebar() {
     const item = document.createElement('div');
     item.className = 'category-manage-item';
     item.innerHTML = `
-      <span class="category-dot" style="background:${cat.color}"></span>
+      <span class="category-dot" style="background:${cat.color}" aria-hidden="true"></span>
       <span>${escHtml(cat.name)}</span>
-      <button class="btn-delete-cat" data-action="delete-cat" data-id="${cat.id}" title="削除">✕</button>
+      <button type="button" class="btn-delete-cat" data-action="delete-cat" data-id="${cat.id}" title="削除" aria-label="プロジェクトを削除: ${escHtml(cat.name)}">✕</button>
     `;
     manageEl.appendChild(item);
   });
@@ -704,9 +717,9 @@ function appendSubtaskRow(subtask = { id: uid(), title: '', done: false }) {
   row.className = 'subtask-row';
   row.dataset.id = subtask.id;
   row.innerHTML = `
-    <input type="checkbox" class="subtask-check" ${subtask.done ? 'checked' : ''}>
-    <input type="text" class="subtask-title-input" value="${escHtml(subtask.title)}" placeholder="サブタスクのタイトル">
-    <button type="button" class="subtask-remove-btn" title="削除">✕</button>
+    <input type="checkbox" class="subtask-check" ${subtask.done ? 'checked' : ''} aria-label="サブタスクを完了に切り替え">
+    <input type="text" class="subtask-title-input" value="${escHtml(subtask.title)}" placeholder="サブタスクのタイトル" aria-label="サブタスクのタイトル">
+    <button type="button" class="subtask-remove-btn" title="削除" aria-label="サブタスクを削除">✕</button>
   `;
   row.querySelector('.subtask-remove-btn').addEventListener('click', () => row.remove());
 
@@ -938,6 +951,15 @@ function handleGlobalClick(e) {
   }
 }
 
+/* Enter / Space で role="button" 要素を活性化（subtask 編集スパン等） */
+function handleDelegatedActivation(e) {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  const el = e.target.closest('[role="button"][data-action]');
+  if (!el) return;
+  e.preventDefault();
+  el.click();
+}
+
 function handleGlobalChange(e) {
   const statusEl = e.target.closest('[data-action="status"]');
   if (statusEl) { updateTask(statusEl.dataset.id, { status: statusEl.value }); return; }
@@ -984,13 +1006,17 @@ function handleTaskFormSubmit(e) {
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
   document.getElementById('sidebarOverlay').classList.add('visible');
-  document.getElementById('hamburgerBtn').classList.add('open');
+  const btn = document.getElementById('hamburgerBtn');
+  btn.classList.add('open');
+  btn.setAttribute('aria-expanded', 'true');
 }
 
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('visible');
-  document.getElementById('hamburgerBtn').classList.remove('open');
+  const btn = document.getElementById('hamburgerBtn');
+  btn.classList.remove('open');
+  btn.setAttribute('aria-expanded', 'false');
 }
 
 function toggleSidebar() {
@@ -1003,10 +1029,16 @@ function switchView(view) {
   state.currentView = view;
   const isList = view === 'list';
   ['listViewBtn', 'listViewBtnMobile'].forEach(id => {
-    document.getElementById(id)?.classList.toggle('active', isList);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('active', isList);
+    el.setAttribute('aria-pressed', isList ? 'true' : 'false');
   });
   ['kanbanViewBtn', 'kanbanViewBtnMobile'].forEach(id => {
-    document.getElementById(id)?.classList.toggle('active', !isList);
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.classList.toggle('active', !isList);
+    el.setAttribute('aria-pressed', !isList ? 'true' : 'false');
   });
   const showEl = document.getElementById(isList ? 'listView' : 'kanbanView');
   const hideEl = document.getElementById(isList ? 'kanbanView' : 'listView');
@@ -1504,6 +1536,7 @@ async function init() {
   /* Global delegation */
   document.addEventListener('click', handleGlobalClick);
   document.addEventListener('change', handleGlobalChange);
+  document.addEventListener('keydown', handleDelegatedActivation);
 
   /* Swipe gestures (mobile list view) */
   initSwipeGestures();

@@ -7,7 +7,7 @@
   --bg: #F2F3F5;
   --card-bg: #FFFFFF;
   --text: #1A1A1A;
-  --text-sub: #6B7280;
+  --text-sub: #525965;
   --border: #E5E7EB;
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.13);
@@ -57,6 +57,18 @@
 
 /* ===== Reset ===== */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* スクリーンリーダー専用のラベル（視覚的には非表示） */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
 body {
   font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
   font-size: 14px;
@@ -619,6 +631,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 /* Checkbox */
 .task-check {
   width: 20px; height: 20px;
+  padding: 0;
   border: 2px solid var(--border);
   border-radius: 50%;
   flex-shrink: 0;
@@ -629,8 +642,13 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   justify-content: center;
   transition: all 0.15s;
   background: #fff;
+  line-height: 1;
 }
 .task-check:hover { border-color: var(--primary); }
+.task-check:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
 .task-check.checked {
   background: var(--primary);
   border-color: var(--primary);
@@ -709,7 +727,8 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   opacity: 0;
   transition: opacity 0.15s;
 }
-.task-card:hover .task-actions { opacity: 1; }
+.task-card:hover .task-actions,
+.task-card:focus-within .task-actions { opacity: 1; }
 .btn-action {
   width: 28px; height: 28px;
   border-radius: var(--radius-sm);
@@ -721,6 +740,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   transition: all 0.12s;
 }
 .btn-action:hover { background: var(--bg); color: var(--text); }
+.btn-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
 .btn-action.delete:hover { background: var(--primary-bg); color: var(--primary); }
 .btn-action.skip:hover { background: var(--status-inprogress-bg); color: var(--status-inprogress); }
 
@@ -1536,6 +1556,10 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 }
 .subtask-inline-title:hover {
   background: var(--border);
+}
+.subtask-inline-title:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
 }
 .subtask-inline-title.done {
   text-decoration: line-through;
