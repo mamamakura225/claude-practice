@@ -1,0 +1,20 @@
+{
+  "name": "ピアノペット",
+  "short_name": "ピアノペット",
+  "description": "ピアノ練習を記録して、猫のきーちゃんを育てよう。",
+  "lang": "ja",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fff6ee",
+  "theme_color": "#ffb3c1",
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
