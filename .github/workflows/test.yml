@@ -58,7 +58,8 @@ jobs:
   deploy-preview:
     name: プレビューデプロイ (Vercel)
     needs: [unit, e2e]
-    if: github.event_name == 'pull_request'
+    # Dependabot の PR には Actions Secrets が渡らずデプロイが必ず失敗するため除外
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
