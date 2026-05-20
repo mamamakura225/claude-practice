@@ -42,7 +42,13 @@ npm run test:e2e   # Playwright E2E テスト（http-serverは自動起動）
 
 ## デプロイ
 
-mainブランチへのマージで Vercel が自動デプロイ。手動操作は不要。
+GitHub Actions のテスト (Vitest + Playwright) が両方通過した場合にのみ Vercel CLI でデプロイされる。
+
+- `main` への push → 本番デプロイ
+- PR (mainターゲット) → プレビューデプロイ
+- テスト失敗時はデプロイされない
+
+セットアップ詳細・必要なSecretsは [docs/architecture.md#デプロイ方式](./docs/architecture.md#デプロイ方式) を参照。
 
 ## ドキュメント
 
