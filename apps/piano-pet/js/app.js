@@ -1,5 +1,15 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
+import { loadState, saveState } from './storage.js';
 
+// ===== 状態管理 =====
+export let state = loadState();
+
+export function commitState(newState) {
+  state = newState;
+  saveState(state);
+}
+
+// ===== ナビゲーション =====
 const views = Array.from(document.querySelectorAll('.view'));
 const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
 
