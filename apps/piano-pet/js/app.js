@@ -1,6 +1,6 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState } from './storage.js';
-import { catStage, todayStr } from './game.js';
+import { catStage, todayStr, xpProgress } from './game.js';
 import { catMarkup } from './cat.js';
 
 // ===== 状態管理 =====
@@ -32,6 +32,29 @@ export function renderHome() {
   }
   const nameEl = document.getElementById('petName');
   if (nameEl) nameEl.textContent = state.pet.name;
+
+  renderStats();
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = value;
+}
+
+// レベル・XPバー・コイン・ストリークの表示
+function renderStats() {
+  const { level, xpInLevel, xpPerLevel, toNextLevel } = xpProgress(state.pet.xp);
+
+  setText('statLevel', level);
+  setText('statToNext', `あと ${toNextLevel} かい で レベルアップ`);
+  setText('statCoins', state.pet.coins);
+  setText('statStreak', state.streak.current);
+
+  const pct = xpPerLevel > 0 ? Math.round((xpInLevel / xpPerLevel) * 100) : 0;
+  const fillEl = document.getElementById('statXpFill');
+  if (fillEl) fillEl.style.width = `${pct}%`;
+  const barEl = document.getElementById('statXpbar');
+  if (barEl) barEl.setAttribute('aria-valuenow', String(pct));
 }
 
 // ===== ナビゲーション =====
