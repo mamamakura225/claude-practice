@@ -129,12 +129,18 @@ export function applySession(state, { date, songs, totalCount }) {
 
 // ----- ユーティリティ -----
 
+// ローカルの暦日を YYYY-MM-DD で返す（UTC変換でズレないようローカル要素から組む）
 export function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
+// 日付文字列の前日を返す（UTC基準で計算するのでタイムゾーン非依存）
 function prevDay(dateStr) {
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() - 1);
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
 }

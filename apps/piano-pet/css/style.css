@@ -216,6 +216,198 @@ body {
   box-shadow: 0 2px 0 #e85f7c;
 }
 
+/* ===== 記録フォーム ===== */
+.view-body--form {
+  justify-content: flex-start;
+  gap: 18px;
+}
+
+.record-form {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: left;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #b48a92;
+}
+
+.field-input {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 1rem;
+  color: var(--ink);
+  background: #fff;
+  border: 2px solid #ffe1e8;
+  border-radius: 14px;
+  padding: 12px 14px;
+  width: 100%;
+}
+
+.field-input:focus {
+  outline: none;
+  border-color: var(--pink-deep);
+}
+
+.songs {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.song-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.song-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.song-row .song-name {
+  flex: 1;
+}
+
+.song-row .song-count {
+  width: 80px;
+  text-align: center;
+}
+
+.btn-remove-row {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 12px;
+  background: #ffe1e8;
+  color: var(--pink-deep);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-remove-row:active {
+  transform: scale(0.94);
+}
+
+.btn-add-row {
+  align-self: flex-start;
+  border: 2px dashed var(--pink);
+  background: #fff;
+  color: var(--pink-deep);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 16px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+
+.btn-add-row:active {
+  transform: scale(0.97);
+}
+
+.record-total {
+  text-align: center;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.1rem;
+  color: var(--ink);
+}
+
+.record-total span {
+  color: var(--pink-deep);
+  font-size: 1.4rem;
+}
+
+.btn-record--submit {
+  align-self: center;
+}
+
+.record-error {
+  text-align: center;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #e0506a;
+}
+
+/* ===== 獲得コインのポップアップ ===== */
+.coin-popup {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(74, 59, 59, 0.18);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.coin-popup--show {
+  opacity: 1;
+}
+
+.coin-popup__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border-radius: 24px;
+  padding: 28px 40px;
+  box-shadow: 0 10px 30px var(--shadow);
+  transform: scale(0.7);
+  transition: transform 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
+.coin-popup--show .coin-popup__card {
+  transform: scale(1);
+}
+
+.coin-popup__icon {
+  font-size: 2.6rem;
+  line-height: 1;
+}
+
+.coin-popup__amount {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 2rem;
+  color: #e0a91f;
+}
+
+.coin-popup__label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #b0a3a3;
+}
+
+.coin-popup__levelup {
+  margin-top: 6px;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1rem;
+  color: var(--pink-deep);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .coin-popup,
+  .coin-popup__card {
+    transition: none;
+  }
+}
+
 /* ===== ボトムナビ ===== */
 .bottom-nav {
   position: fixed;
