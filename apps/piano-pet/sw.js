@@ -1,12 +1,16 @@
 // ===== Service Worker（シンプルなアプリシェルキャッシュ） =====
-const CACHE = 'piano-pet-v1';
+const CACHE = 'piano-pet-v2';
 
 const APP_SHELL = [
   './',
   './index.html',
   './css/style.css?v=1',
+  './css/cat.css?v=1',
   './js/app.js?v=1',
   './js/router.js',
+  './js/storage.js',
+  './js/game.js',
+  './js/cat.js',
   './manifest.json',
   './icons/icon.svg',
 ];

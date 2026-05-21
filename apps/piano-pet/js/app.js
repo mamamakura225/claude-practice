@@ -1,5 +1,7 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState } from './storage.js';
+import { catStage, todayStr } from './game.js';
+import { catMarkup } from './cat.js';
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -7,6 +9,29 @@ export let state = loadState();
 export function commitState(newState) {
   state = newState;
   saveState(state);
+  renderHome();
+}
+
+// ===== ホームの猫表示（フル機能は Epic 4） =====
+function moodForState(s) {
+  const last = s.streak.lastPracticeDate;
+  if (!last) return 'idle';
+  const diffDays = Math.floor((Date.parse(todayStr()) - Date.parse(last)) / 86400000);
+  return diffDays >= 2 ? 'sleep' : 'idle';
+}
+
+export function renderHome() {
+  const stageEl = document.getElementById('catStage');
+  if (stageEl) {
+    stageEl.innerHTML = catMarkup({
+      stage: catStage(state.pet.level),
+      mood: moodForState(state),
+      equippedItems: state.pet.equippedItems,
+      name: state.pet.name,
+    });
+  }
+  const nameEl = document.getElementById('petName');
+  if (nameEl) nameEl.textContent = state.pet.name;
 }
 
 // ===== ナビゲーション =====
@@ -50,6 +75,7 @@ document.getElementById('recordBackBtn')?.addEventListener('click', () => router
 window.addEventListener('hashchange', () => router.syncFromHash(window.location.hash));
 
 // 初期表示
+renderHome();
 router.syncFromHash(window.location.hash);
 
 // ===== Service Worker 登録 =====

@@ -1,0 +1,100 @@
+/* ===== 猫SVG 表示・アニメーション ===== */
+.cat-stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.cat {
+  width: 72%;
+  max-width: 260px;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.pet-name {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.3rem;
+  color: var(--pink-deep);
+  margin-top: -8px;
+}
+
+/* ----- 通常：呼吸・尻尾 ----- */
+.cat__body {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: pp-breathe 3.6s ease-in-out infinite;
+}
+
+.cat__tail {
+  transform-box: fill-box;
+  transform-origin: 12% 88%;
+  animation: pp-tail 2.8s ease-in-out infinite;
+}
+
+@keyframes pp-breathe {
+  0%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(1.035); }
+}
+
+@keyframes pp-tail {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(-9deg); }
+}
+
+/* ----- 目の開閉 ----- */
+.cat__eyes--closed { display: none; }
+
+/* ----- 寝る（2日以上練習なし） ----- */
+.cat--sleep .cat__eyes--open { display: none; }
+.cat--sleep .cat__eyes--closed { display: block; }
+.cat--sleep .cat__tail { animation-duration: 6s; }
+.cat--sleep .cat__body { animation-duration: 7s; }
+
+.cat__zzz { opacity: 0; }
+.cat--sleep .cat__zzz {
+  animation: pp-zzz 3.2s ease-in-out infinite;
+  transform-box: fill-box;
+}
+
+@keyframes pp-zzz {
+  0% { opacity: 0; transform: translateY(0); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-18px); }
+}
+
+/* ----- 喜ぶ（練習記録後・単発） ----- */
+.cat--happy { animation: pp-hop 0.45s ease-in-out 3; }
+
+@keyframes pp-hop {
+  0%, 100% { transform: translateY(0); }
+  35% { transform: translateY(-20px); }
+  70% { transform: translateY(0); }
+}
+
+.cat__hearts { opacity: 0; }
+.cat--happy .cat__hearts { opacity: 1; }
+.cat--happy .cat__heart {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pp-heart 1.1s ease-out forwards;
+}
+
+@keyframes pp-heart {
+  0% { opacity: 0; transform: translateY(0) scale(0.6); }
+  25% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-46px) scale(1); }
+}
+
+/* ----- アクセシビリティ：モーション控えめ設定 ----- */
+@media (prefers-reduced-motion: reduce) {
+  .cat__body,
+  .cat__tail,
+  .cat--happy,
+  .cat--sleep .cat__zzz,
+  .cat--happy .cat__heart {
+    animation: none !important;
+  }
+}
