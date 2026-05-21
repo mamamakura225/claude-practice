@@ -3,16 +3,17 @@
 import { catStage } from './game.js';
 
 // ----- カラーパレット -----
-const FUR      = '#a09088';  // メイン毛色（温かみのあるグレー）
-const FUR_MID  = '#c0b0a4';  // 中間色（顔・腹部境界）
+const FUR      = '#7a6a5e';  // メイン毛色（温かみのある濃いグレー）
+const FUR_MID  = '#a09088';  // 中間色（顔・腹部境界）
+const FUR_DARK = '#5a4a40';  // 輪郭線・ストローク用
 const BELLY    = '#ede5da';  // お腹・顔内側クリーム
-const EAR_IN   = '#c8a0aa';  // 耳の内側（くすみピンク）
+const EAR_IN   = '#c8909a';  // 耳の内側（くすみピンク）
 const BLUSH    = '#f0a0b0';  // ほっぺ
 const IRIS     = '#607870';  // 虹彩（ティールグレー）
 const PUPIL    = '#2c2020';  // 瞳孔
 const EYE_HIGH = '#ffffff';  // 目のハイライト
 const NOSE     = '#d87090';  // 鼻
-const WHISKER  = '#d0c0b0';  // ひげ
+const WHISKER  = '#b0a090';  // ひげ
 
 // ----- ステージ別パラメータ（viewBox 0 0 200 236） -----
 const STAGES = {
@@ -117,15 +118,15 @@ function headGroup(cfg) {
   return `
   <g class="cat__head">
     <!-- 折れ耳（外）耳は頭円の後ろに描き、頭でベースを隠す -->
-    <ellipse cx="${e.lx}" cy="${e.ty}" rx="${e.erx}" ry="${e.ery}" fill="${FUR}" transform="rotate(-${e.rot},${e.lx},${e.ty})"/>
-    <ellipse cx="${e.rx}" cy="${e.ty}" rx="${e.erx}" ry="${e.ery}" fill="${FUR}" transform="rotate(${e.rot},${e.rx},${e.ty})"/>
+    <ellipse cx="${e.lx}" cy="${e.ty}" rx="${e.erx}" ry="${e.ery}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5" transform="rotate(-${e.rot},${e.lx},${e.ty})"/>
+    <ellipse cx="${e.rx}" cy="${e.ty}" rx="${e.erx}" ry="${e.ery}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5" transform="rotate(${e.rot},${e.rx},${e.ty})"/>
     <!-- 折れ耳（内側） -->
     <ellipse cx="${e.lx}" cy="${n(e.ty+4)}" rx="${e.erx-6}" ry="${e.ery-5}" fill="${EAR_IN}" transform="rotate(-${e.rot},${e.lx},${n(e.ty+4)})"/>
     <ellipse cx="${e.rx}" cy="${n(e.ty+4)}" rx="${e.erx-6}" ry="${e.ery-5}" fill="${EAR_IN}" transform="rotate(${e.rot},${e.rx},${n(e.ty+4)})"/>
     <!-- 頭（耳のベースを隠す） -->
-    <circle cx="${h.cx}" cy="${h.cy}" r="${h.r}" fill="${FUR}"/>
+    <circle cx="${h.cx}" cy="${h.cy}" r="${h.r}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2"/>
     <!-- 顔内側の明るいエリア -->
-    <ellipse cx="${h.cx}" cy="${n(h.cy + h.r*0.10)}" rx="${n(h.r*0.60)}" ry="${n(h.r*0.58)}" fill="${FUR_MID}" opacity="0.45"/>
+    <ellipse cx="${h.cx}" cy="${n(h.cy + h.r*0.10)}" rx="${n(h.r*0.60)}" ry="${n(h.r*0.58)}" fill="${FUR_MID}" opacity="0.35"/>
     <!-- ほっぺ -->
     <circle cx="${n(h.cx - h.r*0.44)}" cy="${n(h.cy + h.r*0.22)}" r="${n(h.r*0.24)}" fill="${BLUSH}" opacity="0.42"/>
     <circle cx="${n(h.cx + h.r*0.44)}" cy="${n(h.cy + h.r*0.22)}" r="${n(h.r*0.24)}" fill="${BLUSH}" opacity="0.42"/>
@@ -152,7 +153,7 @@ function headGroup(cfg) {
 function bodyGroup({ body: b, belly: bl }) {
   return `
   <g class="cat__body">
-    <ellipse cx="${b.cx}" cy="${b.cy}" rx="${b.rx}" ry="${b.ry}" fill="${FUR}"/>
+    <ellipse cx="${b.cx}" cy="${b.cy}" rx="${b.rx}" ry="${b.ry}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="2"/>
     <ellipse cx="${bl.cx}" cy="${bl.cy}" rx="${bl.rx}" ry="${bl.ry}" fill="${BELLY}" opacity="0.90"/>
   </g>`;
 }
@@ -172,11 +173,11 @@ function armsGroup(cfg) {
 
   return `
   <g class="cat__arm cat__arm--r">
-    <ellipse cx="${armR.cx}" cy="${armR.cy}" rx="${armR.arx}" ry="${armR.ary}" fill="${FUR}" transform="rotate(${armR.rot},${armR.cx},${armR.cy})"/>
+    <ellipse cx="${armR.cx}" cy="${armR.cy}" rx="${armR.arx}" ry="${armR.ary}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5" transform="rotate(${armR.rot},${armR.cx},${armR.cy})"/>
     ${paw(pawR.cx, pawR.cy, 1)}
   </g>
   <g class="cat__arm cat__arm--l">
-    <ellipse cx="${armL.cx}" cy="${armL.cy}" rx="${armL.arx}" ry="${armL.ary}" fill="${FUR}" transform="rotate(${armL.rot},${armL.cx},${armL.cy})"/>
+    <ellipse cx="${armL.cx}" cy="${armL.cy}" rx="${armL.arx}" ry="${armL.ary}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5" transform="rotate(${armL.rot},${armL.cx},${armL.cy})"/>
     ${paw(pawL.cx, pawL.cy, -1)}
   </g>`;
 }
@@ -185,10 +186,10 @@ function armsGroup(cfg) {
 function hindGroup({ hindL, hindR }) {
   return `
   <g class="cat__hind">
-    <ellipse cx="${hindL.cx}" cy="${hindL.cy}" rx="${hindL.hrx}" ry="${hindL.hry}" fill="${FUR}"/>
-    <ellipse cx="${hindR.cx}" cy="${hindR.cy}" rx="${hindR.hrx}" ry="${hindR.hry}" fill="${FUR}"/>
-    <ellipse cx="${hindL.cx}" cy="${hindL.cy}" rx="${hindL.hrx - 5}" ry="${hindL.hry - 2}" fill="${FUR_MID}" opacity="0.50"/>
-    <ellipse cx="${hindR.cx}" cy="${hindR.cy}" rx="${hindR.hrx - 5}" ry="${hindR.hry - 2}" fill="${FUR_MID}" opacity="0.50"/>
+    <ellipse cx="${hindL.cx}" cy="${hindL.cy}" rx="${hindL.hrx}" ry="${hindL.hry}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5"/>
+    <ellipse cx="${hindR.cx}" cy="${hindR.cy}" rx="${hindR.hrx}" ry="${hindR.hry}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5"/>
+    <ellipse cx="${hindL.cx}" cy="${hindL.cy}" rx="${hindL.hrx - 5}" ry="${hindL.hry - 2}" fill="${FUR_MID}" opacity="0.45"/>
+    <ellipse cx="${hindR.cx}" cy="${hindR.cy}" rx="${hindR.hrx - 5}" ry="${hindR.hry - 2}" fill="${FUR_MID}" opacity="0.45"/>
   </g>`;
 }
 
@@ -196,8 +197,9 @@ function hindGroup({ hindL, hindR }) {
 function tailGroup({ tail }) {
   return `
   <g class="cat__tail">
+    <path d="${tail.d}" fill="none" stroke="${FUR_DARK}" stroke-width="${tail.w + 3}" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="${tail.d}" fill="none" stroke="${FUR}" stroke-width="${tail.w}" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="${tail.d}" fill="none" stroke="${FUR_MID}" stroke-width="${n(tail.w * 0.55)}" stroke-linecap="round" stroke-dasharray="7 22" opacity="0.55"/>
+    <path d="${tail.d}" fill="none" stroke="${FUR_MID}" stroke-width="${n(tail.w * 0.50)}" stroke-linecap="round" stroke-dasharray="7 22" opacity="0.60"/>
   </g>`;
 }
 
@@ -303,7 +305,7 @@ export function catMarkup({ stage = 'kitten', mood = 'idle', equippedItems = [],
     ${tailGroup(cfg)}
     ${hindGroup(cfg)}
     <g class="cat__arm cat__arm--r-behind">
-      <ellipse cx="${cfg.armR.cx}" cy="${cfg.armR.cy}" rx="${cfg.armR.arx}" ry="${cfg.armR.ary}" fill="${FUR}" transform="rotate(${cfg.armR.rot},${cfg.armR.cx},${cfg.armR.cy})"/>
+      <ellipse cx="${cfg.armR.cx}" cy="${cfg.armR.cy}" rx="${cfg.armR.arx}" ry="${cfg.armR.ary}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5" transform="rotate(${cfg.armR.rot},${cfg.armR.cx},${cfg.armR.cy})"/>
     </g>
     ${bodyGroup(cfg)}
     ${armsGroup(cfg)}
