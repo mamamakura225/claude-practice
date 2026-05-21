@@ -3,16 +3,17 @@
 import { catStage } from './game.js';
 
 // ----- カラーパレット -----
-const FUR      = '#a89784';  // メイン毛色（やわらかい温かみのグレージュ）
-const FUR_MID  = '#c8bbac';  // 中間色（顔・腹部の明るいエリア）
-const FUR_DARK = '#8a7864';  // 輪郭線（毛色になじむ柔らかい茶系）
-const BELLY    = '#f1eadf';  // お腹・顔内側クリーム
-const EAR_IN   = '#e0a6b0';  // 耳の内側（やわらかピンク）
-const BLUSH    = '#f5aab8';  // ほっぺ
-const PUPIL    = '#33292a';  // 黒目（ツヤのある黒に近いブラウン）
+const FUR      = '#e6a455';  // メイン毛色（茶トラのゴールデンオレンジ）
+const FUR_MID  = '#f2c87f';  // 中間色（明るいハイライト・マズル）
+const FUR_DARK = '#b5722e';  // 輪郭線（毛色になじむ温かみのブラウン）
+const STRIPE   = '#c97f30';  // 縞模様（しっぽ・額のキジトラ柄）
+const BELLY    = '#f9efd6';  // お腹・マズルのクリーム
+const EAR_IN   = '#e8a6ac';  // 耳の内側（やわらかピンク）
+const BLUSH    = '#f3a59a';  // ほっぺ
+const PUPIL    = '#3a2e26';  // 黒目（ツヤのある黒に近いブラウン）
 const EYE_HIGH = '#ffffff';  // 目のハイライト
-const NOSE     = '#e08296';  // 鼻
-const WHISKER  = '#bcae9c';  // ひげ
+const NOSE     = '#dd8a86';  // 鼻（やわらかテラコッタピンク）
+const WHISKER  = '#dcbd86';  // ひげ
 
 // ----- ステージ別パラメータ（viewBox 0 0 200 236） -----
 const STAGES = {
@@ -123,8 +124,14 @@ function headGroup(cfg) {
     <ellipse cx="${e.rx}" cy="${n(e.ty+4)}" rx="${e.erx-6}" ry="${e.ery-5}" fill="${EAR_IN}" transform="rotate(${e.rot},${e.rx},${n(e.ty+4)})"/>
     <!-- 頭（耳のベースを隠す） -->
     <circle cx="${h.cx}" cy="${h.cy}" r="${h.r}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5"/>
-    <!-- 顔下部の明るいマズル（控えめ） -->
-    <ellipse cx="${h.cx}" cy="${n(h.cy + h.r*0.24)}" rx="${n(h.r*0.46)}" ry="${n(h.r*0.34)}" fill="${FUR_MID}" opacity="0.30"/>
+    <!-- 額のキジトラ縞（3本） -->
+    <g stroke="${STRIPE}" stroke-width="${n(h.r*0.10)}" stroke-linecap="round" fill="none" opacity="0.70">
+      <path d="M${h.cx} ${n(h.cy - h.r*0.74)} L${h.cx} ${n(h.cy - h.r*0.50)}"/>
+      <path d="M${n(h.cx - h.r*0.22)} ${n(h.cy - h.r*0.70)} L${n(h.cx - h.r*0.26)} ${n(h.cy - h.r*0.48)}"/>
+      <path d="M${n(h.cx + h.r*0.22)} ${n(h.cy - h.r*0.70)} L${n(h.cx + h.r*0.26)} ${n(h.cy - h.r*0.48)}"/>
+    </g>
+    <!-- 顔下部のクリームのマズル -->
+    <ellipse cx="${h.cx}" cy="${n(h.cy + h.r*0.26)}" rx="${n(h.r*0.48)}" ry="${n(h.r*0.36)}" fill="${BELLY}" opacity="0.55"/>
     <!-- ほっぺ -->
     <circle cx="${n(h.cx - h.r*0.46)}" cy="${n(h.cy + h.r*0.26)}" r="${n(h.r*0.21)}" fill="${BLUSH}" opacity="0.38"/>
     <circle cx="${n(h.cx + h.r*0.46)}" cy="${n(h.cy + h.r*0.26)}" r="${n(h.r*0.21)}" fill="${BLUSH}" opacity="0.38"/>
@@ -197,7 +204,7 @@ function tailGroup({ tail }) {
   <g class="cat__tail">
     <path d="${tail.d}" fill="none" stroke="${FUR_DARK}" stroke-width="${tail.w + 2}" stroke-linecap="round" stroke-linejoin="round"/>
     <path d="${tail.d}" fill="none" stroke="${FUR}" stroke-width="${tail.w}" stroke-linecap="round" stroke-linejoin="round"/>
-    <path d="${tail.d}" fill="none" stroke="${FUR_MID}" stroke-width="${n(tail.w * 0.50)}" stroke-linecap="round" stroke-dasharray="7 22" opacity="0.55"/>
+    <path d="${tail.d}" fill="none" stroke="${STRIPE}" stroke-width="${tail.w}" stroke-linecap="butt" stroke-dasharray="7 17" opacity="0.85"/>
   </g>`;
 }
 
