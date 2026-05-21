@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "piano-pet",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["http-server", "./apps/piano-pet", "-p", "4321", "-c-1", "--silent"],
+      "port": 4321
+    }
+  ]
+}

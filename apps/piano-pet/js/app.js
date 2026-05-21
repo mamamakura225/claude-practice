@@ -1,7 +1,8 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState } from './storage.js';
-import { catStage, todayStr, xpProgress } from './game.js';
-import { catMarkup } from './cat.js';
+import { catStage, todayStr, xpProgress, applySession } from './game.js';
+import { catMarkup, playHappy } from './cat.js';
+import { collectSongs, isValidSession } from './record-form.js';
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -75,6 +76,7 @@ function render(view) {
     const homeBtn = navButtons.find((b) => b.dataset.nav === 'home');
     if (homeBtn) homeBtn.classList.add('active');
   }
+  if (view === 'record') resetRecordForm();
   window.scrollTo(0, 0);
 }
 
@@ -94,6 +96,94 @@ navButtons.forEach((btn) => {
 
 document.getElementById('goRecordBtn')?.addEventListener('click', () => router.go('record'));
 document.getElementById('recordBackBtn')?.addEventListener('click', () => router.go('home'));
+
+// ===== 記録フォーム =====
+const songRowsEl = document.getElementById('songRows');
+const recordDateEl = document.getElementById('recordDate');
+const recordTotalEl = document.getElementById('recordTotal');
+const recordErrorEl = document.getElementById('recordError');
+
+function songRowMarkup() {
+  return `<div class="song-row">
+    <input type="text" class="field-input song-name" placeholder="きょくめい" aria-label="きょくめい">
+    <input type="number" class="field-input song-count" placeholder="0" min="0" step="1" inputmode="numeric" aria-label="かいすう">
+    <button type="button" class="btn-remove-row" aria-label="この ぎょうを けす">✕</button>
+  </div>`;
+}
+
+function readRows() {
+  return Array.from(songRowsEl?.querySelectorAll('.song-row') ?? []).map((row) => ({
+    name: row.querySelector('.song-name')?.value ?? '',
+    count: row.querySelector('.song-count')?.value ?? '',
+  }));
+}
+
+function updateTotal() {
+  const { totalCount } = collectSongs(readRows());
+  if (recordTotalEl) recordTotalEl.textContent = String(totalCount);
+  if (recordErrorEl && totalCount > 0) recordErrorEl.hidden = true;
+}
+
+function addRow() {
+  songRowsEl?.insertAdjacentHTML('beforeend', songRowMarkup());
+}
+
+function resetRecordForm() {
+  if (recordDateEl) recordDateEl.value = todayStr();
+  if (songRowsEl) songRowsEl.innerHTML = '';
+  addRow();
+  updateTotal();
+  if (recordErrorEl) recordErrorEl.hidden = true;
+}
+
+function showCoinPopup({ coins, leveled, newLevel }) {
+  const popup = document.getElementById('coinPopup');
+  if (!popup) return;
+  document.getElementById('coinPopupAmount').textContent = `+${coins}`;
+  const levelUpEl = document.getElementById('coinPopupLevelUp');
+  if (levelUpEl) {
+    levelUpEl.hidden = !leveled;
+    levelUpEl.textContent = leveled ? `レベル ${newLevel} に アップ！🎉` : '';
+  }
+  popup.hidden = false;
+  // リフローを挟んでアニメーションを確実に再生
+  void popup.getBoundingClientRect();
+  popup.classList.add('coin-popup--show');
+  clearTimeout(showCoinPopup._t);
+  showCoinPopup._t = setTimeout(() => {
+    popup.classList.remove('coin-popup--show');
+    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
+  }, 2000);
+}
+
+function submitRecord(event) {
+  event.preventDefault();
+  const date = recordDateEl?.value || todayStr();
+  const { songs, totalCount } = collectSongs(readRows());
+
+  if (!isValidSession({ totalCount })) {
+    if (recordErrorEl) recordErrorEl.hidden = false;
+    return;
+  }
+
+  const { state: newState, rewards } = applySession(state, { date, songs, totalCount });
+  commitState(newState);          // 保存 + ホーム再描画
+  router.go('home');              // ホームへ遷移
+  playHappy(document.querySelector('#catStage svg'));  // 喜ぶアニメ
+  showCoinPopup(rewards);         // 獲得コインのポップアップ
+  resetRecordForm();
+}
+
+document.getElementById('addRowBtn')?.addEventListener('click', addRow);
+songRowsEl?.addEventListener('input', updateTotal);
+songRowsEl?.addEventListener('click', (e) => {
+  if (!e.target.closest('.btn-remove-row')) return;
+  const rows = songRowsEl.querySelectorAll('.song-row');
+  if (rows.length <= 1) return;   // 最低1行は残す
+  e.target.closest('.song-row').remove();
+  updateTotal();
+});
+document.getElementById('recordForm')?.addEventListener('submit', submitRecord);
 
 window.addEventListener('hashchange', () => router.syncFromHash(window.location.hash));
 

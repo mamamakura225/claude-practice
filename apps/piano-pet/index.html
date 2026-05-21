@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=2">
+  <link rel="stylesheet" href="css/style.css?v=3">
   <link rel="stylesheet" href="css/cat.css?v=2">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
@@ -62,9 +62,26 @@
         <button class="btn-back" id="recordBackBtn" type="button" aria-label="ホームにもどる">‹ もどる</button>
         <h1 class="app-title">れんしゅうを きろく</h1>
       </header>
-      <div class="view-body">
-        <p class="placeholder">れんしゅうの にゅうりょくフォーム</p>
-        <p class="placeholder-note">（Epic 5 でつくります）</p>
+      <div class="view-body view-body--form">
+        <form id="recordForm" class="record-form" novalidate>
+          <label class="field">
+            <span class="field-label">ひづけ</span>
+            <input type="date" id="recordDate" class="field-input" required>
+          </label>
+
+          <div class="songs">
+            <span class="field-label">れんしゅうした きょく</span>
+            <div id="songRows" class="song-rows"></div>
+            <button type="button" id="addRowBtn" class="btn-add-row">＋ きょくを ふやす</button>
+          </div>
+
+          <div class="record-total" aria-live="polite">
+            ごうけい <span id="recordTotal">0</span> かい
+          </div>
+
+          <button type="submit" id="recordSubmitBtn" class="btn-record btn-record--submit">きろくする</button>
+          <p id="recordError" class="record-error" role="alert" hidden>1かい いじょう にゅうりょくしてね</p>
+        </form>
       </div>
     </section>
 
@@ -106,8 +123,18 @@
       </button>
     </nav>
 
+    <!-- ===== 獲得コインのポップアップ ===== -->
+    <div id="coinPopup" class="coin-popup" role="status" aria-live="polite" hidden>
+      <div class="coin-popup__card">
+        <span class="coin-popup__icon" aria-hidden="true">🪙</span>
+        <span class="coin-popup__amount" id="coinPopupAmount">+0</span>
+        <span class="coin-popup__label">コイン ゲット！</span>
+        <span class="coin-popup__levelup" id="coinPopupLevelUp" hidden>レベルアップ！🎉</span>
+      </div>
+    </div>
+
   </div>
 
-  <script type="module" src="js/app.js?v=2"></script>
+  <script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>
