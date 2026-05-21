@@ -9,6 +9,14 @@ import {
   weeklyChartModel,
   formatDateJa,
 } from './history.js';
+import {
+  SHOP_ITEMS,
+  isOwned,
+  isEquipped,
+  canBuy,
+  buyItem,
+  toggleEquip,
+} from './shop.js';
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -132,6 +140,40 @@ export function renderHistory() {
   }
 }
 
+// ===== ショップ画面（Epic 7） =====
+function shopCardMarkup(item) {
+  const owned = isOwned(state, item.id);
+  const equipped = isEquipped(state, item.id);
+
+  let btn;
+  if (!owned) {
+    btn = canBuy(state, item.id)
+      ? `<button type="button" class="shop-btn shop-btn--buy" data-action="buy" data-id="${item.id}">かう</button>`
+      : `<button type="button" class="shop-btn shop-btn--locked" disabled>コインが たりない</button>`;
+  } else if (equipped) {
+    btn = `<button type="button" class="shop-btn shop-btn--unequip" data-action="toggle" data-id="${item.id}">はずす</button>`;
+  } else {
+    btn = `<button type="button" class="shop-btn shop-btn--equip" data-action="toggle" data-id="${item.id}">そうびする</button>`;
+  }
+
+  const badge = equipped ? '<span class="shop-card__badge">そうび中 ✓</span>' : '';
+  return `<div class="shop-card${equipped ? ' shop-card--equipped' : ''}">
+    <span class="shop-card__icon" aria-hidden="true">${item.icon}</span>
+    <div class="shop-card__info">
+      <span class="shop-card__name">${item.name}</span>
+      <span class="shop-card__price">🪙 ${item.price}</span>
+      ${badge}
+    </div>
+    ${btn}
+  </div>`;
+}
+
+export function renderShop() {
+  setText('shopCoins', state.pet.coins);
+  const listEl = document.getElementById('shopList');
+  if (listEl) listEl.innerHTML = SHOP_ITEMS.map(shopCardMarkup).join('');
+}
+
 // ===== ナビゲーション =====
 const views = Array.from(document.querySelectorAll('.view'));
 const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
@@ -152,6 +194,7 @@ function render(view) {
   }
   if (view === 'record') resetRecordForm();
   if (view === 'history') renderHistory();
+  if (view === 'shop') renderShop();
   window.scrollTo(0, 0);
 }
 
@@ -259,6 +302,17 @@ songRowsEl?.addEventListener('click', (e) => {
   updateTotal();
 });
 document.getElementById('recordForm')?.addEventListener('submit', submitRecord);
+
+// ===== ショップの購入・装備操作 =====
+document.getElementById('shopList')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.shop-btn[data-action]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const next = btn.dataset.action === 'buy' ? buyItem(state, id) : toggleEquip(state, id);
+  if (next === state) return;       // 変化なし（買えない等）
+  commitState(next);                // 保存 + ホームの猫へ即反映
+  renderShop();                     // ショップ表示を更新
+});
 
 window.addEventListener('hashchange', () => router.syncFromHash(window.location.hash));
 
