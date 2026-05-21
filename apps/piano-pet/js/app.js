@@ -3,6 +3,12 @@ import { loadState, saveState } from './storage.js';
 import { catStage, todayStr, xpProgress, applySession } from './game.js';
 import { catMarkup, playHappy } from './cat.js';
 import { collectSongs, isValidSession } from './record-form.js';
+import {
+  sortByDateDesc,
+  weeklyTotals,
+  weeklyChartModel,
+  formatDateJa,
+} from './history.js';
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -58,6 +64,74 @@ function renderStats() {
   if (barEl) barEl.setAttribute('aria-valuenow', String(pct));
 }
 
+// ===== 記録履歴画面（Epic 6） =====
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  })[c]);
+}
+
+// 週ごとの合計回数を SVG の棒グラフにする
+function weeklyChartSvg(bars) {
+  const N = bars.length;
+  const W = N * 30;
+  const H = 120;
+  const topPad = 12;     // 値ラベルの余白
+  const baseline = H - 16; // 棒の下端（この下に週ラベル）
+  const barMaxH = baseline - topPad;
+  const slotW = W / N;
+  const barW = slotW * 0.58;
+
+  const parts = bars.map((b, i) => {
+    const x = i * slotW + (slotW - barW) / 2;
+    const cx = x + barW / 2;
+    const h = b.total > 0 ? Math.max(3, Math.round(b.ratio * barMaxH)) : 0;
+    const y = baseline - h;
+    const value = b.total > 0
+      ? `<text class="bar-value" x="${cx.toFixed(1)}" y="${(y - 3).toFixed(1)}">${b.total}</text>`
+      : '';
+    return `${value}<rect class="bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h}" rx="3"/>` +
+      `<text class="bar-label" x="${cx.toFixed(1)}" y="${H - 3}">${b.label}</text>`;
+  });
+
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">` +
+    `<defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">` +
+    `<stop offset="0%" stop-color="#ffd06a"/><stop offset="100%" stop-color="#ff7a93"/>` +
+    `</linearGradient></defs>${parts.join('')}</svg>`;
+}
+
+function historyCardMarkup(session) {
+  const songs = (session.songs ?? [])
+    .map((s) => `<li><span class="song-title">${escapeHtml(s.name)}</span>` +
+      `<span class="song-times">${Number(s.count) || 0}かい</span></li>`)
+    .join('');
+  return `<div class="history-card">
+    <div class="history-card__date">
+      <span class="history-card__day">${formatDateJa(session.date)}</span>
+      <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
+    </div>
+    <ul class="history-songs">${songs}</ul>
+  </div>`;
+}
+
+export function renderHistory() {
+  setText('historyStreakCurrent', state.streak.current);
+  setText('historyStreakBest', state.streak.best);
+
+  const chartEl = document.getElementById('weeklyChart');
+  if (chartEl) {
+    chartEl.innerHTML = weeklyChartSvg(weeklyChartModel(weeklyTotals(state.sessions)));
+  }
+
+  const listEl = document.getElementById('historyList');
+  if (listEl) {
+    const sessions = sortByDateDesc(state.sessions);
+    listEl.innerHTML = sessions.length
+      ? sessions.map(historyCardMarkup).join('')
+      : '<p class="history-empty">まだ きろくが ないよ。<br>れんしゅうを きろくしてね！</p>';
+  }
+}
+
 // ===== ナビゲーション =====
 const views = Array.from(document.querySelectorAll('.view'));
 const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
@@ -77,6 +151,7 @@ function render(view) {
     if (homeBtn) homeBtn.classList.add('active');
   }
   if (view === 'record') resetRecordForm();
+  if (view === 'history') renderHistory();
   window.scrollTo(0, 0);
 }
 
