@@ -1,5 +1,5 @@
-// ===== Service Worker（シンプルなアプリシェルキャッシュ） =====
-const CACHE = 'piano-pet-v2';
+// ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
+const CACHE = 'piano-pet-v3';
 
 const APP_SHELL = [
   './',
@@ -29,18 +29,35 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// cache-first。ナビゲーション要求はオフライン時 index.html にフォールバック。
+// 同一オリジン: network-first（オンラインは常に最新、失敗時のみキャッシュ）。
+// 取得成功時にキャッシュを更新するので、オフラインでも直近の内容で動く。
+// 外部オリジン（フォント等）: cache-first。
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
+  const url = new URL(request.url);
+
+  if (url.origin === self.location.origin) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => {
+            if (cached) return cached;
+            if (request.mode === 'navigate') return caches.match('./index.html');
+            return Response.error();
+          })
+        )
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request).catch(() => {
-        if (request.mode === 'navigate') return caches.match('./index.html');
-        return Response.error();
-      });
-    })
+    caches.match(request).then((cached) => cached || fetch(request))
   );
 });
