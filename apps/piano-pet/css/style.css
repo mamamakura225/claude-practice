@@ -1,0 +1,175 @@
+/* ===== ベース ===== */
+:root {
+  --pink: #ffb3c1;
+  --pink-deep: #ff7a93;
+  --cream: #fff6ee;
+  --ink: #4a3b3b;
+  --shadow: rgba(255, 122, 147, 0.25);
+  --nav-h: 68px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  color: var(--ink);
+  background: var(--cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  min-height: 100%;
+  /* ボトムナビと被らないように下に余白 */
+  padding-bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+}
+
+/* ===== ビュー切り替え ===== */
+.view {
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--nav-h));
+}
+
+.view[hidden] {
+  display: none;
+}
+
+/* ===== ヘッダー ===== */
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 20px;
+  background: var(--pink);
+  color: #fff;
+  box-shadow: 0 2px 8px var(--shadow);
+}
+
+.app-title {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.4rem;
+  letter-spacing: 0.04em;
+}
+
+.btn-back {
+  border: none;
+  background: rgba(255, 255, 255, 0.35);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.btn-back:active {
+  transform: scale(0.96);
+}
+
+/* ===== ビュー本文 ===== */
+.view-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 32px 20px;
+  text-align: center;
+}
+
+.view-body--home {
+  gap: 28px;
+}
+
+.placeholder {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--pink-deep);
+}
+
+.placeholder-card {
+  background: #fff;
+  border: 2px dashed var(--pink);
+  border-radius: 18px;
+  padding: 20px 24px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.placeholder-note {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: #b0a3a3;
+}
+
+/* ===== 記録ボタン ===== */
+.btn-record {
+  border: none;
+  background: var(--pink-deep);
+  color: #fff;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.2rem;
+  padding: 16px 32px;
+  border-radius: 999px;
+  box-shadow: 0 6px 0 #e85f7c;
+  cursor: pointer;
+  transition: transform 0.08s ease, box-shadow 0.08s ease;
+}
+
+.btn-record:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #e85f7c;
+}
+
+/* ===== ボトムナビ ===== */
+.bottom-nav {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  display: flex;
+  background: #fff;
+  border-top: 2px solid #ffe1e8;
+  box-shadow: 0 -2px 10px var(--shadow);
+}
+
+.nav-btn {
+  flex: 1;
+  border: none;
+  background: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  color: #c9b8b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.nav-icon {
+  font-size: 1.4rem;
+  filter: grayscale(0.5);
+  transition: transform 0.1s ease, filter 0.1s ease;
+}
+
+.nav-btn.active {
+  color: var(--pink-deep);
+}
+
+.nav-btn.active .nav-icon {
+  filter: none;
+  transform: translateY(-2px) scale(1.1);
+}
