@@ -342,6 +342,133 @@ body {
   color: #e0506a;
 }
 
+/* ===== 記録履歴 ===== */
+.view-body--history {
+  justify-content: flex-start;
+  gap: 22px;
+}
+
+.streak-cards {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  gap: 14px;
+}
+
+.stat-card--best .stat-value {
+  color: #d98a2b;
+}
+
+.history-section {
+  width: 100%;
+  max-width: 360px;
+  text-align: left;
+}
+
+.history-heading {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1rem;
+  color: var(--pink-deep);
+  margin-bottom: 10px;
+}
+
+.weekly-chart {
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px 12px 10px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.weekly-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.weekly-chart .bar {
+  fill: url(#barGrad);
+}
+
+.weekly-chart .bar-value {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 7px;
+  fill: var(--ink);
+  text-anchor: middle;
+}
+
+.weekly-chart .bar-label {
+  font-size: 7px;
+  font-weight: 700;
+  fill: #b48a92;
+  text-anchor: middle;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 12px 16px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.history-card__date {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.history-card__day {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.95rem;
+  color: var(--pink-deep);
+}
+
+.history-card__total {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #b48a92;
+}
+
+.history-card__total b {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1rem;
+  color: var(--ink);
+}
+
+.history-songs {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.history-songs li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.history-songs .song-times {
+  font-weight: 700;
+  color: var(--pink-deep);
+  white-space: nowrap;
+}
+
+.history-empty {
+  text-align: center;
+  padding: 24px 12px;
+  color: #b0a3a3;
+  font-weight: 700;
+}
+
 /* ===== 獲得コインのポップアップ ===== */
 .coin-popup {
   position: fixed;

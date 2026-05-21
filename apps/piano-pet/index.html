@@ -8,7 +8,7 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=3">
+  <link rel="stylesheet" href="css/style.css?v=4">
   <link rel="stylesheet" href="css/cat.css?v=2">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
@@ -90,9 +90,30 @@
       <header class="app-header">
         <h1 class="app-title">きろく</h1>
       </header>
-      <div class="view-body">
-        <p class="placeholder">れんしゅうの きろく いちらん</p>
-        <p class="placeholder-note">（Epic 6 でつくります）</p>
+      <div class="view-body view-body--history">
+        <div class="streak-cards">
+          <div class="stat-card stat-card--streak">
+            <span class="stat-icon" aria-hidden="true">🔥</span>
+            <span class="stat-value" id="historyStreakCurrent">0</span>
+            <span class="stat-label">いまの れんぞく</span>
+          </div>
+          <div class="stat-card stat-card--best">
+            <span class="stat-icon" aria-hidden="true">🏆</span>
+            <span class="stat-value" id="historyStreakBest">0</span>
+            <span class="stat-label">さいこう きろく</span>
+          </div>
+        </div>
+
+        <section class="history-section">
+          <h2 class="history-heading">しゅうごとの れんしゅう</h2>
+          <div class="weekly-chart" id="weeklyChart" role="img"
+               aria-label="しゅうごとの れんしゅうかいすう ぼうグラフ"></div>
+        </section>
+
+        <section class="history-section">
+          <h2 class="history-heading">きろく いちらん</h2>
+          <div class="history-list" id="historyList"></div>
+        </section>
       </div>
     </section>
 
@@ -135,6 +156,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=3"></script>
+  <script type="module" src="js/app.js?v=4"></script>
 </body>
 </html>
