@@ -1,37 +1,41 @@
-# dtask
+# claude-practice
 
-シンプルなタスク管理SPA。Vanilla JavaScript + Firebase Firestore。
+自作アプリを集めたモノレポ。各アプリは `apps/<name>/` に置き、共有ツール（npm / テスト / CI / Vercel設定）はリポジトリルートに1セット置く。
 
-🌐 **本番URL**: https://claude-practice-hazel.vercel.app
+🌐 **本番**: https://claude-practice-hazel.vercel.app/ （ルートがアプリ一覧）
 
-## 機能
+## アプリ
 
-- リスト / Kanban の2ビュー
-- サブタスク（インライン展開・編集）
-- カテゴリ・優先度・タグ・期限・定期タスク
-- フィルタ（プリセット: 今日 / 今週 / 期限切れ）、検索（フルテキスト / `#tag`）、ソート（手動 / 期限 / 優先度 / 作成日）
-- ドラッグ&ドロップ並び替え（デスクトップ）、スワイプ操作（モバイル）
-- キーボードショートカット (`N` / `/` / `Esc`)
-- Firestore リアルタイム同期、オフライン時はlocalStorageフォールバック
-- Undo（5秒以内）、テーマ（ライト / ダーク）、文字サイズ切替
+| アプリ | URL | 概要 | ソース |
+|---|---|---|---|
+| dタスク | [/dtask/](https://claude-practice-hazel.vercel.app/dtask/) | タスク管理SPA（Vanilla JS + Firebase） | [apps/dtask/](./apps/dtask/) |
+| ピアノペット | [/piano-pet/](https://claude-practice-hazel.vercel.app/piano-pet/) | 猫を育てるピアノ練習PWA | [apps/piano-pet/](./apps/piano-pet/) |
 
-詳細は [docs/features.md](./docs/features.md) を参照。
+各アプリの詳細は各 `apps/<name>/README.md`（または `docs/`）を参照。
+
+## 構成
+
+```
+claude-practice/
+├── index.html            # ルートのランディング（アプリ一覧）
+├── apps/
+│   ├── dtask/            # タスク管理アプリ + その tests/e2e/docs
+│   └── piano-pet/        # ピアノ練習アプリ + その docs
+├── package.json          # 共有: npm スクリプト
+├── vitest.config.js      # 共有: 単体テスト（apps/dtask/tests を対象）
+├── playwright.config.js  # 共有: E2E（apps/dtask を配信してテスト）
+├── vercel.json           # 共有: ルーティング（/dtask・/piano-pet）
+└── .github/workflows/    # 共有: テスト & デプロイ
+```
 
 ## 開発
 
 ### 必要環境
-- Node.js 18 以上
-- npm
+- Node.js 18 以上 / npm
 
 ### セットアップ
 ```bash
 npm install
-```
-
-### ローカル起動
-```bash
-npx http-server -p 3000 -c-1
-# → http://localhost:3000 を開く
 ```
 
 ### テスト
@@ -40,24 +44,19 @@ npm test           # Vitest 単体テスト
 npm run test:e2e   # Playwright E2E テスト（http-serverは自動起動）
 ```
 
+### 各アプリのローカル起動
+```bash
+npx http-server ./apps/dtask     -p 3000 -c-1   # dタスク
+npx http-server ./apps/piano-pet -p 3001 -c-1   # ピアノペット
+```
+
 ## デプロイ
 
-GitHub Actions のテスト (Vitest + Playwright) が両方通過した場合にのみ Vercel CLI でデプロイされる。
+GitHub Actions（[.github/workflows/test.yml](./.github/workflows/test.yml)）でテスト通過後に Vercel CLI でデプロイ。
 
 - `main` への push → 本番デプロイ
 - PR (mainターゲット) → プレビューデプロイ
-- テスト失敗時はデプロイされない
-
-セットアップ詳細・必要なSecretsは [docs/architecture.md#デプロイ方式](./docs/architecture.md#デプロイ方式) を参照。
-
-## ドキュメント
-
-| ドキュメント | 内容 |
-|---|---|
-| [docs/architecture.md](./docs/architecture.md) | アーキテクチャ全体像 |
-| [docs/data-model.md](./docs/data-model.md) | Task / Subtask / Category のスキーマ |
-| [docs/features.md](./docs/features.md) | 機能一覧・ショートカット |
-| [docs/testing.md](./docs/testing.md) | テスト戦略 |
+- リポジトリ全体を静的配信し、`vercel.json` の rewrite で `/dtask`・`/piano-pet` を各アプリへ振り分ける
 
 ## バックログ
 
