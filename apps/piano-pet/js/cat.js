@@ -1,66 +1,57 @@
 // ===== 猫SVG生成（スコティッシュフォールド・正面向きちびキャラ） =====
-// パーツ構成：頭・胴体・腕×2・後足・尻尾を独立グループ化（参考図準拠）
+// パーツ構成：頭・胴体・前足×2・尻尾を独立グループ化（参考図パターン1準拠）
 import { catStage } from './game.js';
 
-// ----- カラーパレット -----
+// ----- カラーパレット（参考図パターン1：茶トラ・シンプル） -----
 const FUR      = '#e6a455';  // メイン毛色（茶トラのゴールデンオレンジ）
-const FUR_MID  = '#f2c87f';  // 中間色（明るいハイライト・マズル）
-const FUR_DARK = '#b5722e';  // 輪郭線（毛色になじむ温かみのブラウン）
-const STRIPE   = '#c97f30';  // 縞模様（しっぽ・額のキジトラ柄）
-const BELLY    = '#f9efd6';  // お腹・マズルのクリーム
-const EAR_IN   = '#e8a6ac';  // 耳の内側（やわらかピンク）
-const BLUSH    = '#f3a59a';  // ほっぺ
+const FUR_DARK = '#7d5223';  // 輪郭線（はっきりした温かみのブラウン）
+const STRIPE   = '#c97f30';  // 縞模様（額・しっぽのキジトラ柄）
+const BELLY    = '#f6ecc8';  // お腹・マズル・足先のクリーム
+const EAR_IN   = '#d2925a';  // 耳の内側（折れ耳の影・ラスト系）
+const BLUSH    = '#efb079';  // ほっぺ（控えめな温かみ）
 const PUPIL    = '#3a2e26';  // 黒目（ツヤのある黒に近いブラウン）
 const EYE_HIGH = '#ffffff';  // 目のハイライト
-const NOSE     = '#dd8a86';  // 鼻（やわらかテラコッタピンク）
-const WHISKER  = '#dcbd86';  // ひげ
+const NOSE     = '#8a5a3c';  // 鼻（小さなブラウン）
+const WHISKER  = '#e3cf9a';  // ひげ（明るいクリーム）
 
 // ----- ステージ別パラメータ（viewBox 0 0 200 236） -----
+// paw: 前足カプセルのサイズ。pawL/pawR: 下中央に並ぶ前足の中心。
 const STAGES = {
   // 子猫（lv 1-5）：頭でっかち・丸くコンパクト
   kitten: {
-    head: { cx: 100, cy: 92, r: 50 },
-    ears: { lx: 73, rx: 127, ty: 56, erx: 19, ery: 15, rot: 14 },
-    body: { cx: 100, cy: 178, rx: 38, ry: 42 },
-    belly: { cx: 100, cy: 186, rx: 23, ry: 28 },
-    armL:  { cx: 57,  cy: 176, arx: 12, ary: 22, rot: -22 },
-    armR:  { cx: 143, cy: 176, arx: 12, ary: 22, rot:  22 },
-    pawL:  { cx: 50,  cy: 194 },
-    pawR:  { cx: 150, cy: 194 },
-    hindL: { cx: 82,  cy: 215, hrx: 16, hry: 10 },
-    hindR: { cx: 118, cy: 215, hrx: 16, hry: 10 },
-    tail:  { d: 'M131 193 Q178 170 166 128 Q156 104 132 117', w: 17 },
-    anchors: { neck: {x:100,y:146,s:0.70}, head: {x:100,y:46,s:0.72}, back: {x:100,y:162,s:0.72} },
+    head: { cx: 100, cy: 90, r: 50 },
+    ears: { lx: 72, rx: 128, ty: 54, erx: 20, ery: 16, rot: 16 },
+    body: { cx: 100, cy: 176, rx: 42, ry: 46 },
+    belly: { cx: 100, cy: 186, rx: 26, ry: 30 },
+    paw:   { rx: 10, ry: 16 },
+    pawL:  { cx: 87,  cy: 212 },
+    pawR:  { cx: 113, cy: 212 },
+    tail:  { d: 'M134 194 Q184 176 178 126 Q173 94 146 106', w: 18 },
+    anchors: { neck: {x:100,y:144,s:0.72}, head: {x:100,y:44,s:0.74}, back: {x:100,y:160,s:0.74} },
   },
   // 若猫（lv 6-15）：バランスの良い体型
   young: {
-    head: { cx: 100, cy: 84, r: 56 },
-    ears: { lx: 72, rx: 128, ty: 48, erx: 22, ery: 17, rot: 14 },
-    body: { cx: 100, cy: 178, rx: 44, ry: 52 },
-    belly: { cx: 100, cy: 188, rx: 28, ry: 36 },
-    armL:  { cx: 52,  cy: 175, arx: 13, ary: 26, rot: -20 },
-    armR:  { cx: 148, cy: 175, arx: 13, ary: 26, rot:  20 },
-    pawL:  { cx: 44,  cy: 197 },
-    pawR:  { cx: 156, cy: 197 },
-    hindL: { cx: 80,  cy: 222, hrx: 19, hry: 12 },
-    hindR: { cx: 120, cy: 222, hrx: 19, hry: 12 },
-    tail:  { d: 'M137 198 Q190 170 174 122 Q162 96 134 112', w: 20 },
-    anchors: { neck: {x:100,y:142,s:0.82}, head: {x:100,y:32,s:0.86}, back: {x:100,y:160,s:0.88} },
+    head: { cx: 100, cy: 82, r: 56 },
+    ears: { lx: 70, rx: 130, ty: 46, erx: 23, ery: 18, rot: 15 },
+    body: { cx: 100, cy: 176, rx: 48, ry: 56 },
+    belly: { cx: 100, cy: 188, rx: 31, ry: 38 },
+    paw:   { rx: 11, ry: 18 },
+    pawL:  { cx: 85,  cy: 216 },
+    pawR:  { cx: 115, cy: 216 },
+    tail:  { d: 'M142 198 Q196 178 188 122 Q182 90 152 104', w: 21 },
+    anchors: { neck: {x:100,y:140,s:0.84}, head: {x:100,y:30,s:0.88}, back: {x:100,y:158,s:0.90} },
   },
   // 成猫（lv 16+）：どっしりした風格
   adult: {
-    head: { cx: 100, cy: 84, r: 62 },
-    ears: { lx: 70, rx: 130, ty: 44, erx: 24, ery: 18, rot: 13 },
-    body: { cx: 100, cy: 178, rx: 52, ry: 58 },
-    belly: { cx: 100, cy: 190, rx: 34, ry: 42 },
-    armL:  { cx: 46,  cy: 174, arx: 15, ary: 30, rot: -18 },
-    armR:  { cx: 154, cy: 174, arx: 15, ary: 30, rot:  18 },
-    pawL:  { cx: 38,  cy: 200 },
-    pawR:  { cx: 162, cy: 200 },
-    hindL: { cx: 78,  cy: 228, hrx: 22, hry: 14 },
-    hindR: { cx: 122, cy: 228, hrx: 22, hry: 14 },
-    tail:  { d: 'M145 202 Q202 170 183 116 Q169 88 137 108', w: 24 },
-    anchors: { neck: {x:100,y:148,s:0.96}, head: {x:100,y:28,s:1.00}, back: {x:100,y:160,s:1.04} },
+    head: { cx: 100, cy: 80, r: 62 },
+    ears: { lx: 68, rx: 132, ty: 42, erx: 25, ery: 19, rot: 14 },
+    body: { cx: 100, cy: 172, rx: 55, ry: 60 },
+    belly: { cx: 100, cy: 186, rx: 36, ry: 44 },
+    paw:   { rx: 12, ry: 19 },
+    pawL:  { cx: 84,  cy: 214 },
+    pawR:  { cx: 116, cy: 214 },
+    tail:  { d: 'M150 196 Q200 176 192 118 Q186 86 156 100', w: 24 },
+    anchors: { neck: {x:100,y:146,s:0.98}, head: {x:100,y:26,s:1.02}, back: {x:100,y:156,s:1.06} },
   },
 };
 
@@ -163,39 +154,25 @@ function bodyGroup({ body: b, belly: bl }) {
   </g>`;
 }
 
-// 腕グループ（上腕＋前足）
-function armsGroup(cfg) {
-  const { armL, armR, pawL, pawR } = cfg;
-  const pr = 11;
+// 前足グループ（下中央に並ぶ縦長カプセル×2／足先クリーム＋肉球ライン）
+function pawsGroup({ paw, pawL, pawR }) {
+  const { rx, ry } = paw;
 
-  function paw(cx, cy, mir) {
-    const off = mir * 5;
-    return `<ellipse cx="${cx}" cy="${cy}" rx="${pr}" ry="${pr - 3}" fill="${FUR}"/>
-            <circle cx="${n(cx - off)}" cy="${n(cy - 5)}" r="3.8" fill="${FUR_MID}"/>
-            <circle cx="${cx}"          cy="${n(cy - 6.5)}" r="3.8" fill="${FUR_MID}"/>
-            <circle cx="${n(cx + off)}" cy="${n(cy - 5)}" r="3.8" fill="${FUR_MID}"/>`;
+  function one({ cx, cy }) {
+    return `
+    <g>
+      <rect x="${n(cx - rx)}" y="${n(cy - ry)}" width="${n(rx * 2)}" height="${n(ry * 2)}" rx="${n(rx)}"
+            fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.5"/>
+      <ellipse cx="${cx}" cy="${n(cy + ry * 0.42)}" rx="${n(rx * 0.80)}" ry="${n(ry * 0.50)}" fill="${BELLY}"/>
+      <g stroke="${FUR_DARK}" stroke-width="1.1" stroke-linecap="round" opacity="0.5">
+        <line x1="${cx}"             y1="${n(cy + ry * 0.26)}" x2="${cx}"             y2="${n(cy + ry * 0.78)}"/>
+        <line x1="${n(cx - rx * 0.46)}" y1="${n(cy + ry * 0.34)}" x2="${n(cx - rx * 0.46)}" y2="${n(cy + ry * 0.72)}"/>
+        <line x1="${n(cx + rx * 0.46)}" y1="${n(cy + ry * 0.34)}" x2="${n(cx + rx * 0.46)}" y2="${n(cy + ry * 0.72)}"/>
+      </g>
+    </g>`;
   }
 
-  return `
-  <g class="cat__arm cat__arm--r">
-    <ellipse cx="${armR.cx}" cy="${armR.cy}" rx="${armR.arx}" ry="${armR.ary}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.2" transform="rotate(${armR.rot},${armR.cx},${armR.cy})"/>
-    ${paw(pawR.cx, pawR.cy, 1)}
-  </g>
-  <g class="cat__arm cat__arm--l">
-    <ellipse cx="${armL.cx}" cy="${armL.cy}" rx="${armL.arx}" ry="${armL.ary}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.2" transform="rotate(${armL.rot},${armL.cx},${armL.cy})"/>
-    ${paw(pawL.cx, pawL.cy, -1)}
-  </g>`;
-}
-
-// 後足グループ
-function hindGroup({ hindL, hindR }) {
-  return `
-  <g class="cat__hind">
-    <ellipse cx="${hindL.cx}" cy="${hindL.cy}" rx="${hindL.hrx}" ry="${hindL.hry}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.2"/>
-    <ellipse cx="${hindR.cx}" cy="${hindR.cy}" rx="${hindR.hrx}" ry="${hindR.hry}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.2"/>
-    <ellipse cx="${hindL.cx}" cy="${hindL.cy}" rx="${hindL.hrx - 5}" ry="${hindL.hry - 2}" fill="${FUR_MID}" opacity="0.45"/>
-    <ellipse cx="${hindR.cx}" cy="${hindR.cy}" rx="${hindR.hrx - 5}" ry="${hindR.hry - 2}" fill="${FUR_MID}" opacity="0.45"/>
-  </g>`;
+  return `<g class="cat__paws">${one(pawL)}${one(pawR)}</g>`;
 }
 
 // 尻尾グループ（太いストロークの曲線＋縞模様レイヤー）
@@ -304,16 +281,12 @@ function zzzGroup() {
 export function catMarkup({ stage = 'kitten', mood = 'idle', equippedItems = [], name = 'ねこ' } = {}) {
   const cfg = STAGES[stage] || STAGES.kitten;
 
-  // 描画順：奥→手前（尻尾→後足→腕R→胴体→腕L→頭→アイテム→エフェクト）
+  // 描画順：奥→手前（尻尾→胴体→前足→頭→アイテム→エフェクト）
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 236"
     class="cat cat--${stage} cat--${mood}" role="img" aria-label="${name}" overflow="visible">
     ${tailGroup(cfg)}
-    ${hindGroup(cfg)}
-    <g class="cat__arm cat__arm--r-behind">
-      <ellipse cx="${cfg.armR.cx}" cy="${cfg.armR.cy}" rx="${cfg.armR.arx}" ry="${cfg.armR.ary}" fill="${FUR}" stroke="${FUR_DARK}" stroke-width="1.2" transform="rotate(${cfg.armR.rot},${cfg.armR.cx},${cfg.armR.cy})"/>
-    </g>
     ${bodyGroup(cfg)}
-    ${armsGroup(cfg)}
+    ${pawsGroup(cfg)}
     ${headGroup(cfg)}
     ${itemsGroup(cfg.anchors, equippedItems)}
     ${heartsGroup()}
