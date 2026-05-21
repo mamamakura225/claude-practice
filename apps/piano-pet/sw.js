@@ -1,5 +1,5 @@
 // ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
-const CACHE = 'piano-pet-v3';
+const CACHE = 'piano-pet-v4';
 
 const APP_SHELL = [
   './',
@@ -39,8 +39,10 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(request.url);
 
   if (url.origin === self.location.origin) {
+    // cache:'reload' でブラウザのHTTPキャッシュをバイパスし常に最新を取得。
+    // （ESモジュール import にはバージョン文字列が付かず古い版が残るため）
     event.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'reload' })
         .then((response) => {
           const copy = response.clone();
           caches.open(CACHE).then((cache) => cache.put(request, copy));
