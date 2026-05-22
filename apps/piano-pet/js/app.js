@@ -92,6 +92,7 @@ function renderStats() {
   setText('statToNext', `あと ${toNextLevel} かい で レベルアップ`);
   setText('statCoins', state.pet.coins);
   setText('statStreak', state.streak.current);
+  setText('statFreezes', state.streak.freezes ?? 0);
 
   const pct = xpPerLevel > 0 ? Math.round((xpInLevel / xpPerLevel) * 100) : 0;
   const fillEl = document.getElementById('statXpFill');
@@ -345,6 +346,20 @@ function showBadgePopup(badges) {
   showNext();
 }
 
+// お休み券で連続を守ったときのポップアップ
+function showFreezePopup() {
+  const popup = document.getElementById('freezePopup');
+  if (!popup) return;
+  popup.hidden = false;
+  void popup.getBoundingClientRect();
+  popup.classList.add('coin-popup--show');
+  playSound('coin', state);
+  setTimeout(() => {
+    popup.classList.remove('coin-popup--show');
+    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
+  }, 2200);
+}
+
 function submitRecord(event) {
   event.preventDefault();
   const date = recordDateEl?.value || todayStr();
@@ -365,8 +380,13 @@ function submitRecord(event) {
   // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
   playSound('record', state);
   if (rewards.leveled) playSound('levelup', state);
-  // 新規バッジはコインポップアップの後に順番表示
-  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 2200);
+  // コインポップアップの後に、お休み券→新規バッジの順で表示
+  let nextDelay = 2200;
+  if (rewards.frozeDays > 0) {
+    setTimeout(showFreezePopup, nextDelay);
+    nextDelay += 2200;
+  }
+  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), nextDelay);
   resetRecordForm();
 }
 

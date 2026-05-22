@@ -14,6 +14,7 @@ const DEFAULTS = {
     current: 0,
     best: 0,
     lastPracticeDate: null,
+    freezes: 0,
   },
   badges: [],
   sessions: [],
