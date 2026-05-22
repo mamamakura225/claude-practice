@@ -17,6 +17,9 @@ const DEFAULTS = {
   },
   badges: [],
   sessions: [],
+  settings: {
+    soundOn: true,
+  },
 };
 
 export function loadState() {
@@ -29,6 +32,7 @@ export function loadState() {
       ...saved,
       pet: { ...DEFAULTS.pet, ...(saved.pet ?? {}) },
       streak: { ...DEFAULTS.streak, ...(saved.streak ?? {}) },
+      settings: { ...DEFAULTS.settings, ...(saved.settings ?? {}) },
     };
   } catch {
     return structuredClone(DEFAULTS);
