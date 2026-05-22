@@ -258,3 +258,28 @@ function dayDiff(fromStr, toStr) {
   const b = Date.parse(toStr + 'T00:00:00Z');
   return Math.round((b - a) / 86400000);
 }
+
+// ----- 同日セッション統合 -----
+
+// sessions 配列内の同じ日付のエントリを1件にまとめる（songs・totalCount を合算）。
+// 変化がなければ元の配列参照をそのまま返す。
+export function mergeSameDaySessions(sessions) {
+  const seen = new Map();
+  const result = [];
+  for (const s of sessions) {
+    const d = s.date;
+    if (!seen.has(d)) {
+      seen.set(d, result.length);
+      result.push({ ...s, songs: [...(s.songs ?? [])], totalCount: Number(s.totalCount) || 0 });
+    } else {
+      const idx = seen.get(d);
+      const prev = result[idx];
+      result[idx] = {
+        ...prev,
+        songs: [...prev.songs, ...(s.songs ?? [])],
+        totalCount: prev.totalCount + (Number(s.totalCount) || 0),
+      };
+    }
+  }
+  return result.length === sessions.length ? sessions : result;
+}
