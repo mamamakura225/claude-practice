@@ -42,19 +42,42 @@ export function catStage(level) {
 
 // ----- ストリーク -----
 
+// 同時に持てるお休み券の上限
+export const MAX_FREEZES = 2;
+
+// お休み券を付与するマイルストーン（3日 / 7日ごと）
+function isFreezeMilestone(streakCurrent) {
+  return streakCurrent === 3 || (streakCurrent > 0 && streakCurrent % 7 === 0);
+}
+
 export function updateStreak(streak, practiceDate) {
   const last = streak.lastPracticeDate;
+  const freezes = streak.freezes ?? 0;
 
   // 同日の二重記録はストリークを変化させない
-  if (last === practiceDate) return { ...streak };
+  if (last === practiceDate) return { ...streak, freezes, frozeDays: 0 };
 
-  const consecutive = last !== null && prevDay(practiceDate) === last;
-  const current = consecutive ? streak.current + 1 : 1;
-  return {
-    current,
-    best: Math.max(streak.best, current),
-    lastPracticeDate: practiceDate,
-  };
+  // 初回、または前日に練習していれば連続
+  if (last === null || prevDay(practiceDate) === last) {
+    const current = last === null ? 1 : streak.current + 1;
+    return { current, best: Math.max(streak.best, current), lastPracticeDate: practiceDate, freezes, frozeDays: 0 };
+  }
+
+  // 間が空いた：抜けた日数ぶんのお休み券があれば連続を維持（消費）
+  const missed = dayDiff(last, practiceDate) - 1;
+  if (missed >= 1 && freezes >= missed) {
+    const current = streak.current + 1;
+    return {
+      current,
+      best: Math.max(streak.best, current),
+      lastPracticeDate: practiceDate,
+      freezes: freezes - missed,
+      frozeDays: missed,
+    };
+  }
+
+  // 救済できない → 1からリセット
+  return { current: 1, best: Math.max(streak.best, 1), lastPracticeDate: practiceDate, freezes, frozeDays: 0 };
 }
 
 // ----- コイン・XP報酬計算 -----
@@ -100,8 +123,18 @@ export function checkBadges(state) {
 // ----- セッション適用（state を受け取り新 state + 報酬を返す） -----
 
 export function applySession(state, { date, songs, totalCount }) {
-  const newStreak = updateStreak(state.streak, date);
-  const { coins, xp } = calcRewards(totalCount, newStreak.current);
+  const updated = updateStreak(state.streak, date);
+  const { coins, xp } = calcRewards(totalCount, updated.current);
+
+  // マイルストーン到達でお休み券を付与（上限まで）
+  const granted = isFreezeMilestone(updated.current) ? 1 : 0;
+  const freezes = Math.min(MAX_FREEZES, updated.freezes + granted);
+  const newStreak = {
+    current: updated.current,
+    best: updated.best,
+    lastPracticeDate: updated.lastPracticeDate,
+    freezes,
+  };
 
   const newXp = state.pet.xp + xp;
   const newLevel = calcLevel(newXp);
@@ -123,7 +156,14 @@ export function applySession(state, { date, songs, totalCount }) {
 
   return {
     state: { ...partial, badges: checkBadges(partial) },
-    rewards: { coins, xp, leveled: newLevel > state.pet.level, newLevel },
+    rewards: {
+      coins,
+      xp,
+      leveled: newLevel > state.pet.level,
+      newLevel,
+      frozeDays: updated.frozeDays,
+      freezeGranted: freezes - updated.freezes,
+    },
   };
 }
 
@@ -143,4 +183,11 @@ function prevDay(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
   d.setUTCDate(d.getUTCDate() - 1);
   return d.toISOString().slice(0, 10);
+}
+
+// 2つの日付文字列の差（日数）。to が from より後なら正（UTC基準）。
+function dayDiff(fromStr, toStr) {
+  const a = Date.parse(fromStr + 'T00:00:00Z');
+  const b = Date.parse(toStr + 'T00:00:00Z');
+  return Math.round((b - a) / 86400000);
 }

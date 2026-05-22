@@ -199,6 +199,10 @@ body {
   color: #ff7a3c;
 }
 
+.stat-card--freeze .stat-value {
+  color: #6aa9e0;
+}
+
 .stat-label {
   font-size: 0.75rem;
   font-weight: 700;

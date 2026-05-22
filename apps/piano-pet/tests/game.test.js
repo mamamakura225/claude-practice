@@ -6,6 +6,7 @@ import {
   updateStreak,
   calcRewards,
   applySession,
+  MAX_FREEZES,
 } from '../js/game.js';
 
 function baseState(overrides = {}) {
@@ -89,6 +90,46 @@ describe('updateStreak', () => {
   });
 });
 
+describe('updateStreak: お休み券による救済', () => {
+  it('1日抜けてもお休み券があれば連続を維持し、券を1枚消費する', () => {
+    const s = updateStreak(
+      { current: 5, best: 5, lastPracticeDate: '2026-05-20', freezes: 1 },
+      '2026-05-22', // 5-21 が抜け
+    );
+    expect(s.current).toBe(6);
+    expect(s.freezes).toBe(0);
+    expect(s.frozeDays).toBe(1);
+  });
+
+  it('券がなければ1日抜けでリセット', () => {
+    const s = updateStreak(
+      { current: 5, best: 5, lastPracticeDate: '2026-05-20', freezes: 0 },
+      '2026-05-22',
+    );
+    expect(s.current).toBe(1);
+    expect(s.frozeDays).toBe(0);
+  });
+
+  it('抜けた日数より券が少なければリセット（券は維持）', () => {
+    const s = updateStreak(
+      { current: 5, best: 5, lastPracticeDate: '2026-05-19', freezes: 1 },
+      '2026-05-22', // 2日抜け
+    );
+    expect(s.current).toBe(1);
+    expect(s.freezes).toBe(1);
+  });
+
+  it('2日抜けでも券が2枚あれば維持し、2枚消費', () => {
+    const s = updateStreak(
+      { current: 5, best: 5, lastPracticeDate: '2026-05-19', freezes: 2 },
+      '2026-05-22',
+    );
+    expect(s.current).toBe(6);
+    expect(s.freezes).toBe(0);
+    expect(s.frozeDays).toBe(2);
+  });
+});
+
 describe('applySession', () => {
   it('コイン・XPを加算し、セッションを先頭に積む', () => {
     const { state, rewards } = applySession(baseState(), {
@@ -136,5 +177,46 @@ describe('applySession', () => {
     applySession(start, { date: '2026-05-22', songs: [{ name: 'A', count: 3 }], totalCount: 3 });
     expect(start.pet.coins).toBe(0);
     expect(start.sessions).toHaveLength(0);
+  });
+
+  it('3日連続のマイルストーンでお休み券を1枚付与する', () => {
+    const start = baseState({
+      streak: { current: 2, best: 2, lastPracticeDate: '2026-05-21', freezes: 0 },
+    });
+    const { state, rewards } = applySession(start, {
+      date: '2026-05-22',
+      songs: [{ name: 'A', count: 2 }],
+      totalCount: 2,
+    });
+    expect(state.streak.current).toBe(3);
+    expect(state.streak.freezes).toBe(1);
+    expect(rewards.freezeGranted).toBe(1);
+  });
+
+  it('お休み券は上限を超えて付与されない', () => {
+    const start = baseState({
+      streak: { current: 2, best: 2, lastPracticeDate: '2026-05-21', freezes: MAX_FREEZES },
+    });
+    const { state, rewards } = applySession(start, {
+      date: '2026-05-22',
+      songs: [{ name: 'A', count: 2 }],
+      totalCount: 2,
+    });
+    expect(state.streak.freezes).toBe(MAX_FREEZES);
+    expect(rewards.freezeGranted).toBe(0);
+  });
+
+  it('抜けた日を救済したら rewards.frozeDays に反映する', () => {
+    const start = baseState({
+      streak: { current: 5, best: 5, lastPracticeDate: '2026-05-20', freezes: 1 },
+    });
+    const { state, rewards } = applySession(start, {
+      date: '2026-05-22',
+      songs: [{ name: 'A', count: 2 }],
+      totalCount: 2,
+    });
+    expect(state.streak.current).toBe(6);
+    expect(state.streak.freezes).toBe(0);
+    expect(rewards.frozeDays).toBe(1);
   });
 });
