@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=418eb3aa">
-  <link rel="stylesheet" href="css/cat.css?v=418eb3aa">
+  <link rel="stylesheet" href="css/style.css?v=26fcab37">
+  <link rel="stylesheet" href="css/cat.css?v=26fcab37">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -133,6 +133,17 @@
       </div>
     </section>
 
+    <!-- ===== バッジ ===== -->
+    <section class="view" id="view-badges" data-view="badges" hidden>
+      <header class="app-header">
+        <h1 class="app-title">バッジ</h1>
+      </header>
+      <div class="view-body view-body--badges">
+        <p class="badges-count" id="badgesCount"></p>
+        <div class="badge-grid" id="badgeGrid"></div>
+      </div>
+    </section>
+
     <!-- ===== ボトムナビ ===== -->
     <nav class="bottom-nav" aria-label="メインナビゲーション">
       <button class="nav-btn" data-nav="home" type="button">
@@ -147,6 +158,10 @@
         <span class="nav-icon" aria-hidden="true">🛍️</span>
         <span class="nav-label">ショップ</span>
       </button>
+      <button class="nav-btn" data-nav="badges" type="button">
+        <span class="nav-icon" aria-hidden="true">🏅</span>
+        <span class="nav-label">バッジ</span>
+      </button>
     </nav>
 
     <!-- ===== 獲得コインのポップアップ ===== -->
@@ -159,8 +174,17 @@
       </div>
     </div>
 
+    <!-- ===== バッジ獲得のポップアップ ===== -->
+    <div id="badgePopup" class="coin-popup" role="status" aria-live="polite" hidden>
+      <div class="coin-popup__card">
+        <span class="coin-popup__icon" id="badgePopupIcon" aria-hidden="true">🏅</span>
+        <span class="badge-popup__name" id="badgePopupName"></span>
+        <span class="coin-popup__label">バッジ ゲット！</span>
+      </div>
+    </div>
+
   </div>
 
-  <script type="module" src="js/app.js?v=418eb3aa"></script>
+  <script type="module" src="js/app.js?v=26fcab37"></script>
 </body>
 </html>

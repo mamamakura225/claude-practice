@@ -1,10 +1,10 @@
 // ===== ナビゲーション（4画面のハッシュルーター） =====
 
-export const VIEWS = ['home', 'record', 'history', 'shop'];
+export const VIEWS = ['home', 'record', 'history', 'shop', 'badges'];
 export const DEFAULT_VIEW = 'home';
 
 // ボトムナビに出すビュー（record はホームのボタンから遷移するので含めない）
-export const NAV_VIEWS = ['home', 'history', 'shop'];
+export const NAV_VIEWS = ['home', 'history', 'shop', 'badges'];
 
 // location.hash → ビュー名。未知の値は DEFAULT_VIEW に丸める。
 export function viewFromHash(hash) {
