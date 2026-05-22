@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=b36cd105">
-  <link rel="stylesheet" href="css/cat.css?v=b36cd105">
+  <link rel="stylesheet" href="css/style.css?v=e93d0775">
+  <link rel="stylesheet" href="css/cat.css?v=e93d0775">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -28,6 +28,18 @@
         <p id="petName" class="pet-name">きーちゃん</p>
 
         <div class="stats">
+          <div class="goal-block" id="goalBlock">
+            <div class="goal-line">
+              <span class="goal-label">きょうの もくひょう</span>
+              <span class="goal-count"><span id="statGoalCount">0</span> / 10 かい</span>
+            </div>
+            <div class="goalbar" id="statGoalbar" role="progressbar"
+                 aria-label="きょうの もくひょう" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">
+              <div class="goalbar-fill" id="statGoalFill"></div>
+            </div>
+            <p class="goal-msg" id="statGoalMsg">あと 10 かい！</p>
+          </div>
+
           <div class="level-block">
             <div class="level-line">
               <span class="level-badge">レベル <span id="statLevel">1</span></span>
@@ -199,6 +211,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=b36cd105"></script>
+  <script type="module" src="js/app.js?v=e93d0775"></script>
 </body>
 </html>

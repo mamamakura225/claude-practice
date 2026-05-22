@@ -40,6 +40,25 @@ export function catStage(level) {
   return 'adult';                    // 成猫
 }
 
+// ----- 今日の目標 -----
+
+// 1日の練習目標（回数）
+export const DAILY_GOAL = 10;
+
+// その日の合計回数と目標への進捗を返す
+export function dailyProgress(sessions, date, goal = DAILY_GOAL) {
+  const count = (sessions ?? [])
+    .filter((s) => s.date === date)
+    .reduce((sum, s) => sum + (Number(s.totalCount) || 0), 0);
+  return {
+    count,
+    goal,
+    remaining: Math.max(0, goal - count),
+    achieved: count >= goal,
+    ratio: goal > 0 ? Math.min(1, count / goal) : 0,
+  };
+}
+
 // ----- ストリーク -----
 
 // 同時に持てるお休み券の上限

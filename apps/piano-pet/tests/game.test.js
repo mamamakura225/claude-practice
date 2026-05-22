@@ -7,6 +7,7 @@ import {
   calcRewards,
   applySession,
   MAX_FREEZES,
+  dailyProgress,
 } from '../js/game.js';
 
 function baseState(overrides = {}) {
@@ -40,6 +41,37 @@ describe('calcLevel / xpProgress', () => {
     expect(p.xpInLevel).toBe(10);
     expect(p.xpPerLevel).toBe(30);
     expect(p.toNextLevel).toBe(20);
+  });
+});
+
+describe('dailyProgress', () => {
+  const sessions = [
+    { date: '2026-05-22', totalCount: 4 },
+    { date: '2026-05-22', totalCount: 3 },
+    { date: '2026-05-21', totalCount: 9 },
+  ];
+
+  it('その日の合計を集計し、残り回数を返す', () => {
+    const p = dailyProgress(sessions, '2026-05-22');
+    expect(p.count).toBe(7);
+    expect(p.remaining).toBe(3);
+    expect(p.achieved).toBe(false);
+    expect(p.ratio).toBeCloseTo(0.7);
+  });
+
+  it('目標到達で achieved=true、残り0、ratioは1で頭打ち', () => {
+    const p = dailyProgress([{ date: '2026-05-22', totalCount: 12 }], '2026-05-22');
+    expect(p.count).toBe(12);
+    expect(p.remaining).toBe(0);
+    expect(p.achieved).toBe(true);
+    expect(p.ratio).toBe(1);
+  });
+
+  it('記録のない日は0', () => {
+    const p = dailyProgress(sessions, '2026-05-20');
+    expect(p.count).toBe(0);
+    expect(p.remaining).toBe(10);
+    expect(p.achieved).toBe(false);
   });
 });
 
