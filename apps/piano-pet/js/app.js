@@ -17,6 +17,7 @@ import {
   buyItem,
   toggleEquip,
 } from './shop.js';
+import { isSoundOn, toggleSound, playSound, unlockAudio } from './sound.js';
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -49,6 +50,16 @@ export function renderHome() {
   if (nameEl) nameEl.textContent = state.pet.name;
 
   renderStats();
+  renderSoundToggle();
+}
+
+// サウンドON/OFFトグルの表示を state に同期
+function renderSoundToggle() {
+  const btn = document.getElementById('soundToggle');
+  if (!btn) return;
+  const on = isSoundOn(state);
+  btn.setAttribute('aria-pressed', String(on));
+  btn.textContent = on ? '🔊' : '🔇';
 }
 
 function setText(id, value) {
@@ -257,6 +268,7 @@ function resetRecordForm() {
 function showCoinPopup({ coins, leveled, newLevel }) {
   const popup = document.getElementById('coinPopup');
   if (!popup) return;
+  playSound('coin', state);       // コイン獲得音（ポップアップ表示に同期）
   document.getElementById('coinPopupAmount').textContent = `+${coins}`;
   const levelUpEl = document.getElementById('coinPopupLevelUp');
   if (levelUpEl) {
@@ -289,6 +301,9 @@ function submitRecord(event) {
   router.go('home');              // ホームへ遷移
   playHappy(document.querySelector('#catStage svg'));  // 喜ぶアニメ
   showCoinPopup(rewards);         // 獲得コインのポップアップ
+  // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
+  playSound('record', state);
+  if (rewards.leveled) playSound('levelup', state);
   resetRecordForm();
 }
 
@@ -310,8 +325,16 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
   const id = btn.dataset.id;
   const next = btn.dataset.action === 'buy' ? buyItem(state, id) : toggleEquip(state, id);
   if (next === state) return;       // 変化なし（買えない等）
+  if (btn.dataset.action === 'buy') playSound('purchase', state);  // 購入音
   commitState(next);                // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
+});
+
+// ===== サウンドON/OFFトグル =====
+document.getElementById('soundToggle')?.addEventListener('click', () => {
+  unlockAudio();                    // ユーザー操作で AudioContext を解錠
+  commitState(toggleSound(state));  // 設定を反転して保存（renderHome でボタン更新）
+  if (isSoundOn(state)) playSound('coin', state);  // ONにした合図に短く鳴らす
 });
 
 window.addEventListener('hashchange', () => router.syncFromHash(window.location.hash));

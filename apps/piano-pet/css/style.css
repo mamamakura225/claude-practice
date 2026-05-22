@@ -75,6 +75,26 @@ body {
   transform: scale(0.96);
 }
 
+.btn-sound {
+  margin-left: auto;
+  border: none;
+  background: rgba(255, 255, 255, 0.35);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn-sound:active {
+  transform: scale(0.94);
+}
+
+.btn-sound[aria-pressed="false"] {
+  opacity: 0.7;
+}
+
 /* ===== ビュー本文 ===== */
 .view-body {
   flex: 1;
