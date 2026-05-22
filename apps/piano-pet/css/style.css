@@ -91,18 +91,6 @@ body {
   gap: 28px;
 }
 
-.placeholder {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--pink-deep);
-}
-
-.placeholder-note {
-  margin-top: 6px;
-  font-size: 0.8rem;
-  color: #b0a3a3;
-}
-
 /* ===== ホーム統計パネル ===== */
 .stats {
   width: 100%;
