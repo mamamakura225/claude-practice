@@ -3,6 +3,13 @@ import { test, expect } from '@playwright/test';
 // ショップ：購入 → 装備 → ホームの猫に反映
 test.describe('ショップ', () => {
   test.beforeEach(async ({ page }) => {
+    // 本番Firestoreへの読み書きと干渉を防ぐためFirebase関連を全てブロック。
+    // （クラウド取得が成功すると下のシード状態を上書きしてしまうため必須）
+    await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
+    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
+    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
+    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+
     // コインを持った状態で開始（記録を経由せずショップ単体を検証するため）
     await page.addInitScript(() => {
       localStorage.setItem(

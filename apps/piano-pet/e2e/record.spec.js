@@ -2,6 +2,15 @@ import { test, expect } from '@playwright/test';
 
 // 練習記録 → ホームのステータス反映（コイン・ストリーク）
 test.describe('練習記録', () => {
+  test.beforeEach(async ({ page }) => {
+    // 本番Firestoreへの読み書きと干渉を防ぐためFirebase関連を全てブロック。
+    // 取得失敗時はローカルのみで動作する設計なので、テストはまっさらな状態で進む。
+    await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
+    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
+    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
+    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+  });
+
   test('記録するとホームのコインとストリークが増える', async ({ page }) => {
     await page.goto('/');
 
