@@ -186,6 +186,54 @@ export function applySession(state, { date, songs, totalCount }) {
   };
 }
 
+// ----- 全再計算（編集・削除後の整合用） -----
+
+// sessions を唯一の正として、XP・レベル・コイン・ストリーク・バッジを
+// ゼロから再計算する。記録を日付昇順で再生し applySession と同じ規則を辿る。
+// spent は購入済みアイテムに使ったコイン総額（所持コイン = 獲得総額 - spent）。
+export function recomputeState(state, spent = 0) {
+  const sessions = state.sessions ?? [];
+
+  // 元の並びは保ちつつ、再生は日付昇順で行う（同日の相対順は安定ソートで保持）
+  const order = sessions.map((_, i) => i)
+    .sort((a, b) => String(sessions[a].date).localeCompare(String(sessions[b].date)));
+
+  let streak = { current: 0, best: 0, lastPracticeDate: null, freezes: 0 };
+  let totalXp = 0;
+  let earned = 0;
+  const recomputed = sessions.slice();
+
+  for (const i of order) {
+    const s = sessions[i];
+    const updated = updateStreak(streak, s.date);
+    const { coins, xp } = calcRewards(s.totalCount, updated.current);
+    const granted = isFreezeMilestone(updated.current) ? 1 : 0;
+    streak = {
+      current: updated.current,
+      best: updated.best,
+      lastPracticeDate: updated.lastPracticeDate,
+      freezes: Math.min(MAX_FREEZES, updated.freezes + granted),
+    };
+    totalXp += xp;
+    earned += coins;
+    recomputed[i] = { ...s, coinsEarned: coins, xpEarned: xp };
+  }
+
+  const partial = {
+    ...state,
+    pet: {
+      ...state.pet,
+      xp: totalXp,
+      level: calcLevel(totalXp),
+      coins: Math.max(0, earned - spent),
+    },
+    streak,
+    sessions: recomputed,
+    badges: [], // バッジは sessions から取り直す（資格を失えば剥がれる）
+  };
+  return { ...partial, badges: checkBadges(partial) };
+}
+
 // ----- ユーティリティ -----
 
 // ローカルの暦日を YYYY-MM-DD で返す（UTC変換でズレないようローカル要素から組む）

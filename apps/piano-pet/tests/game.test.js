@@ -6,6 +6,7 @@ import {
   updateStreak,
   calcRewards,
   applySession,
+  recomputeState,
   MAX_FREEZES,
   dailyProgress,
 } from '../js/game.js';
@@ -250,5 +251,48 @@ describe('applySession', () => {
     expect(state.streak.current).toBe(6);
     expect(state.streak.freezes).toBe(0);
     expect(rewards.frozeDays).toBe(1);
+  });
+});
+
+describe('recomputeState', () => {
+  function buildHistory(dates, counts) {
+    let s = baseState();
+    dates.forEach((d, i) => {
+      s = applySession(s, { date: d, songs: [{ name: 'A', count: counts[i] }], totalCount: counts[i] }).state;
+    });
+    return s;
+  }
+
+  it('逐次 applySession と同じ XP・コイン・レベル・ストリークを再現する', () => {
+    const live = buildHistory(['2026-05-20', '2026-05-21', '2026-05-22'], [5, 5, 12]);
+    const recomputed = recomputeState(live, 0);
+    expect(recomputed.pet.xp).toBe(live.pet.xp);
+    expect(recomputed.pet.coins).toBe(live.pet.coins);
+    expect(recomputed.pet.level).toBe(live.pet.level);
+    expect(recomputed.streak.current).toBe(live.streak.current);
+    expect(recomputed.streak.freezes).toBe(live.streak.freezes);
+  });
+
+  it('セッションを削除すると XP・コイン・ストリークが再計算される', () => {
+    const live = buildHistory(['2026-05-21', '2026-05-22'], [5, 5]);
+    const sessions = live.sessions.filter((s) => s.date !== '2026-05-22');
+    const after = recomputeState({ ...live, sessions }, 0);
+    expect(after.sessions).toHaveLength(1);
+    expect(after.pet.xp).toBe(5);
+    expect(after.pet.coins).toBe(5);
+    expect(after.streak.current).toBe(1);
+  });
+
+  it('購入に使ったコイン(spent)を差し引き、マイナスにはしない', () => {
+    const live = buildHistory(['2026-05-22'], [12]); // 獲得 17 コイン
+    expect(recomputeState(live, 10).pet.coins).toBe(7);
+    expect(recomputeState(live, 50).pet.coins).toBe(0);
+  });
+
+  it('資格を失ったバッジは剥がれる', () => {
+    const live = buildHistory(['2026-05-22'], [3]);
+    expect(live.badges).toContain('first_practice');
+    const after = recomputeState({ ...live, sessions: [] }, 0);
+    expect(after.badges).not.toContain('first_practice');
   });
 });

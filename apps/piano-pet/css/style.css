@@ -536,6 +536,36 @@ body {
   white-space: nowrap;
 }
 
+.history-card__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid #ffeef2;
+}
+
+.history-action {
+  border: none;
+  background: #ffe1e8;
+  color: var(--pink-deep);
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 7px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.history-action:active {
+  transform: scale(0.96);
+}
+
+.history-action--del {
+  background: #ffe7e0;
+  color: #e0506a;
+}
+
 .history-empty {
   text-align: center;
   padding: 24px 12px;
