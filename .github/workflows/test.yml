@@ -16,6 +16,8 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - name: キャッシュ版の同期チェック (gen-sw)
+        run: npm run gen-sw:check
       - run: npm test
 
   e2e:

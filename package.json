@@ -2,7 +2,9 @@
   "type": "module",
   "scripts": {
     "test": "vitest run",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "gen-sw": "node scripts/gen-sw.mjs",
+    "gen-sw:check": "node scripts/gen-sw.mjs --check"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",
