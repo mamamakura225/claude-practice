@@ -18,6 +18,7 @@ import {
   toggleEquip,
 } from './shop.js';
 import { isSoundOn, toggleSound, playSound, unlockAudio } from './sound.js';
+import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -185,6 +186,21 @@ export function renderShop() {
   if (listEl) listEl.innerHTML = SHOP_ITEMS.map(shopCardMarkup).join('');
 }
 
+// ===== バッジ画面（Epic 9） =====
+function badgeCardMarkup(b) {
+  return `<div class="badge-card${b.earned ? '' : ' badge-card--locked'}">
+    <span class="badge-card__icon" aria-hidden="true">${b.earned ? b.icon : '🔒'}</span>
+    <span class="badge-card__name">${b.name}</span>
+    <span class="badge-card__desc">${b.desc}</span>
+  </div>`;
+}
+
+export function renderBadges() {
+  setText('badgesCount', `${earnedCount(state)} / ${BADGES.length} こ ゲット！`);
+  const grid = document.getElementById('badgeGrid');
+  if (grid) grid.innerHTML = badgesWithStatus(state).map(badgeCardMarkup).join('');
+}
+
 // ===== ナビゲーション =====
 const views = Array.from(document.querySelectorAll('.view'));
 const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
@@ -206,6 +222,7 @@ function render(view) {
   if (view === 'record') resetRecordForm();
   if (view === 'history') renderHistory();
   if (view === 'shop') renderShop();
+  if (view === 'badges') renderBadges();
   window.scrollTo(0, 0);
 }
 
@@ -286,6 +303,32 @@ function showCoinPopup({ coins, leveled, newLevel }) {
   }, 2000);
 }
 
+// バッジ獲得ポップアップ（複数取得時も順番に表示）
+function showBadgePopup(badges) {
+  const popup = document.getElementById('badgePopup');
+  if (!popup || !badges.length) return;
+  let i = 0;
+  const showNext = () => {
+    if (i >= badges.length) return;
+    const b = badges[i++];
+    document.getElementById('badgePopupIcon').textContent = b.icon;
+    document.getElementById('badgePopupName').textContent = b.name;
+    popup.hidden = false;
+    void popup.getBoundingClientRect();
+    popup.classList.add('coin-popup--show');
+    playSound('levelup', state);
+    setTimeout(() => {
+      popup.classList.remove('coin-popup--show');
+      popup.addEventListener('transitionend', function done() {
+        popup.removeEventListener('transitionend', done);
+        popup.hidden = true;
+        showNext();           // 次のバッジへ
+      }, { once: true });
+    }, 2200);
+  };
+  showNext();
+}
+
 function submitRecord(event) {
   event.preventDefault();
   const date = recordDateEl?.value || todayStr();
@@ -296,7 +339,9 @@ function submitRecord(event) {
     return;
   }
 
+  const prevBadges = state.badges;
   const { state: newState, rewards } = applySession(state, { date, songs, totalCount });
+  const gainedBadges = newlyEarned(prevBadges, newState.badges);
   commitState(newState);          // 保存 + ホーム再描画
   router.go('home');              // ホームへ遷移
   playHappy(document.querySelector('#catStage svg'));  // 喜ぶアニメ
@@ -304,6 +349,8 @@ function submitRecord(event) {
   // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
   playSound('record', state);
   if (rewards.leveled) playSound('levelup', state);
+  // 新規バッジはコインポップアップの後に順番表示
+  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 2200);
   resetRecordForm();
 }
 
