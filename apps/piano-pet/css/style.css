@@ -163,6 +163,68 @@ body {
   transition: width 0.5s ease;
 }
 
+.goal-block {
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px 18px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.goal-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.goal-label {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #6b5b5e;
+}
+
+.goal-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #b48a92;
+}
+
+.goal-count #statGoalCount {
+  font-size: 1.15rem;
+  color: var(--pink-deep);
+}
+
+.goalbar {
+  height: 18px;
+  background: #e6f3ea;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.goalbar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #8fd694, #4caf7d);
+  transition: width 0.5s ease;
+}
+
+.goal-msg {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #5b9e74;
+  text-align: center;
+}
+
+.goal-block--done {
+  background: linear-gradient(135deg, #fffaf0, #fff3d6);
+}
+
+.goal-block--done .goal-msg {
+  color: #e0a91f;
+}
+
 .stat-cards {
   display: flex;
   gap: 14px;

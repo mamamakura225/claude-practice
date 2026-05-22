@@ -1,6 +1,6 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState } from './storage.js';
-import { catStage, todayStr, xpProgress, applySession, recomputeState } from './game.js';
+import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress } from './game.js';
 import { catMarkup, playHappy } from './cat.js';
 import { collectSongs, isValidSession } from './record-form.js';
 import {
@@ -68,8 +68,24 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
+// 今日の目標（○/10回）の進捗表示
+function renderDailyGoal() {
+  const goal = dailyProgress(state.sessions, todayStr());
+  setText('statGoalCount', goal.count);
+
+  const fillEl = document.getElementById('statGoalFill');
+  if (fillEl) fillEl.style.width = `${Math.round(goal.ratio * 100)}%`;
+  const barEl = document.getElementById('statGoalbar');
+  if (barEl) barEl.setAttribute('aria-valuenow', String(Math.min(goal.count, goal.goal)));
+
+  setText('statGoalMsg', goal.achieved ? 'もくひょう たっせい！🎉' : `あと ${goal.remaining} かい！`);
+  document.getElementById('goalBlock')?.classList.toggle('goal-block--done', goal.achieved);
+}
+
 // レベル・XPバー・コイン・ストリークの表示
 function renderStats() {
+  renderDailyGoal();
+
   const { level, xpInLevel, xpPerLevel, toNextLevel } = xpProgress(state.pet.xp);
 
   setText('statLevel', level);
