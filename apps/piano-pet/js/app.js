@@ -1,5 +1,5 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
-import { loadState, saveState } from './storage.js';
+import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
 import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress } from './game.js';
 import { catMarkup, playHappy } from './cat.js';
 import { collectSongs, isValidSession } from './record-form.js';
@@ -23,9 +23,14 @@ import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js'
 // ===== 状態管理 =====
 export let state = loadState();
 
+// クラウド同期モジュール（./cloud.js）。動的 import が成功したら入る。
+// オフライン等で読み込めない場合は null のまま＝localStorage だけで動作する。
+let cloud = null;
+
 export function commitState(newState) {
   state = newState;
-  saveState(state);
+  saveState(state);                 // ローカルキャッシュ（オフライン用）
+  if (cloud) cloud.pushCloudDebounced(cloudFields(state));  // クラウドへ反映（読み込み済みのときだけ）
   renderHome();
 }
 
@@ -499,6 +504,57 @@ window.addEventListener('hashchange', () => router.syncFromHash(window.location.
 // 初期表示
 renderHome();
 router.syncFromHash(window.location.hash);
+
+// ===== クラウド同期（Firestore） =====
+// ローカルで即描画したあと、クラウドと突き合わせる。SDK は CDN 読み込みなので
+// 動的 import で取り込み、失敗（オフライン等）してもローカル動作を妨げない。
+
+// クラウドのデータを現在の state に取り込んで再描画する。
+// 自分の書き込みのエコーなど「実質変化なし」のときは再描画をスキップする。
+function applyRemoteState(cloudData) {
+  const merged = mergeCloud(state, cloudData);
+  if (JSON.stringify(cloudFields(merged)) === JSON.stringify(cloudFields(state))) return;
+  state = merged;
+  saveState(state);            // ローカルキャッシュも最新に
+  renderHome();
+  if (router.current === 'history') renderHistory();
+  else if (router.current === 'shop') renderShop();
+  else if (router.current === 'badges') renderBadges();
+}
+
+// ローカルに引き継ぐ価値のあるデータがあるか（初回クラウド移行の判定用）。
+function hasLocalData(s) {
+  return s.sessions.length > 0 || s.badges.length > 0 || s.inventory.length > 0
+    || s.pet.coins > 0 || s.pet.xp > 0 || s.pet.level > 1;
+}
+
+let cloudSynced = false;
+async function initCloudSync() {
+  if (cloudSynced) return;
+  try {
+    cloud = await import('./cloud.js');     // CDN 取得に失敗すると reject
+  } catch (err) {
+    cloud = null;
+    console.warn('クラウド同期は利用できません（オフライン等）。ローカルのみで動作します。', err);
+    return;                                 // 'online' 復帰時に再試行
+  }
+  cloudSynced = true;
+  const cloudData = await cloud.fetchCloud();
+  if (cloudData) {
+    applyRemoteState(cloudData);            // クラウドを正本として反映
+  } else if (hasLocalData(state)) {
+    await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行
+  }
+  cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映
+}
+
+// オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。
+window.addEventListener('online', () => {
+  if (cloudSynced) cloud?.pushCloud(cloudFields(state));  // 復帰時に最新を一度送る
+  else initCloudSync();
+});
+
+initCloudSync();
 
 // ===== Service Worker 登録 =====
 if ('serviceWorker' in navigator) {
