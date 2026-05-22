@@ -1,10 +1,9 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState } from './storage.js';
-import { catStage, todayStr, xpProgress, applySession } from './game.js';
+import { catStage, todayStr, xpProgress, applySession, recomputeState } from './game.js';
 import { catMarkup, playHappy } from './cat.js';
 import { collectSongs, isValidSession } from './record-form.js';
 import {
-  sortByDateDesc,
   weeklyTotals,
   weeklyChartModel,
   formatDateJa,
@@ -16,6 +15,7 @@ import {
   canBuy,
   buyItem,
   toggleEquip,
+  spentCoins,
 } from './shop.js';
 import { isSoundOn, toggleSound, playSound, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
@@ -121,7 +121,7 @@ function weeklyChartSvg(bars) {
     `</linearGradient></defs>${parts.join('')}</svg>`;
 }
 
-function historyCardMarkup(session) {
+function historyCardMarkup(session, index) {
   const songs = (session.songs ?? [])
     .map((s) => `<li><span class="song-title">${escapeHtml(s.name)}</span>` +
       `<span class="song-times">${Number(s.count) || 0}かい</span></li>`)
@@ -132,6 +132,10 @@ function historyCardMarkup(session) {
       <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
     </div>
     <ul class="history-songs">${songs}</ul>
+    <div class="history-card__actions">
+      <button type="button" class="history-action" data-action="edit-session" data-index="${index}" aria-label="この きろくを なおす">✏️ なおす</button>
+      <button type="button" class="history-action history-action--del" data-action="delete-session" data-index="${index}" aria-label="この きろくを けす">🗑️ けす</button>
+    </div>
   </div>`;
 }
 
@@ -146,9 +150,11 @@ export function renderHistory() {
 
   const listEl = document.getElementById('historyList');
   if (listEl) {
-    const sessions = sortByDateDesc(state.sessions);
-    listEl.innerHTML = sessions.length
-      ? sessions.map(historyCardMarkup).join('')
+    // 元配列のインデックスを保持したまま新しい順に並べる（編集・削除の参照用）
+    const indexed = state.sessions.map((s, i) => ({ s, i }));
+    indexed.sort((a, b) => String(b.s.date).localeCompare(String(a.s.date)));
+    listEl.innerHTML = indexed.length
+      ? indexed.map(({ s, i }) => historyCardMarkup(s, i)).join('')
       : '<p class="history-empty">まだ きろくが ないよ。<br>れんしゅうを きろくしてね！</p>';
   }
 }
@@ -275,12 +281,61 @@ function addRow() {
   songRowsEl?.insertAdjacentHTML('beforeend', songRowMarkup());
 }
 
+// 編集中の記録（state.sessions のインデックス）。新規記録時は null。
+let editingIndex = null;
+
+// 記録フォームの見出しとボタンを「新規」か「編集」かで切り替える
+function setRecordMode(isEdit) {
+  setText('recordTitle', isEdit ? 'きろくを なおす' : 'れんしゅうを きろく');
+  const submit = document.getElementById('recordSubmitBtn');
+  if (submit) submit.textContent = isEdit ? 'なおす' : 'きろくする';
+}
+
 function resetRecordForm() {
+  editingIndex = null;
+  setRecordMode(false);
   if (recordDateEl) recordDateEl.value = todayStr();
   if (songRowsEl) songRowsEl.innerHTML = '';
   addRow();
   updateTotal();
   if (recordErrorEl) recordErrorEl.hidden = true;
+}
+
+// 既存セッションの内容をフォームに流し込み、編集モードにする
+function fillRecordForm(session) {
+  if (recordDateEl) recordDateEl.value = session.date;
+  if (songRowsEl) {
+    songRowsEl.innerHTML = '';
+    for (const song of session.songs ?? []) {
+      addRow();
+      const row = songRowsEl.lastElementChild;
+      row.querySelector('.song-name').value = song.name;
+      row.querySelector('.song-count').value = String(song.count);
+    }
+    if (!songRowsEl.children.length) addRow();
+  }
+  setRecordMode(true);
+  updateTotal();
+  if (recordErrorEl) recordErrorEl.hidden = true;
+}
+
+// 履歴から編集を開始：record 画面へ切り替えてからフォームを埋める
+function startEditSession(index) {
+  const session = state.sessions[index];
+  if (!session) return;
+  router.go('record');     // render() 内の resetRecordForm が editingIndex を一旦 null に戻す
+  editingIndex = index;
+  fillRecordForm(session);
+}
+
+// 履歴から削除：確認のうえ該当セッションを除き、全再計算して保存
+function deleteSession(index) {
+  const session = state.sessions[index];
+  if (!session) return;
+  if (!window.confirm(`${formatDateJa(session.date)} の きろくを けしますか？`)) return;
+  const sessions = state.sessions.filter((_, i) => i !== index);
+  commitState(recomputeState({ ...state, sessions }, spentCoins(state)));
+  renderHistory();
 }
 
 function showCoinPopup({ coins, leveled, newLevel }) {
@@ -354,6 +409,16 @@ function submitRecord(event) {
     return;
   }
 
+  // 編集モード：該当セッションを置き換えて全再計算（報酬演出はしない）
+  if (editingIndex != null) {
+    const sessions = state.sessions.map((s, i) =>
+      i === editingIndex ? { ...s, date, songs, totalCount } : s);
+    commitState(recomputeState({ ...state, sessions }, spentCoins(state)));
+    resetRecordForm();
+    router.go('history');
+    return;
+  }
+
   const prevBadges = state.badges;
   const { state: newState, rewards } = applySession(state, { date, songs, totalCount });
   const gainedBadges = newlyEarned(prevBadges, newState.badges);
@@ -384,6 +449,15 @@ songRowsEl?.addEventListener('click', (e) => {
   updateTotal();
 });
 document.getElementById('recordForm')?.addEventListener('submit', submitRecord);
+
+// ===== 記録履歴の編集・削除 =====
+document.getElementById('historyList')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-action]');
+  if (!btn) return;
+  const index = Number(btn.dataset.index);
+  if (btn.dataset.action === 'edit-session') startEditSession(index);
+  else if (btn.dataset.action === 'delete-session') deleteSession(index);
+});
 
 // ===== ショップの購入・装備操作 =====
 document.getElementById('shopList')?.addEventListener('click', (e) => {

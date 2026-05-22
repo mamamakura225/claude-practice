@@ -17,6 +17,11 @@ export function isOwned(state, id) {
   return (state.inventory ?? []).includes(id);
 }
 
+// 所持アイテムの購入に使ったコイン総額
+export function spentCoins(state) {
+  return (state.inventory ?? []).reduce((sum, id) => sum + (itemById(id)?.price ?? 0), 0);
+}
+
 export function isEquipped(state, id) {
   return (state.pet?.equippedItems ?? []).includes(id);
 }
