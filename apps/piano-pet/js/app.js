@@ -1,6 +1,6 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
-import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress } from './game.js';
+import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions } from './game.js';
 import { catMarkup, playHappy } from './cat.js';
 import { collectSongs, isValidSession } from './record-form.js';
 import {
@@ -22,6 +22,15 @@ import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js'
 
 // ===== 状態管理 =====
 export let state = loadState();
+
+// 旧データに同日重複セッションがある場合は統合して再計算（一回限りのマイグレーション）
+{
+  const migrated = mergeSameDaySessions(state.sessions);
+  if (migrated.length < state.sessions.length) {
+    state = recomputeState({ ...state, sessions: migrated }, spentCoins(state));
+    saveState(state);
+  }
+}
 
 // クラウド同期モジュール（./cloud.js）。動的 import が成功したら入る。
 // オフライン等で読み込めない場合は null のまま＝localStorage だけで動作する。
@@ -431,12 +440,37 @@ function submitRecord(event) {
   }
 
   // 編集モード：該当セッションを置き換えて全再計算（報酬演出はしない）
+  // 日付変更による同日衝突も mergeSameDaySessions で統合する
   if (editingIndex != null) {
     const sessions = state.sessions.map((s, i) =>
       i === editingIndex ? { ...s, date, songs, totalCount } : s);
-    commitState(recomputeState({ ...state, sessions }, spentCoins(state)));
+    commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions) }, spentCoins(state)));
     resetRecordForm();
     router.go('history');
+    return;
+  }
+
+  // 同日に既存セッションがある場合は統合して全再計算（目標達成ボーナスの二重取りを防ぐ）
+  const existingIndex = state.sessions.findIndex((s) => s.date === date);
+  if (existingIndex !== -1) {
+    const existing = state.sessions[existingIndex];
+    const mergedSongs = [...existing.songs, ...songs];
+    const mergedCount = existing.totalCount + totalCount;
+    const sessions = state.sessions.map((s, i) =>
+      i === existingIndex ? { ...s, songs: mergedSongs, totalCount: mergedCount } : s);
+    const prevCoins = state.pet.coins;
+    const prevLevel = state.pet.level;
+    const prevBadges = state.badges;
+    const newState = recomputeState({ ...state, sessions }, spentCoins(state));
+    const gainedBadges = newlyEarned(prevBadges, newState.badges);
+    commitState(newState);
+    router.go('home');
+    playHappy(document.querySelector('#catStage svg'));
+    showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled: newState.pet.level > prevLevel, newLevel: newState.pet.level });
+    playSound('record', state);
+    if (newState.pet.level > prevLevel) playSound('levelup', state);
+    if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 2200);
+    resetRecordForm();
     return;
   }
 

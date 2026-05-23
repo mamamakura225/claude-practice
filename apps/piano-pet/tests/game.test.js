@@ -9,6 +9,7 @@ import {
   recomputeState,
   MAX_FREEZES,
   dailyProgress,
+  mergeSameDaySessions,
 } from '../js/game.js';
 
 function baseState(overrides = {}) {
@@ -251,6 +252,55 @@ describe('applySession', () => {
     expect(state.streak.current).toBe(6);
     expect(state.streak.freezes).toBe(0);
     expect(rewards.frozeDays).toBe(1);
+  });
+});
+
+describe('mergeSameDaySessions', () => {
+  it('重複がなければ同一参照を返す', () => {
+    const sessions = [
+      { date: '2026-05-22', songs: [], totalCount: 5 },
+      { date: '2026-05-21', songs: [], totalCount: 3 },
+    ];
+    expect(mergeSameDaySessions(sessions)).toBe(sessions);
+  });
+
+  it('空配列はそのまま返す', () => {
+    const sessions = [];
+    expect(mergeSameDaySessions(sessions)).toBe(sessions);
+  });
+
+  it('同日2件を統合し、songs と totalCount を合算する', () => {
+    const sessions = [
+      { date: '2026-05-22', songs: [{ name: 'A', count: 5 }], totalCount: 5 },
+      { date: '2026-05-22', songs: [{ name: 'B', count: 3 }], totalCount: 3 },
+      { date: '2026-05-21', songs: [{ name: 'C', count: 7 }], totalCount: 7 },
+    ];
+    const result = mergeSameDaySessions(sessions);
+    expect(result).toHaveLength(2);
+    const day22 = result.find((s) => s.date === '2026-05-22');
+    expect(day22.totalCount).toBe(8);
+    expect(day22.songs).toHaveLength(2);
+    expect(day22.songs[0].name).toBe('A');
+    expect(day22.songs[1].name).toBe('B');
+    const day21 = result.find((s) => s.date === '2026-05-21');
+    expect(day21.totalCount).toBe(7);
+  });
+
+  it('統合後に recomputeState すると目標達成ボーナスが1回のみ付与される', () => {
+    // 同日に10回 + 10回 の重複セッション（旧バグ状態）
+    const buggyState = {
+      ...baseState(),
+      sessions: [
+        { date: '2026-05-22', songs: [{ name: 'A', count: 10 }], totalCount: 10, coinsEarned: 0, xpEarned: 0 },
+        { date: '2026-05-22', songs: [{ name: 'B', count: 10 }], totalCount: 10, coinsEarned: 0, xpEarned: 0 },
+      ],
+    };
+    const merged = mergeSameDaySessions(buggyState.sessions);
+    expect(merged).toHaveLength(1);
+    const fixed = recomputeState({ ...buggyState, sessions: merged }, 0);
+    // 合計20回 + 目標ボーナス5コイン = 25（二重取りなし）
+    expect(fixed.pet.coins).toBe(25);
+    expect(fixed.pet.xp).toBe(23); // 20 + 3
   });
 });
 
