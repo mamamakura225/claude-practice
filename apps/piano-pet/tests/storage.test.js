@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeState, cloudFields, mergeCloud, CLOUD_FIELDS } from '../js/storage.js';
+import {
+  normalizeState,
+  cloudFields,
+  mergeCloud,
+  migrate,
+  CLOUD_FIELDS,
+  SCHEMA_VERSION,
+} from '../js/storage.js';
 
 describe('normalizeState', () => {
   it('空入力で DEFAULTS を返す', () => {
@@ -24,6 +31,38 @@ describe('normalizeState', () => {
   it('トップレベルの未知キーは引き継ぐ', () => {
     const s = normalizeState({ sessions: [{ date: '2026-01-01' }] });
     expect(s.sessions).toHaveLength(1);
+  });
+
+  it('version を現行スキーマバージョンに揃える', () => {
+    expect(normalizeState().version).toBe(SCHEMA_VERSION);
+  });
+});
+
+describe('migrate', () => {
+  it('version を持たないレガシーデータを現行バージョンに引き上げる', () => {
+    const legacy = { pet: { coins: 50 }, sessions: [{ date: '2026-01-01' }] };
+    const m = migrate(legacy);
+    expect(m.version).toBe(SCHEMA_VERSION);
+    expect(m.pet.coins).toBe(50);          // データは保持
+    expect(m.sessions).toHaveLength(1);
+  });
+
+  it('現行バージョンのデータはそのまま (冪等)', () => {
+    const current = { version: SCHEMA_VERSION, pet: { coins: 7 } };
+    const m = migrate(current);
+    expect(m).toEqual(current);
+  });
+
+  it('空/未定義入力でも version 付きオブジェクトを返す', () => {
+    expect(migrate().version).toBe(SCHEMA_VERSION);
+    expect(migrate(null).version).toBe(SCHEMA_VERSION);
+  });
+
+  it('現行より新しいデータはバージョンを下げない (ダウングレード保護)', () => {
+    const future = { version: SCHEMA_VERSION + 5, pet: { coins: 1 } };
+    const m = migrate(future);
+    expect(m.version).toBe(SCHEMA_VERSION + 5);
+    expect(m.pet.coins).toBe(1);
   });
 });
 
