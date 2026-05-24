@@ -267,11 +267,29 @@ export function catMarkupForLevel(level, opts = {}) {
   return catMarkup({ stage: catStage(level), ...opts });
 }
 
-/** 喜ぶアニメーションを単発再生（Epic 5 から呼ぶ） */
-export function playHappy(svgEl) {
+// 反応アニメーションのクラス一覧（単発再生・終了時に剥がす）
+const REACTION_CLASSES = ['cat--happy', 'cat--wiggle'];
+
+// mood の単発アニメーションを再生。既存の反応クラスを一旦消してリフローを挟み、
+// 連打でも毎回頭から再生されるようにする。
+function playMood(svgEl, mood) {
   if (!svgEl) return;
-  svgEl.classList.remove('cat--happy');
+  svgEl.classList.remove(...REACTION_CLASSES);
   void svgEl.getBoundingClientRect();
-  svgEl.classList.add('cat--happy');
-  svgEl.addEventListener('animationend', () => svgEl.classList.remove('cat--happy'), { once: true });
+  const cls = `cat--${mood}`;
+  svgEl.classList.add(cls);
+  svgEl.addEventListener('animationend', () => svgEl.classList.remove(cls), { once: true });
+}
+
+/** 喜ぶアニメーションを単発再生（練習記録の演出から呼ぶ） */
+export function playHappy(svgEl) {
+  playMood(svgEl, 'happy');
+}
+
+// なでた時の反応。毎回同じだと飽きるので喜ぶ/しっぽふりをランダムに出す。
+const PET_MOODS = ['happy', 'wiggle'];
+
+/** 猫をなでた時の反応アニメーションを単発再生（#79 タッチ interaction） */
+export function playReaction(svgEl) {
+  playMood(svgEl, PET_MOODS[Math.floor(Math.random() * PET_MOODS.length)]);
 }
