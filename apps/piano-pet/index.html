@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=b01c6a08">
-  <link rel="stylesheet" href="css/cat.css?v=b01c6a08">
+  <link rel="stylesheet" href="css/style.css?v=c337094c">
+  <link rel="stylesheet" href="css/cat.css?v=c337094c">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -87,18 +87,26 @@
             <input type="date" id="recordDate" class="field-input" required>
           </label>
 
-          <div class="songs">
-            <span class="field-label">れんしゅうした きょく</span>
-            <div id="songRows" class="song-rows"></div>
-            <button type="button" id="addRowBtn" class="btn-add-row">＋ きょくを ふやす</button>
+          <div class="song-picker">
+            <span class="field-label">いま ひいた きょく</span>
+            <div id="songChips" class="song-chips" role="listbox" aria-label="きょくを えらぶ"></div>
+            <div class="song-add">
+              <input type="text" id="newSongInput" class="field-input" placeholder="あたらしい きょく" aria-label="あたらしい きょくめい" maxlength="40">
+              <button type="button" id="addSongBtn" class="btn-add-song" aria-label="きょくを ついかする">＋</button>
+            </div>
           </div>
 
-          <div class="record-total" aria-live="polite">
-            ごうけい <span id="recordTotal">0</span> かい
+          <div class="stamp-area">
+            <button type="button" id="stampCard" class="stamp-card" aria-label="ハンコを おす"></button>
+            <p id="stampHint" class="stamp-hint" role="status" hidden>きょくを えらんでね</p>
+            <div class="stamp-progress" aria-live="polite">
+              <span id="recordTotal">0</span> こ / もくひょう 10こ
+            </div>
+            <button type="button" id="undoStampBtn" class="btn-undo-stamp">↩ ひとつ もどす</button>
           </div>
 
           <button type="submit" id="recordSubmitBtn" class="btn-record btn-record--submit">きろくする</button>
-          <p id="recordError" class="record-error" role="alert" hidden>1かい いじょう にゅうりょくしてね</p>
+          <p id="recordError" class="record-error" role="alert" hidden>1かい いじょう おしてね</p>
         </form>
       </div>
     </section>
@@ -211,6 +219,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=b01c6a08"></script>
+  <script type="module" src="js/app.js?v=c337094c"></script>
 </body>
 </html>

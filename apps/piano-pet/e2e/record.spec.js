@@ -22,9 +22,12 @@ test.describe('練習記録', () => {
     await page.click('#goRecordBtn');
     await expect(page.locator('#view-record')).toBeVisible();
 
-    // 1曲ぶん入力（5かい）
-    await page.fill('.song-row .song-name', 'きらきらぼし');
-    await page.fill('.song-row .song-count', '5');
+    // 曲を追加して選び、スタンプを5回押す（5かい）
+    await page.fill('#newSongInput', 'きらきらぼし');
+    await page.click('#addSongBtn');
+    for (let i = 0; i < 5; i += 1) {
+      await page.click('#stampCard');
+    }
     await expect(page.locator('#recordTotal')).toHaveText('5');
 
     // 記録する

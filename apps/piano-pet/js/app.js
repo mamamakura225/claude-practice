@@ -1,8 +1,8 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
-import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions } from './game.js';
+import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
 import { catMarkup, playHappy } from './cat.js';
-import { collectSongs, isValidSession } from './record-form.js';
+import { isValidSession, stampsToSongs, songsToStamps, pastSongNames } from './record-form.js';
 import {
   weeklyTotals,
   weeklyChartModel,
@@ -280,35 +280,81 @@ navButtons.forEach((btn) => {
 document.getElementById('goRecordBtn')?.addEventListener('click', () => router.go('record'));
 document.getElementById('recordBackBtn')?.addEventListener('click', () => router.go('home'));
 
-// ===== 記録フォーム =====
-const songRowsEl = document.getElementById('songRows');
+// ===== 記録フォーム（スタンプカード方式） =====
 const recordDateEl = document.getElementById('recordDate');
 const recordTotalEl = document.getElementById('recordTotal');
 const recordErrorEl = document.getElementById('recordError');
+const songChipsEl = document.getElementById('songChips');
+const newSongInputEl = document.getElementById('newSongInput');
+const stampCardEl = document.getElementById('stampCard');
+const stampHintEl = document.getElementById('stampHint');
 
-function songRowMarkup() {
-  return `<div class="song-row">
-    <input type="text" class="field-input song-name" placeholder="きょくめい" aria-label="きょくめい">
-    <input type="number" class="field-input song-count" placeholder="0" min="0" step="1" inputmode="numeric" aria-label="かいすう">
-    <button type="button" class="btn-remove-row" aria-label="この ぎょうを けす">✕</button>
-  </div>`;
+// 押した順の曲名（stamps）と、選択中の曲・チップ候補。記録のたびに作り直す。
+let stamps = [];
+let selectedSong = null;
+let chipNames = [];
+
+function renderChips() {
+  if (!songChipsEl) return;
+  songChipsEl.innerHTML = chipNames
+    .map((name) => {
+      const selected = name === selectedSong;
+      return `<button type="button" class="song-chip${selected ? ' is-selected' : ''}" role="option" aria-selected="${selected}" data-song="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+    })
+    .join('');
 }
 
-function readRows() {
-  return Array.from(songRowsEl?.querySelectorAll('.song-row') ?? []).map((row) => ({
-    name: row.querySelector('.song-name')?.value ?? '',
-    count: row.querySelector('.song-count')?.value ?? '',
-  }));
+function selectSong(name) {
+  selectedSong = name;
+  if (stampHintEl) stampHintEl.hidden = true;
+  renderChips();
 }
 
-function updateTotal() {
-  const { totalCount } = collectSongs(readRows());
-  if (recordTotalEl) recordTotalEl.textContent = String(totalCount);
-  if (recordErrorEl && totalCount > 0) recordErrorEl.hidden = true;
+function addNewSong() {
+  const name = (newSongInputEl?.value ?? '').trim();
+  if (!name) return;
+  if (!chipNames.includes(name)) chipNames.unshift(name);
+  if (newSongInputEl) newSongInputEl.value = '';
+  selectSong(name);
 }
 
-function addRow() {
-  songRowsEl?.insertAdjacentHTML('beforeend', songRowMarkup());
+// スタンプカードを描画。最低10マス、超過時は常に1マス余分に出して押し続けられるようにする。
+function renderStampCard() {
+  if (!stampCardEl) return;
+  const filled = stamps.length;
+  const cells = Math.max(DAILY_GOAL, filled + 1);
+  let html = '';
+  for (let i = 0; i < cells; i += 1) {
+    const isFilled = i < filled;
+    const isGoal = i === DAILY_GOAL - 1;
+    html += `<span class="stamp-cell${isFilled ? ' is-filled' : ''}${isGoal ? ' is-goal' : ''}" aria-hidden="true">${isFilled ? '🐾' : ''}</span>`;
+  }
+  stampCardEl.innerHTML = html;
+  stampCardEl.classList.toggle('is-complete', filled >= DAILY_GOAL);
+  updateProgress();
+}
+
+function updateProgress() {
+  if (recordTotalEl) recordTotalEl.textContent = String(stamps.length);
+  if (recordErrorEl && stamps.length > 0) recordErrorEl.hidden = true;
+}
+
+function addStamp() {
+  if (!selectedSong) {
+    if (stampHintEl) stampHintEl.hidden = false;
+    return;
+  }
+  const reachedGoal = stamps.length + 1 === DAILY_GOAL;
+  stamps.push(selectedSong);
+  renderStampCard();
+  playSound('stamp', state);
+  if (reachedGoal) playSound('levelup', state);
+}
+
+function undoStamp() {
+  if (!stamps.length) return;
+  stamps.pop();
+  renderStampCard();
 }
 
 // 編集中の記録（state.sessions のインデックス）。新規記録時は null。
@@ -325,27 +371,29 @@ function resetRecordForm() {
   editingIndex = null;
   setRecordMode(false);
   if (recordDateEl) recordDateEl.value = todayStr();
-  if (songRowsEl) songRowsEl.innerHTML = '';
-  addRow();
-  updateTotal();
+  stamps = [];
+  chipNames = pastSongNames(state.sessions);
+  selectedSong = chipNames[0] ?? null;
+  if (newSongInputEl) newSongInputEl.value = '';
+  if (stampHintEl) stampHintEl.hidden = true;
+  renderChips();
+  renderStampCard();
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
 
 // 既存セッションの内容をフォームに流し込み、編集モードにする
 function fillRecordForm(session) {
   if (recordDateEl) recordDateEl.value = session.date;
-  if (songRowsEl) {
-    songRowsEl.innerHTML = '';
-    for (const song of session.songs ?? []) {
-      addRow();
-      const row = songRowsEl.lastElementChild;
-      row.querySelector('.song-name').value = song.name;
-      row.querySelector('.song-count').value = String(song.count);
-    }
-    if (!songRowsEl.children.length) addRow();
-  }
+  stamps = songsToStamps(session.songs ?? []);
+  // 編集対象の曲を候補の先頭に立て、過去曲も合わせて選べるようにする
+  const editedNames = [...new Set(stamps)];
+  chipNames = [...editedNames, ...pastSongNames(state.sessions).filter((n) => !editedNames.includes(n))];
+  selectedSong = editedNames[editedNames.length - 1] ?? chipNames[0] ?? null;
+  if (newSongInputEl) newSongInputEl.value = '';
+  if (stampHintEl) stampHintEl.hidden = true;
   setRecordMode(true);
-  updateTotal();
+  renderChips();
+  renderStampCard();
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
 
@@ -432,7 +480,7 @@ function showFreezePopup() {
 function submitRecord(event) {
   event.preventDefault();
   const date = recordDateEl?.value || todayStr();
-  const { songs, totalCount } = collectSongs(readRows());
+  const { songs, totalCount } = stampsToSongs(stamps);
 
   if (!isValidSession({ totalCount })) {
     if (recordErrorEl) recordErrorEl.hidden = false;
@@ -494,15 +542,19 @@ function submitRecord(event) {
   resetRecordForm();
 }
 
-document.getElementById('addRowBtn')?.addEventListener('click', addRow);
-songRowsEl?.addEventListener('input', updateTotal);
-songRowsEl?.addEventListener('click', (e) => {
-  if (!e.target.closest('.btn-remove-row')) return;
-  const rows = songRowsEl.querySelectorAll('.song-row');
-  if (rows.length <= 1) return;   // 最低1行は残す
-  e.target.closest('.song-row').remove();
-  updateTotal();
+songChipsEl?.addEventListener('click', (e) => {
+  const chip = e.target.closest('.song-chip');
+  if (!chip) return;
+  selectSong(chip.dataset.song);
 });
+document.getElementById('addSongBtn')?.addEventListener('click', addNewSong);
+newSongInputEl?.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  addNewSong();
+});
+stampCardEl?.addEventListener('click', addStamp);
+document.getElementById('undoStampBtn')?.addEventListener('click', undoStamp);
 document.getElementById('recordForm')?.addEventListener('submit', submitRecord);
 
 // ===== 記録履歴の編集・削除 =====

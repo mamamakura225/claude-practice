@@ -333,76 +333,158 @@ body {
   border-color: var(--pink-deep);
 }
 
-.songs {
+/* ----- 曲えらび ----- */
+.song-picker {
   display: flex;
   flex-direction: column;
   gap: 10px;
 }
 
-.song-rows {
+.song-chips {
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
-.song-row {
+.song-chip {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--pink-deep);
+  background: #fff;
+  border: 2px solid #ffe1e8;
+  border-radius: 999px;
+  padding: 10px 16px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.song-chip.is-selected {
+  background: var(--pink-deep);
+  color: #fff;
+  border-color: var(--pink-deep);
+}
+
+.song-chip:active {
+  transform: scale(0.96);
+}
+
+.song-add {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
-.song-row .song-name {
+.song-add .field-input {
   flex: 1;
 }
 
-.song-row .song-count {
-  width: 80px;
-  text-align: center;
-}
-
-.btn-remove-row {
+.btn-add-song {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
-  border: none;
-  border-radius: 12px;
-  background: #ffe1e8;
-  color: var(--pink-deep);
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.btn-remove-row:active {
-  transform: scale(0.94);
-}
-
-.btn-add-row {
-  align-self: flex-start;
+  width: 48px;
+  height: 48px;
   border: 2px dashed var(--pink);
+  border-radius: 14px;
   background: #fff;
   color: var(--pink-deep);
+  font-size: 1.4rem;
   font-weight: 700;
-  font-size: 0.9rem;
-  padding: 10px 16px;
-  border-radius: 14px;
   cursor: pointer;
 }
 
-.btn-add-row:active {
-  transform: scale(0.97);
+.btn-add-song:active {
+  transform: scale(0.96);
 }
 
-.record-total {
-  text-align: center;
+/* ----- スタンプカード ----- */
+.stamp-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.stamp-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  padding: 14px;
+  border: 2px solid #ffe1e8;
+  border-radius: 18px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.stamp-card.is-complete {
+  border-color: #ffd06a;
+  background: linear-gradient(135deg, #fff7e6, #fff);
+}
+
+.stamp-card:active {
+  transform: scale(0.99);
+}
+
+.stamp-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border-radius: 12px;
+  background: #fff6ee;
+  border: 2px dashed #ffd9e1;
+}
+
+.stamp-cell.is-goal {
+  border-color: #ffd06a;
+}
+
+.stamp-cell.is-filled {
+  background: #ffe1e8;
+  border-style: solid;
+  border-color: var(--pink);
+  animation: stamp-pop 0.18s ease-out;
+}
+
+@keyframes stamp-pop {
+  0% { transform: scale(0.4); }
+  70% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+.stamp-hint {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #e0506a;
+}
+
+.stamp-progress {
   font-family: 'Mochiy Pop One', sans-serif;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
   color: var(--ink);
 }
 
-.record-total span {
+.stamp-progress span {
   color: var(--pink-deep);
   font-size: 1.4rem;
+}
+
+.btn-undo-stamp {
+  border: none;
+  border-radius: 14px;
+  background: #ffe1e8;
+  color: var(--pink-deep);
+  font-weight: 700;
+  font-size: 0.9rem;
+  padding: 10px 18px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.btn-undo-stamp:active {
+  transform: scale(0.97);
 }
 
 .btn-record--submit {
