@@ -4,6 +4,9 @@
   justify-content: center;
   align-items: flex-end;
   width: 100%;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 .cat {
@@ -88,11 +91,25 @@
   100% { opacity: 0; transform: translateY(-46px) scale(1); }
 }
 
+/* ----- しっぽをふる（なでた時・単発） ----- */
+.cat--wiggle {
+  animation: pp-wiggle 0.5s ease-in-out 2;
+  transform-box: fill-box;
+  transform-origin: 50% 88%;
+}
+
+@keyframes pp-wiggle {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-6deg); }
+  75% { transform: rotate(6deg); }
+}
+
 /* ----- アクセシビリティ：モーション控えめ設定 ----- */
 @media (prefers-reduced-motion: reduce) {
   .cat__body,
   .cat__tail,
   .cat--happy,
+  .cat--wiggle,
   .cat--sleep .cat__zzz,
   .cat--happy .cat__heart {
     animation: none !important;

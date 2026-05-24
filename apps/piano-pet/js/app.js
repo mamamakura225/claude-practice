@@ -1,7 +1,7 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
 import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
-import { catMarkup, playHappy } from './cat.js';
+import { catMarkup, playHappy, playReaction } from './cat.js';
 import { isValidSession, stampsToSongs, songsToStamps, pastSongNames } from './record-form.js';
 import {
   weeklyTotals,
@@ -589,6 +589,16 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
   commitState(next);                // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
 });
+
+// ===== 猫とのインタラクション（#79） =====
+// なでる/タップで反応（鳴く・喜ぶ・しっぽふり）。記録には影響しない安全な操作。
+function petCat() {
+  unlockAudio();                                       // ユーザー操作で AudioContext を解錠
+  playReaction(document.querySelector('#catStage svg'));
+  playSound('meow', state);
+}
+document.getElementById('catStage')?.addEventListener('click', petCat);
+document.getElementById('petBtn')?.addEventListener('click', petCat);
 
 // ===== サウンドON/OFFトグル =====
 document.getElementById('soundToggle')?.addEventListener('click', () => {
