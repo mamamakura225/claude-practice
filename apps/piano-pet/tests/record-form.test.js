@@ -157,4 +157,11 @@ describe('pastSongNames', () => {
     expect(pastSongNames([])).toEqual([]);
     expect(pastSongNames(undefined)).toEqual([]);
   });
+
+  it('limit=Infinity で全曲を返す（datalist補完用）', () => {
+    const songs = Array.from({ length: 12 }, (_, i) => ({ name: `曲${i}`, count: 12 - i }));
+    const all = pastSongNames([{ songs }], Infinity);
+    expect(all).toHaveLength(12);
+    expect(all[0]).toBe('曲0'); // count 最大が先頭
+  });
 });

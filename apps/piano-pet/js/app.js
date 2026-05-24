@@ -288,6 +288,16 @@ const songChipsEl = document.getElementById('songChips');
 const newSongInputEl = document.getElementById('newSongInput');
 const stampCardEl = document.getElementById('stampCard');
 const stampHintEl = document.getElementById('stampHint');
+const songSuggestEl = document.getElementById('songSuggestions');
+
+// 新規曲入力欄(datalist)を過去の全曲で補完候補にする。チップは上位数曲のみ表示するため、
+// 曲数が多い家庭でも手打ちせず履歴から選べるようにする（#77）。
+function renderSongSuggestions() {
+  if (!songSuggestEl) return;
+  songSuggestEl.innerHTML = pastSongNames(state.sessions, Infinity)
+    .map((name) => `<option value="${escapeHtml(name)}"></option>`)
+    .join('');
+}
 
 // 押した順の曲名（stamps）と、選択中の曲・チップ候補。記録のたびに作り直す。
 let stamps = [];
@@ -377,6 +387,7 @@ function resetRecordForm() {
   if (newSongInputEl) newSongInputEl.value = '';
   if (stampHintEl) stampHintEl.hidden = true;
   renderChips();
+  renderSongSuggestions();
   renderStampCard();
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
@@ -393,6 +404,7 @@ function fillRecordForm(session) {
   if (stampHintEl) stampHintEl.hidden = true;
   setRecordMode(true);
   renderChips();
+  renderSongSuggestions();
   renderStampCard();
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
