@@ -17,32 +17,32 @@ const WHISKER  = '#e3cf9a';  // ひげ（明るいクリーム）
 // ----- ステージ別パラメータ（viewBox 0 0 200 236） -----
 // 横長の丸い体＋短いカール尻尾（前足なし）。
 const STAGES = {
-  // 子猫（lv 1-5）：頭でっかち・丸くコンパクト
+  // 子猫（lv 1-5）：頭でっかち・もちもちで丸くコンパクト
   kitten: {
-    head: { cx: 100, cy: 94, r: 50 },
-    ears: { lx: 72, rx: 128, ty: 58, erx: 20, ery: 16, rot: 16 },
-    body: { cx: 100, cy: 176, rx: 58, ry: 50 },
-    belly: { cx: 100, cy: 186, rx: 34, ry: 32 },
-    tail:  { d: 'M150 182 Q182 180 182 152 Q182 130 158 136', w: 16 },
-    anchors: { neck: {x:100,y:148,s:0.74}, head: {x:100,y:48,s:0.76}, back: {x:100,y:160,s:0.78}, face: {x:100,y:93,s:0.83} },
+    head: { cx: 100, cy: 96, r: 50 },
+    ears: { lx: 72, rx: 128, ty: 60, erx: 20, ery: 16, rot: 16 },
+    body: { cx: 100, cy: 172, rx: 58, ry: 46 },
+    belly: { cx: 100, cy: 178, rx: 38, ry: 28 },
+    tail:  { d: 'M148 190 Q170 188 170 168 Q170 155 158 158', w: 16 },
+    anchors: { neck: {x:100,y:150,s:0.74}, head: {x:100,y:50,s:0.76}, back: {x:100,y:156,s:0.78}, face: {x:100,y:95,s:0.83} },
   },
   // 若猫（lv 6-15）：バランスの良い体型
   young: {
-    head: { cx: 100, cy: 88, r: 55 },
-    ears: { lx: 70, rx: 130, ty: 50, erx: 22, ery: 18, rot: 15 },
-    body: { cx: 100, cy: 172, rx: 64, ry: 56 },
-    belly: { cx: 100, cy: 184, rx: 38, ry: 38 },
-    tail:  { d: 'M158 180 Q192 178 192 148 Q192 124 166 132', w: 18 },
-    anchors: { neck: {x:100,y:142,s:0.86}, head: {x:100,y:36,s:0.90}, back: {x:100,y:156,s:0.92}, face: {x:100,y:87,s:0.91} },
+    head: { cx: 100, cy: 90, r: 55 },
+    ears: { lx: 70, rx: 130, ty: 52, erx: 22, ery: 18, rot: 15 },
+    body: { cx: 100, cy: 168, rx: 64, ry: 52 },
+    belly: { cx: 100, cy: 176, rx: 42, ry: 34 },
+    tail:  { d: 'M153 188 Q177 186 177 164 Q177 149 164 153', w: 18 },
+    anchors: { neck: {x:100,y:144,s:0.86}, head: {x:100,y:38,s:0.90}, back: {x:100,y:152,s:0.92}, face: {x:100,y:89,s:0.91} },
   },
   // 成猫（lv 16+）：どっしりした風格
   adult: {
-    head: { cx: 100, cy: 84, r: 60 },
-    ears: { lx: 68, rx: 132, ty: 46, erx: 24, ery: 19, rot: 14 },
-    body: { cx: 100, cy: 170, rx: 70, ry: 60 },
-    belly: { cx: 100, cy: 182, rx: 42, ry: 42 },
-    tail:  { d: 'M166 178 Q198 176 198 146 Q198 122 172 130', w: 20 },
-    anchors: { neck: {x:100,y:148,s:1.00}, head: {x:100,y:30,s:1.04}, back: {x:100,y:154,s:1.08}, face: {x:100,y:83,s:1.00} },
+    head: { cx: 100, cy: 86, r: 60 },
+    ears: { lx: 68, rx: 132, ty: 48, erx: 24, ery: 19, rot: 14 },
+    body: { cx: 100, cy: 166, rx: 70, ry: 56 },
+    belly: { cx: 100, cy: 174, rx: 46, ry: 38 },
+    tail:  { d: 'M158 188 Q184 185 184 161 Q184 146 170 149', w: 20 },
+    anchors: { neck: {x:100,y:150,s:1.00}, head: {x:100,y:32,s:1.04}, back: {x:100,y:150,s:1.08}, face: {x:100,y:85,s:1.00} },
   },
 };
 
@@ -52,45 +52,48 @@ function n(v, d = 1) {
   return parseFloat(v.toFixed(d));
 }
 
-// 目（開）: ツヤのある黒目＋小さな白ハイライト1つ（シンプルでかわいく）
-function eyeOpen(cx, cy, r) {
-  return `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(r * 0.84)}" ry="${n(r)}" fill="${PUPIL}"/>
-          <circle cx="${n(cx - r * 0.26)}" cy="${n(cy - r * 0.30)}" r="${n(r * 0.26)}" fill="${EYE_HIGH}"/>`;
+// 目（開）: ツヤのある黒目＋白ハイライト2点（大きい光＋小さなキラッでうるうる感）
+function eyeOpen(cx, cy, rx, ry) {
+  return `<ellipse cx="${n(cx)}" cy="${n(cy)}" rx="${n(rx)}" ry="${n(ry)}" fill="${PUPIL}"/>
+          <circle cx="${n(cx - rx * 0.319)}" cy="${n(cy - ry * 0.294)}" r="${n(rx * 0.34)}" fill="${EYE_HIGH}"/>
+          <circle cx="${n(cx + rx * 0.319)}" cy="${n(cy + ry * 0.229)}" r="${n(rx * 0.149)}" fill="${EYE_HIGH}"/>`;
 }
 
 // 目（閉）: アーチ型の線
-function eyeClosed(cx, cy, r) {
-  const x1 = n(cx - r * 0.78);
-  const x2 = n(cx + r * 0.78);
+function eyeClosed(cx, cy, rx, ry) {
+  const x1 = n(cx - rx * 0.95);
+  const x2 = n(cx + rx * 0.95);
   const yc = n(cy);
-  const yb = n(cy + r * 0.82);
+  const yb = n(cy + ry * 0.86);
   return `<path d="M${x1} ${yc} Q${n(cx)} ${yb} ${x2} ${yc}" fill="${PUPIL}" stroke="${PUPIL}" stroke-width="1.5"/>`;
 }
 
-// ひげ（鼻の両側から伸びる3本ずつ）
+// ひげ（頬から外へ長く伸びる3本ずつ）。内端は頬（鼻寄りでなく）、外端は顔の輪郭の外まで。
 function whiskersMarkup(cx, cy, r) {
-  const wy  = n(cy + r * 0.14);
-  const wx  = n(cx - r * 0.20);  // 内端X（左）
-  const ex1 = n(cx - r * 0.82);  // 外端X（上）
-  const ex2 = n(cx - r * 0.86);  // 外端X（中）
-  const ex3 = n(cx - r * 0.82);  // 外端X（下）
+  const wy  = n(cy + r * 0.11);  // ひげの中心の高さ
+  const ix  = r * 0.50;          // 内端Xオフセット（頬）
+  const ox  = r * 1.12;          // 外端Xオフセット（上下のひげ）
+  const ox2 = r * 1.16;          // 外端Xオフセット（中央のひげ）
+  const dyI = r * 0.068;         // 内端の上下ひらき
+  const dyO = r * 0.138;         // 外端の上下ひらき
   return `<g stroke="${WHISKER}" stroke-width="1.5" stroke-linecap="round" opacity="0.85">
-    <line x1="${wx}"         y1="${n(wy - r*0.07)}" x2="${ex1}"              y2="${n(wy - r*0.14)}"/>
-    <line x1="${wx}"         y1="${wy}"              x2="${ex2}"              y2="${wy}"/>
-    <line x1="${wx}"         y1="${n(wy + r*0.07)}" x2="${ex3}"              y2="${n(wy + r*0.14)}"/>
-    <line x1="${n(cx+r*0.20)}" y1="${n(wy - r*0.07)}" x2="${n(cx+r*0.82)}"  y2="${n(wy - r*0.14)}"/>
-    <line x1="${n(cx+r*0.20)}" y1="${wy}"              x2="${n(cx+r*0.86)}"  y2="${wy}"/>
-    <line x1="${n(cx+r*0.20)}" y1="${n(wy + r*0.07)}" x2="${n(cx+r*0.82)}"  y2="${n(wy + r*0.14)}"/>
+    <line x1="${n(cx - ix)}" y1="${n(wy - dyI)}" x2="${n(cx - ox)}"  y2="${n(wy - dyO)}"/>
+    <line x1="${n(cx - ix)}" y1="${wy}"          x2="${n(cx - ox2)}" y2="${wy}"/>
+    <line x1="${n(cx - ix)}" y1="${n(wy + dyI)}" x2="${n(cx - ox)}"  y2="${n(wy + dyO)}"/>
+    <line x1="${n(cx + ix)}" y1="${n(wy - dyI)}" x2="${n(cx + ox)}"  y2="${n(wy - dyO)}"/>
+    <line x1="${n(cx + ix)}" y1="${wy}"          x2="${n(cx + ox2)}" y2="${wy}"/>
+    <line x1="${n(cx + ix)}" y1="${n(wy + dyI)}" x2="${n(cx + ox)}"  y2="${n(wy + dyO)}"/>
   </g>`;
 }
 
 // 頭部グループ（折れ耳・丸顔・表情レイヤー）
 function headGroup(cfg) {
   const { head: h, ears: e } = cfg;
-  const eyeR  = h.r * 0.23;
-  const eyeY  = h.cy - h.r * 0.02;
-  const eyeLX = h.cx - h.r * 0.33;
-  const eyeRX = h.cx + h.r * 0.33;
+  const eyeRx  = h.r * 0.188;        // 黒目の横半径
+  const eyeRy  = h.r * 0.218;        // 黒目の縦半径
+  const eyeY   = h.cy - h.r * 0.02;
+  const eyeLX  = h.cx - h.r * 0.312; // 左右の目の中心X（やや中央寄り）
+  const eyeRX  = h.cx + h.r * 0.312;
   const noseY = h.cy + h.r * 0.22;
   const noseH = h.r * 0.09;
   const noseW = h.r * 0.085;
@@ -118,13 +121,13 @@ function headGroup(cfg) {
     <circle cx="${n(h.cx + h.r*0.46)}" cy="${n(h.cy + h.r*0.26)}" r="${n(h.r*0.21)}" fill="${BLUSH}" opacity="0.38"/>
     <!-- 目：開 -->
     <g class="cat__eyes cat__eyes--open">
-      ${eyeOpen(eyeLX, eyeY, eyeR)}
-      ${eyeOpen(eyeRX, eyeY, eyeR)}
+      ${eyeOpen(eyeLX, eyeY, eyeRx, eyeRy)}
+      ${eyeOpen(eyeRX, eyeY, eyeRx, eyeRy)}
     </g>
     <!-- 目：閉（睡眠時） -->
     <g class="cat__eyes cat__eyes--closed">
-      ${eyeClosed(eyeLX, eyeY, eyeR)}
-      ${eyeClosed(eyeRX, eyeY, eyeR)}
+      ${eyeClosed(eyeLX, eyeY, eyeRx, eyeRy)}
+      ${eyeClosed(eyeRX, eyeY, eyeRx, eyeRy)}
     </g>
     <!-- 鼻（三角形） -->
     <path d="M${h.cx} ${n(noseY)} l-${n(noseW)} -${n(noseH)} h${n(noseW*2)} z" fill="${NOSE}"/>
