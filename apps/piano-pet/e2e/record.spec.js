@@ -11,7 +11,7 @@ test.describe('練習記録', () => {
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
   });
 
-  test('記録するとホームのコインとストリークが増える', async ({ page }) => {
+  test('記録するとホームのコインとストリークが増える', { tag: '@compat' }, async ({ page }) => {
     await page.goto('/');
 
     // ホーム初期化を待つ（記録ボタンの出現＝アプリ起動）

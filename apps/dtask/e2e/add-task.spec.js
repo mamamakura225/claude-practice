@@ -9,7 +9,7 @@ test.describe('タスク追加', () => {
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
   });
 
-  test('新しいタスクを追加すると一覧に表示される', async ({ page }) => {
+  test('新しいタスクを追加すると一覧に表示される', { tag: '@compat' }, async ({ page }) => {
     await page.goto('/');
 
     // アプリ初期化を待つ（追加ボタンが出現したらOK）

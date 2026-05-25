@@ -21,7 +21,7 @@ test.describe('Kanban フルサイクル', () => {
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
   });
 
-  test('todo → inprogress → done と切替えるとカードが対応する列へ移動する', async ({ page }) => {
+  test('todo → inprogress → done と切替えるとカードが対応する列へ移動する', { tag: '@compat' }, async ({ page }) => {
     await seedTasks(page, [
       {
         id: 't-kanban',
