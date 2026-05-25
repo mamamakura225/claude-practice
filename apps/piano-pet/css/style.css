@@ -227,11 +227,13 @@ body {
 
 .stat-cards {
   display: flex;
+  flex-wrap: wrap;
   gap: 14px;
 }
 
 .stat-card {
-  flex: 1;
+  flex: 1 1 calc(50% - 7px);
+  min-width: 0;
   background: #fff;
   border-radius: 18px;
   padding: 14px 8px 12px;
@@ -263,6 +265,10 @@ body {
 
 .stat-card--freeze .stat-value {
   color: #6aa9e0;
+}
+
+.stat-card--affinity .stat-value {
+  color: var(--pink-deep);
 }
 
 .stat-label {
@@ -709,9 +715,38 @@ body {
   color: #b0a3a3;
 }
 
-.shop-list {
+.feed-section,
+.shop-section {
   width: 100%;
   max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.shop-heading {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1rem;
+  color: var(--ink);
+  margin: 0;
+}
+
+.feed-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.feed-affinity {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--pink-deep);
+}
+
+.feed-list,
+.shop-list {
+  width: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;

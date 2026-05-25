@@ -74,6 +74,21 @@ test.describe('ショップ', () => {
     await expect(page.locator('#catStage .cat__items > g')).toHaveCount(1);
   });
 
+  test('えさをあげるとコインが減り なかよし度が上がる', async ({ page }) => {
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+    await expect(page.locator('#feedAffinity')).toHaveText('0');
+
+    // おさかな（10コイン・なかよし+1）をあげる → 残190・なかよし1
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
+    await expect(page.locator('#shopCoins')).toHaveText('190');
+    await expect(page.locator('#feedAffinity')).toHaveText('1');
+
+    // ホームの「なかよし」表示にも反映される
+    await page.click('.nav-btn[data-nav="home"]');
+    await expect(page.locator('#statAffinity')).toHaveText('1');
+  });
+
   test('コイン不足のアイテムは購入ボタンが無効', async ({ page }) => {
     await page.goto('/#/shop');
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });

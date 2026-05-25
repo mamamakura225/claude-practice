@@ -19,13 +19,22 @@ function makeState(overrides = {}) {
 }
 
 describe('カタログ', () => {
-  it('5種類のアイテムを持つ', () => {
-    expect(SHOP_ITEMS).toHaveLength(5);
+  it('10種類のアイテムを持つ', () => {
+    expect(SHOP_ITEMS).toHaveLength(10);
   });
 
   it('itemById で取得・未知IDは null', () => {
     expect(itemById('ribbon').price).toBe(50);
+    expect(itemById('glasses').slot).toBe('face');
     expect(itemById('unknown')).toBeNull();
+  });
+
+  it('全アイテムが price・slot・icon を持つ', () => {
+    for (const item of SHOP_ITEMS) {
+      expect(typeof item.price).toBe('number');
+      expect(item.slot).toBeTruthy();
+      expect(item.icon).toBeTruthy();
+    }
   });
 });
 
