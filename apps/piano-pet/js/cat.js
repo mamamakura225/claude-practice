@@ -24,7 +24,7 @@ const STAGES = {
     body: { cx: 100, cy: 176, rx: 58, ry: 50 },
     belly: { cx: 100, cy: 186, rx: 34, ry: 32 },
     tail:  { d: 'M150 182 Q182 180 182 152 Q182 130 158 136', w: 16 },
-    anchors: { neck: {x:100,y:148,s:0.74}, head: {x:100,y:48,s:0.76}, back: {x:100,y:160,s:0.78} },
+    anchors: { neck: {x:100,y:148,s:0.74}, head: {x:100,y:48,s:0.76}, back: {x:100,y:160,s:0.78}, face: {x:100,y:93,s:0.83} },
   },
   // 若猫（lv 6-15）：バランスの良い体型
   young: {
@@ -33,7 +33,7 @@ const STAGES = {
     body: { cx: 100, cy: 172, rx: 64, ry: 56 },
     belly: { cx: 100, cy: 184, rx: 38, ry: 38 },
     tail:  { d: 'M158 180 Q192 178 192 148 Q192 124 166 132', w: 18 },
-    anchors: { neck: {x:100,y:142,s:0.86}, head: {x:100,y:36,s:0.90}, back: {x:100,y:156,s:0.92} },
+    anchors: { neck: {x:100,y:142,s:0.86}, head: {x:100,y:36,s:0.90}, back: {x:100,y:156,s:0.92}, face: {x:100,y:87,s:0.91} },
   },
   // 成猫（lv 16+）：どっしりした風格
   adult: {
@@ -42,7 +42,7 @@ const STAGES = {
     body: { cx: 100, cy: 170, rx: 70, ry: 60 },
     belly: { cx: 100, cy: 182, rx: 42, ry: 42 },
     tail:  { d: 'M166 178 Q198 176 198 146 Q198 122 172 130', w: 20 },
-    anchors: { neck: {x:100,y:148,s:1.00}, head: {x:100,y:30,s:1.04}, back: {x:100,y:154,s:1.08} },
+    anchors: { neck: {x:100,y:148,s:1.00}, head: {x:100,y:30,s:1.04}, back: {x:100,y:154,s:1.08}, face: {x:100,y:83,s:1.00} },
   },
 };
 
@@ -154,6 +154,20 @@ function tailGroup({ tail }) {
   </g>`;
 }
 
+// 5枚花弁の小さな花（中心(cx,cy)基準）。flower / flowerCrown で共用。
+function flowerSvg(cx, cy, scale, petalColor) {
+  const r = n(7 * scale);
+  const o = 9 * scale;
+  return `<g transform="translate(${n(cx)} ${n(cy)})" fill="${petalColor}">
+    <circle cx="0" cy="${n(-o)}" r="${r}"/>
+    <circle cx="${n(o)}" cy="${n(-o * 0.3)}" r="${r}"/>
+    <circle cx="${n(o * 0.6)}" cy="${n(o * 0.8)}" r="${r}"/>
+    <circle cx="${n(-o * 0.6)}" cy="${n(o * 0.8)}" r="${r}"/>
+    <circle cx="${n(-o)}" cy="${n(-o * 0.3)}" r="${r}"/>
+    <circle cx="0" cy="0" r="${n(r * 0.7)}" fill="#ffd34d"/>
+  </g>`;
+}
+
 // ----- アイテムSVG（前向きデザイン、原点(0,0)基準） -----
 // アンカー位置に translate+scale で配置される
 const ITEMS = {
@@ -194,6 +208,47 @@ const ITEMS = {
       <circle cx="-22" cy="10" r="5" fill="#7fc6ff"/>
       <circle cx="22"  cy="10" r="5" fill="#7fc6ff"/>
     </g>`,
+
+  bowtie: () => `
+    <g>
+      <path d="M-4 0 L-30 -15 L-30 15 Z" fill="#6f8cff"/>
+      <path d="M4 0 L30 -15 L30 15 Z"   fill="#6f8cff"/>
+      <path d="M-30 -15 Q-12 0 -30 15 Z" fill="#4a63d8"/>
+      <path d="M30 -15 Q12 0 30 15 Z"   fill="#4a63d8"/>
+      <rect x="-7" y="-10" width="14" height="20" rx="4" fill="#4a63d8"/>
+    </g>`,
+
+  scarf: () => `
+    <g>
+      <path d="M-42 -9 Q0 -24 42 -9 L40 7 Q0 16 -40 7 Z" fill="#ff8a8a"/>
+      <path d="M-40 7 Q0 16 40 7" fill="none" stroke="#e85d5d" stroke-width="3"/>
+      <path d="M4 4 L20 4 L16 40 L8 40 Z" fill="#ff8a8a" stroke="#e85d5d" stroke-width="1.5"/>
+      <g stroke="#e85d5d" stroke-width="2" stroke-linecap="round">
+        <line x1="9"  y1="40" x2="9"  y2="48"/>
+        <line x1="13" y1="40" x2="13" y2="48"/>
+        <line x1="17" y1="40" x2="17" y2="48"/>
+      </g>
+    </g>`,
+
+  glasses: () => `
+    <g fill="none" stroke="#5a4632" stroke-width="3" stroke-linecap="round">
+      <circle cx="-20" cy="0" r="13"/>
+      <circle cx="20"  cy="0" r="13"/>
+      <path d="M-7 -1 Q0 -5 7 -1"/>
+      <path d="M-33 -3 L-42 -7"/>
+      <path d="M33 -3 L42 -7"/>
+    </g>`,
+
+  flower: () => flowerSvg(0, 0, 1.3, '#ff9ec4'),
+
+  flowerCrown: () => {
+    const cols = ['#ff9ec4', '#c9a0ff', '#fff0a6', '#c9a0ff', '#ff9ec4'];
+    const xs = [-38, -19, 0, 19, 38];
+    const ys = [10, 2, -2, 2, 10];
+    const band = `<path d="M-46 8 Q0 -8 46 8" fill="none" stroke="#8fd19a" stroke-width="5" stroke-linecap="round"/>`;
+    const flowers = xs.map((x, i) => flowerSvg(x, ys[i], 0.62, cols[i])).join('');
+    return `<g>${band}${flowers}</g>`;
+  },
 };
 
 const ITEM_ANCHOR_TYPE = {
@@ -202,6 +257,11 @@ const ITEM_ANCHOR_TYPE = {
   hat:    'head',
   crown:  'head',
   cape:   'back',
+  bowtie: 'neck',
+  scarf:  'neck',
+  glasses: 'face',
+  flower: 'head',
+  flowerCrown: 'head',
 };
 
 export const ITEM_IDS = Object.keys(ITEMS);

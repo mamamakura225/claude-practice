@@ -13,6 +13,8 @@ const DEFAULTS = {
     xp: 0,
     coins: 0,
     equippedItems: [],
+    affinity: 0,
+    foodSpent: 0,
   },
   inventory: [],
   streak: {

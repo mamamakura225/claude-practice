@@ -17,6 +17,7 @@ import {
   toggleEquip,
   spentCoins,
 } from './shop.js';
+import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity } from './feed.js';
 import { isSoundOn, toggleSound, playSound, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 
@@ -27,7 +28,7 @@ export let state = loadState();
 {
   const migrated = mergeSameDaySessions(state.sessions);
   if (migrated.length < state.sessions.length) {
-    state = recomputeState({ ...state, sessions: migrated }, spentCoins(state));
+    state = recomputeState({ ...state, sessions: migrated }, spentTotal(state));
     saveState(state);
   }
 }
@@ -35,6 +36,12 @@ export let state = loadState();
 // クラウド同期モジュール（./cloud.js）。動的 import が成功したら入る。
 // オフライン等で読み込めない場合は null のまま＝localStorage だけで動作する。
 let cloud = null;
+
+// 装備購入＋えさやりに使ったコイン総額。全再計算（recomputeState）の spent 引数に使う。
+// 所持コイン = 獲得総額 - この値。どちらかが漏れると編集・削除で消費分が復活してしまう。
+function spentTotal(s) {
+  return spentCoins(s) + foodSpent(s);
+}
 
 export function commitState(newState) {
   state = newState;
@@ -107,6 +114,7 @@ function renderStats() {
   setText('statCoins', state.pet.coins);
   setText('statStreak', state.streak.current);
   setText('statFreezes', state.streak.freezes ?? 0);
+  setText('statAffinity', affinity(state));
 
   const pct = xpPerLevel > 0 ? Math.round((xpInLevel / xpPerLevel) * 100) : 0;
   const fillEl = document.getElementById('statXpFill');
@@ -217,8 +225,26 @@ function shopCardMarkup(item) {
   </div>`;
 }
 
+function feedCardMarkup(food) {
+  const affordable = canFeed(state, food.id);
+  const btn = affordable
+    ? `<button type="button" class="shop-btn shop-btn--buy" data-action="feed" data-id="${food.id}">あげる</button>`
+    : `<button type="button" class="shop-btn shop-btn--locked" disabled>コインが たりない</button>`;
+  return `<div class="shop-card">
+    <span class="shop-card__icon" aria-hidden="true">${food.icon}</span>
+    <div class="shop-card__info">
+      <span class="shop-card__name">${food.name}</span>
+      <span class="shop-card__price">🪙 ${food.price}　💖 +${food.affinity}</span>
+    </div>
+    ${btn}
+  </div>`;
+}
+
 export function renderShop() {
   setText('shopCoins', state.pet.coins);
+  setText('feedAffinity', affinity(state));
+  const feedEl = document.getElementById('feedList');
+  if (feedEl) feedEl.innerHTML = FOODS.map(feedCardMarkup).join('');
   const listEl = document.getElementById('shopList');
   if (listEl) listEl.innerHTML = SHOP_ITEMS.map(shopCardMarkup).join('');
 }
@@ -424,7 +450,7 @@ function deleteSession(index) {
   if (!session) return;
   if (!window.confirm(`${formatDateJa(session.date)} の きろくを けしますか？`)) return;
   const sessions = state.sessions.filter((_, i) => i !== index);
-  commitState(recomputeState({ ...state, sessions }, spentCoins(state)));
+  commitState(recomputeState({ ...state, sessions }, spentTotal(state)));
   renderHistory();
 }
 
@@ -447,6 +473,22 @@ function showCoinPopup({ coins, leveled, newLevel }) {
     popup.classList.remove('coin-popup--show');
     popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
   }, 2000);
+}
+
+// えさやりのポップアップ（もぐもぐ＋なかよし上昇）
+function showFeedPopup(food) {
+  const popup = document.getElementById('feedPopup');
+  if (!popup) return;
+  setText('feedPopupIcon', food.icon);
+  setText('feedPopupGain', `+${food.affinity}`);
+  popup.hidden = false;
+  void popup.getBoundingClientRect();
+  popup.classList.add('coin-popup--show');
+  clearTimeout(showFeedPopup._t);
+  showFeedPopup._t = setTimeout(() => {
+    popup.classList.remove('coin-popup--show');
+    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
+  }, 1800);
 }
 
 // バッジ獲得ポップアップ（複数取得時も順番に表示）
@@ -504,7 +546,7 @@ function submitRecord(event) {
   if (editingIndex != null) {
     const sessions = state.sessions.map((s, i) =>
       i === editingIndex ? { ...s, date, songs, totalCount } : s);
-    commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions) }, spentCoins(state)));
+    commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions) }, spentTotal(state)));
     resetRecordForm();
     router.go('history');
     return;
@@ -521,7 +563,7 @@ function submitRecord(event) {
     const prevCoins = state.pet.coins;
     const prevLevel = state.pet.level;
     const prevBadges = state.badges;
-    const newState = recomputeState({ ...state, sessions }, spentCoins(state));
+    const newState = recomputeState({ ...state, sessions }, spentTotal(state));
     const gainedBadges = newlyEarned(prevBadges, newState.badges);
     commitState(newState);
     router.go('home');
@@ -588,6 +630,20 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
   if (btn.dataset.action === 'buy') playSound('purchase', state);  // 購入音
   commitState(next);                // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
+});
+
+// ===== えさやり（#80・コインの使い道） =====
+document.getElementById('feedList')?.addEventListener('click', (e) => {
+  unlockAudio();
+  const btn = e.target.closest('.shop-btn[data-action="feed"]');
+  if (!btn) return;
+  const id = btn.dataset.id;
+  const next = feedCat(state, id);
+  if (next === state) return;        // 買えない（コイン不足等）
+  commitState(next);                 // 保存 + ホーム再描画（なかよし反映）
+  renderShop();                      // ショップのコイン・なかよし・ボタン更新
+  playSound('record', state);        // もぐもぐ（やわらかいチャイム）
+  showFeedPopup(foodById(id));
 });
 
 // ===== 猫とのインタラクション（#79） =====

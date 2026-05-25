@@ -3,9 +3,14 @@
 // slot は装備スロット（同一スロットは1つだけ装備できる）。
 export const SHOP_ITEMS = [
   { id: 'ribbon', name: '赤いリボン', price: 50, slot: 'neck', icon: '🎀' },
+  { id: 'bowtie', name: 'ちょうネクタイ', price: 70, slot: 'neck', icon: '🎗️' },
   { id: 'hat', name: '麦わら帽子', price: 80, slot: 'head', icon: '👒' },
+  { id: 'flower', name: 'おはな', price: 90, slot: 'head', icon: '🌸' },
   { id: 'collar', name: '星の首輪', price: 100, slot: 'neck', icon: '⭐' },
+  { id: 'scarf', name: 'マフラー', price: 120, slot: 'neck', icon: '🧣' },
+  { id: 'glasses', name: 'めがね', price: 130, slot: 'face', icon: '👓' },
   { id: 'cape', name: 'ミニマント', price: 150, slot: 'back', icon: '🦸' },
+  { id: 'flowerCrown', name: 'はなかんむり', price: 260, slot: 'head', icon: '💮' },
   { id: 'crown', name: '王冠', price: 300, slot: 'head', icon: '👑' },
 ];
 
