@@ -31,6 +31,32 @@ export default defineConfig({
         serviceWorkers: 'block',
       },
     },
+
+    // 互換ブラウザ（Firefox / Safari=WebKit）。全件は重いので @compat タグの
+    // クリティカルパスだけを各ブラウザで実行する。
+    {
+      name: 'dtask-firefox',
+      testDir: './apps/dtask/e2e',
+      grep: /@compat/,
+      use: { ...devices['Desktop Firefox'], baseURL: `http://localhost:${DTASK_PORT}` },
+    },
+    {
+      name: 'dtask-webkit',
+      testDir: './apps/dtask/e2e',
+      grep: /@compat/,
+      use: { ...devices['Desktop Safari'], baseURL: `http://localhost:${DTASK_PORT}` },
+    },
+    {
+      // piano-pet はモバイル PWA。実機での懸念は iOS Safari なので WebKit モバイルで検証。
+      name: 'piano-pet-mobile-safari',
+      testDir: './apps/piano-pet/e2e',
+      grep: /@compat/,
+      use: {
+        ...devices['iPhone 13'],
+        baseURL: `http://localhost:${PIANO_PORT}`,
+        serviceWorkers: 'block',
+      },
+    },
   ],
 
   // テスト実行時に各アプリの http-server を自動起動・終了
