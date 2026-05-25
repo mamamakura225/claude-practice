@@ -21,7 +21,9 @@ piano-pet のみ対象。`apps/piano-pet/` のアセット（`index.html`/`css`/
 並行PRはこの `sw.js`/`index.html` の `?v=` でほぼ確実に衝突する。**スタックPR（base同士の依存）は禁止**、独立ブランチを切り、main取り込みのたびに `gen-sw` を再生成すること。
 
 ## Firebase
-piano-pet は dtask の Firebase プロジェクト `dtask-d08b6` を共有する（`pianopet` collection に保存）。認証なし・config直書き・`cloud.js` は動的importでロード（PWAのオフライン動作を壊さないため）。Firestoreルールは pianopet を許可済み。
+piano-pet は dtask の Firebase プロジェクト `dtask-d08b6` を共有する（`pianopet` collection に保存）。認証なし・`cloud.js` は動的importでロード（PWAのオフライン動作を壊さないため）。Firestoreルールは pianopet を許可済み。
+
+config は `firebase-config.js`（`apps/dtask/` と `apps/piano-pet/js/`）に集約し、`scripts/gen-firebase-config.mjs` が `FIREBASE_*` env から生成する（env未設定時は本番値にフォールバック）。値を変えたら `npm run gen-config` を実行してコミット。CIの `gen-config:check` がドリフトを検知。クライアント用 Firebase 設定は元々公開情報なので秘匿目的ではなく、環境分離（将来のステージング）の継ぎ目が目的。デプロイ時に env を流し込む。
 
 ## CI / デプロイ
 [.github/workflows/test.yml](./.github/workflows/test.yml): 全branch pushで unit + e2e、`gen-sw:check` を実行。`main` への push 通過後に Vercel 本番デプロイ、PR(main宛)はプレビューデプロイ（dependabot のPRはSecretsが渡らず失敗するため除外）。Node は CI上 20。

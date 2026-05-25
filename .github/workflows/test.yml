@@ -18,6 +18,8 @@ jobs:
       - run: npm install
       - name: キャッシュ版の同期チェック (gen-sw)
         run: npm run gen-sw:check
+      - name: Firebase 設定の同期チェック (gen-config)
+        run: npm run gen-config:check
       - run: npm test
 
   e2e:
@@ -69,6 +71,15 @@ jobs:
         with:
           node-version: 20
       - run: npm install --global vercel@latest
+      - name: Firebase 設定を env から注入（未設定なら本番フォールバック）
+        run: npm run gen-config
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
       - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
@@ -88,6 +99,15 @@ jobs:
         with:
           node-version: 20
       - run: npm install --global vercel@latest
+      - name: Firebase 設定を env から注入（未設定なら本番フォールバック）
+        run: npm run gen-config
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FIREBASE_AUTH_DOMAIN: ${{ secrets.FIREBASE_AUTH_DOMAIN }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_STORAGE_BUCKET: ${{ secrets.FIREBASE_STORAGE_BUCKET }}
+          FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.FIREBASE_MESSAGING_SENDER_ID }}
+          FIREBASE_APP_ID: ${{ secrets.FIREBASE_APP_ID }}
       - run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
       - run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
       - run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}

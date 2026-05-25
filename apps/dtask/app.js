@@ -1,6 +1,7 @@
 /* ===== Firebase ===== */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
+import { firebaseConfig } from './firebase-config.js';
 
 /* ===== Utils ===== */
 import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline } from './utils/date.js';
@@ -8,15 +9,6 @@ import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
 import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBEN2Cd1CGzC3aN9hHS4m8o1MCnF6z5oBk",
-  authDomain: "dtask-d08b6.firebaseapp.com",
-  projectId: "dtask-d08b6",
-  storageBucket: "dtask-d08b6.firebasestorage.app",
-  messagingSenderId: "459534305297",
-  appId: "1:459534305297:web:f30a96b68d3fc2dc3e49b0"
-};
 
 const fbApp   = initializeApp(firebaseConfig);
 const db      = getFirestore(fbApp);

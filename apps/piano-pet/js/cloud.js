@@ -6,15 +6,7 @@
 // オフラインで CDN 取得に失敗してもアプリ本体（localStorage 動作）を巻き込まないようにするため。
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
-
-const firebaseConfig = {
-  apiKey: "AIzaSyBEN2Cd1CGzC3aN9hHS4m8o1MCnF6z5oBk",
-  authDomain: "dtask-d08b6.firebaseapp.com",
-  projectId: "dtask-d08b6",
-  storageBucket: "dtask-d08b6.firebasestorage.app",
-  messagingSenderId: "459534305297",
-  appId: "1:459534305297:web:f30a96b68d3fc2dc3e49b0"
-};
+import { firebaseConfig } from './firebase-config.js';
 
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
