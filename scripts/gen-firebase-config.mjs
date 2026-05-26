@@ -1,11 +1,13 @@
-// ===== Firebase 設定の生成（環境変数注入） =====
-// dtask / piano-pet が読み込む firebase-config.js を環境変数から生成する。
+// ===== ランタイム設定の生成（環境変数注入） =====
+// dtask / piano-pet が読み込む設定モジュールを環境変数から生成する。
+//   - firebase-config.js  : Firebase 接続設定（env: FIREBASE_*）
+//   - monitoring-config.js: Sentry など監視ツールの公開キー（env: SENTRY_DSN）
 // ビルド工程のない静的アプリなので、デプロイ前にこのスクリプトで env を流し込み、
 // 環境ごと（本番 / 将来のステージング）に向き先を切り替えられる継ぎ目を作る。
 //
-// クライアント用 Firebase 設定は本来公開情報（アクセス制御は Firestore ルール）。
-// よって env 未設定時は下記 DEFAULTS（現行の本番値）にフォールバックし、
-// ローカル開発・テスト・プレビューはそのまま動く。
+// クライアント用 Firebase 設定や Sentry DSN は本来公開情報（アクセス制御は別レイヤ）。
+// よって env 未設定時はフォールバック（Firebase=現行本番値 / 監視=空=無効）になり、
+// ローカル開発・テスト・プレビューはそのまま動く（監視は DSN 空なら no-op）。
 //
 // 使い方:
 //   node scripts/gen-firebase-config.mjs           生成（ファイルを書き換える）
@@ -38,26 +40,28 @@ const ENV_KEYS = {
   appId: 'FIREBASE_APP_ID',
 };
 
-// 生成先（両アプリで同一内容を共有）。POSIX 相対で持つ。
-const TARGETS = ['apps/dtask/firebase-config.js', 'apps/piano-pet/js/firebase-config.js'];
+// 監視ツールの公開キー。env 未設定時は空（= 各アプリ側で no-op）。
+const MONITORING_ENV_KEYS = {
+  sentryDsn: 'SENTRY_DSN',
+};
 
-function resolveConfig() {
-  const cfg = {};
-  for (const [key, envName] of Object.entries(ENV_KEYS)) {
+function resolveFromEnv(envKeys, defaults = {}) {
+  const out = {};
+  for (const [key, envName] of Object.entries(envKeys)) {
     const v = process.env[envName];
-    cfg[key] = v && v.trim() !== '' ? v : DEFAULTS[key];
+    out[key] = v && v.trim() !== '' ? v : (defaults[key] ?? '');
   }
-  return cfg;
+  return out;
 }
 
-function render(cfg) {
-  const body = Object.entries(cfg)
+function renderModule(exportName, obj) {
+  const body = Object.entries(obj)
     .map(([k, v]) => `  ${k}: ${JSON.stringify(v)},`)
     .join('\n');
   return [
     '// このファイルは scripts/gen-firebase-config.mjs が生成する。直接編集しないこと。',
-    '// 値は環境変数（FIREBASE_*）から注入され、未設定時は本番のフォールバック値になる。',
-    'export const firebaseConfig = {',
+    '// 値は環境変数から注入され、未設定時はフォールバック値になる。',
+    `export const ${exportName} = {`,
     body,
     '};',
     '',
@@ -66,40 +70,60 @@ function render(cfg) {
 
 const stripEol = (s) => s.replace(/\r\n/g, '\n');
 
-const cfg = resolveConfig();
-const next = render(cfg);
+const firebaseCfg = resolveFromEnv(ENV_KEYS, DEFAULTS);
+const monitoringCfg = resolveFromEnv(MONITORING_ENV_KEYS);
+
+// 生成先グループ（両アプリで同一内容を共有）。POSIX 相対で持つ。
+const GROUPS = [
+  {
+    content: renderModule('firebaseConfig', firebaseCfg),
+    files: ['apps/dtask/firebase-config.js', 'apps/piano-pet/js/firebase-config.js'],
+  },
+  {
+    content: renderModule('monitoringConfig', monitoringCfg),
+    files: ['apps/dtask/monitoring-config.js', 'apps/piano-pet/js/monitoring-config.js'],
+  },
+];
+
+const summary = `projectId=${firebaseCfg.projectId}, sentry=${monitoringCfg.sentryDsn ? 'on' : 'off'}`;
 
 if (CHECK) {
-  const stale = TARGETS.filter((rel) => {
-    let current = '';
-    try {
-      current = readFileSync(path.join(ROOT, rel), 'utf8');
-    } catch {
-      return true;
+  const stale = [];
+  for (const g of GROUPS) {
+    for (const rel of g.files) {
+      let current = '';
+      try {
+        current = readFileSync(path.join(ROOT, rel), 'utf8');
+      } catch {
+        stale.push(rel);
+        continue;
+      }
+      if (stripEol(current) !== stripEol(g.content)) stale.push(rel);
     }
-    return stripEol(current) !== stripEol(next);
-  });
+  }
   if (stale.length) {
-    console.error('✗ firebase-config.js が古い/欠落しています。再生成してコミットしてください:');
+    console.error('✗ 生成済み設定が古い/欠落しています。再生成してコミットしてください:');
     for (const rel of stale) console.error(`  - ${rel}`);
     console.error('  実行: npm run gen-config');
     process.exit(1);
   }
-  console.log(`✓ firebase-config.js は最新です (projectId=${cfg.projectId})`);
+  console.log(`✓ 設定は最新です (${summary})`);
 } else {
   let changed = 0;
-  for (const rel of TARGETS) {
-    let current = '';
-    try {
-      current = readFileSync(path.join(ROOT, rel), 'utf8');
-    } catch {
-      /* 新規作成 */
-    }
-    if (current !== next) {
-      writeFileSync(path.join(ROOT, rel), next);
-      console.log(`updated ${rel}`);
-      changed++;
+  for (const g of GROUPS) {
+    for (const rel of g.files) {
+      let current = '';
+      try {
+        current = readFileSync(path.join(ROOT, rel), 'utf8');
+      } catch {
+        /* 新規作成 */
+      }
+      if (current !== g.content) {
+        writeFileSync(path.join(ROOT, rel), g.content);
+        console.log(`updated ${rel}`);
+        changed++;
+      }
     }
   }
-  console.log(`done (projectId=${cfg.projectId}${changed ? '' : ', 変更なし'})`);
+  console.log(`done (${summary}${changed ? '' : ', 変更なし'})`);
 }

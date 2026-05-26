@@ -20,6 +20,10 @@ import {
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity } from './feed.js';
 import { isSoundOn, toggleSound, playSound, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
+import { initErrorMonitoring } from './sentry.js';
+
+// エラー監視（任意・DSN 未設定なら no-op）。早期にグローバルハンドラを張る。
+initErrorMonitoring();
 
 // ===== 状態管理 =====
 export let state = loadState();

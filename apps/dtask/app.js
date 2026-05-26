@@ -10,6 +10,10 @@ import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
 import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
 
+/* ===== エラー監視（任意・DSN 未設定なら no-op） ===== */
+import { initErrorMonitoring } from './sentry.js';
+initErrorMonitoring(); // 早期にグローバルエラーハンドラを張る
+
 const fbApp   = initializeApp(firebaseConfig);
 const db      = getFirestore(fbApp);
 const DATA_DOC = doc(db, 'dtask', 'data');
