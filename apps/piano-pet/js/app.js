@@ -21,9 +21,11 @@ import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity } from './feed.j
 import { isSoundOn, toggleSound, playSound, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { initErrorMonitoring } from './sentry.js';
+import { initAnalytics, track } from './analytics.js';
 
-// エラー監視（任意・DSN 未設定なら no-op）。早期にグローバルハンドラを張る。
+// エラー監視・利用計測（任意・キー未設定なら no-op）。早期に起動する。
 initErrorMonitoring();
+initAnalytics();
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -296,6 +298,7 @@ function render(view) {
 const router = createRouter({
   onChange(view) {
     render(view);
+    track('view_changed', { view });
     const target = hashFromView(view);
     if (window.location.hash !== target) {
       window.location.hash = target;
@@ -570,6 +573,7 @@ function submitRecord(event) {
     const newState = recomputeState({ ...state, sessions }, spentTotal(state));
     const gainedBadges = newlyEarned(prevBadges, newState.badges);
     commitState(newState);
+    track('practice_recorded', { totalCount: mergedCount }); // 回数のみ・曲名は送らない
     router.go('home');
     playHappy(document.querySelector('#catStage svg'));
     showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled: newState.pet.level > prevLevel, newLevel: newState.pet.level });
@@ -584,6 +588,7 @@ function submitRecord(event) {
   const { state: newState, rewards } = applySession(state, { date, songs, totalCount });
   const gainedBadges = newlyEarned(prevBadges, newState.badges);
   commitState(newState);          // 保存 + ホーム再描画
+  track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');              // ホームへ遷移
   playHappy(document.querySelector('#catStage svg'));  // 喜ぶアニメ
   showCoinPopup(rewards);         // 獲得コインのポップアップ

@@ -25,8 +25,10 @@ piano-pet は dtask の Firebase プロジェクト `dtask-d08b6` を共有す�
 
 config は `firebase-config.js`（`apps/dtask/` と `apps/piano-pet/js/`）に集約し、`scripts/gen-firebase-config.mjs` が `FIREBASE_*` env から生成する（env未設定時は本番値にフォールバック）。同スクリプトは監視用 `monitoring-config.js`（`SENTRY_DSN`、未設定時は空＝Sentry無効）も生成する。値を変えたら `npm run gen-config` を実行してコミット。CIの `gen-config:check` がドリフトを検知。クライアント用 Firebase 設定や DSN は元々公開情報なので秘匿目的ではなく、環境分離（将来のステージング）の継ぎ目が目的。デプロイ時に env を流し込む。
 
-## エラー監視 (Sentry)
-`sentry.js`（各アプリ）が `monitoring-config.js` の `sentryDsn` を読み、空なら **no-op**。DSN があれば CDN から SDK を動的 import して init。プライバシー保護のため breadcrumb は全破棄・`request`/`user` は送らない（タスク内容やPIIを送信しない）。非minified配信なのでソースマップは不要。
+## エラー監視 / 利用計測 (Sentry / PostHog)
+`monitoring-config.js`（gen-config が生成）の `sentryDsn` / `posthogKey` が空なら各 SDK は **no-op**（CDN import もしない）。
+- `sentry.js`: DSN があれば CDN から SDK を動的 import して init。breadcrumb は全破棄・`request`/`user` は送らない（タスク内容やPIIを送信しない）。非minified配信なのでソースマップ不要。
+- `analytics.js`: PostHog。autocapture/pageview/session-recording を無効化し DNT 尊重。送るのは操作種別と頻度のみ（`view_changed`・`task_added`・`practice_recorded` 等）で、タスク名や曲名などの**内容は送らない**。`track(event, props)` の props に内容を入れないこと。
 
 ## CI / デプロイ
 [.github/workflows/test.yml](./.github/workflows/test.yml): 全branch pushで unit + e2e、`gen-sw:check` を実行。`main` への push 通過後に Vercel 本番デプロイ、PR(main宛)はプレビューデプロイ（dependabot のPRはSecretsが渡らず失敗するため除外）。Node は CI上 20。
