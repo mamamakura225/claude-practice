@@ -1,5 +1,5 @@
 // このファイルは scripts/gen-firebase-config.mjs が生成する。直接編集しないこと。
-// 値は環境変数（FIREBASE_*）から注入され、未設定時は本番のフォールバック値になる。
+// 値は環境変数から注入され、未設定時はフォールバック値になる。
 export const firebaseConfig = {
   apiKey: "AIzaSyBEN2Cd1CGzC3aN9hHS4m8o1MCnF6z5oBk",
   authDomain: "dtask-d08b6.firebaseapp.com",
