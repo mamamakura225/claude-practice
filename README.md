@@ -58,6 +58,15 @@ GitHub Actions（[.github/workflows/test.yml](./.github/workflows/test.yml)）�
 - PR (mainターゲット) → プレビューデプロイ
 - リポジトリ全体を静的配信し、`vercel.json` の rewrite で `/dtask`・`/piano-pet` を各アプリへ振り分ける
 
+## 外部サービス / インフラ
+
+依存する外部サービス（Firebase / Vercel / GitHub / Sentry / PostHog）と、その設定・有効化手順・プライバシー方針は **[docs/external-services.md](./docs/external-services.md)** に集約。
+
+ざっくり:
+- **データ**: Firebase Firestore（`dtask-d08b6`） — **ホスティング**: Vercel — **CI/ソース**: GitHub Actions
+- **エラー監視**: Sentry / **利用計測**: PostHog（どちらも鍵が未設定なら no-op で無効）
+- 接続情報・キーは `npm run gen-config` が環境変数から `*-config.js` を生成して注入（詳細は上記ドキュメント）
+
 ## バックログ
 
 [GitHub Issues](https://github.com/mamamakura225/claude-practice/issues) でラベル `type/infra` / `type/ux` / `type/tech-debt` と優先度 `P1` / `P2` / `P3` で管理。
