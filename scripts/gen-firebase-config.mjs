@@ -40,9 +40,11 @@ const ENV_KEYS = {
   appId: 'FIREBASE_APP_ID',
 };
 
-// 監視ツールの公開キー。env 未設定時は空（= 各アプリ側で no-op）。
+// 監視・計測ツールの公開キー。env 未設定時は空（= 各アプリ側で no-op）。
 const MONITORING_ENV_KEYS = {
   sentryDsn: 'SENTRY_DSN',
+  posthogKey: 'POSTHOG_KEY',
+  posthogHost: 'POSTHOG_HOST',
 };
 
 function resolveFromEnv(envKeys, defaults = {}) {
@@ -85,7 +87,7 @@ const GROUPS = [
   },
 ];
 
-const summary = `projectId=${firebaseCfg.projectId}, sentry=${monitoringCfg.sentryDsn ? 'on' : 'off'}`;
+const summary = `projectId=${firebaseCfg.projectId}, sentry=${monitoringCfg.sentryDsn ? 'on' : 'off'}, posthog=${monitoringCfg.posthogKey ? 'on' : 'off'}`;
 
 if (CHECK) {
   const stale = [];

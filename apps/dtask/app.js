@@ -10,9 +10,11 @@ import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
 import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
 
-/* ===== エラー監視（任意・DSN 未設定なら no-op） ===== */
+/* ===== エラー監視・利用計測（任意・キー未設定なら no-op） ===== */
 import { initErrorMonitoring } from './sentry.js';
+import { initAnalytics, track } from './analytics.js';
 initErrorMonitoring(); // 早期にグローバルエラーハンドラを張る
+initAnalytics();
 
 const fbApp   = initializeApp(firebaseConfig);
 const db      = getFirestore(fbApp);
@@ -274,6 +276,8 @@ function addTask(data) {
   state.tasks.push(normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data }));
   saveCloud();
   render();
+  // 操作種別と頻度のみ計測（内容は送らない）
+  track('task_added', { priority: data.priority || 'medium', hasDeadline: !!data.deadline });
 }
 
 function updateTask(id, data) {
@@ -1023,6 +1027,7 @@ function toggleSidebar() {
 /* ===== View toggle helper ===== */
 function switchView(view) {
   state.currentView = view;
+  track('view_changed', { view });
   const isList = view === 'list';
   ['listViewBtn', 'listViewBtnMobile'].forEach(id => {
     const el = document.getElementById(id);
