@@ -1,13 +1,13 @@
 // ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
-const CACHE = 'piano-pet-84858c72';
+const CACHE = 'piano-pet-f26ca5f1';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=84858c72',
-  './css/style.css?v=84858c72',
+  './css/cat.css?v=f26ca5f1',
+  './css/style.css?v=f26ca5f1',
   './js/analytics.js',
-  './js/app.js?v=84858c72',
+  './js/app.js?v=f26ca5f1',
   './js/badges.js',
   './js/cat.js',
   './js/cloud.js',
@@ -24,6 +24,8 @@ const APP_SHELL = [
   './js/storage.js',
   './manifest.json',
   './icons/icon.svg',
+  './sounds/meow1.mp3',
+  './sounds/meow2.mp3',
 ];
 
 self.addEventListener('install', (event) => {

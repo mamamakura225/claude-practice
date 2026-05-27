@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSoundOn, toggleSound, SOUND_SPECS } from '../js/sound.js';
+import { isSoundOn, toggleSound, SOUND_SPECS, MEOW_SOUNDS } from '../js/sound.js';
 
 describe('isSoundOn', () => {
   it('未設定はデフォルトON扱い', () => {
@@ -41,7 +41,7 @@ describe('toggleSound', () => {
 
 describe('SOUND_SPECS', () => {
   it('必要な効果音が定義されている', () => {
-    for (const name of ['coin', 'levelup', 'record', 'purchase', 'meow']) {
+    for (const name of ['coin', 'levelup', 'record', 'purchase', 'stamp']) {
       expect(Array.isArray(SOUND_SPECS[name])).toBe(true);
       expect(SOUND_SPECS[name].length).toBeGreaterThan(0);
     }
@@ -54,6 +54,19 @@ describe('SOUND_SPECS', () => {
         expect(n.d).toBeGreaterThan(0);
         expect(n.t).toBeGreaterThanOrEqual(0);
       }
+    }
+  });
+});
+
+describe('MEOW_SOUNDS', () => {
+  it('なでた時の鳴き声サンプルが複数定義されている', () => {
+    expect(Array.isArray(MEOW_SOUNDS)).toBe(true);
+    expect(MEOW_SOUNDS.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('各サンプルが mp3 ファイルを指す', () => {
+    for (const url of MEOW_SOUNDS) {
+      expect(url).toMatch(/sounds\/.+\.mp3$/);
     }
   });
 });
