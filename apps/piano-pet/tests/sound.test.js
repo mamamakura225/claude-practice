@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSoundOn, toggleSound, SOUND_SPECS, MEOW_SOUNDS } from '../js/sound.js';
+import { isSoundOn, toggleSound, SOUND_SPECS, MEOW_SOUNDS, HISS_SOUNDS } from '../js/sound.js';
 
 describe('isSoundOn', () => {
   it('未設定はデフォルトON扱い', () => {
@@ -58,14 +58,16 @@ describe('SOUND_SPECS', () => {
   });
 });
 
-describe('MEOW_SOUNDS', () => {
-  it('なでた時の鳴き声サンプルが複数定義されている', () => {
+describe('MEOW_SOUNDS / HISS_SOUNDS', () => {
+  it('鳴き声サンプルが3種以上、威嚇サンプルが1種以上ある', () => {
     expect(Array.isArray(MEOW_SOUNDS)).toBe(true);
-    expect(MEOW_SOUNDS.length).toBeGreaterThanOrEqual(2);
+    expect(MEOW_SOUNDS.length).toBeGreaterThanOrEqual(3);
+    expect(Array.isArray(HISS_SOUNDS)).toBe(true);
+    expect(HISS_SOUNDS.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('各サンプルが mp3 ファイルを指す', () => {
-    for (const url of MEOW_SOUNDS) {
+  it('各サンプルが sounds 配下の mp3 を指す', () => {
+    for (const url of [...MEOW_SOUNDS, ...HISS_SOUNDS]) {
       expect(url).toMatch(/sounds\/.+\.mp3$/);
     }
   });

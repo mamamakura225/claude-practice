@@ -280,18 +280,23 @@ function itemsGroup(anchors, equippedItems) {
 }
 
 // ハートグループ（喜ぶ時に浮かびあがる）
+// 位置決めは外側の <g transform> で行い、浮き上がるアニメは内側の <path> に当てる。
+// （path に直接 transform 属性を置くと、アニメの CSS transform に上書きされて
+//   位置がずれてしまうため、配置とアニメを別要素に分離する）
 function heartsGroup() {
   const heart = 'M0 4 C -8 -7 -22 4 0 20 C 22 4 8 -7 0 4 Z';
   const hearts = [
-    { x: 64,  y: 68, delay: 0    },
-    { x: 100, y: 48, delay: 0.22 },
-    { x: 136, y: 68, delay: 0.44 },
+    { x: 70,  y: 70, delay: 0    },
+    { x: 100, y: 52, delay: 0.18 },
+    { x: 130, y: 70, delay: 0.36 },
   ];
-  const paths = hearts.map(
+  const groups = hearts.map(
     (p) =>
-      `<path class="cat__heart" d="${heart}" fill="#ff7a93" transform="translate(${p.x} ${p.y})" style="animation-delay:${p.delay}s"/>`
+      `<g class="cat__heart-pos" transform="translate(${p.x} ${p.y})">` +
+      `<path class="cat__heart" d="${heart}" fill="#ff7a93" style="animation-delay:${p.delay}s"/>` +
+      `</g>`
   ).join('');
-  return `<g class="cat__hearts" aria-hidden="true">${paths}</g>`;
+  return `<g class="cat__hearts" aria-hidden="true">${groups}</g>`;
 }
 
 // Zzzグループ（寝ている時）
