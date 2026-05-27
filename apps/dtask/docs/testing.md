@@ -11,7 +11,7 @@
 
 ## 単体テスト (Vitest)
 
-設定：[vitest.config.js](../vitest.config.js)
+設定：[vitest.config.js](../../../vitest.config.js)
 
 ```bash
 npm test          # 全テスト実行（vitest run）
@@ -34,7 +34,7 @@ npm test          # 全テスト実行（vitest run）
 
 ## E2E テスト (Playwright)
 
-設定：[playwright.config.js](../playwright.config.js)
+設定：[playwright.config.js](../../../playwright.config.js)
 
 ```bash
 npm run test:e2e   # E2Eテスト実行
@@ -65,7 +65,7 @@ npm run test:e2e   # E2Eテスト実行
 
 ## CI (GitHub Actions)
 
-[.github/workflows/test.yml](../.github/workflows/test.yml) で以下を自動実行：
+[.github/workflows/test.yml](../../../.github/workflows/test.yml) で以下を自動実行：
 
 - すべての push、main 向け PR で起動
 - Vitest 単体テスト
@@ -82,4 +82,4 @@ npm run test:e2e   # E2Eテスト実行
 - ダークモード／文字サイズ切替後の視認性
 - 実 Firestore でのエラー時UI（オフライン化・権限エラー）
 
-PRレビュー時は [pull_request_template.md](../.github/pull_request_template.md) のチェックリストに沿って実施。
+PRレビュー時は [pull_request_template.md](../../../.github/pull_request_template.md) のチェックリストに沿って実施。

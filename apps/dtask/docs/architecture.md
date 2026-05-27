@@ -57,7 +57,7 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 | [utils/filter.js](../utils/filter.js) | filterTasks（カテゴリ・優先度・ステータス・期限プリセット・検索） |
 | [utils/sort.js](../utils/sort.js) | sortTasks（手動 / 作成日 / 期限 / 優先度。完了タスクは常に末尾） |
 | [utils/html.js](../utils/html.js) | escHtml（XSS対策） |
-| [vercel.json](../vercel.json) | SPA用URLリライトのみ |
+| [vercel.json](../../../vercel.json) | SPA用URLリライト（リポジトリルートに集約） |
 
 ## 状態管理
 
@@ -106,7 +106,7 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 - Firebase SDK 12.13.0（CDN直読み）
 - Sentry / PostHog（任意。`monitoring-config.js` に鍵がある場合のみ CDN から動的 import。未設定なら no-op）
 
-開発時依存（[package.json](../package.json)）：
+開発時依存（[package.json](../../../package.json)）：
 - `vitest` — 単体テスト
 - `@playwright/test` — E2Eテスト
 - `http-server` — ローカル/E2E用静的サーバ

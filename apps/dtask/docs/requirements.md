@@ -1,13 +1,13 @@
 # dtask 要件定義書
 
-> **更新ルール**: `apps/dtask/` のソースを変更したら、本書（要件定義書）と設計書群（[architecture.md](./architecture.md) / [data-model.md](./data-model.md) / [features.md](./features.md) / [testing.md](./testing.md)）へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
-> 本書はコード（[app.js](../app.js) / [utils/](../utils/)）を基準に最新化している。機能の詳細仕様は [features.md](./features.md) を参照。
+> **更新ルール**: `apps/dtask/` のソースを変更したら、本書と設計・機能ドキュメント（[architecture.md](./architecture.md) / [data-model.md](./data-model.md) / [features.md](./features.md) / [testing.md](./testing.md)）へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
+> 本書は「**何を・誰のために作るか（WHAT）**」を要件レベルで記述する。機能の具体仕様（HOW/詳細）は [features.md](./features.md)、構造・設計は [architecture.md](./architecture.md) / [data-model.md](./data-model.md) に委譲する。
 
-## 概要
+## 1. 概要・目的
 
-個人利用を前提としたタスク管理SPA。ビルドツールを使わない Vanilla JavaScript で実装し、データは Firebase Firestore にクラウド永続化して複数デバイス間でリアルタイム同期する。
+個人利用を前提とした**タスク管理SPA**。ビルドツールを使わない Vanilla JavaScript で実装し、データは Firebase Firestore にクラウド永続化して**複数デバイス間でリアルタイム同期**する。日々のタスクを軽快に追加・整理し、どの端末からでも同じ状態で扱えることを狙う。
 
-## ユーザー・利用形態
+## 2. ターゲットユーザー・利用形態
 
 | 項目 | 内容 |
 |---|---|
@@ -15,89 +15,31 @@
 | 端末 | デスクトップ / モバイル両対応（操作系を出し分け） |
 | 認証 | なし（Firestore セキュリティルールでアクセス制御） |
 
----
+## 3. 機能要件
 
-## 機能要件
+要件レベルの一覧。各機能の詳細仕様・キーボードショートカット一覧は [features.md](./features.md)。
 
-詳細仕様・キーボードショートカット一覧は [features.md](./features.md)。本章は要件レベルの一覧。
+- **ビュー**：リスト / Kanban（todo・inprogress・done）の切替表示
+- **タスク管理**：追加・編集・削除・完了切替（クイック追加バー＋詳細モーダルで属性編集）
+- **サブタスク**：インラインでの追加・編集・チェックと進捗表示
+- **プロジェクト分類**：プロジェクト（内部category）の作成・色分け・絞り込み
+- **整理**：フィルタ（プロジェクト/優先度/ステータス/プリセット＝今日・今週・期限切れ）、検索（全文・`#tag`）、ソート、ドラッグ&ドロップ並べ替え
+- **定期タスク**：daily / weekly / monthly の繰り返しを完了時に自動生成（スキップ可）
+- **操作補助**：キーボードショートカット、Undo（トースト＋`Ctrl+Z` のスタックUndo）
+- **表示・設定**：同期状況インジケータ、テーマ（ライト/ダーク）、文字サイズ（標準/大）
 
-### ビュー
-- **リストビュー**：タスクカードを縦並び表示。モバイルはスワイプ（左=削除 / 右=完了）
-- **Kanban ビュー**：`todo` / `inprogress` / `done` の3列。セレクトでステータス変更
-- ビュー切替トグル（選択状態は同期対象）
+## 4. 非機能要件
 
-### タスク CRUD
-- 追加：クイック追加バー（タイトルのみ即追加）／ 詳細モーダル
-- 編集：カードクリックで詳細モーダル（title / description / category / priority / deadline / tags / subtasks / recurrence）
-- 削除：スワイプ／詳細モーダル内ボタン
-- 完了切替：カード上のチェック／スワイプ
+| 区分 | 要件 |
+|---|---|
+| データ・同期 | Firestore 単一ドキュメントに全件格納（個人利用・小規模前提）。`onSnapshot` で他端末の変更をリアルタイム反映。起動ロードは5秒タイムアウトで localStorage フォールバック（オフライン・障害時もUI起動）（→ [architecture.md](./architecture.md) / [data-model.md](./data-model.md)） |
+| 設定情報 | Firebase / 監視の接続情報は `*-config.js` に集約し `npm run gen-config` が環境変数から生成（未設定時は本番値／空にフォールバック）。公開情報のため秘匿目的ではなく環境分離が目的 |
+| 監視・プライバシー | Sentry（エラー監視）/ PostHog（利用計測）は鍵未設定なら無効（no-op）。送るのは操作種別と頻度のみで、**タスク名等の内容は送らない** |
+| セキュリティ | 外部入力をDOMへ挿入する箇所はすべて `escHtml` でエスケープ（XSS対策） |
+| アクセシビリティ | ARIA 付与・キーボード巡回・補助テキストは WCAG AA（4.5:1）以上のコントラスト |
+| 品質保証・デプロイ | 純粋ロジックは単体テスト（Vitest）、主要フローはE2E（Playwright）で担保（→ [testing.md](./testing.md)）。CI（unit + e2e）通過時のみ Vercel デプロイ（main=本番 / PR=プレビュー） |
 
-### サブタスク
-- カードに進捗バー（n/m・％）、インライン展開で一覧・追加・編集・チェック
-- 展開状態は端末ローカルに永続化（クラウド非同期）
-
-### プロジェクト（内部実体は category）
-- 専用モーダルで作成・削除、カラーピッカーで色指定
-- アクティブプロジェクト選択でヘッダーにバッジ表示、新規追加時に自動付与
-
-### フィルタ・ソート
-- フィルタ：プロジェクト / 優先度 / ステータス / 完了非表示 / プリセット（今日・今週・期限切れ）/ 検索（フルテキスト・`#tag`）。すべて AND
-- ソート：手動（D&D）/ 作成日 / 期限 / 優先度。**完了タスクは常に末尾**
-
-### 定期タスク（Recurrence）
-- `daily` / `weekly` / `monthly`。完了時に次回タスクを自動生成、スキップ可
-
-### 操作系
-- ドラッグ&ドロップ並び替え（**デスクトップのみ**、手動ソート時）
-- スワイプ操作（モバイル）
-- キーボードショートカット（`N` / `/` / `?` / `Ctrl+Z` / `Esc`）
-- Undo：削除等の直後トースト（5秒）、`Ctrl+Z` で60秒以内・最大5件のスタックUndo
-
-### 表示・設定
-- 同期状況インジケータ（idle / syncing / saved / error / offline）
-- テーマ（ライト / ダーク）、文字サイズ（標準 / 大）。いずれも端末ローカルに永続化
-
----
-
-## 非機能要件
-
-### データ・同期
-- Firestore 単一ドキュメント `dtask/data` に `tasks` / `categories` を全件格納（個人利用・小規模前提）
-- 起動時ロードは**5秒タイムアウト**で localStorage フォールバック（オフライン・障害時もUI起動）
-- `onSnapshot` による他デバイスからのリアルタイム反映、`window.online/offline` で自動リトライ
-- スキーマ詳細・正規化（`normalizeTask`）・localStorage キーは [data-model.md](./data-model.md)
-
-### 設定情報
-- Firebase / 監視の接続情報は `firebase-config.js` / `monitoring-config.js` に集約し、`npm run gen-config` が環境変数（`FIREBASE_*` / `SENTRY_DSN` 等）から生成（未設定時は本番値／空にフォールバック）
-- クライアント用 Firebase 設定や Sentry DSN は公開情報。秘匿目的ではなく環境分離（将来のステージング）が目的
-
-### エラー監視・利用計測（任意）
-- Sentry（エラー監視）／ PostHog（利用計測）。鍵が未設定なら **no-op**（SDKも読み込まない）
-- PostHog は操作種別と頻度のみ送信し、**タスク名等の内容は送らない**（autocapture / pageview / session-recording 無効・DNT尊重）
-
-### セキュリティ
-- 外部入力をDOMへ挿入する箇所はすべて `escHtml`（[utils/html.js](../utils/html.js)）でエスケープ（XSS対策）
-
-### アクセシビリティ
-- ARIA（`role="dialog"` / `aria-pressed` / `aria-expanded` / `aria-label`）、キーボード巡回、補助テキストは WCAG AA（4.5:1）以上のコントラスト
-
-### 品質保証・デプロイ
-- テスト：Vitest 単体（`utils/` 純粋関数）+ Playwright E2E（代表フロー）。詳細は [testing.md](./testing.md)
-- デプロイ：GitHub Actions のテスト（unit + e2e）が両方通過した場合のみ Vercel CLI でデプロイ（main=本番 / PR=プレビュー）
-
----
-
-## アーキテクチャ概要
-
-- ビルドツールなしの Vanilla JS SPA（ES Modules を直接読み込み）
-- 状態は `state`（クラウド同期）と `uiState`（端末ローカル）に分離
-- 命令型DOM操作・全画面再描画。イベント委譲（`data-action`）で操作分岐
-
-> 全体像・状態管理・同期方式・レンダリング戦略・デプロイ方式は [architecture.md](./architecture.md) を参照。
-
----
-
-## スコープ外（現状）
+## 5. スコープ外（現状）
 
 - 複数ユーザー / 認証 / 共有
 - タスク件数が数百を超える規模での最適化（単一ドキュメント全件同期の再設計が必要）
@@ -105,3 +47,13 @@
 - モーダルのフォーカストラップ、カンバンD&Dのキーボード代替操作
 
 将来の拡張・改善は [GitHub Issues](https://github.com/mamamakura225/claude-practice/issues)（`app/dtask`・`type/*`・`P1`〜`P3`）で管理。
+
+## 6. 関連ドキュメント
+
+| ドキュメント | 内容 |
+|---|---|
+| [features.md](./features.md) | 機能詳細・キーボードショートカット一覧 |
+| [architecture.md](./architecture.md) | アーキテクチャ全体像・状態管理・同期方式・レンダリング戦略・デプロイ |
+| [data-model.md](./data-model.md) | Task / Subtask / Category のスキーマ、localStorage キー設計 |
+| [testing.md](./testing.md) | テスト戦略（Vitest 単体 / Playwright E2E / CI） |
+| [docs/external-services.md](../../../docs/external-services.md) | Firebase / Vercel / Sentry / PostHog の設定とプライバシー方針 |
