@@ -1,4 +1,6 @@
-# データモデル
+# データモデル（設計書）
+
+> **更新ルール**: `apps/piano-pet/` のソースを変更したら、本書と [requirements.md](./requirements.md)（要件定義書）へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
 
 piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブジェクトとして保存される。
 読み込み・正規化・クラウド射影はすべて [js/storage.js](../js/storage.js) に集約されている。
@@ -19,13 +21,15 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 `settings` と `version` は端末ローカルに留まる。
 
 ### Pet
-| フィールド | 型 | デフォルト |
-|---|---|---|
-| `name` | string | `'きーちゃん'` |
-| `level` | number | `1` |
-| `xp` | number | `0` |
-| `coins` | number | `0` |
-| `equippedItems` | string[] | `[]` |
+| フィールド | 型 | デフォルト | 説明 |
+|---|---|---|---|
+| `name` | string | `'きーちゃん'` | 猫の名前 |
+| `level` | number | `1` | XPから算出される現在レベル |
+| `xp` | number | `0` | 累計経験値 |
+| `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費） |
+| `equippedItems` | string[] | `[]` | 装備中アイテムID（スロットごとに1つ） |
+| `affinity` | number | `0` | なかよし度（えさやりで上昇） |
+| `foodSpent` | number | `0` | えさに使ったコイン総額（全再計算で消費分を復活させないため） |
 
 ### Streak
 | フィールド | 型 | デフォルト |
