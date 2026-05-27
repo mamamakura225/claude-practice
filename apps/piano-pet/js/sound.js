@@ -1,6 +1,7 @@
-// ===== 効果音（Web Audio API・音声ファイル不要のシンセSE） =====
-// 音色は周波数/タイミングのデータ（SOUND_SPECS）として定義し、再生は
-// AudioContext を遅延生成して鳴らす。AudioContext はユーザー操作後に
+// ===== 効果音（Web Audio API） =====
+// 多くのSEは音声ファイル不要のシンセ（SOUND_SPECS：周波数/タイミングのデータ）。
+// なでた時の鳴き声だけは本物の猫の録音サンプル（MEOW_SOUNDS / playMeow）を使う。
+// 再生は AudioContext を遅延生成して鳴らし、AudioContext はユーザー操作後に
 // 初期化される（自動再生ポリシー対策）。テストからは pure な
 // isSoundOn / toggleSound のみ利用する（AudioContext には触れない）。
 
@@ -34,9 +35,15 @@ export const SOUND_SPECS = {
   purchase: [N(660, 0, 0.07, 0.18, 'square'), N(880, 0.07, 0.16, 0.18, 'square')],
   // ハンコを押す：やわらかい「ポン」
   stamp: [N(440, 0, 0.05, 0.16, 'triangle'), N(294, 0.03, 0.12, 0.18, 'sine')],
-  // なでた時の鳴き声：上がって下がる「にゃー」
-  meow: [N(600, 0, 0.09, 0.16, 'triangle'), N(820, 0.07, 0.12, 0.16, 'triangle'), N(560, 0.17, 0.18, 0.15, 'sine')],
 };
+
+// なでた時の鳴き声は録音サンプル（本物の猫の声）。シンセSEとは別系統で扱う。
+// 複数からランダムに鳴らすので、なでるたび少し違って飽きにくい。パスは
+// import.meta.url 基準で解決し、ページの <base> や配信パスに依存させない。
+export const MEOW_SOUNDS = [
+  new URL('../sounds/meow1.mp3', import.meta.url).href,
+  new URL('../sounds/meow2.mp3', import.meta.url).href,
+];
 
 // ----- 再生エンジン（ブラウザのみ） -----
 let ctx = null;
@@ -79,4 +86,40 @@ export function playSound(name, state) {
     osc.start(start);
     osc.stop(end + 0.02);
   }
+}
+
+// デコード済み AudioBuffer のキャッシュ（URL -> Promise<AudioBuffer>）。
+// 初回だけ fetch + デコードし、2回目以降は即再生できるようにする。
+const sampleCache = new Map();
+
+function loadSample(url, audio) {
+  let p = sampleCache.get(url);
+  if (!p) {
+    p = fetch(url)
+      .then((res) => res.arrayBuffer())
+      .then((buf) => audio.decodeAudioData(buf));
+    sampleCache.set(url, p);
+  }
+  return p;
+}
+
+// なでた時の鳴き声を MEOW_SOUNDS からランダムに1つ再生する。
+// サウンドOFF・未対応環境・取得失敗時は無音（猫のリアクション演出は別途出る）。
+export function playMeow(state) {
+  if (!isSoundOn(state)) return;
+  if (typeof fetch !== 'function') return;
+  const audio = getCtx();
+  if (!audio || typeof audio.decodeAudioData !== 'function') return;
+
+  const url = MEOW_SOUNDS[Math.floor(Math.random() * MEOW_SOUNDS.length)];
+  loadSample(url, audio)
+    .then((buffer) => {
+      const src = audio.createBufferSource();
+      src.buffer = buffer;
+      const gain = audio.createGain();
+      gain.gain.value = 0.9;
+      src.connect(gain).connect(audio.destination);
+      src.start();
+    })
+    .catch(() => {});  // ネットワーク/デコード失敗は握りつぶす（演出は継続）
 }

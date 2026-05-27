@@ -18,7 +18,7 @@ import {
   spentCoins,
 } from './shop.js';
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity } from './feed.js';
-import { isSoundOn, toggleSound, playSound, unlockAudio } from './sound.js';
+import { isSoundOn, toggleSound, playSound, playMeow, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { initErrorMonitoring } from './sentry.js';
 import { initAnalytics, track } from './analytics.js';
@@ -660,7 +660,7 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
 function petCat() {
   unlockAudio();                                       // ユーザー操作で AudioContext を解錠
   playReaction(document.querySelector('#catStage svg'));
-  playSound('meow', state);
+  playMeow(state);                                     // 本物の猫の鳴き声をランダム再生
 }
 document.getElementById('catStage')?.addEventListener('click', petCat);
 document.getElementById('petBtn')?.addEventListener('click', petCat);

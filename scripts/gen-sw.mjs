@@ -30,6 +30,7 @@ function listAssets() {
   collectDir('js', ['.js']);
   assets.push('manifest.json');
   collectDir('icons', ['.svg', '.png']);
+  collectDir('sounds', ['.mp3', '.ogg', '.wav']);
   return assets;
 
   function collectDir(dir, exts) {
@@ -52,15 +53,22 @@ function read(rel) {
   return readFileSync(path.join(APP_DIR, rel), 'utf8');
 }
 
+// テキスト系は版除去・EOL正規化してから、バイナリ（音声・PNG等）は生バイトでハッシュする。
+const TEXT_EXT = new Set(['.html', '.css', '.js', '.json', '.svg']);
 const stripEol = (s) => s.replace(/\r\n/g, '\n');
 const stripVer = (s) => s.replace(/\?v=[A-Za-z0-9]+/g, '');
 
-// 全アセット内容（版除去・EOL正規化）からハッシュを算出
+// 全アセット内容（テキストは版除去・EOL正規化）からハッシュを算出
 function computeHash(assets) {
   const h = createHash('sha256');
   for (const rel of [...assets].sort()) {
     h.update(rel + '\0');
-    h.update(stripVer(stripEol(read(rel))) + '\0');
+    if (TEXT_EXT.has(path.extname(rel))) {
+      h.update(stripVer(stripEol(read(rel))) + '\0');
+    } else {
+      h.update(readFileSync(path.join(APP_DIR, rel)));  // 生バイト
+      h.update('\0');
+    }
   }
   return h.digest('hex').slice(0, 8);
 }
