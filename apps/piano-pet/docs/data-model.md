@@ -1,6 +1,6 @@
 # データモデル（設計書）
 
-> **更新ルール**: `apps/piano-pet/` のソースを変更したら、本書と [requirements.md](./requirements.md)（要件定義書）へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
+> **更新ルール**: `apps/piano-pet/` のソースを変更したら、本書・[requirements.md](./requirements.md)（要件定義書）・[features.md](./features.md)（機能詳細）へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
 
 piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブジェクトとして保存される。
 読み込み・正規化・クラウド射影はすべて [js/storage.js](../js/storage.js) に集約されている。
