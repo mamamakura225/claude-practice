@@ -657,10 +657,13 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
 
 // ===== 猫とのインタラクション（#79） =====
 // なでる/タップで反応（鳴く・喜ぶ・しっぽふり）。記録には影響しない安全な操作。
+// たまに威嚇（hiss）したときは、喜び演出（ハート・しっぽふり）は出さない。
 function petCat() {
   unlockAudio();                                       // ユーザー操作で AudioContext を解錠
-  playReaction(document.querySelector('#catStage svg'));
-  playCatVoice(state);                                 // 本物の鳴き声（たまに威嚇）をランダム再生
+  const voice = playCatVoice(state);                   // 鳴き声（たまに威嚇）。種類が返る
+  if (voice !== 'hiss') {                              // 威嚇のときは演出なし
+    playReaction(document.querySelector('#catStage svg'));
+  }
 }
 document.getElementById('catStage')?.addEventListener('click', petCat);
 document.getElementById('petBtn')?.addEventListener('click', petCat);
