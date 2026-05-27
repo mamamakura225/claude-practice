@@ -4,13 +4,26 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>アプリ一覧</title>
-  <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --primary: #CC0033;
+      --primary-dark: #A30029;
+      --primary-bg: #fff0f3;
+      --bg: #F2F3F5;
+      --card-bg: #FFFFFF;
+      --text: #1A1A1A;
+      --text-sub: #525965;
+      --border: #E5E7EB;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.13);
+      --radius: 8px;
+    }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Noto Sans JP', sans-serif;
-      color: #4a3b3b;
-      background: linear-gradient(160deg, #fff6ee 0%, #ffe9f0 100%);
+      font-family: 'Noto Sans JP', 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+      color: var(--text);
+      background: var(--bg);
       min-height: 100vh;
       display: flex;
       flex-direction: column;
@@ -20,17 +33,17 @@
       gap: 32px;
     }
     h1 {
-      font-family: 'Mochiy Pop One', sans-serif;
-      font-size: 1.8rem;
-      color: #ff7a93;
-      letter-spacing: 0.04em;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--text);
+      letter-spacing: -0.01em;
       text-align: center;
     }
-    .lead { color: #8a7a7a; font-size: 0.95rem; text-align: center; margin-top: 8px; }
+    .lead { color: var(--text-sub); font-size: 0.9rem; text-align: center; margin-top: 8px; }
     .apps {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-      gap: 20px;
+      gap: 16px;
       width: 100%;
       max-width: 720px;
     }
@@ -41,21 +54,27 @@
       gap: 10px;
       text-decoration: none;
       color: inherit;
-      background: #fff;
-      border-radius: 22px;
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
       padding: 28px 24px;
-      box-shadow: 0 8px 22px rgba(255, 122, 147, 0.18);
-      transition: transform 0.12s ease, box-shadow 0.12s ease;
+      box-shadow: var(--shadow);
+      transition: transform 0.18s ease, box-shadow 0.2s ease, border-color 0.18s ease;
     }
-    .card:hover { transform: translateY(-4px); box-shadow: 0 12px 28px rgba(255, 122, 147, 0.28); }
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-hover);
+      border-color: rgba(204, 0, 51, 0.15);
+    }
     .card .emoji { font-size: 3rem; line-height: 1; }
     .card .name {
-      font-family: 'Mochiy Pop One', sans-serif;
-      font-size: 1.25rem;
-      color: #ff7a93;
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: var(--text);
     }
-    .card .desc { font-size: 0.85rem; color: #8a7a7a; text-align: center; }
-    footer { font-size: 0.75rem; color: #b0a3a3; }
+    .card:hover .name { color: var(--primary); }
+    .card .desc { font-size: 0.85rem; color: var(--text-sub); text-align: center; }
+    footer { font-size: 0.75rem; color: var(--text-sub); opacity: 0.7; }
   </style>
 </head>
 <body>
