@@ -3,9 +3,16 @@
 自作アプリのモノレポ。概要・アプリ一覧・URLは [README.md](./README.md) を参照。ここでは作業時に踏みやすい落とし穴と規約をまとめる。
 
 ## 構成
-- `apps/dtask/` — タスク管理SPA（Vanilla JS + Firebase）。docs: [architecture.md](./apps/dtask/docs/architecture.md) / [data-model.md](./apps/dtask/docs/data-model.md) / [testing.md](./apps/dtask/docs/testing.md)
-- `apps/piano-pet/` — ピアノ練習PWA（猫育成）。docs: [requirements.md](./apps/piano-pet/docs/requirements.md) / [data-model.md](./apps/piano-pet/docs/data-model.md)
+- `apps/dtask/` — タスク管理SPA（Vanilla JS + Firebase）。docs: [requirements.md](./apps/dtask/docs/requirements.md)（要件定義書）/ [architecture.md](./apps/dtask/docs/architecture.md) / [data-model.md](./apps/dtask/docs/data-model.md) / [features.md](./apps/dtask/docs/features.md) / [testing.md](./apps/dtask/docs/testing.md)
+- `apps/piano-pet/` — ピアノ練習PWA（猫育成）。docs: [requirements.md](./apps/piano-pet/docs/requirements.md)（要件定義書）/ [data-model.md](./apps/piano-pet/docs/data-model.md)（設計書）
 - 共有ツール（npm / vitest / playwright / vercel / CI）はリポジトリルートに1セット。
+
+## ドキュメント更新ルール（最重要）
+**ソース（`apps/*/`）を変更したら、同じPR内で要件定義書と設計書へ必ず反映する。** 実装とドキュメントの乖離を残さない。
+- **要件定義書**: 各アプリの `docs/requirements.md`。機能・画面・データ・報酬ロジック・スコープなど「何を作るか」を変えたら更新。
+- **設計書**: dtask は `docs/architecture.md` / `data-model.md` / `features.md` / `testing.md`、piano-pet は `docs/data-model.md`。アーキテクチャ・スキーマ・同期方式・テスト方針など「どう作るか」を変えたら更新。
+- 判断基準：「次にこのコードを読む人が、ドキュメントだけ見て古い前提を信じてしまうか？」がYESなら更新対象。フィールド追加・画面追加・報酬式変更・設定方式変更などは原則すべて該当。
+- 設計判断の理由が非自明なら、該当docの `## 設計判断` / `> **設計判断**:` に残す。
 
 ## コマンド
 ```bash
