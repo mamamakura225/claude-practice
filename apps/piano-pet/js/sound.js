@@ -38,12 +38,21 @@ export const SOUND_SPECS = {
 };
 
 // なでた時の鳴き声は録音サンプル（本物の猫の声）。シンセSEとは別系統で扱う。
-// 複数からランダムに鳴らすので、なでるたび少し違って飽きにくい。パスは
-// import.meta.url 基準で解決し、ページの <base> や配信パスに依存させない。
+// 基本は MEOW_SOUNDS からランダム、たまに HISS_SOUNDS（威嚇）に切り替わる。
+// パスは import.meta.url 基準で解決し、ページの <base> や配信パスに依存させない。
 export const MEOW_SOUNDS = [
   new URL('../sounds/meow1.mp3', import.meta.url).href,
   new URL('../sounds/meow2.mp3', import.meta.url).href,
+  new URL('../sounds/meow3.mp3', import.meta.url).href,
 ];
+
+// 威嚇（シャー）。基本は鳴き声で、たまにこれが混ざるくらいの低頻度に抑える。
+export const HISS_SOUNDS = [
+  new URL('../sounds/hiss1.mp3', import.meta.url).href,
+];
+
+// 1回のなでなでで威嚇になる確率（残りは MEOW_SOUNDS）。
+const HISS_CHANCE = 0.15;
 
 // ----- 再生エンジン（ブラウザのみ） -----
 let ctx = null;
@@ -103,15 +112,18 @@ function loadSample(url, audio) {
   return p;
 }
 
-// なでた時の鳴き声を MEOW_SOUNDS からランダムに1つ再生する。
-// サウンドOFF・未対応環境・取得失敗時は無音（猫のリアクション演出は別途出る）。
-export function playMeow(state) {
+// なでた時の鳴き声を再生する。基本は MEOW_SOUNDS、たまに（HISS_CHANCE）
+// HISS_SOUNDS の威嚇になる。サウンドOFF・未対応環境・取得失敗時は無音
+// （猫のリアクション演出は別途出る）。
+export function playCatVoice(state) {
   if (!isSoundOn(state)) return;
   if (typeof fetch !== 'function') return;
   const audio = getCtx();
   if (!audio || typeof audio.decodeAudioData !== 'function') return;
 
-  const url = MEOW_SOUNDS[Math.floor(Math.random() * MEOW_SOUNDS.length)];
+  const hiss = HISS_SOUNDS.length > 0 && Math.random() < HISS_CHANCE;
+  const pool = hiss ? HISS_SOUNDS : MEOW_SOUNDS;
+  const url = pool[Math.floor(Math.random() * pool.length)];
   loadSample(url, audio)
     .then((buffer) => {
       const src = audio.createBufferSource();
