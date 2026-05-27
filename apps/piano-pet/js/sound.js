@@ -112,14 +112,15 @@ function loadSample(url, audio) {
   return p;
 }
 
-// なでた時の鳴き声を再生する。基本は MEOW_SOUNDS、たまに（HISS_CHANCE）
-// HISS_SOUNDS の威嚇になる。サウンドOFF・未対応環境・取得失敗時は無音
-// （猫のリアクション演出は別途出る）。
+// なでた時の鳴き声を再生し、鳴いた種類 'meow' | 'hiss' を返す（再生しなかった
+// 場合は null）。基本は MEOW_SOUNDS、たまに（HISS_CHANCE）HISS_SOUNDS の威嚇。
+// 戻り値で呼び出し側が演出を出し分けられる（威嚇のときは喜び演出を止める等）。
+// サウンドOFF・未対応環境・取得失敗時は無音。
 export function playCatVoice(state) {
-  if (!isSoundOn(state)) return;
-  if (typeof fetch !== 'function') return;
+  if (!isSoundOn(state)) return null;
+  if (typeof fetch !== 'function') return null;
   const audio = getCtx();
-  if (!audio || typeof audio.decodeAudioData !== 'function') return;
+  if (!audio || typeof audio.decodeAudioData !== 'function') return null;
 
   const hiss = HISS_SOUNDS.length > 0 && Math.random() < HISS_CHANCE;
   const pool = hiss ? HISS_SOUNDS : MEOW_SOUNDS;
@@ -133,5 +134,6 @@ export function playCatVoice(state) {
       src.connect(gain).connect(audio.destination);
       src.start();
     })
-    .catch(() => {});  // ネットワーク/デコード失敗は握りつぶす（演出は継続）
+    .catch(() => {});  // ネットワーク/デコード失敗は握りつぶす
+  return hiss ? 'hiss' : 'meow';
 }
