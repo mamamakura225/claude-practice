@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=5905268f">
-  <link rel="stylesheet" href="css/cat.css?v=5905268f">
+  <link rel="stylesheet" href="css/style.css?v=69b5aa6c">
+  <link rel="stylesheet" href="css/cat.css?v=69b5aa6c">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -94,23 +94,42 @@
             <input type="date" id="recordDate" class="field-input" required>
           </label>
 
-          <div class="song-picker">
-            <span class="field-label">いま ひいた きょく</span>
-            <div id="songChips" class="song-chips" role="listbox" aria-label="きょくを えらぶ"></div>
-            <div class="song-add">
-              <input type="text" id="newSongInput" class="field-input" placeholder="あたらしい きょく" aria-label="あたらしい きょくめい" maxlength="40" list="songSuggestions" autocomplete="off">
-              <datalist id="songSuggestions"></datalist>
-              <button type="button" id="addSongBtn" class="btn-add-song" aria-label="きょくを ついかする">＋</button>
+          <!-- きろくの ほうほう（スタンプ / まとめて）の切替 -->
+          <div class="record-mode" role="tablist" aria-label="きろくの ほうほう">
+            <button type="button" id="modeStampBtn" class="record-mode__btn is-active" role="tab" aria-selected="true" data-mode="stamp">🐾 スタンプ</button>
+            <button type="button" id="modeBatchBtn" class="record-mode__btn" role="tab" aria-selected="false" data-mode="batch">📝 まとめて</button>
+          </div>
+
+          <datalist id="songSuggestions"></datalist>
+
+          <!-- ===== スタンプモード（親=曲えらび／子=スタンプ） ===== -->
+          <div id="stampMode" class="record-pane">
+            <div class="song-picker">
+              <span class="field-label role-label"><span class="role-tag role-tag--parent">おうちのひと</span> きょくを えらぶ</span>
+              <div id="songChips" class="song-chips" role="listbox" aria-label="きょくを えらぶ"></div>
+              <div class="song-add">
+                <input type="text" id="newSongInput" class="field-input" placeholder="あたらしい きょく" aria-label="あたらしい きょくめい" maxlength="40" list="songSuggestions" autocomplete="off">
+                <button type="button" id="addSongBtn" class="btn-add-song" aria-label="きょくを ついかする">＋</button>
+              </div>
+            </div>
+
+            <div class="stamp-area">
+              <span class="field-label role-label"><span class="role-tag role-tag--child">きみ</span> ハンコを おす！</span>
+              <button type="button" id="stampCard" class="stamp-card" aria-label="ハンコを おす"></button>
+              <p id="stampHint" class="stamp-hint" role="status" hidden>きょくを えらんでね</p>
+              <div class="stamp-progress" aria-live="polite">
+                <span id="recordTotal">0</span> こ / もくひょう 10こ
+              </div>
+              <button type="button" id="undoStampBtn" class="btn-undo-stamp">↩ ひとつ もどす</button>
             </div>
           </div>
 
-          <div class="stamp-area">
-            <button type="button" id="stampCard" class="stamp-card" aria-label="ハンコを おす"></button>
-            <p id="stampHint" class="stamp-hint" role="status" hidden>きょくを えらんでね</p>
-            <div class="stamp-progress" aria-live="polite">
-              <span id="recordTotal">0</span> こ / もくひょう 10こ
-            </div>
-            <button type="button" id="undoStampBtn" class="btn-undo-stamp">↩ ひとつ もどす</button>
+          <!-- ===== まとめモード（親の後追い入力） ===== -->
+          <div id="batchMode" class="record-pane" hidden>
+            <span class="field-label">きょくと かいすう を まとめて</span>
+            <div id="batchRows" class="batch-rows"></div>
+            <button type="button" id="addBatchRowBtn" class="btn-add-row" aria-label="ぎょうを ふやす">＋ ぎょうを ふやす</button>
+            <div class="batch-total" aria-live="polite">ごうけい <span id="batchTotal">0</span> かい</div>
           </div>
 
           <button type="submit" id="recordSubmitBtn" class="btn-record btn-record--submit">きろくする</button>
@@ -248,6 +267,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=5905268f"></script>
+  <script type="module" src="js/app.js?v=69b5aa6c"></script>
 </body>
 </html>
