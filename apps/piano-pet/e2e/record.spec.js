@@ -42,6 +42,41 @@ test.describe('練習記録', () => {
     await expect(page.locator('#coinPopupAmount')).toHaveText('+5');
   });
 
+  test('まとめモードで曲×回数を入力して記録できる', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#statCoins')).toHaveText('0');
+
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#view-record')).toBeVisible();
+
+    // まとめモードへ切替（スタンプを押さずに入力する）
+    await page.click('#modeBatchBtn');
+    await expect(page.locator('#batchMode')).toBeVisible();
+    await expect(page.locator('#stampMode')).toBeHidden();
+
+    // 1行目：きらきらぼし 7かい
+    const firstRow = page.locator('.batch-row').first();
+    await firstRow.locator('.batch-row__name').fill('きらきらぼし');
+    await firstRow.locator('.batch-row__count').fill('7');
+
+    // 2行目を増やして ちょうちょ 3かい
+    await page.click('#addBatchRowBtn');
+    const secondRow = page.locator('.batch-row').nth(1);
+    await secondRow.locator('.batch-row__name').fill('ちょうちょ');
+    await secondRow.locator('.batch-row__count').fill('3');
+
+    // ごうけい 10かい（目標達成 → ボーナス +5コイン +XP）
+    await expect(page.locator('#batchTotal')).toHaveText('10');
+
+    await page.click('#recordSubmitBtn');
+
+    // ホームに戻り、10かい=10コイン + 目標達成ボーナス5 = 15コイン
+    await expect(page.locator('#view-home')).toBeVisible();
+    await expect(page.locator('#statCoins')).toHaveText('15');
+    await expect(page.locator('#statStreak')).toHaveText('1');
+  });
+
   test('合計0かいでは記録できずエラーが出る', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });

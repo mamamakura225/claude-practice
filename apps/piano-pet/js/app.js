@@ -2,7 +2,7 @@ import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
 import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
 import { catMarkup, playHappy, playReaction } from './cat.js';
-import { isValidSession, stampsToSongs, songsToStamps, pastSongNames } from './record-form.js';
+import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames } from './record-form.js';
 import {
   weeklyTotals,
   weeklyChartModel,
@@ -322,6 +322,10 @@ const newSongInputEl = document.getElementById('newSongInput');
 const stampCardEl = document.getElementById('stampCard');
 const stampHintEl = document.getElementById('stampHint');
 const songSuggestEl = document.getElementById('songSuggestions');
+const stampModeEl = document.getElementById('stampMode');
+const batchModeEl = document.getElementById('batchMode');
+const batchRowsEl = document.getElementById('batchRows');
+const batchTotalEl = document.getElementById('batchTotal');
 
 // 新規曲入力欄(datalist)を過去の全曲で補完候補にする。チップは上位数曲のみ表示するため、
 // 曲数が多い家庭でも手打ちせず履歴から選べるようにする（#77）。
@@ -331,6 +335,9 @@ function renderSongSuggestions() {
     .map((name) => `<option value="${escapeHtml(name)}"></option>`)
     .join('');
 }
+
+// 記録の入力方式：'stamp'（子が押すスタンプカード）/ 'batch'（親がまとめて入力）。#123
+let recordMode = 'stamp';
 
 // 押した順の曲名（stamps）と、選択中の曲・チップ候補。記録のたびに作り直す。
 let stamps = [];
@@ -400,6 +407,88 @@ function undoStamp() {
   renderStampCard();
 }
 
+// ===== まとめモード（親の後追い入力・#123） =====
+// 1行 = { name, count }。曲名は datalist で過去曲を補完、回数はステッパーで増減。
+
+// DOM の各行から現在の入力値を読み取る（state の正本は常に DOM 側）。
+function readBatchRows() {
+  if (!batchRowsEl) return [];
+  return [...batchRowsEl.querySelectorAll('.batch-row')].map((el) => ({
+    name: el.querySelector('.batch-row__name')?.value ?? '',
+    count: Number(el.querySelector('.batch-row__count')?.value) || 0,
+  }));
+}
+
+function batchRowMarkup(row) {
+  const name = escapeHtml(row?.name ?? '');
+  const count = Math.max(0, Math.floor(Number(row?.count)) || 0);
+  return `<div class="batch-row">
+    <input type="text" class="field-input batch-row__name" list="songSuggestions" placeholder="きょくめい" aria-label="きょくめい" maxlength="40" autocomplete="off" value="${name}">
+    <div class="stepper">
+      <button type="button" class="stepper__btn" data-step="-1" aria-label="かいすうを へらす">−</button>
+      <input type="number" class="stepper__value batch-row__count" min="0" max="99" inputmode="numeric" aria-label="かいすう" value="${count}">
+      <button type="button" class="stepper__btn" data-step="1" aria-label="かいすうを ふやす">＋</button>
+    </div>
+    <button type="button" class="batch-row__del" aria-label="この ぎょうを けす">✕</button>
+  </div>`;
+}
+
+// rows（{name,count} 配列）から行UIを描き直す。空なら1行用意する。
+function renderBatchRows(rows) {
+  if (!batchRowsEl) return;
+  const list = rows && rows.length ? rows : [{ name: '', count: 1 }];
+  batchRowsEl.innerHTML = list.map(batchRowMarkup).join('');
+  updateBatchTotal();
+}
+
+function updateBatchTotal() {
+  if (!batchTotalEl) return;
+  const { totalCount } = collectSongs(readBatchRows());
+  batchTotalEl.textContent = String(totalCount);
+  if (recordErrorEl && totalCount > 0) recordErrorEl.hidden = true;
+}
+
+function addBatchRow() {
+  renderBatchRows([...readBatchRows(), { name: '', count: 1 }]);
+}
+
+// 記録方式を切り替える。入力途中の内容は曲×回数として相互変換し取りこぼさない。
+function switchRecordMode(mode) {
+  if (mode === recordMode) return;
+  if (mode === 'batch') {
+    // スタンプ → まとめ：押した順スタンプを曲ごとに集約して行へ
+    const { songs } = stampsToSongs(stamps);
+    renderBatchRows(songs);
+  } else {
+    // まとめ → スタンプ：行を曲ごとに集約してスタンプ列へ展開
+    const { songs } = collectSongs(readBatchRows());
+    stamps = songsToStamps(songs);
+    chipNames = [...new Set(songs.map((s) => s.name)),
+      ...pastSongNames(state.sessions).filter((n) => !songs.some((s) => s.name === n))];
+    selectedSong = songs.length ? songs[songs.length - 1].name : (chipNames[0] ?? null);
+    if (stampHintEl) stampHintEl.hidden = true;
+    renderChips();
+    renderStampCard();
+  }
+  recordMode = mode;
+  applyRecordModeUI();
+}
+
+// モード表示（パネルの出し分け・タブの選択状態・エラー文言）を recordMode に同期。
+function applyRecordModeUI() {
+  const isBatch = recordMode === 'batch';
+  if (stampModeEl) stampModeEl.hidden = isBatch;
+  if (batchModeEl) batchModeEl.hidden = !isBatch;
+  for (const btn of document.querySelectorAll('.record-mode__btn')) {
+    const active = btn.dataset.mode === recordMode;
+    btn.classList.toggle('is-active', active);
+    btn.setAttribute('aria-selected', String(active));
+  }
+  if (recordErrorEl) {
+    recordErrorEl.textContent = isBatch ? '1かい いじょう にゅうりょくしてね' : '1かい いじょう おしてね';
+  }
+}
+
 // 編集中の記録（state.sessions のインデックス）。新規記録時は null。
 let editingIndex = null;
 
@@ -413,6 +502,7 @@ function setRecordMode(isEdit) {
 function resetRecordForm() {
   editingIndex = null;
   setRecordMode(false);
+  recordMode = 'stamp';
   if (recordDateEl) recordDateEl.value = todayStr();
   stamps = [];
   chipNames = pastSongNames(state.sessions);
@@ -422,6 +512,8 @@ function resetRecordForm() {
   renderChips();
   renderSongSuggestions();
   renderStampCard();
+  renderBatchRows([]);
+  applyRecordModeUI();
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
 
@@ -541,7 +633,9 @@ function showFreezePopup() {
 function submitRecord(event) {
   event.preventDefault();
   const date = recordDateEl?.value || todayStr();
-  const { songs, totalCount } = stampsToSongs(stamps);
+  const { songs, totalCount } = recordMode === 'batch'
+    ? collectSongs(readBatchRows())
+    : stampsToSongs(stamps);
 
   if (!isValidSession({ totalCount })) {
     if (recordErrorEl) recordErrorEl.hidden = false;
@@ -619,6 +713,30 @@ newSongInputEl?.addEventListener('keydown', (e) => {
 stampCardEl?.addEventListener('click', addStamp);
 document.getElementById('undoStampBtn')?.addEventListener('click', undoStamp);
 document.getElementById('recordForm')?.addEventListener('submit', submitRecord);
+
+// ===== きろく方式の切替＋まとめモードの行操作（#123） =====
+document.querySelector('.record-mode')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.record-mode__btn');
+  if (btn) switchRecordMode(btn.dataset.mode);
+});
+document.getElementById('addBatchRowBtn')?.addEventListener('click', addBatchRow);
+batchRowsEl?.addEventListener('click', (e) => {
+  const row = e.target.closest('.batch-row');
+  if (!row) return;
+  if (e.target.closest('.batch-row__del')) {
+    const rows = readBatchRows().filter((_, i) => i !== [...batchRowsEl.children].indexOf(row));
+    renderBatchRows(rows);
+    return;
+  }
+  const stepBtn = e.target.closest('.stepper__btn');
+  if (stepBtn) {
+    const countEl = row.querySelector('.batch-row__count');
+    const next = Math.max(0, (Number(countEl.value) || 0) + Number(stepBtn.dataset.step));
+    countEl.value = String(next);
+    updateBatchTotal();
+  }
+});
+batchRowsEl?.addEventListener('input', updateBatchTotal);
 
 // ===== 記録履歴の編集・削除 =====
 document.getElementById('historyList')?.addEventListener('click', (e) => {
