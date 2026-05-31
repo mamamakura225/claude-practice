@@ -1,7 +1,7 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
 import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
-import { catMarkup, playHappy, playReaction } from './cat.js';
+import { catMarkup, playHappy, playReaction, playCelebrate } from './cat.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames } from './record-form.js';
 import {
   weeklyTotals,
@@ -553,6 +553,18 @@ function deleteSession(index) {
   renderHistory();
 }
 
+// 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。
+const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
+
+// 記録直後の猫の演出を出し分ける。節目（レベルアップ／新バッジ／連続日数の節目）は
+// 特別演出 playCelebrate、それ以外の通常記録は日常のお祝い playHappy（ランダム）。
+function celebrateRecord({ leveled, badgeCount, streakCurrent }) {
+  const svg = document.querySelector('#catStage svg');
+  const milestone = leveled || badgeCount > 0 || STREAK_CELEBRATIONS.has(streakCurrent);
+  if (milestone) playCelebrate(svg);
+  else playHappy(svg);
+}
+
 function showCoinPopup({ coins, leveled, newLevel }) {
   const popup = document.getElementById('coinPopup');
   if (!popup) return;
@@ -669,7 +681,7 @@ function submitRecord(event) {
     commitState(newState);
     track('practice_recorded', { totalCount: mergedCount }); // 回数のみ・曲名は送らない
     router.go('home');
-    playHappy(document.querySelector('#catStage svg'));
+    celebrateRecord({ leveled: newState.pet.level > prevLevel, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
     showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled: newState.pet.level > prevLevel, newLevel: newState.pet.level });
     playSound('record', state);
     if (newState.pet.level > prevLevel) playSound('levelup', state);
@@ -684,7 +696,8 @@ function submitRecord(event) {
   commitState(newState);          // 保存 + ホーム再描画
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');              // ホームへ遷移
-  playHappy(document.querySelector('#catStage svg'));  // 喜ぶアニメ
+  // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）
+  celebrateRecord({ leveled: rewards.leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
   showCoinPopup(rewards);         // 獲得コインのポップアップ
   // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
   playSound('record', state);

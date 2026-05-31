@@ -299,6 +299,28 @@ function heartsGroup() {
   return `<g class="cat__hearts" aria-hidden="true">${groups}</g>`;
 }
 
+// きらきらグループ（節目のお祝い playCelebrate 時だけ弾ける）
+// ハート同様、配置は外側 <g transform>・アニメは内側 <path> に分離する。
+function sparklesGroup() {
+  const star = (s) =>
+    `M0 ${-s} L${n(s * 0.26)} ${n(-s * 0.26)} L${s} 0 L${n(s * 0.26)} ${n(s * 0.26)} ` +
+    `L0 ${s} L${n(-s * 0.26)} ${n(s * 0.26)} L${-s} 0 L${n(-s * 0.26)} ${n(-s * 0.26)} Z`;
+  const sparkles = [
+    { x: 48,  y: 60,  s: 10, delay: 0    },
+    { x: 152, y: 56,  s: 12, delay: 0.12 },
+    { x: 30,  y: 130, s: 8,  delay: 0.28 },
+    { x: 170, y: 128, s: 9,  delay: 0.2  },
+    { x: 100, y: 28,  s: 11, delay: 0.36 },
+  ];
+  const groups = sparkles.map(
+    (p) =>
+      `<g class="cat__sparkle-pos" transform="translate(${p.x} ${p.y})">` +
+      `<path class="cat__sparkle" d="${star(p.s)}" fill="#ffd34d" style="animation-delay:${p.delay}s"/>` +
+      `</g>`
+  ).join('');
+  return `<g class="cat__sparkles" aria-hidden="true">${groups}</g>`;
+}
+
 // Zzzグループ（寝ている時）
 function zzzGroup() {
   return `
@@ -326,6 +348,7 @@ export function catMarkup({ stage = 'kitten', mood = 'idle', equippedItems = [],
     ${headGroup(cfg)}
     ${itemsGroup(cfg.anchors, equippedItems)}
     ${heartsGroup()}
+    ${sparklesGroup()}
     ${zzzGroup()}
   </svg>`;
 }
@@ -335,29 +358,52 @@ export function catMarkupForLevel(level, opts = {}) {
   return catMarkup({ stage: catStage(level), ...opts });
 }
 
-// 反応アニメーションのクラス一覧（単発再生・終了時に剥がす）
-const REACTION_CLASSES = ['cat--happy', 'cat--wiggle'];
+// 単発再生する演出クラス一覧（再生開始時にすべて剥がしてリセットする対象）
+const REACTION_CLASSES = [
+  'cat--happy', 'cat--wiggle', 'cat--celebrate',
+  'cat--happy-hop', 'cat--happy-spin',
+];
 
-// mood の単発アニメーションを再生。既存の反応クラスを一旦消してリフローを挟み、
-// 連打でも毎回頭から再生されるようにする。
-function playMood(svgEl, mood) {
+// 演出クラスを単発で再生。既存の演出を一旦消してリフローを挟み、連打でも毎回頭から
+// 再生されるようにする。複数アニメ（体・ハート・きらきら）の最長に合わせて duration 後に
+// クラスを剥がす（animationend だと最短アニメ終了で他が途中で切れるため）。
+function playClasses(svgEl, classes, duration) {
   if (!svgEl) return;
   svgEl.classList.remove(...REACTION_CLASSES);
   void svgEl.getBoundingClientRect();
-  const cls = `cat--${mood}`;
-  svgEl.classList.add(cls);
-  svgEl.addEventListener('animationend', () => svgEl.classList.remove(cls), { once: true });
+  svgEl.classList.add(...classes);
+  clearTimeout(svgEl._catAnimTimer);
+  svgEl._catAnimTimer = setTimeout(() => svgEl.classList.remove(...classes), duration);
 }
 
-/** 喜ぶアニメーションを単発再生（練習記録の演出から呼ぶ） */
-export function playHappy(svgEl) {
-  playMood(svgEl, 'happy');
+// 日常のお祝い（通常の練習記録）。少数パターンをランダムで回し飽きを防ぐ。
+// メリハリ設計：日常は軽く、節目（playCelebrate）に特別感を取っておく（#81）。
+// '' は素の cat--happy（ぴょん）、'hop' は2段跳ね、'spin' はくるっと揺れ。
+const HAPPY_VARIANTS = ['', 'hop', 'spin'];
+
+/** 日常のお祝い演出のバリエーションを1つ選ぶ（rng 注入でテスト可能） */
+export function pickHappyVariant(rng = Math.random) {
+  return HAPPY_VARIANTS[Math.floor(rng() * HAPPY_VARIANTS.length)];
+}
+
+/** 喜ぶアニメーションを単発再生（通常の練習記録・なで反応から呼ぶ） */
+export function playHappy(svgEl, rng = Math.random) {
+  const variant = pickHappyVariant(rng);
+  const classes = variant ? ['cat--happy', `cat--happy-${variant}`] : ['cat--happy'];
+  playClasses(svgEl, classes, 1200);
+}
+
+/** 節目（レベルアップ／新バッジ／連続日数の節目）の特別演出。大ジャンプ＋ハート＋きらきら（#81） */
+export function playCelebrate(svgEl) {
+  playClasses(svgEl, ['cat--celebrate'], 1700);
 }
 
 // なでた時の反応。毎回同じだと飽きるので喜ぶ/しっぽふりをランダムに出す。
 const PET_MOODS = ['happy', 'wiggle'];
 
 /** 猫をなでた時の反応アニメーションを単発再生（#79 タッチ interaction） */
-export function playReaction(svgEl) {
-  playMood(svgEl, PET_MOODS[Math.floor(Math.random() * PET_MOODS.length)]);
+export function playReaction(svgEl, rng = Math.random) {
+  const mood = PET_MOODS[Math.floor(rng() * PET_MOODS.length)];
+  if (mood === 'happy') playHappy(svgEl, rng);
+  else playClasses(svgEl, ['cat--wiggle'], 1200);
 }
