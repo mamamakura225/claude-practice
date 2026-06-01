@@ -106,14 +106,91 @@
   75% { transform: rotate(6deg); }
 }
 
+/* ----- 喜ぶ バリエーション（日常のお祝い・ランダム / #81） ----- */
+/* 日常は軽く・節目（celebrate）を濃く、というメリハリ設計。playHappy が
+   素のぴょん（cat--happy）/ 2段跳ね（hop）/ くるっと揺れ（spin）から選ぶ。
+   variant は cat--happy と併用され、root への animation を上書きする。 */
+.cat--happy-hop { animation: pp-hop2 0.72s ease-in-out; }
+
+@keyframes pp-hop2 {
+  0%   { transform: translateY(0) scale(1); }
+  20%  { transform: translateY(-26px) scale(1.05); }
+  40%  { transform: translateY(0) scale(0.96); }
+  60%  { transform: translateY(-14px) scale(1.02); }
+  80%  { transform: translateY(0) scale(0.99); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.cat--happy-spin {
+  animation: pp-happy-spin 0.7s ease-in-out;
+  transform-box: fill-box;
+  transform-origin: 50% 80%;
+}
+
+@keyframes pp-happy-spin {
+  0%   { transform: rotate(0) translateY(0); }
+  25%  { transform: rotate(-9deg) translateY(-8px); }
+  50%  { transform: rotate(7deg) translateY(-3px); }
+  75%  { transform: rotate(-4deg); }
+  100% { transform: rotate(0) translateY(0); }
+}
+
+/* ----- 節目の特別演出（大ジャンプ＋ハート＋きらきら / #81） ----- */
+/* playCelebrate はレベルアップ／新バッジ／連続日数の節目だけで再生する。 */
+.cat--celebrate { animation: pp-celebrate 1s ease-in-out; }
+
+@keyframes pp-celebrate {
+  0%   { transform: translateY(0) scale(1); }
+  15%  { transform: translateY(-34px) scale(1.08); }
+  35%  { transform: translateY(0) scale(0.94); }
+  55%  { transform: translateY(-18px) scale(1.04); }
+  75%  { transform: translateY(0) scale(0.98); }
+  100% { transform: translateY(0) scale(1); }
+}
+
+.cat--celebrate .cat__hearts { opacity: 1; }
+.cat--celebrate .cat__heart {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pp-heart 1.5s ease-out forwards;
+}
+
+/* きらきら：節目のときだけ弾ける（通常は非表示） */
+.cat__sparkles { opacity: 0; }
+.cat__sparkle {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.cat--celebrate .cat__sparkles { opacity: 1; }
+.cat--celebrate .cat__sparkle { animation: pp-sparkle 1.4s ease-out; }
+
+@keyframes pp-sparkle {
+  0%   { opacity: 0; transform: scale(0) rotate(0deg); }
+  30%  { opacity: 1; transform: scale(1.2) rotate(40deg); }
+  60%  { opacity: 1; transform: scale(0.9) rotate(80deg); }
+  100% { opacity: 0; transform: scale(1.1) rotate(120deg); }
+}
+
 /* ----- アクセシビリティ：モーション控えめ設定 ----- */
+/* 揺れ・跳ねは止め、ご褒美フィードバック（ハート/きらきら）は静止表示で残す。 */
 @media (prefers-reduced-motion: reduce) {
   .cat__body,
   .cat__tail,
   .cat--happy,
+  .cat--happy-hop,
+  .cat--happy-spin,
+  .cat--celebrate,
   .cat--wiggle,
   .cat--sleep .cat__zzz,
-  .cat--happy .cat__heart {
+  .cat--happy .cat__heart,
+  .cat--celebrate .cat__heart,
+  .cat--celebrate .cat__sparkle {
     animation: none !important;
+  }
+  .cat--happy .cat__hearts,
+  .cat--celebrate .cat__hearts,
+  .cat--celebrate .cat__sparkles {
+    opacity: 1;
   }
 }
