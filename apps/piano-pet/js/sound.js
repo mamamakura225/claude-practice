@@ -112,18 +112,26 @@ function loadSample(url, audio) {
   return p;
 }
 
-// なでた時の鳴き声を再生し、鳴いた種類 'meow' | 'hiss' を返す（再生しなかった
-// 場合は null）。基本は MEOW_SOUNDS、たまに（HISS_CHANCE）HISS_SOUNDS の威嚇。
-// 戻り値で呼び出し側が演出を出し分けられる（威嚇のときは喜び演出を止める等）。
-// サウンドOFF・未対応環境・取得失敗時は無音。
-export function playCatVoice(state) {
-  if (!isSoundOn(state)) return null;
-  if (typeof fetch !== 'function') return null;
-  const audio = getCtx();
-  if (!audio || typeof audio.decodeAudioData !== 'function') return null;
+// なで反応の種類 'meow' | 'hiss' を抽選する（音設定・環境に依存しない純粋関数）。
+// 'hiss'＝威嚇。喜び演出の出し分け（威嚇なら止める）と鳴き声の再生で同じ抽選結果を
+// 共有させるため、抽選を再生から切り離している。これにより**サウンドOFFでも**威嚇による
+// 演出抑制が一貫して効く（再生側に抽選を埋めると、ミュート時に抽選自体が走らず
+// 抑制が機能しなくなる）。
+export function rollCatVoice() {
+  return Math.random() < HISS_CHANCE ? 'hiss' : 'meow';
+}
 
-  const hiss = HISS_SOUNDS.length > 0 && Math.random() < HISS_CHANCE;
-  const pool = hiss ? HISS_SOUNDS : MEOW_SOUNDS;
+// rollCatVoice() が返した種類の鳴き声サンプルを再生する（音だけを担う）。
+// サウンドOFF・未対応環境・該当サンプルなし・取得失敗時は無音。演出の出し分けは
+// 呼び出し側が rollCatVoice の戻り値で判断する。
+export function playCatVoice(state, kind) {
+  if (!isSoundOn(state)) return;
+  if (typeof fetch !== 'function') return;
+  const audio = getCtx();
+  if (!audio || typeof audio.decodeAudioData !== 'function') return;
+
+  const pool = kind === 'hiss' ? HISS_SOUNDS : MEOW_SOUNDS;
+  if (pool.length === 0) return;
   const url = pool[Math.floor(Math.random() * pool.length)];
   loadSample(url, audio)
     .then((buffer) => {
@@ -135,5 +143,4 @@ export function playCatVoice(state) {
       src.start();
     })
     .catch(() => {});  // ネットワーク/デコード失敗は握りつぶす
-  return hiss ? 'hiss' : 'meow';
 }

@@ -47,7 +47,7 @@
 - 練習リマインダー通知（PWA Push）
 - 猫のスタイル切り替え（リアル系 / ほわほわ系 / ドット絵）
 
-将来の拡張は [GitHub Issues](https://github.com/mamamakura225/claude-practice/issues)（`app/piano-pet` ラベル、Issue #66〜#70）で管理。初期ロードマップは [backlog.md](./backlog.md)（凍結）。
+将来の拡張は [GitHub Issues](https://github.com/mamamakura225/claude-practice/issues)（`app/piano-pet` ラベル）で管理。初期ロードマップは [backlog.md](./backlog.md)（凍結）。
 
 ## 6. 確定事項
 

@@ -4,7 +4,7 @@
 
 | ドキュメント | 内容 |
 |---|---|
-| [requirements.md](./requirements.md) | 要件定義書（目的・ユーザー・機能要件・非機能要件・スコープ外） |
+| [requirements.md](./requirements.md) | 要件定義書（目的・ユーザー・機能要件・非機能要件・スコープ外・確定事項） |
 | [features.md](./features.md) | 機能詳細（画面仕様・報酬ロジック・コイン/XP/レベル表・サウンド） |
 | [data-model.md](./data-model.md) | 状態スキーマ・正規化・マイグレーション・クラウド同期 |
 | [backlog.md](./backlog.md) | 初期ロードマップ（凍結。以降のバックログは GitHub Issues） |

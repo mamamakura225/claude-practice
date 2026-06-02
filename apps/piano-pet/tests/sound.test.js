@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { isSoundOn, toggleSound, SOUND_SPECS, MEOW_SOUNDS, HISS_SOUNDS } from '../js/sound.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { isSoundOn, toggleSound, SOUND_SPECS, MEOW_SOUNDS, HISS_SOUNDS, rollCatVoice } from '../js/sound.js';
 
 describe('isSoundOn', () => {
   it('未設定はデフォルトON扱い', () => {
@@ -55,6 +55,27 @@ describe('SOUND_SPECS', () => {
         expect(n.t).toBeGreaterThanOrEqual(0);
       }
     }
+  });
+});
+
+describe('rollCatVoice', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  // 抽選は音設定・環境に依存しない純粋関数（再生から分離 → ミュート時も威嚇抑制が効く）
+  it('HISS_CHANCE(0.15) 未満なら hiss、以上なら meow', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    expect(rollCatVoice()).toBe('hiss');
+    vi.spyOn(Math, 'random').mockReturnValue(0.14);
+    expect(rollCatVoice()).toBe('hiss');
+    vi.spyOn(Math, 'random').mockReturnValue(0.15);
+    expect(rollCatVoice()).toBe('meow');
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
+    expect(rollCatVoice()).toBe('meow');
+  });
+
+  it('state を受け取らず、引数なしで種類だけ返す', () => {
+    vi.spyOn(Math, 'random').mockReturnValue(0.5);
+    expect(rollCatVoice()).toBe('meow');
   });
 });
 
