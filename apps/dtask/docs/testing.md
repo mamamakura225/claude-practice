@@ -40,7 +40,8 @@ npm test          # 全テスト実行（vitest run）
 npm run test:e2e   # E2Eテスト実行
 ```
 
-- Chromium のみ（Desktop Chrome）
+- 主要テストは Chromium（Desktop Chrome）で全件実行
+- 互換性検証は `@compat` タグ付きのクリティカルパスのみ Firefox / WebKit(Safari) でも実行（[playwright.config.js](../../../playwright.config.js) の `dtask-firefox` / `dtask-webkit` プロジェクト。全件は重いためタグで限定）
 - `http-server` をテスト開始時に自動起動（port 3000）
 - CI では `retries: 1`, `workers: 1`
 
@@ -70,6 +71,7 @@ npm run test:e2e   # E2Eテスト実行
 - すべての push、main 向け PR で起動
 - Vitest 単体テスト
 - Playwright E2E テスト
+- **Lighthouse 定点観測**（`lighthouse` ジョブ）：[lighthouserc.json](../../../lighthouserc.json) を使い、トップ / dtask / piano-pet の各 URL で performance / accessibility / best-practices / seo を計測。**警告のみ（`warn`）でデプロイをブロックしない**定点観測用。閾値は accessibility ≥ 0.95、その他 ≥ 0.9。結果は artifacts にアップロード（`treosh/lighthouse-ci-action`）
 
 > **不在**: Lint / 型チェック / カバレッジ計測 / ビジュアル回帰テスト。必要に応じて段階的に追加する。
 

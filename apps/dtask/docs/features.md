@@ -65,7 +65,7 @@
 - `deadline` — 期限昇順（未設定は最後）
 - `priority` — 優先度順（high → medium → low）
 
-> **完了タスクは選択ソートに関わらず常に末尾に配置**（[utils/sort.js:6-8](../utils/sort.js)）。
+> **完了タスクは選択ソートに関わらず常に末尾に配置**（[utils/sort.js](../utils/sort.js) の `sortTasks` 内で処理）。
 
 ## 定期タスク (Recurrence)
 
@@ -147,9 +147,12 @@
 - 補助テキスト色 `--text-sub` を `#6B7280` → `#525965` に変更し、白系背景（`#F2F3F5`）に対しても WCAG AA（4.5:1）を満たす
 - ダークモードの `--text-sub: #9AA0AC` は `--bg: #0F1117` に対し約 8:1 で AA 達成
 
+### 定量監視
+
+- Lighthouse Accessibility スコアは CI の `lighthouse` ジョブで定点観測（閾値 ≥ 0.95、警告のみでブロックはしない）。詳細は [testing.md](./testing.md) を参照
+
 ### 未対応 / 今後の課題
 
-- Lighthouse Accessibility 監査による定量スコアの定点観測（[#30](https://github.com/mamamakura225/claude-practice/issues/30) と併せて検討）
 - モーダル開いている間のフォーカストラップ（現状は `Esc` で閉じるのみ）
 - カンバンビューの D&D 代替操作（キーボードでカードを列移動）
 
