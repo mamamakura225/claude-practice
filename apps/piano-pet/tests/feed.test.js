@@ -6,6 +6,10 @@ import {
   affinity,
   canFeed,
   feedCat,
+  AFFINITY_LEVELS,
+  affinityLevel,
+  affinityRewards,
+  bondCelebrateChance,
 } from '../js/feed.js';
 
 function makeState(overrides = {}) {
@@ -92,5 +96,71 @@ describe('foodSpent / affinity アクセサ', () => {
   it('値があればそれを返す', () => {
     expect(foodSpent(makeState({ pet: { foodSpent: 40 } }))).toBe(40);
     expect(affinity(makeState({ pet: { affinity: 7 } }))).toBe(7);
+  });
+});
+
+describe('affinityLevel', () => {
+  it('しきい値ごとにレベルが上がる', () => {
+    expect(affinityLevel(0).level).toBe(1);
+    expect(affinityLevel(4).level).toBe(1);
+    expect(affinityLevel(5).level).toBe(2);
+    expect(affinityLevel(15).level).toBe(3);
+    expect(affinityLevel(30).level).toBe(4);
+    expect(affinityLevel(50).level).toBe(5);
+    expect(affinityLevel(999).level).toBe(5);
+  });
+
+  it('次レベルまでの残り（toNext）と名前を返す', () => {
+    const a = affinityLevel(3);
+    expect(a.name).toBe('ともだち');
+    expect(a.next.level).toBe(2);
+    expect(a.toNext).toBe(2);        // 5 - 3
+    expect(a.isMax).toBe(false);
+  });
+
+  it('進捗 ratio は 0〜1（レベル内の割合）', () => {
+    expect(affinityLevel(5).ratio).toBe(0);   // Lv2 入りたて
+    expect(affinityLevel(10).ratio).toBe(0.5); // 5→15 の中間
+    expect(affinityLevel(15).ratio).toBe(0);   // Lv3 入りたて
+  });
+
+  it('最大レベルは isMax・toNext=0・ratio=1', () => {
+    const a = affinityLevel(60);
+    expect(a.isMax).toBe(true);
+    expect(a.next).toBeNull();
+    expect(a.toNext).toBe(0);
+    expect(a.ratio).toBe(1);
+  });
+
+  it('負値・非数は 0 扱い', () => {
+    expect(affinityLevel(-10).level).toBe(1);
+    expect(affinityLevel(undefined).level).toBe(1);
+    expect(affinityLevel(NaN).level).toBe(1);
+  });
+});
+
+describe('affinityRewards', () => {
+  it('現レベル以下のご褒美が解放済みになる', () => {
+    const rewards = affinityRewards(15); // Lv3
+    expect(rewards).toHaveLength(AFFINITY_LEVELS.length);
+    expect(rewards.filter((r) => r.unlocked).map((r) => r.level)).toEqual([1, 2, 3]);
+    expect(rewards.find((r) => r.level === 4).unlocked).toBe(false);
+  });
+
+  it('affinity 0 でも Lv1 は解放済み', () => {
+    expect(affinityRewards(0).find((r) => r.level === 1).unlocked).toBe(true);
+  });
+});
+
+describe('bondCelebrateChance', () => {
+  it('Lv3未満は0（専用演出は出ない）', () => {
+    expect(bondCelebrateChance(1)).toBe(0);
+    expect(bondCelebrateChance(2)).toBe(0);
+  });
+
+  it('レベルが上がるほど確率が高くなる', () => {
+    expect(bondCelebrateChance(3)).toBeGreaterThan(0);
+    expect(bondCelebrateChance(4)).toBeGreaterThan(bondCelebrateChance(3));
+    expect(bondCelebrateChance(5)).toBeGreaterThan(bondCelebrateChance(4));
   });
 });

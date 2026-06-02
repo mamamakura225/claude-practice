@@ -321,6 +321,26 @@ function sparklesGroup() {
   return `<g class="cat__sparkles" aria-hidden="true">${groups}</g>`;
 }
 
+// なかよしエンブレム（#124）：なかよしレベルのご褒美。Lv2 で猫の隅にハートの
+// しるしが常時付き、Lv4 以上できらきらが加わる。affinity から導出した bond レベルで出し分ける。
+function bondEmblemGroup(level) {
+  const lv = Number(level) || 0;
+  if (lv < 2) return '';
+  const heart = 'M0 4 C -8 -7 -22 4 0 20 C 22 4 8 -7 0 4 Z';
+  const sparkles = lv >= 4
+    ? `<g class="cat__bond-sparkle" fill="#ffd34d">
+         <circle cx="-15" cy="-9" r="2.4"/>
+         <circle cx="15" cy="-11" r="2"/>
+         <circle cx="13" cy="13" r="2.2"/>
+       </g>`
+    : '';
+  return `<g class="cat__bond" aria-hidden="true" transform="translate(32 34)">
+    ${sparkles}
+    <circle r="16" fill="#fff" stroke="#ffd0d9" stroke-width="2"/>
+    <g transform="translate(0 -4) scale(0.5)"><path d="${heart}" fill="#ff7a93"/></g>
+  </g>`;
+}
+
 // Zzzグループ（寝ている時）
 function zzzGroup() {
   return `
@@ -337,7 +357,7 @@ function zzzGroup() {
  * stage : 'kitten' | 'young' | 'adult'
  * mood  : 'idle' | 'happy' | 'sleep'
  */
-export function catMarkup({ stage = 'kitten', mood = 'idle', equippedItems = [], name = 'ねこ' } = {}) {
+export function catMarkup({ stage = 'kitten', mood = 'idle', equippedItems = [], name = 'ねこ', bond = 0 } = {}) {
   const cfg = STAGES[stage] || STAGES.kitten;
 
   // 描画順：奥→手前（尻尾→胴体→頭→アイテム→エフェクト）
@@ -347,6 +367,7 @@ export function catMarkup({ stage = 'kitten', mood = 'idle', equippedItems = [],
     ${bodyGroup(cfg)}
     ${headGroup(cfg)}
     ${itemsGroup(cfg.anchors, equippedItems)}
+    ${bondEmblemGroup(bond)}
     ${heartsGroup()}
     ${sparklesGroup()}
     ${zzzGroup()}

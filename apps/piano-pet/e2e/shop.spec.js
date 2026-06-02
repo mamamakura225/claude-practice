@@ -89,6 +89,34 @@ test.describe('ショップ', () => {
     await expect(page.locator('#statAffinity')).toHaveText('1');
   });
 
+  test('なかよしレベルとご褒美の解放が表示される（#124）', async ({ page }) => {
+    // affinity=15 を仕込む（なかよしレベル3「だいすき」相当）
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'piano-pet',
+        JSON.stringify({
+          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 15, foodSpent: 0 },
+          inventory: [],
+          streak: { current: 0, best: 0, lastPracticeDate: null },
+          badges: [],
+          sessions: [],
+        }),
+      );
+    });
+
+    // ホーム：なかよしレベル3「だいすき」＋猫にエンブレムが付く
+    await page.goto('/');
+    await expect(page.locator('#statBondLevel')).toHaveText('3', { timeout: 10000 });
+    await expect(page.locator('#statBondName')).toHaveText('だいすき');
+    await expect(page.locator('#catStage .cat__bond')).toBeVisible();
+
+    // ショップ：ご褒美リストで Lv1〜3 が解放済み（is-locked でない）
+    await page.click('.nav-btn[data-nav="shop"]');
+    await expect(page.locator('#bondRewards .bond-reward')).toHaveCount(5);
+    await expect(page.locator('#bondRewards .bond-reward:not(.is-locked)')).toHaveCount(3);
+    await expect(page.locator('#feedBondName')).toHaveText('だいすき');
+  });
+
   test('コイン不足のアイテムは購入ボタンが無効', async ({ page }) => {
     await page.goto('/#/shop');
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });

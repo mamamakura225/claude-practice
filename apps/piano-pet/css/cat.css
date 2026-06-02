@@ -172,6 +172,22 @@
   100% { opacity: 0; transform: scale(1.1) rotate(120deg); }
 }
 
+/* ----- なかよしエンブレム（#124）：ゆっくり脈打つハートのしるし ----- */
+.cat__bond { transform-box: fill-box; transform-origin: center; }
+.cat__bond { animation: pp-bond-pulse 2.4s ease-in-out infinite; }
+
+@keyframes pp-bond-pulse {
+  0%, 100% { transform: translate(32px, 34px) scale(1); }
+  50%      { transform: translate(32px, 34px) scale(1.08); }
+}
+
+.cat__bond-sparkle { animation: pp-bond-twinkle 1.8s ease-in-out infinite; }
+
+@keyframes pp-bond-twinkle {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
 /* ----- アクセシビリティ：モーション控えめ設定 ----- */
 /* 揺れ・跳ねは止め、ご褒美フィードバック（ハート/きらきら）は静止表示で残す。 */
 @media (prefers-reduced-motion: reduce) {
@@ -185,7 +201,9 @@
   .cat--sleep .cat__zzz,
   .cat--happy .cat__heart,
   .cat--celebrate .cat__heart,
-  .cat--celebrate .cat__sparkle {
+  .cat--celebrate .cat__sparkle,
+  .cat__bond,
+  .cat__bond-sparkle {
     animation: none !important;
   }
   .cat--happy .cat__hearts,
