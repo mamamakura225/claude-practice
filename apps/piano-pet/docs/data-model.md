@@ -24,6 +24,7 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 
 - **曲の色**（#122）：曲名から決定的ハッシュで色相を算出する（[song-color.js](../js/song-color.js) `songColor`）。保存しないので `sessions` さえ同じならどの端末でも同じ色。スキーマ非依存。
 - **曲別の累計回数**（#122）：`sessions` から再集計する（[record-form.js](../js/record-form.js) `songTotals`）。専用フィールドは持たない。
+- **なかよしレベルとご褒美解放**（#124）：`pet.affinity` のしきい値から決定的に導出する（[feed.js](../js/feed.js) `affinityLevel` / `affinityRewards`）。**解放済みフラグは持たない**。`recomputeState` は `pet.affinity` を保持するため、記録の編集・削除（全再計算）でも解放状態が矛盾しない。> **設計判断**: Issue では「解放済みフラグを `pet` に追加」案だったが、affinity 自体が単調増加で永続化済みのため、フラグを別持ちすると二重管理になり再計算との整合リスクが生じる。affinity からの導出に一本化した。
 
 ### Pet
 | フィールド | 型 | デフォルト | 説明 |

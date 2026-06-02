@@ -18,7 +18,7 @@ import {
   toggleEquip,
   spentCoins,
 } from './shop.js';
-import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity } from './feed.js';
+import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
 import { isSoundOn, toggleSound, playSound, playCatVoice, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { initErrorMonitoring } from './sentry.js';
@@ -73,6 +73,7 @@ export function renderHome() {
       mood: moodForState(state),
       equippedItems: state.pet.equippedItems,
       name: state.pet.name,
+      bond: affinityLevel(affinity(state)).level,   // なかよしレベルのエンブレム（#124）
     });
   }
   const nameEl = document.getElementById('petName');
@@ -110,9 +111,22 @@ function renderDailyGoal() {
   document.getElementById('goalBlock')?.classList.toggle('goal-block--done', goal.achieved);
 }
 
+// なかよしレベルと次レベルへの進捗（#124）
+function renderBond() {
+  const a = affinityLevel(affinity(state));
+  setText('statBondLevel', a.level);
+  setText('statBondName', a.name);
+  const fillEl = document.getElementById('statBondFill');
+  if (fillEl) fillEl.style.width = `${Math.round(a.ratio * 100)}%`;
+  const barEl = document.getElementById('statBondbar');
+  if (barEl) barEl.setAttribute('aria-valuenow', String(Math.round(a.ratio * 100)));
+  setText('statBondNext', a.isMax ? 'さいこうの なかよし！💖' : `つぎの レベルまで あと ${a.toNext}`);
+}
+
 // レベル・XPバー・コイン・ストリークの表示
 function renderStats() {
   renderDailyGoal();
+  renderBond();
 
   const { level, xpInLevel, xpPerLevel, toNextLevel } = xpProgress(state.pet.xp);
 
@@ -272,11 +286,26 @@ function feedCardMarkup(food) {
   </div>`;
 }
 
+// なかよし ごほうび解放リスト（#124）。affinity から解放状態を導出して表示する。
+function bondRewardMarkup(r) {
+  return `<li class="bond-reward${r.unlocked ? '' : ' is-locked'}">
+    <span class="bond-reward__icon" aria-hidden="true">${r.unlocked ? '💝' : '🔒'}</span>
+    <span class="bond-reward__body">
+      <span class="bond-reward__name">Lv${r.level} ${r.name}</span>
+      <span class="bond-reward__desc">${escapeHtml(r.reward)}</span>
+    </span>
+    <span class="bond-reward__req">${r.min}💖</span>
+  </li>`;
+}
+
 export function renderShop() {
   setText('shopCoins', state.pet.coins);
   setText('feedAffinity', affinity(state));
+  setText('feedBondName', affinityLevel(affinity(state)).name);
   const feedEl = document.getElementById('feedList');
   if (feedEl) feedEl.innerHTML = FOODS.map(feedCardMarkup).join('');
+  const rewardsEl = document.getElementById('bondRewards');
+  if (rewardsEl) rewardsEl.innerHTML = affinityRewards(affinity(state)).map(bondRewardMarkup).join('');
   const listEl = document.getElementById('shopList');
   if (listEl) listEl.innerHTML = SHOP_ITEMS.map(shopCardMarkup).join('');
 }
@@ -831,8 +860,13 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
 function petCat() {
   unlockAudio();                                       // ユーザー操作で AudioContext を解錠
   const voice = playCatVoice(state);                   // 鳴き声（たまに威嚇）。種類が返る
-  if (voice !== 'hiss') {                              // 威嚇のときは演出なし
-    playReaction(document.querySelector('#catStage svg'));
+  if (voice === 'hiss') return;                        // 威嚇のときは演出なし
+  const svg = document.querySelector('#catStage svg');
+  // なかよしレベルが高いと、たまに「とくべつな えんしゅつ」が出る（#124 専用演出）
+  if (Math.random() < bondCelebrateChance(affinityLevel(affinity(state)).level)) {
+    playCelebrate(svg);
+  } else {
+    playReaction(svg);
   }
 }
 document.getElementById('catStage')?.addEventListener('click', petCat);

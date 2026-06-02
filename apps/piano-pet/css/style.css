@@ -163,6 +163,57 @@ body {
   transition: width 0.5s ease;
 }
 
+/* ----- なかよしレベル（#124） ----- */
+.bond-block {
+  background: #fff;
+  border-radius: 18px;
+  padding: 14px 18px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.bond-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.bond-badge {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.05rem;
+  color: var(--pink-deep);
+  white-space: nowrap;
+}
+
+.bond-name {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.85rem;
+  color: #d98a2b;
+}
+
+.bondbar {
+  height: 18px;
+  background: #ffe1e8;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.bondbar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff9ec4, #ff5d7a);
+  transition: width 0.5s ease;
+}
+
+.bond-next {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #b48a92;
+  margin-top: 8px;
+}
+
 .goal-block {
   background: #fff;
   border-radius: 18px;
@@ -968,6 +1019,67 @@ body {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+/* ----- なかよし ごほうび解放リスト（#124） ----- */
+.bond-rewards-heading {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.9rem;
+  color: var(--ink);
+  margin: 4px 0 0;
+}
+
+.bond-rewards {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.bond-reward {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.bond-reward.is-locked {
+  opacity: 0.55;
+}
+
+.bond-reward__icon {
+  font-size: 1.2rem;
+  flex: 0 0 auto;
+}
+
+.bond-reward__body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.bond-reward__name {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--pink-deep);
+}
+
+.bond-reward__desc {
+  font-size: 0.78rem;
+  color: #8a7d80;
+}
+
+.bond-reward__req {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #d98a2b;
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .shop-card {

@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=fb7001c6">
-  <link rel="stylesheet" href="css/cat.css?v=fb7001c6">
+  <link rel="stylesheet" href="css/style.css?v=0dbc13a0">
+  <link rel="stylesheet" href="css/cat.css?v=0dbc13a0">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -51,6 +51,18 @@
                  aria-label="けいけんち" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
               <div class="xpbar-fill" id="statXpFill"></div>
             </div>
+          </div>
+
+          <div class="bond-block">
+            <div class="bond-line">
+              <span class="bond-badge">💖 なかよしレベル <span id="statBondLevel">1</span></span>
+              <span class="bond-name" id="statBondName">ともだち</span>
+            </div>
+            <div class="bondbar" id="statBondbar" role="progressbar"
+                 aria-label="なかよしレベル" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="bondbar-fill" id="statBondFill"></div>
+            </div>
+            <p class="bond-next" id="statBondNext">つぎの レベルまで あと 5</p>
           </div>
 
           <div class="stat-cards">
@@ -190,9 +202,11 @@
         <section class="feed-section">
           <div class="feed-heading">
             <h2 class="shop-heading">ごはんを あげる</h2>
-            <span class="feed-affinity">💖 なかよし <b id="feedAffinity">0</b></span>
+            <span class="feed-affinity">💖 なかよし <b id="feedAffinity">0</b>（<span id="feedBondName">ともだち</span>）</span>
           </div>
           <div class="feed-list" id="feedList"></div>
+          <h3 class="bond-rewards-heading">なかよし ごほうび</h3>
+          <ul class="bond-rewards" id="bondRewards"></ul>
         </section>
 
         <section class="shop-section">
@@ -272,6 +286,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=fb7001c6"></script>
+  <script type="module" src="js/app.js?v=0dbc13a0"></script>
 </body>
 </html>
