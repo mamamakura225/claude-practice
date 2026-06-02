@@ -20,6 +20,11 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 クラウド (Firestore `pianopet/data`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions`）のみ。
 `settings` と `version` は端末ローカルに留まる。
 
+### 派生データ（保存しない）
+
+- **曲の色**（#122）：曲名から決定的ハッシュで色相を算出する（[song-color.js](../js/song-color.js) `songColor`）。保存しないので `sessions` さえ同じならどの端末でも同じ色。スキーマ非依存。
+- **曲別の累計回数**（#122）：`sessions` から再集計する（[record-form.js](../js/record-form.js) `songTotals`）。専用フィールドは持たない。
+
 ### Pet
 | フィールド | 型 | デフォルト | 説明 |
 |---|---|---|---|
