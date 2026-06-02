@@ -992,7 +992,7 @@ function handleTaskFormSubmit(e) {
     status:      document.getElementById('taskStatus').value,
     tags,
     subtasks:    collectSubtasks(),
-    recurrence:  recurrenceType ? { type: recurrenceType, interval: 1 } : null,
+    recurrence:  recurrenceType ? { type: recurrenceType } : null,
   };
   if (!data.title) return;
 

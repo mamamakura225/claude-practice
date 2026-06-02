@@ -46,9 +46,8 @@
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `type` | `'daily'` \| `'weekly'` \| `'monthly'` | 繰り返し種別 |
-| `interval` | number | 繰り返し間隔。保存時に `1` 固定で書き込まれるが、**現状ロジックでは未参照**（`nextRecurrenceDeadline` は `type` のみ使用）。将来「2週間ごと」等に拡張する余地として保持 |
 
-次回期限の計算は [utils/date.js](../utils/date.js) の `nextRecurrenceDeadline(deadline, recurrence)`。
+次回期限の計算は [utils/date.js](../utils/date.js) の `nextRecurrenceDeadline(deadline, recurrence)`。間隔は `type` のみで表現し、`interval` のような数値フィールドは持たない（将来「2週間ごと」等が必要になった時点で追加する）。
 
 ## Firestore スキーマ
 
