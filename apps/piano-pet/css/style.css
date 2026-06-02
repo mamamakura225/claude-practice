@@ -384,10 +384,30 @@ body {
   cursor: pointer;
 }
 
+/* 未選択チップの左に曲色のスウォッチ（曲ごとに色が違うことを示す・#122） */
+.song-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.song-chip::before {
+  content: '';
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--song-fill, #ddd);
+  flex: 0 0 auto;
+}
+
 .song-chip.is-selected {
   background: var(--pink-deep);
   color: #fff;
   border-color: var(--pink-deep);
+}
+
+.song-chip.is-selected::before {
+  background: #fff;
 }
 
 .song-chip:active {
@@ -735,6 +755,51 @@ body {
   font-weight: 700;
   fill: #b48a92;
   text-anchor: middle;
+}
+
+/* ----- 曲別コレクション（#122） ----- */
+.song-collection__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.song-collection__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border-radius: 14px;
+  padding: 10px 14px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+
+.song-collection__swatch {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1rem;
+  flex: 0 0 auto;
+}
+
+.song-collection__name {
+  flex: 1;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.song-collection__count {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.95rem;
+  white-space: nowrap;
 }
 
 .history-list {

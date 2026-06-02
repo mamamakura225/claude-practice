@@ -40,6 +40,14 @@ test.describe('練習記録', () => {
 
     // 獲得コインのポップアップが出る
     await expect(page.locator('#coinPopupAmount')).toHaveText('+5');
+
+    // きろく画面の「きょくべつ コレクション」に曲と累計回数が出る（#122）
+    await page.click('.nav-btn[data-nav="history"]');
+    await expect(page.locator('#view-history')).toBeVisible();
+    const item = page.locator('#songCollection .song-collection__item');
+    await expect(item).toHaveCount(1);
+    await expect(item.locator('.song-collection__name')).toHaveText('きらきらぼし');
+    await expect(item.locator('.song-collection__count')).toHaveText('5かい');
   });
 
   test('まとめモードで曲×回数を入力して記録できる', async ({ page }) => {

@@ -5,6 +5,7 @@ import {
   stampsToSongs,
   songsToStamps,
   pastSongNames,
+  songTotals,
 } from '../js/record-form.js';
 
 describe('collectSongs', () => {
@@ -163,5 +164,36 @@ describe('pastSongNames', () => {
     const all = pastSongNames([{ songs }], Infinity);
     expect(all).toHaveLength(12);
     expect(all[0]).toBe('曲0'); // count 最大が先頭
+  });
+});
+
+describe('songTotals', () => {
+  it('曲ごとの累計回数を多い順に返す', () => {
+    const sessions = [
+      { songs: [{ name: 'A', count: 2 }, { name: 'B', count: 5 }] },
+      { songs: [{ name: 'A', count: 4 }] },
+    ];
+    expect(songTotals(sessions)).toEqual([
+      { name: 'A', count: 6 },
+      { name: 'B', count: 5 },
+    ]);
+  });
+
+  it('同数なら新しく弾いた曲を優先する', () => {
+    const sessions = [
+      { songs: [{ name: 'A', count: 3 }] },
+      { songs: [{ name: 'B', count: 3 }] },
+    ];
+    expect(songTotals(sessions).map((t) => t.name)).toEqual(['B', 'A']);
+  });
+
+  it('空名・回数なしは無視する', () => {
+    const sessions = [{ songs: [{ name: ' ', count: 5 }, { name: 'A', count: 0 }, { name: 'B', count: 2 }] }];
+    expect(songTotals(sessions)).toEqual([{ name: 'B', count: 2 }]);
+  });
+
+  it('セッションなしは空配列', () => {
+    expect(songTotals([])).toEqual([]);
+    expect(songTotals(undefined)).toEqual([]);
   });
 });

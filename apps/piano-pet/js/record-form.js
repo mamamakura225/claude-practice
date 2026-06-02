@@ -51,6 +51,27 @@ export function songsToStamps(songs) {
   return stamps;
 }
 
+// 全セッションを曲ごとに集計し「累計回数の多い順→新しさ」で返す（#122 曲別コレクション）。
+// 返り値: [{ name, count }]。回数は合計、空名は無視。pastSongNames と同じ並び基準。
+export function songTotals(sessions) {
+  const counts = new Map();
+  const lastSeen = new Map();
+  let order = 0;
+  for (const session of sessions ?? []) {
+    order += 1;
+    for (const song of session?.songs ?? []) {
+      const name = String(song?.name ?? '').trim();
+      const count = Math.floor(Number(song?.count)) || 0;
+      if (!name || count <= 0) continue;
+      counts.set(name, (counts.get(name) ?? 0) + count);
+      lastSeen.set(name, order);
+    }
+  }
+  return [...counts.keys()]
+    .map((name) => ({ name, count: counts.get(name) }))
+    .sort((a, b) => (b.count - a.count) || (lastSeen.get(b.name) - lastSeen.get(a.name)));
+}
+
 // 過去のセッションから曲名候補を「よく弾く順（合計回数）→新しさ」で返す。
 // 曲選択チップのサジェストに使う。limit 件まで。
 export function pastSongNames(sessions, limit = 8) {

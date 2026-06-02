@@ -2,7 +2,8 @@ import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
 import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate } from './cat.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames } from './record-form.js';
+import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
+import { songColor } from './song-color.js';
 import {
   weeklyTotals,
   weeklyChartModel,
@@ -183,9 +184,34 @@ function historyCardMarkup(session, index) {
   </div>`;
 }
 
+// 曲別コレクション：曲ごとの色スウォッチ＋累計回数を多い順に並べる（#122）
+function songCollectionMarkup(totals) {
+  return totals
+    .map((t) => {
+      const c = songColor(t.name);
+      return `<li class="song-collection__item">
+        <span class="song-collection__swatch" style="background:${c.fill}" aria-hidden="true">🐾</span>
+        <span class="song-collection__name">${escapeHtml(t.name)}</span>
+        <span class="song-collection__count" style="color:${c.ink}">${t.count}かい</span>
+      </li>`;
+    })
+    .join('');
+}
+
+function renderSongCollection() {
+  const el = document.getElementById('songCollection');
+  if (!el) return;
+  const totals = songTotals(state.sessions);
+  el.innerHTML = totals.length
+    ? `<ul class="song-collection__list">${songCollectionMarkup(totals)}</ul>`
+    : '<p class="history-empty">まだ きょくが ないよ。</p>';
+}
+
 export function renderHistory() {
   setText('historyStreakCurrent', state.streak.current);
   setText('historyStreakBest', state.streak.best);
+
+  renderSongCollection();
 
   const chartEl = document.getElementById('weeklyChart');
   if (chartEl) {
@@ -349,7 +375,12 @@ function renderChips() {
   songChipsEl.innerHTML = chipNames
     .map((name) => {
       const selected = name === selectedSong;
-      return `<button type="button" class="song-chip${selected ? ' is-selected' : ''}" role="option" aria-selected="${selected}" data-song="${escapeHtml(name)}">${escapeHtml(name)}</button>`;
+      const c = songColor(name);
+      // 選択中は曲の色で塗り、未選択は色スウォッチ（左の丸）で曲色を示す（#122）
+      const style = selected
+        ? `style="background:${c.fill};border-color:${c.fill}"`
+        : `style="--song-fill:${c.fill}"`;
+      return `<button type="button" class="song-chip${selected ? ' is-selected' : ''}" role="option" aria-selected="${selected}" data-song="${escapeHtml(name)}" ${style}>${escapeHtml(name)}</button>`;
     })
     .join('');
 }
@@ -368,6 +399,12 @@ function addNewSong() {
   selectSong(name);
 }
 
+// 押されたマスを曲の色で塗るインラインスタイル（淡い背景＋濃い枠線）。
+function stampCellStyle(name) {
+  const c = songColor(name);
+  return `background:${c.tint};border-color:${c.fill}`;
+}
+
 // スタンプカードを描画。最低10マス、超過時は常に1マス余分に出して押し続けられるようにする。
 function renderStampCard() {
   if (!stampCardEl) return;
@@ -377,7 +414,9 @@ function renderStampCard() {
   for (let i = 0; i < cells; i += 1) {
     const isFilled = i < filled;
     const isGoal = i === DAILY_GOAL - 1;
-    html += `<span class="stamp-cell${isFilled ? ' is-filled' : ''}${isGoal ? ' is-goal' : ''}" aria-hidden="true">${isFilled ? '🐾' : ''}</span>`;
+    // 押したマスは、その押下時に選ばれていた曲の色で塗る（曲ごとに色が変わる・#122）
+    const style = isFilled ? ` style="${stampCellStyle(stamps[i])}"` : '';
+    html += `<span class="stamp-cell${isFilled ? ' is-filled' : ''}${isGoal ? ' is-goal' : ''}"${style} aria-hidden="true">${isFilled ? '🐾' : ''}</span>`;
   }
   stampCardEl.innerHTML = html;
   stampCardEl.classList.toggle('is-complete', filled >= DAILY_GOAL);
