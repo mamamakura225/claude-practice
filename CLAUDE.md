@@ -42,4 +42,5 @@ config は `firebase-config.js`（`apps/dtask/` と `apps/piano-pet/js/`）に�
 
 ## ブランチ運用 / バックログ
 - feature branch を切って PR。`sw.js`/`index.html` を触る場合は gen-sw 再生成を忘れない。
+- **PR本文に `Closes #NNN` を書いて Issue をマージ連動クローズする**（複数Issueは各行に `Closes #NNN`）。コミット件名の `(#NNN)` は参照のみで自動クローズされない（`Closes`/`Fixes`/`Resolves` キーワードが必要）。squash マージでも本文のキーワードで連動する。
 - バックログは [GitHub Issues](https://github.com/mamamakura225/claude-practice/issues) に一本化。ラベル `app/*`・`type/*`（infra/ux/tech-debt 等）・優先度 `P1`〜`P3`。
