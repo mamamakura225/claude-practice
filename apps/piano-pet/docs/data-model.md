@@ -20,6 +20,23 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 クラウド (Firestore `pianopet/data`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions`）のみ。
 `settings` と `version` は端末ローカルに留まる。
 
+### Session
+1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `date` | `YYYY-MM-DD` | 練習したローカル暦日。同一日付は記録時に1件へ統合（`mergeSameDaySessions`） |
+| `songs` | `Song[]` | 曲ごとの回数リスト（空名・0回以下は除外済み） |
+| `totalCount` | number | その日の合計回数（`songs` の `count` 合計） |
+| `coinsEarned` | number | その記録で得たコイン（再計算で都度上書き。表示・参照用） |
+| `xpEarned` | number | その記録で得たXP（同上） |
+
+### Song
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `name` | string | 曲名（前後空白はトリム済み） |
+| `count` | number | その曲の回数（正の整数） |
+
 ### 派生データ（保存しない）
 
 - **曲の色**（#122）：曲名から決定的ハッシュで色相を算出する（[song-color.js](../js/song-color.js) `songColor`）。保存しないので `sessions` さえ同じならどの端末でも同じ色。スキーマ非依存。
@@ -32,7 +49,7 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 | `name` | string | `'きーちゃん'` | 猫の名前 |
 | `level` | number | `1` | XPから算出される現在レベル |
 | `xp` | number | `0` | 累計経験値 |
-| `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費） |
+| `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費）。記録の編集・削除時の全再計算（`recomputeState`）では `Math.max(0, 獲得総額 − spent)` で再導出する。`spent` ＝ 装備購入総額（`spentCoins`＝インベントリ価格合計）＋ `foodSpent` の合算で、[app.js](../js/app.js) が算出して渡す（→ 購入・えさ消費分が再計算で復活しない） |
 | `equippedItems` | string[] | `[]` | 装備中アイテムID（スロットごとに1つ） |
 | `affinity` | number | `0` | なかよし度（えさやりで上昇） |
 | `foodSpent` | number | `0` | えさに使ったコイン総額（全再計算で消費分を復活させないため） |
@@ -44,6 +61,9 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 | `best` | number | `0` |
 | `lastPracticeDate` | `YYYY-MM-DD` \| null | `null` |
 | `freezes` | number | `0` |
+
+> **注**: ストリークが途切れて救済もできなかった場合、`current` は 1 にリセットされるが **`freezes`（お休み券）は没収されず維持される**（[game.js](../js/game.js) `updateStreak`）。獲得済みの券は連続が切れても持ち越せる。
+> **注**: `updateStreak` の戻り値には「そのとき何日ぶん救済したか」を示す一時プロパティ `frozeDays` が含まれるが、これは記録直後のポップアップ表示用で**永続化されない**（`DEFAULTS.streak` にもクラウドにも持たない）。`streak` スキーマのフィールドと誤認しないこと。
 
 ### Settings
 | フィールド | 型 | デフォルト |

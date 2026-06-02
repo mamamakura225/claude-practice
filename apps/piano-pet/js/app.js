@@ -19,7 +19,7 @@ import {
   spentCoins,
 } from './shop.js';
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
-import { isSoundOn, toggleSound, playSound, playCatVoice, unlockAudio } from './sound.js';
+import { isSoundOn, toggleSound, playSound, rollCatVoice, playCatVoice, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { initErrorMonitoring } from './sentry.js';
 import { initAnalytics, track } from './analytics.js';
@@ -859,8 +859,9 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
 // たまに威嚇（hiss）したときは、喜び演出（ハート・しっぽふり）は出さない。
 function petCat() {
   unlockAudio();                                       // ユーザー操作で AudioContext を解錠
-  const voice = playCatVoice(state);                   // 鳴き声（たまに威嚇）。種類が返る
-  if (voice === 'hiss') return;                        // 威嚇のときは演出なし
+  const voice = rollCatVoice();                        // なで反応を抽選（音設定に依存しない）
+  playCatVoice(state, voice);                          // 抽選結果の鳴き声を再生（OFF時は無音）
+  if (voice === 'hiss') return;                        // 威嚇のときは演出なし（ミュートでも一貫）
   const svg = document.querySelector('#catStage svg');
   // なかよしレベルが高いと、たまに「とくべつな えんしゅつ」が出る（#124 専用演出）
   if (Math.random() < bondCelebrateChance(affinityLevel(affinity(state)).level)) {

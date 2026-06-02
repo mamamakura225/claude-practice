@@ -4,7 +4,7 @@
 > このファイルは**初期ロードマップの記録として凍結**します。
 > **今後の実行バックログは GitHub Issues で一本化管理**（`app/piano-pet` ラベル）。
 > - 一覧: `gh issue list --label app/piano-pet`
-> - 「将来の拡張」は Issue #66〜#70 に移行済み
+> - 「将来の拡張」は GitHub Issues（`app/piano-pet` ラベル）へ移行済み
 
 優先度：🔴 高 / 🟡 中 / 🟢 低
 

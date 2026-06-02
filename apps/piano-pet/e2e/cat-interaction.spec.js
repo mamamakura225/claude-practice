@@ -39,6 +39,24 @@ test.describe('猫とのインタラクション', () => {
     await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
   });
 
+  test('サウンドOFFでも威嚇(hiss)なら喜び演出を出さない（音設定と演出の非結合）', async ({ page }) => {
+    // Math.random を 0 に固定して必ず hiss にする。
+    await page.addInitScript(() => { Math.random = () => 0; });
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    // サウンドをOFFにする（デフォルトON）。OFFでも威嚇判定は走るべき。
+    await page.click('#soundToggle');
+
+    const catSvg = page.locator('#catStage svg');
+    await expect(catSvg).toBeVisible();
+
+    await page.click('#catStage');
+    // ミュートでも hiss は抽選され、喜び演出は抑制される（抽選を再生から分離した修正）
+    await page.waitForTimeout(300);
+    await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
+  });
+
   test('なでなでボタンは記録ボタンとは別の安全操作（コインは増えない）', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
