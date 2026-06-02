@@ -46,6 +46,7 @@
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `type` | `'daily'` \| `'weekly'` \| `'monthly'` | 繰り返し種別 |
+| `interval` | number | 繰り返し間隔。保存時に `1` 固定で書き込まれるが、**現状ロジックでは未参照**（`nextRecurrenceDeadline` は `type` のみ使用）。将来「2週間ごと」等に拡張する余地として保持 |
 
 次回期限の計算は [utils/date.js](../utils/date.js) の `nextRecurrenceDeadline(deadline, recurrence)`。
 
@@ -73,6 +74,20 @@ dtask (collection)
 | `dtask_categories` | JSON Category[] | **フォールバック専用**：同上 |
 
 > **設計判断**: UI状態（テーマ、文字サイズ、展開状態）は端末固有として localStorage に分離し、クラウド同期しない。タスクデータ本体は Firestore を正とし、localStorage はあくまで非常時の退避用。
+
+## Filters（実行時状態・非永続）
+
+`state.filters` の構造。**メモリのみ**でクラウド・localStorage いずれにも永続化せず、リロードで既定値にリセットされる（→ [architecture.md](./architecture.md) の状態管理）。`filterTasks` / `sortTasks` の入力となる。
+
+| プロパティ | 型 | 既定 | 説明 |
+|---|---|---|---|
+| `categoryId` | string | `''` | プロジェクト（categoryId）絞り込み。空＝すべて |
+| `priority` | `'high'` \| `'medium'` \| `'low'` \| `''` | `''` | 優先度絞り込み。空＝すべて |
+| `status` | `'todo'` \| `'inprogress'` \| `'done'` \| `''` | `''` | ステータス絞り込み。空＝すべて |
+| `sort` | `'manual'` \| `'created'` \| `'deadline'` \| `'priority'` | `'manual'` | ソート種別 |
+| `search` | string | `''` | 検索クエリ（フルテキスト／`#tag`） |
+| `hideCompleted` | boolean | `false` | 完了タスクを非表示 |
+| `preset` | `''` \| `'today'` \| `'week'` \| `'overdue'` | `''` | 期限プリセット |
 
 ## スキーマ変更時の注意
 
