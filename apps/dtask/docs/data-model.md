@@ -62,7 +62,7 @@ dtask (collection)
 
 ## localStorage キー
 
-[app.js:57-59](../app.js)、および Firestore 障害時フォールバック（[app.js:108-110](../app.js)）で使用。
+`app.js` のキー定義（`THEME_KEY` / `FONTSIZE_KEY` / `EXPANDED_KEY`）、および Firestore 障害時フォールバック（`loadStorage` 内の localStorage 読み込み）で使用。
 
 | キー | 型 | 用途 |
 |---|---|---|

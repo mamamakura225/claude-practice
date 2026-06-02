@@ -61,31 +61,35 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 
 ## 状態管理
 
-[app.js:26-45](../app.js) で2つのオブジェクトに分離している。
+`app.js` 冒頭の `state` / `uiState` 2つのオブジェクトにアプリ状態を集約している。ただし**永続化先はフィールドごとに異なる**点に注意（`state` ＝ クラウド永続化、ではない）。
 
-### `state`（クラウド永続化対象）
-- `tasks`: Task配列
-- `categories`: Category配列
-- `currentView`: `'list'` | `'kanban'`
-- `filters`: フィルタ・ソート・検索条件
-- `theme`: `'light'` | `'dark'`
+### `state`（実行時の中心状態）
+| フィールド | 型 | 永続化先 |
+|---|---|---|
+| `tasks` | Task配列 | **Firestore**（`saveCloud` が書込） |
+| `categories` | Category配列 | **Firestore**（同上） |
+| `theme` | `'light'` \| `'dark'` | **localStorage**（`dtask_theme`）。クラウド非同期 |
+| `currentView` | `'list'` \| `'kanban'` | **永続化なし**（メモリのみ。リロードで `'list'` に戻る） |
+| `filters` | フィルタ・ソート・検索条件 | **永続化なし**（メモリのみ。リロードで既定にリセット） |
+
+> **重要**: クラウド（Firestore）へ書き込むのは `saveCloud()` の `setDoc(DATA_DOC, { tasks, categories })` のみ。`theme` は localStorage、`currentView` / `filters` はメモリ上の一時状態で、いずれもクラウド同期されない。
 
 ### `uiState`（端末ローカル、クラウド非同期）
-- `expanded`: `Set<taskId>` — インライン展開中のタスクIDセット
+- `expanded`: `Set<taskId>` — インライン展開中のタスクIDセット（localStorage `dtask_expanded` に永続化）
 
-> **設計判断**: 展開状態をクラウド同期しないのは、デバイス間で展開状態を共有することがUX上不要なため（端末ごとに独立した「いま見ている」状態として扱う）。
+> **設計判断**: 展開状態をクラウド同期しないのは、デバイス間で展開状態を共有することがUX上不要なため（端末ごとに独立した「いま見ている」状態として扱う）。テーマ・文字サイズも同様に端末固有として localStorage に分離している（→ [data-model.md](./data-model.md)）。
 
 詳細スキーマは [data-model.md](./data-model.md) を参照。
 
 ## 同期方式
 
-[app.js:81-110](../app.js) 周辺。
+同期ロジックは `app.js` の `saveCloud` / `loadStorage` / `setSyncState` 周辺。
 
 - **読み込み**: 起動時に `getDoc(DATA_DOC)` で初期ロード。**5秒タイムアウト**でlocalStorageへフォールバック（オフライン・障害時にもUI起動可）。
 - **リアルタイム同期**: `onSnapshot` で他デバイスからの変更を即時反映。
 - **書き込み**: 変更が起きるたびに `saveCloud()` → `setDoc(DATA_DOC, {tasks, categories})` で全体置換。
-- **同期状況UI**: 画面上部の `#syncIndicator` に `idle` / `syncing` / `saved` / `error` / `offline` を表示（[app.js:61-79](../app.js)）。
-- **オフライン検知**: `window.online` / `offline` イベントで状態切替、復帰時に自動リトライ。
+- **同期状況UI**: 画面上部の `#syncIndicator` に `idle` / `syncing` / `saved` / `error` / `offline` を表示（`setSyncState`）。
+- **オフライン検知**: `window` の `online` / `offline` イベント（`addEventListener`）で状態切替、復帰時に自動リトライ。
 
 ## レンダリング戦略
 
