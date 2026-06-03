@@ -57,13 +57,13 @@ test.describe('猫とのインタラクション', () => {
     await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
   });
 
-  test('なでなでボタンは記録ボタンとは別の安全操作（コインは増えない）', async ({ page }) => {
+  test('猫をなでる操作は記録ボタンとは別の安全操作（コインは増えない）', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#statCoins')).toHaveText('0');
 
     // なでてもホームのまま、コインやストリークは変化しない（記録ではない）
-    await page.click('#petBtn');
+    await page.click('#catStage');
     await expect(page.locator('#view-home')).toBeVisible();
     await expect(page.locator('#statCoins')).toHaveText('0');
     await expect(page.locator('#statStreak')).toHaveText('0');

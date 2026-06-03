@@ -347,25 +347,6 @@ body {
   box-shadow: 0 2px 0 #e85f7c;
 }
 
-/* 子が押せるあそびボタン（記録とは別の、なでる用） */
-.btn-pet {
-  border: none;
-  background: var(--pink);
-  color: #fff;
-  font-family: 'Mochiy Pop One', sans-serif;
-  font-size: 1.05rem;
-  padding: 10px 26px;
-  border-radius: 999px;
-  box-shadow: 0 4px 0 #f08aa0;
-  cursor: pointer;
-  transition: transform 0.08s ease, box-shadow 0.08s ease;
-}
-
-.btn-pet:active {
-  transform: translateY(3px);
-  box-shadow: 0 1px 0 #f08aa0;
-}
-
 /* ===== 記録フォーム ===== */
 .view-body--form {
   justify-content: flex-start;
