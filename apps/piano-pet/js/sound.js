@@ -33,9 +33,32 @@ export const SOUND_SPECS = {
   record: [N(784, 0, 0.14, 0.18, 'sine'), N(1047, 0.12, 0.26, 0.18, 'sine')],
   // アイテム購入：軽い2音（カチン）
   purchase: [N(660, 0, 0.07, 0.18, 'square'), N(880, 0.07, 0.16, 0.18, 'square')],
-  // ハンコを押す：やわらかい「ポン」
-  stamp: [N(440, 0, 0.05, 0.16, 'triangle'), N(294, 0.03, 0.12, 0.18, 'sine')],
 };
+// ハンコ音は固定SEではなく playStamp(index) でドレミ…と音程を変えて鳴らす(#139)。
+
+// ----- スタンプ音階（ドレミフィードバック・#139） -----
+// スタンプを押すたびに音程が上がり、目標マス（最後の1マス）で高いド＝オクターブに
+// 解決する。基準は ド=C4。追加アセット0で、周波数を平均律で計算して鳴らすだけ。
+export const STAMP_BASE_FREQ = 261.63; // ド（C4）
+
+// Cメジャー音階 ド レ ミ ファ ソ ラ シ の半音オフセット。
+const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
+
+// index(0始まり) のスタンプが鳴らす半音オフセットを返す（pure）。
+// ドレミ…と上がり、目標達成のマス（index === goal-1）は高いド(+12)で締める。
+// 設計判断: issue #139 の実装例は半音上昇(2^(i/12))だが、それでは「ドレミの音程感覚を
+// 養う」狙いが満たせないため、ダイアトニック（メジャー音階）を採用。目標マスは headline
+// 通り高いドへ解決させる（レ→ド の終止感を優先し、厳密な単調増加は要件としない）。
+export function stampSemitone(index, goal = 10) {
+  const i = Math.max(0, Math.floor(index) || 0);
+  if (goal > 0 && i >= goal - 1) return 12; // 目標マスは高いド（オクターブ）
+  return MAJOR_SCALE[i % MAJOR_SCALE.length] + 12 * Math.floor(i / MAJOR_SCALE.length);
+}
+
+// index のスタンプの周波数(Hz)。ド=C4 基準の平均律（pure）。
+export function stampFrequency(index, goal = 10) {
+  return STAMP_BASE_FREQ * 2 ** (stampSemitone(index, goal) / 12);
+}
 
 // なでた時の鳴き声は録音サンプル（本物の猫の声）。シンセSEとは別系統で扱う。
 // 基本は MEOW_SOUNDS からランダム、たまに HISS_SOUNDS（威嚇）に切り替わる。
@@ -71,21 +94,15 @@ export function unlockAudio() {
   getCtx();
 }
 
-// name の効果音を鳴らす。サウンドOFF・未対応環境では何もしない。
-export function playSound(name, state) {
-  if (!isSoundOn(state)) return;
-  const spec = SOUND_SPECS[name];
-  if (!spec) return;
-  const audio = getCtx();
-  if (!audio) return;
-
+// note 配列（SOUND_SPECS の1エントリ形式）をオシレータで鳴らす。
+// 短いアタック＋指数フェードでプチノイズを抑える。再生エンジン共通の中核。
+function playNotes(audio, notes) {
   const now = audio.currentTime;
-  for (const note of spec) {
+  for (const note of notes) {
     const osc = audio.createOscillator();
     const gain = audio.createGain();
     osc.type = note.type;
     osc.frequency.value = note.f;
-    // 短いアタック＋指数フェードでプチノイズを抑える
     const start = now + note.t;
     const end = start + note.d;
     gain.gain.setValueAtTime(0.0001, start);
@@ -95,6 +112,30 @@ export function playSound(name, state) {
     osc.start(start);
     osc.stop(end + 0.02);
   }
+}
+
+// name の効果音を鳴らす。サウンドOFF・未対応環境では何もしない。
+export function playSound(name, state) {
+  if (!isSoundOn(state)) return;
+  const spec = SOUND_SPECS[name];
+  if (!spec) return;
+  const audio = getCtx();
+  if (!audio) return;
+  playNotes(audio, spec);
+}
+
+// スタンプ押下音。index に応じてドレミ…と音程が上がり、目標マスで高いドに解決する(#139)。
+// やわらかい「ポン」の質感を残すため、音階の主音＋1オクターブ下の軽いボディを重ねる。
+// サウンドOFF・未対応環境では無音（既存トグルに従う）。
+export function playStamp(index, state, goal = 10) {
+  if (!isSoundOn(state)) return;
+  const audio = getCtx();
+  if (!audio) return;
+  const f = stampFrequency(index, goal);
+  playNotes(audio, [
+    N(f, 0, 0.18, 0.18, 'triangle'),
+    N(f / 2, 0.02, 0.12, 0.14, 'sine'),
+  ]);
 }
 
 // デコード済み AudioBuffer のキャッシュ（URL -> Promise<AudioBuffer>）。

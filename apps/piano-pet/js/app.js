@@ -19,7 +19,7 @@ import {
   spentCoins,
 } from './shop.js';
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
-import { isSoundOn, toggleSound, playSound, rollCatVoice, playCatVoice, unlockAudio } from './sound.js';
+import { isSoundOn, toggleSound, playSound, playStamp, rollCatVoice, playCatVoice, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { initErrorMonitoring } from './sentry.js';
 import { initAnalytics, track } from './analytics.js';
@@ -465,7 +465,8 @@ function addStamp() {
   const reachedGoal = stamps.length + 1 === DAILY_GOAL;
   stamps.push(selectedSong);
   renderStampCard();
-  playSound('stamp', state);
+  // 押したマスのindexでドレミ…と音程が上がり、目標マスは高いドに解決する(#139)
+  playStamp(stamps.length - 1, state, DAILY_GOAL);
   if (reachedGoal) playSound('levelup', state);
 }
 

@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { isSoundOn, toggleSound, SOUND_SPECS, MEOW_SOUNDS, HISS_SOUNDS, rollCatVoice } from '../js/sound.js';
+import {
+  isSoundOn,
+  toggleSound,
+  SOUND_SPECS,
+  MEOW_SOUNDS,
+  HISS_SOUNDS,
+  rollCatVoice,
+  STAMP_BASE_FREQ,
+  stampSemitone,
+  stampFrequency,
+} from '../js/sound.js';
 
 describe('isSoundOn', () => {
   it('未設定はデフォルトON扱い', () => {
@@ -41,7 +51,7 @@ describe('toggleSound', () => {
 
 describe('SOUND_SPECS', () => {
   it('必要な効果音が定義されている', () => {
-    for (const name of ['coin', 'levelup', 'record', 'purchase', 'stamp']) {
+    for (const name of ['coin', 'levelup', 'record', 'purchase']) {
       expect(Array.isArray(SOUND_SPECS[name])).toBe(true);
       expect(SOUND_SPECS[name].length).toBeGreaterThan(0);
     }
@@ -55,6 +65,41 @@ describe('SOUND_SPECS', () => {
         expect(n.t).toBeGreaterThanOrEqual(0);
       }
     }
+  });
+});
+
+describe('stampSemitone / stampFrequency (#139)', () => {
+  it('1マス目はド（半音0）＝基準周波数', () => {
+    expect(stampSemitone(0, 10)).toBe(0);
+    expect(stampFrequency(0, 10)).toBeCloseTo(STAMP_BASE_FREQ, 5);
+  });
+
+  it('ドレミファソラシ＝メジャー音階で上がる', () => {
+    const expected = [0, 2, 4, 5, 7, 9, 11]; // ド レ ミ ファ ソ ラ シ
+    expected.forEach((semi, i) => {
+      expect(stampSemitone(i, 10)).toBe(semi);
+    });
+  });
+
+  it('目標マス（最後の1マス）は高いド＝オクターブ(+12)に解決する', () => {
+    expect(stampSemitone(9, 10)).toBe(12);
+    expect(stampFrequency(9, 10)).toBeCloseTo(STAMP_BASE_FREQ * 2, 5);
+  });
+
+  it('オクターブ上がると周波数は2倍（平均律）', () => {
+    // ド↑（index7 = MAJOR[0] + 12）はちょうど基準の2倍
+    expect(stampSemitone(7, 10)).toBe(12);
+    expect(stampFrequency(7, 10)).toBeCloseTo(STAMP_BASE_FREQ * 2, 5);
+  });
+
+  it('goal が変わっても最後のマスがオクターブで締まる', () => {
+    expect(stampSemitone(4, 5)).toBe(12);
+    expect(stampSemitone(0, 5)).toBe(0);
+  });
+
+  it('不正な index は0扱い（ガード）', () => {
+    expect(stampSemitone(-1, 10)).toBe(0);
+    expect(stampSemitone(NaN, 10)).toBe(0);
   });
 });
 
