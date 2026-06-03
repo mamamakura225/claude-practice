@@ -871,7 +871,6 @@ function petCat() {
   }
 }
 document.getElementById('catStage')?.addEventListener('click', petCat);
-document.getElementById('petBtn')?.addEventListener('click', petCat);
 
 // ===== サウンドON/OFFトグル =====
 document.getElementById('soundToggle')?.addEventListener('click', () => {
