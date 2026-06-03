@@ -124,18 +124,39 @@ export function playSound(name, state) {
   playNotes(audio, spec);
 }
 
-// スタンプ押下音。index に応じてドレミ…と音程が上がり、目標マスで高いドに解決する(#139)。
-// やわらかい「ポン」の質感を残すため、音階の主音＋1オクターブ下の軽いボディを重ねる。
+// 目標マスかどうか（最後の1マス）。stampSemitone と同じ index 正規化・しきい値を使う。
+function isGoalStamp(index, goal) {
+  return goal > 0 && (Math.max(0, Math.floor(index) || 0) >= goal - 1);
+}
+
+// index のスタンプで鳴らす note 配列を組み立てる（pure・テスト可能）。
+// 通常マスは主音＋1オクターブ下のボディの2音でやわらかい「ポン」。
+// 目標マス（最後の1マス）は単音ではなく Cメジャー主和音（ド・ミ・ソ）＋ボディで
+// 「シャラーン」と解決させ、達成を豪華なごほうびにする(#154)。和音は音数が増えるぶん
+// 各 gain を下げて濁りを防ぎ、余韻が次のレベルアップ音に被るよう少し長めに鳴らす。
+export function stampNotes(index, goal = 10) {
+  const f = stampFrequency(index, goal); // 主音（目標マスは高いド）
+  if (isGoalStamp(index, goal)) {
+    return [
+      N(f, 0, 0.3, 0.16, 'triangle'),               // ド（主音）
+      N((f * 5) / 4, 0.01, 0.3, 0.13, 'triangle'),  // ミ（長三度）
+      N((f * 3) / 2, 0.02, 0.3, 0.13, 'triangle'),  // ソ（完全五度）
+      N(f / 2, 0.02, 0.16, 0.12, 'sine'),           // ボディ（1オクターブ下）
+    ];
+  }
+  return [
+    N(f, 0, 0.18, 0.18, 'triangle'),
+    N(f / 2, 0.02, 0.12, 0.14, 'sine'),
+  ];
+}
+
+// スタンプ押下音。index に応じてドレミ…と音程が上がり、目標マスは主和音で解決する(#139, #154)。
 // サウンドOFF・未対応環境では無音（既存トグルに従う）。
 export function playStamp(index, state, goal = 10) {
   if (!isSoundOn(state)) return;
   const audio = getCtx();
   if (!audio) return;
-  const f = stampFrequency(index, goal);
-  playNotes(audio, [
-    N(f, 0, 0.18, 0.18, 'triangle'),
-    N(f / 2, 0.02, 0.12, 0.14, 'sine'),
-  ]);
+  playNotes(audio, stampNotes(index, goal));
 }
 
 // デコード済み AudioBuffer のキャッシュ（URL -> Promise<AudioBuffer>）。
