@@ -9,6 +9,7 @@ import {
   STAMP_BASE_FREQ,
   stampSemitone,
   stampFrequency,
+  stampNotes,
 } from '../js/sound.js';
 
 describe('isSoundOn', () => {
@@ -100,6 +101,46 @@ describe('stampSemitone / stampFrequency (#139)', () => {
   it('不正な index は0扱い（ガード）', () => {
     expect(stampSemitone(-1, 10)).toBe(0);
     expect(stampSemitone(NaN, 10)).toBe(0);
+  });
+});
+
+describe('stampNotes (#154 目標マスは主和音)', () => {
+  it('通常マスは主音＋1oct下ボディの2音', () => {
+    const notes = stampNotes(0, 10);
+    expect(notes).toHaveLength(2);
+    expect(notes[0].f).toBeCloseTo(STAMP_BASE_FREQ, 5);       // ド
+    expect(notes[1].f).toBeCloseTo(STAMP_BASE_FREQ / 2, 5);   // ボディ
+  });
+
+  it('目標マスは Cメジャー主和音（ド・ミ・ソ）＋ボディの4音', () => {
+    const notes = stampNotes(9, 10);
+    expect(notes).toHaveLength(4);
+    const root = STAMP_BASE_FREQ * 2; // 高いド
+    expect(notes[0].f).toBeCloseTo(root, 5);             // ド
+    expect(notes[1].f).toBeCloseTo((root * 5) / 4, 5);   // ミ（長三度）
+    expect(notes[2].f).toBeCloseTo((root * 3) / 2, 5);   // ソ（完全五度）
+    expect(notes[3].f).toBeCloseTo(root / 2, 5);         // ボディ
+  });
+
+  it('和音は単音より音数が多く、各 gain は単音時以下（濁り防止）', () => {
+    const single = stampNotes(0, 10);
+    const chord = stampNotes(9, 10);
+    expect(chord.length).toBeGreaterThan(single.length);
+    const maxSingle = Math.max(...single.map((n) => n.g));
+    expect(Math.max(...chord.map((n) => n.g))).toBeLessThanOrEqual(maxSingle);
+  });
+
+  it('goal が変わっても最後のマスが和音になる', () => {
+    expect(stampNotes(4, 5)).toHaveLength(4); // 目標マス
+    expect(stampNotes(0, 5)).toHaveLength(2); // 通常マス
+  });
+
+  it('各 note は周波数とタイミングを持つ（再生エンジン契約）', () => {
+    for (const n of [...stampNotes(0, 10), ...stampNotes(9, 10)]) {
+      expect(n.f).toBeGreaterThan(0);
+      expect(n.d).toBeGreaterThan(0);
+      expect(n.t).toBeGreaterThanOrEqual(0);
+    }
   });
 });
 
