@@ -38,7 +38,7 @@ config は `firebase-config.js`（`apps/dtask/` と `apps/piano-pet/js/`）に�
 - `analytics.js`: PostHog。autocapture/pageview/session-recording を無効化し DNT 尊重。送るのは操作種別と頻度のみ（`view_changed`・`task_added`・`practice_recorded` 等）で、タスク名や曲名などの**内容は送らない**。`track(event, props)` の props に内容を入れないこと。
 
 ## CI / デプロイ
-[.github/workflows/test.yml](./.github/workflows/test.yml): 全branch pushで unit + e2e、`gen-sw:check` を実行。`main` への push 通過後に Vercel 本番デプロイ、PR(main宛)はプレビューデプロイ（dependabot のPRはSecretsが渡らず失敗するため除外）。Node は CI上 20。
+[.github/workflows/test.yml](./.github/workflows/test.yml): 全branch pushで unit + e2e、`gen-sw:check` / `gen-config:check` / `perf-budget:check`（piano-pet のアセット gzip サイズ予算・#147）を実行。`main` への push 通過後に Vercel 本番デプロイ、PR(main宛)はプレビューデプロイ（dependabot のPRはSecretsが渡らず失敗するため除外）。Node は CI上 20。予算超過時は `scripts/perf-budget.mjs` の `BUDGETS_KIB` を見直す。
 
 ## ブランチ運用 / バックログ
 - feature branch を切って PR。`sw.js`/`index.html` を触る場合は gen-sw 再生成を忘れない。
