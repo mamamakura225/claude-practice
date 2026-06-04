@@ -1,5 +1,5 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
-import { loadState, saveState, cloudFields, mergeCloud } from './storage.js';
+import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState } from './storage.js';
 import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate } from './cat.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
@@ -1096,11 +1096,33 @@ async function initCloudSync() {
   cloudSynced = true;
   const cloudData = await cloud.fetchCloud();
   if (cloudData) {
-    applyRemoteState(cloudData);            // クラウドを正本として反映
+    reconcileInitialCloud(cloudData);       // 初回はローカル優先マージ（起動直後の記録を消さない）
   } else if (hasLocalData(state)) {
     await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行
   }
   cloudUnsub = cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映（ハンドルは復元時の解除用に保持）
+}
+
+// 初回 fetchCloud の取り込み（#142）。realtime onSnapshot の cloud-wins（applyRemoteState）と違い、
+// 起動直後（idle 同期完了前）にローカルで記録した内容を cloud で上書きしないよう、
+// mergeCloudInitial でフィールドごとにローカル優先マージし、sessions から全導出値を再計算する。
+function reconcileInitialCloud(cloudData) {
+  const merged = mergeCloudInitial(state, cloudData);
+  const reconciled = recomputeState(merged, spentTotal(merged));
+  const reconciledCloud = JSON.stringify(cloudFields(reconciled));
+
+  if (reconciledCloud !== JSON.stringify(cloudFields(state))) {
+    state = reconciled;
+    saveState(state);                       // ローカルキャッシュも最新に
+    renderHome();
+    if (router.current === 'history') renderHistory();
+    else if (router.current === 'shop') renderShop();
+    else if (router.current === 'badges') renderBadges();
+  }
+  // ローカルだけが持っていた記録（起動直後に記録した分など）でクラウドが古ければ確定保存する。
+  if (reconciledCloud !== JSON.stringify(cloudFields(normalizeState(cloudData)))) {
+    cloud?.pushCloud(cloudFields(state));
+  }
 }
 
 // オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。
@@ -1109,7 +1131,14 @@ window.addEventListener('online', () => {
   else initCloudSync();
 });
 
-initCloudSync();
+// 初回のクラウド同期はブラウザのアイドル時間まで遅延し、初回描画・操作を妨げない（#142）。
+// renderHome は既に localStorage から同期描画済み。Firebase SDK の動的取得・初期化はここで初めて走る。
+// requestIdleCallback 非対応（一部 Safari 等）は短い setTimeout でフォールバック。
+if ('requestIdleCallback' in window) {
+  requestIdleCallback(() => initCloudSync(), { timeout: 2000 });
+} else {
+  setTimeout(() => initCloudSync(), 200);
+}
 
 // ===== Service Worker 登録 =====
 if ('serviceWorker' in navigator) {
