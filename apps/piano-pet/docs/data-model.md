@@ -20,6 +20,15 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 クラウド (Firestore `pianopet/data`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions`）のみ。
 `settings` と `version` は端末ローカルに留まる。
 
+### State 以外の localStorage キー（端末ローカル・クラウド非同期）
+
+State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独立キーで持つ。いずれもクラウドに載せない。
+
+| キー | 値 | 用途 |
+|---|---|---|
+| `piano-pet-onboarded` | `'1'` | 初回オンボーディング（紙芝居・#141）を見たか。端末ごとに案内するため state には含めない（[onboarding.js](../js/onboarding.js)） |
+| `piano-pet-backup-before-restore` | State JSON | 復元直前の現行 state を退避（`RESTORE_BACKUP_KEY`・#140） |
+
 ### Session
 1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。
 
