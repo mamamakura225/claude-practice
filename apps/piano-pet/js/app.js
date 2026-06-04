@@ -21,6 +21,7 @@ import {
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
 import { isSoundOn, toggleSound, playSound, playStamp, rollCatVoice, playCatVoice, unlockAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
+import { exportState, backupFilename, parseBackup, importErrorMessage, makeGateProblem, RESTORE_BACKUP_KEY } from './backup.js';
 import { initErrorMonitoring } from './sentry.js';
 import { initAnalytics, track } from './analytics.js';
 
@@ -43,6 +44,10 @@ export let state = loadState();
 // クラウド同期モジュール（./cloud.js）。動的 import が成功したら入る。
 // オフライン等で読み込めない場合は null のまま＝localStorage だけで動作する。
 let cloud = null;
+
+// onSnapshot 購読の解除ハンドル。データ復元時に一時解除して、古いスナップショットによる
+// 巻き戻し（インポート直後に他端末の旧データがエコーで降ってくる競合）を防ぐ（#140）。
+let cloudUnsub = null;
 
 // 装備購入＋えさやりに使ったコイン総額。全再計算（recomputeState）の spent 引数に使う。
 // 所持コイン = 獲得総額 - この値。どちらかが漏れると編集・削除で消費分が復活してしまう。
@@ -880,6 +885,123 @@ document.getElementById('soundToggle')?.addEventListener('click', () => {
   if (isSoundOn(state)) playSound('coin', state);  // ONにした合図に短く鳴らす
 });
 
+// ===== せってい：データのバックアップ/復元（#140） =====
+const settingsOverlayEl = document.getElementById('settingsOverlay');
+const settingsGateEl = document.getElementById('settingsGate');
+const settingsMenuEl = document.getElementById('settingsMenu');
+const gateAnswerEl = document.getElementById('gateAnswer');
+const gateErrorEl = document.getElementById('gateError');
+const importFileEl = document.getElementById('importFile');
+const importStatusEl = document.getElementById('importStatus');
+
+// ゲートの正解（openSettings のたびに作り直す）。
+let gateExpected = null;
+
+function openSettings() {
+  const p = makeGateProblem();
+  gateExpected = p.answer;
+  setText('gateA', p.a);
+  setText('gateB', p.b);
+  if (gateAnswerEl) gateAnswerEl.value = '';
+  if (gateErrorEl) gateErrorEl.hidden = true;
+  if (importStatusEl) importStatusEl.hidden = true;
+  if (settingsGateEl) settingsGateEl.hidden = false;   // 毎回ゲートから
+  if (settingsMenuEl) settingsMenuEl.hidden = true;
+  if (settingsOverlayEl) settingsOverlayEl.hidden = false;
+  gateAnswerEl?.focus();
+}
+
+function closeSettings() {
+  if (settingsOverlayEl) settingsOverlayEl.hidden = true;
+}
+
+// 親ゲートの解答チェック。正解でメニューを開き、誤りなら再入力させる。
+function submitGate() {
+  if (Number(gateAnswerEl?.value) === gateExpected) {
+    if (settingsGateEl) settingsGateEl.hidden = true;
+    if (settingsMenuEl) settingsMenuEl.hidden = false;
+  } else if (gateErrorEl) {
+    gateErrorEl.hidden = false;
+    if (gateAnswerEl) gateAnswerEl.value = '';
+    gateAnswerEl?.focus();
+  }
+}
+
+function showImportStatus(msg, isError) {
+  if (!importStatusEl) return;
+  importStatusEl.textContent = msg;
+  importStatusEl.hidden = false;
+  importStatusEl.classList.toggle('settings-menu__note--error', !!isError);
+}
+
+// 現行 state を JSON 化して a[download] でローカル保存（無害なので確認不要）。
+function downloadBackup() {
+  const json = exportState(state);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = backupFilename();
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  showImportStatus('ファイルを ほぞんしたよ！', false);
+}
+
+// 取り込み確定：①直前データを退避 ②クラウド購読を解除 ③ローカル保存
+// ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
+async function applyImportedState(imported) {
+  try {
+    const cur = localStorage.getItem('piano-pet');
+    if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤読込からの復旧用に退避
+  } catch { /* 退避失敗は致命的でないので無視 */ }
+  if (cloudUnsub) {
+    try { cloudUnsub(); } catch { /* 解除失敗は無視 */ }
+    cloudUnsub = null;
+  }
+  state = imported;
+  saveState(state);
+  if (cloud) {
+    try { await cloud.pushCloud(cloudFields(state)); } catch { /* push 失敗時もローカルは取り込み済み */ }
+  }
+  window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
+}
+
+// 選択ファイルを読んで検証。OK なら確認のうえ復元、NG なら理由をひらがなで表示。
+function handleImportFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const res = parseBackup(String(reader.result));
+    if (!res.ok) {
+      showImportStatus(importErrorMessage(res.reason), true);
+      return;
+    }
+    if (!window.confirm('いまの データは きえて、ファイルの データに なります。よろしいですか？')) return;
+    applyImportedState(res.state);
+  };
+  reader.onerror = () => showImportStatus(importErrorMessage('parse'), true);
+  reader.readAsText(file);
+}
+
+document.getElementById('settingsToggle')?.addEventListener('click', openSettings);
+settingsOverlayEl?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="close-settings"]')) closeSettings();
+});
+document.getElementById('gateSubmit')?.addEventListener('click', submitGate);
+gateAnswerEl?.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  submitGate();
+});
+document.getElementById('exportBtn')?.addEventListener('click', downloadBackup);
+document.getElementById('importBtn')?.addEventListener('click', () => importFileEl?.click());
+importFileEl?.addEventListener('change', (e) => {
+  const file = e.target.files?.[0];
+  if (file) handleImportFile(file);
+  e.target.value = '';   // 同じファイルを連続選択しても change が発火するように
+});
+
 window.addEventListener('hashchange', () => router.syncFromHash(window.location.hash));
 
 // 初期表示
@@ -926,7 +1048,7 @@ async function initCloudSync() {
   } else if (hasLocalData(state)) {
     await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行
   }
-  cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映
+  cloudUnsub = cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映（ハンドルは復元時の解除用に保持）
 }
 
 // オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。

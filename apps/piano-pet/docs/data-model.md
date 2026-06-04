@@ -124,3 +124,57 @@ Firestore に保存されるデータには `version` を含めていない（`C
 デフォルト補完のみで取り込む。**クラウド同期対象フィールド（`sessions` 等）の構造を破壊的に変更する
 マイグレーションを追加する場合**は、`mergeCloud` 内でも取り込み前にクラウドペイロードへ移行処理を
 適用する必要がある。フィールド追加レベルの変更であれば `normalizeState` の補完で対応できる。
+
+## バックアップ/復元（JSON 書き出し・読み込み・#140）
+
+認証なし・匿名クラウド同期のため、端末故障やブラウザデータ削除でデータが消えるリスクがある。
+親が state を JSON ファイルで手元に保存し、いつでも復元できる安全弁を [js/backup.js](../js/backup.js) に置く（純粋関数中心）。
+
+### バックアップファイル形式
+
+state そのものではなく、識別マーカー付きでラップした JSON を書き出す。
+
+```json
+{
+  "app": "piano-pet",
+  "schemaVersion": 1,
+  "exportedAt": "2026-06-04T00:00:00.000Z",
+  "state": { /* loadState() と同じ state オブジェクト（version 含む） */ }
+}
+```
+
+ファイル名は `piano-pet-backup-YYYY-MM-DD.json`。`exportState(state)` が文字列化を担い、Blob 化と
+`a[download]` でのダウンロードは [app.js](../js/app.js) 側が行う。
+
+### 復元時の検証（`parseBackup(text)`）
+
+取り込みは純粋関数 `parseBackup` で検証し `{ok:true, state}` か `{ok:false, reason}` を返す。
+
+| reason | 条件 | 扱い |
+|---|---|---|
+| `parse` | JSON として壊れている | 拒否（ひらがなエラー表示） |
+| `marker` | `app !== 'piano-pet'`（別アプリ・マーカー無し） | 拒否 |
+| `shape` | 必須キー `state.pet` / `state.streak` が欠落 | 拒否（クラッシュ防止の最小スキーマ検証） |
+| `future` | `schemaVersion` が現行 `SCHEMA_VERSION` より大きい | 拒否（ダウングレード破損防止） |
+
+検証を通った場合のみ `migrate()` → `normalizeState()` を適用して現行スキーマに整える（過去バージョンは migrate で引き上げ）。
+
+### 復元フローとクラウド整合（重要）
+
+`importState` は明示的な上書き操作。realtime 購読中に取り込むと、push が Firestore に反映される前に
+**古いスナップショットが `onSnapshot` 経由で降ってきて取り込み結果を巻き戻す競合**が起きうる。これを断つため
+app.js の復元フローは次の順で行う（設計レビュー topic_1780530736889 で合意）:
+
+1. 復元直前の現行 localStorage を `piano-pet-backup-before-restore`（`RESTORE_BACKUP_KEY`）へ自動退避（誤読込からの復旧用）。
+2. 保持しておいた cloud 購読解除ハンドル（`cloudUnsub`）を実行して **onSnapshot を一時解除**。
+3. `saveState(imported)` でローカル反映。
+4. `await pushCloud(cloudFields(imported))` で**クラウド反映の完了を待つ**。
+5. `window.location.reload()` でクリーン再起動。リロード後の `fetchCloud()` は push 済みの取り込み済みデータを返すため巻き戻しは起きない。
+
+> **設計判断**: 購読を解除せず差分比較だけに頼ると、import 直後の旧スナップショットが `mergeCloud` で取り込み結果を上書きしうる。`cloudUnsub` の保持＋push 完了待ち＋reload の三段で競合を物理的に排除する。オフライン時は `pushCloud` が早期 return するが、ローカルには取り込み済みが残り次回オンライン同期で送られる。
+
+### 子の誤操作防止（ペアレンタルゲート）
+
+設定は専用ナビ画面を増やさず、ホームヘッダの ⚙️ ボタン → オーバーレイで提供する。子が面白がって
+開くのを防ぐため、オーバーレイは簡単な足し算（1桁＋1桁・`makeGateProblem`）の正解時のみメニューを開く。
+保存（export）は無害なので確認なし、読み込み（import）は上書き確認ダイアログを挟む。

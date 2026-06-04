@@ -1289,6 +1289,141 @@ body {
   }
 }
 
+/* ===== せってい（おうちのひとへ）・#140 ===== */
+.btn-settings {
+  border: none;
+  background: rgba(255, 255, 255, 0.35);
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.btn-settings:active {
+  transform: scale(0.94);
+}
+
+.settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+/* display:flex が UA の [hidden]{display:none} を上書きしてしまうので明示的に消す */
+.settings-overlay[hidden],
+.settings-panel[hidden] {
+  display: none;
+}
+
+.settings-overlay__backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(74, 59, 59, 0.45);
+}
+
+.settings-panel {
+  position: relative;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-radius: 24px;
+  padding: 28px 24px;
+  box-shadow: 0 12px 34px var(--shadow);
+}
+
+.settings-panel__title {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.2rem;
+  color: var(--pink-deep);
+  text-align: center;
+}
+
+.settings-gate__q {
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.settings-gate__problem {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.6rem;
+  color: var(--ink);
+}
+
+.settings-gate__input {
+  width: 120px;
+  padding: 10px 14px;
+  font-size: 1.3rem;
+  text-align: center;
+  border: 2px solid var(--pink);
+  border-radius: 14px;
+  background: var(--cream);
+  color: var(--ink);
+}
+
+.settings-gate__error,
+.settings-menu__note--error {
+  color: #d6336c;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.settings-menu__desc {
+  font-size: 0.9rem;
+  color: #8a7a7a;
+  text-align: center;
+  line-height: 1.6;
+}
+
+.settings-menu__note {
+  font-size: 0.9rem;
+  color: #4a9a5a;
+  font-weight: 700;
+  text-align: center;
+}
+
+.settings-panel__actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+}
+
+.settings-btn {
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 18px;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1rem;
+  color: #fff;
+  background: var(--pink-deep);
+  cursor: pointer;
+}
+
+.settings-btn:active {
+  transform: scale(0.97);
+}
+
+.settings-btn--ghost {
+  background: #eee0e3;
+  color: var(--ink);
+}
+
+.settings-btn--block {
+  width: 100%;
+  flex: none;
+}
+
 /* ===== ボトムナビ ===== */
 .bottom-nav {
   position: fixed;
