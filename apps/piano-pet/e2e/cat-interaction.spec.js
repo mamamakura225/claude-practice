@@ -8,6 +8,11 @@ test.describe('猫とのインタラクション', () => {
     await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
     await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+
+    // 初回オンボーディング（#141）が全画面で重ならないよう「見た」フラグを立てる。
+    await page.addInitScript(() => {
+      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+    });
   });
 
   test('猫をタップすると反応アニメーションが再生される', async ({ page }) => {

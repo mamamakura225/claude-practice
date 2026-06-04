@@ -23,6 +23,11 @@ test.describe('ショップ', () => {
         }),
       );
     });
+
+    // 初回オンボーディング（#141）が全画面で重ならないよう「見た」フラグを立てる。
+    await page.addInitScript(() => {
+      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+    });
   });
 
   test('購入して装備するとホームの猫にアイテムが乗る', async ({ page }) => {

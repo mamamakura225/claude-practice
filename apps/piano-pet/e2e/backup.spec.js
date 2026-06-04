@@ -57,6 +57,11 @@ test.describe('データのバックアップ/復元', () => {
         localStorage.setItem('piano-pet', JSON.stringify(seed));
       }
     }, SEED);
+
+    // 初回オンボーディング（#141）が全画面で重ならないよう「見た」フラグを立てる。
+    await page.addInitScript(() => {
+      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+    });
   });
 
   test('親ゲート：誤答では開かず、正答でメニューが開く', async ({ page }) => {

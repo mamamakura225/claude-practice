@@ -9,6 +9,12 @@ test.describe('練習記録', () => {
     await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
     await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+
+    // 初回オンボーディング（#141）は全画面で重なり操作を遮るので、既存導線テストでは
+    // 「見た」フラグを立てて出さない（オンボーディング自体は onboarding.spec.js で検証）。
+    await page.addInitScript(() => {
+      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+    });
   });
 
   test('記録するとホームのコインとストリークが増える', { tag: '@compat' }, async ({ page }) => {
