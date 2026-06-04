@@ -1,46 +1,50 @@
-# CLAUDE.md
+# CLAUDE.md — エージェント行動契約 & 開発規約
 
-自作アプリのモノレポ。概要・アプリ一覧・URLは [README.md](./README.md) を参照。ここでは作業時に踏みやすい落とし穴と規約をまとめる。
+自作アプリのモノレポ。アプリ概要・URLは [README.md](./README.md) を参照。
+本ファイルは、AIエージェントのコンテキスト汚染を防ぎ、無限デバッグループや破壊的変更を抑止するための不変の指示書である。
 
-## 構成
-- `apps/dtask/` — タスク管理SPA（Vanilla JS + Firebase）。docs: [requirements.md](./apps/dtask/docs/requirements.md)（要件定義書）/ [architecture.md](./apps/dtask/docs/architecture.md) / [data-model.md](./apps/dtask/docs/data-model.md) / [features.md](./apps/dtask/docs/features.md) / [testing.md](./apps/dtask/docs/testing.md)
-- `apps/piano-pet/` — ピアノ練習PWA（猫育成）。docs: [requirements.md](./apps/piano-pet/docs/requirements.md)（要件定義書）/ [features.md](./apps/piano-pet/docs/features.md)（機能詳細）/ [data-model.md](./apps/piano-pet/docs/data-model.md)（設計書）
-- 共有ツール（npm / vitest / playwright / vercel / CI）はリポジトリルートに1セット。
+## 1. 思考・コーディング規約 (Karpathy規範 & 安全ガードレール)
+- **Think Before Coding**: 実装前に必ず要件と変更対象を整理せよ。曖昧な点は勝手に推測せず、前提条件を明示して人間に質問すること。
+- **Simplicity First**: 要求された機能の「最小構成」のみを実装せよ。不要な抽象化、過度なエラーハンドリング、将来のための先回りの機能追加は厳禁。
+- **Surgical Changes**: 変更はターゲット領域に極限まで絞り込め。タスクに無関係な隣接コードのリファクタリング、フォーマットやコメントの勝手な変更は禁止。
+- **Goal-Driven Execution**: コードを書き換える前に、まず再現テストやアサーションを実行・作成せよ。
+- **Loop & Context Control**: コマンド実行やデバッグが**5回連続で失敗**、または自律ループ内でのツール呼び出しが**10回**を超えた場合は、直ちに処理を停止し、現在の状況と引き継ぎ事項を整理して人間に指示を仰ぐこと（無限ループの防止）。
+- **Privilege Boundaries**: `/.git/` および `/node_modules/` への直接の書き込み・変更は一律禁止とする。
 
-## ドキュメント更新ルール（最重要）
-**ソース（`apps/*/`）を変更したら、同じPR内で要件定義書と設計書へ必ず反映する。** 実装とドキュメントの乖離を残さない。
-- **要件定義書**: 各アプリの `docs/requirements.md`。機能・画面・データ・報酬ロジック・スコープなど「何を作るか」を変えたら更新。
-- **設計・機能書**: dtask は `docs/features.md` / `architecture.md` / `data-model.md` / `testing.md`、piano-pet は `docs/features.md` / `data-model.md`。画面仕様・報酬ロジック・アーキテクチャ・スキーマ・同期方式・テスト方針など「どう作るか／詳細」を変えたら更新。
-- 判断基準：「次にこのコードを読む人が、ドキュメントだけ見て古い前提を信じてしまうか？」がYESなら更新対象。フィールド追加・画面追加・報酬式変更・設定方式変更などは原則すべて該当。
-- 設計判断の理由が非自明なら、該当docの `## 設計判断` / `> **設計判断**:` に残す。
+## 2. プロジェクト構成 & 階層的開示 (Progressive Disclosure)
+エージェントはタスクに応じて各アプリの `docs/` 内にある詳細ドキュメント（要件定義書・設計書等）を自律的に読み込み、コンテキストの肥大化を防ぐこと。
+- `apps/dtask/` — タスク管理SPA（Vanilla JS + Firebase）。
+- `apps/piano-pet/` — ピアノ練習PWA（猫育成）。
+  ※注意：piano-pet は dtask の Firebase プロジェクト（`dtask-d08b6`）を共有（間借り）する設計になっている。
 
-## コマンド
+## 3. 主要実行コマンド
+
 ```bash
-npm test            # Vitest 単体テスト（apps/dtask/tests 対象）
-npm run test:e2e    # Playwright E2E（http-server 自動起動）
-npm run gen-sw      # piano-pet の SW キャッシュ版を再生成
-npm run gen-sw:check # 版ずれ検知（CIで実行、差分があれば失敗）
+npm test              # Vitest単体テスト (apps/dtask/tests対象)
+npm run test:e2e      # Playwright E2E (自動サーバー起動)
+npm run gen-sw        # piano-pet: SWキャッシュ・index.htmlの?v=を再生成
+npm run gen-config    # envからFirebase/Sentry等の各種configをマッピング生成
 ```
 
-## gen-sw（最重要の落とし穴）
-piano-pet のみ対象。`apps/piano-pet/` のアセット（`index.html`/`css`/`js`/`manifest.json`/`icons`）を変更したら **必ず `npm run gen-sw` を実行してコミット**する。`scripts/gen-sw.mjs` がアセット内容のハッシュから `sw.js` の `CACHE`/`APP_SHELL` と `index.html` の `?v=` を同期する。CIの `gen-sw:check` がドリフトを検知して落とす。
+## 4. プロジェクト固有の落とし穴 & 鉄則 (Critical Guardrails)
 
-並行PRはこの `sw.js`/`index.html` の `?v=` でほぼ確実に衝突する。**スタックPR（base同士の依存）は禁止**、独立ブランチを切り、main取り込みのたびに `gen-sw` を再生成すること。
+### ① PWAキャッシュ同期とブランチ規約 (`npm run gen-sw`)
+- `apps/piano-pet/` のアセット（html/css/js/manifest等）を変更した場合、必ず `npm run gen-sw` を実行して自動生成・コミットせよ（手動修正は厳禁）。CIの `gen-sw:check` でドリフトを検知する。
+- 並行PRでの衝突を防ぐため、**スタックPR（依存関係のあるPR）は禁止**。独立ブランチを切り、main取り込みのたびに再生成すること。
 
-## Firebase
-piano-pet は dtask の Firebase プロジェクト `dtask-d08b6` を共有する（`pianopet` collection に保存）。認証なし・`cloud.js` は動的importでロード（PWAのオフライン動作を壊さないため）。Firestoreルールは pianopet を許可済み。
+### ② 設定ファイルの自動生成 (`npm run gen-config`)
+- `firebase-config.js` や `monitoring-config.js` を直接書き換えてはならない。設定変更時は環境変数を修正の上、必ず `npm run gen-config` を用いて再生成せよ。
 
-config は `firebase-config.js`（`apps/dtask/` と `apps/piano-pet/js/`）に集約し、`scripts/gen-firebase-config.mjs` が `FIREBASE_*` env から生成する（env未設定時は本番値にフォールバック）。同スクリプトは監視用 `monitoring-config.js`（`SENTRY_DSN`、未設定時は空＝Sentry無効）も生成する。値を変えたら `npm run gen-config` を実行してコミット。CIの `gen-config:check` がドリフトを検知。クライアント用 Firebase 設定や DSN は元々公開情報なので秘匿目的ではなく、環境分離（将来のステージング）の継ぎ目が目的。デプロイ時に env を流し込む。
+### ③ プライバシー・利用計測規約 (最重要)
+- SentryおよびPostHogの実装において、**ユーザーのタスク内容、曲名、PII（個人情報）は絶対に送信してはならない**。
+- `sentry.js`: breadcrumbは全破棄し、`request`/`user` は送信しない。
+- `analytics.js`: autocapture/session-recording等は無効化。送るのは操作種別（`task_added`等）のフラグのみとし、`track(event, props)` の props に具体的なテキスト内容を入れないこと。
 
-## エラー監視 / 利用計測 (Sentry / PostHog)
-`monitoring-config.js`（gen-config が生成）の `sentryDsn` / `posthogKey` が空なら各 SDK は **no-op**（CDN import もしない）。
-- `sentry.js`: DSN があれば CDN から SDK を動的 import して init。breadcrumb は全破棄・`request`/`user` は送らない（タスク内容やPIIを送信しない）。非minified配信なのでソースマップ不要。
-- `analytics.js`: PostHog。autocapture/pageview/session-recording を無効化し DNT 尊重。送るのは操作種別と頻度のみ（`view_changed`・`task_added`・`practice_recorded` 等）で、タスク名や曲名などの**内容は送らない**。`track(event, props)` の props に内容を入れないこと。
+### ④ パフォーマンス予算 (`perf-budget`)
+- `perf-budget:check`（Gzipサイズ制限）でエラーが出た場合、無理にコードを圧縮して可読性を破壊してはならない。最小構成を徹底しても予算を超える場合は、`scripts/perf-budget.mjs` の `BUDGETS_KIB` を見直すよう人間に提案せよ。
 
-## CI / デプロイ
-[.github/workflows/test.yml](./.github/workflows/test.yml): 全branch pushで unit + e2e、`gen-sw:check` / `gen-config:check` / `perf-budget:check`（piano-pet のアセット gzip サイズ予算・#147）を実行。`main` への push 通過後に Vercel 本番デプロイ、PR(main宛)はプレビューデプロイ（dependabot のPRはSecretsが渡らず失敗するため除外）。Node は CI上 20。予算超過時は `scripts/perf-budget.mjs` の `BUDGETS_KIB` を見直す。
+### ⑤ ドキュメントの完全同期
+- ソース（`apps/*/`）を変更した場合、必ず同一PR内で関連する要件定義書（`requirements.md`）および設計書（`features.md` 等）に変更を反映せよ。非自明な設計判断の理由は、該当docの `## 設計判断` または `> **設計判断**:` に必ず残すこと。
 
-## ブランチ運用 / バックログ
-- feature branch を切って PR。`sw.js`/`index.html` を触る場合は gen-sw 再生成を忘れない。
-- **PR本文に `Closes #NNN` を書いて Issue をマージ連動クローズする**（複数Issueは各行に `Closes #NNN`）。コミット件名の `(#NNN)` は参照のみで自動クローズされない（`Closes`/`Fixes`/`Resolves` キーワードが必要）。squash マージでも本文のキーワードで連動する。
-- バックログは [GitHub Issues](https://github.com/mamamakura225/claude-practice/issues) に一本化。ラベル `app/*`・`type/*`（infra/ux/tech-debt 等）・優先度 `P1`〜`P3`。
+### ⑥ Issue・PR連動
+- PR作成時、本文に必ず `Closes #NNN` を記述してIssueを連動クローズさせよ。コミット件名の `(#NNN)` は自動クローズ対象外のため不可。
