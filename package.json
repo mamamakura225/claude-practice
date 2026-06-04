@@ -6,7 +6,9 @@
     "gen-sw": "node scripts/gen-sw.mjs",
     "gen-sw:check": "node scripts/gen-sw.mjs --check",
     "gen-config": "node scripts/gen-firebase-config.mjs",
-    "gen-config:check": "node scripts/gen-firebase-config.mjs --check"
+    "gen-config:check": "node scripts/gen-firebase-config.mjs --check",
+    "perf-budget": "node scripts/perf-budget.mjs",
+    "perf-budget:check": "node scripts/perf-budget.mjs --check"
   },
   "devDependencies": {
     "@playwright/test": "^1.60.0",

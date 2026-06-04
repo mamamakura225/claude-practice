@@ -20,6 +20,8 @@ jobs:
         run: npm run gen-sw:check
       - name: Firebase 設定の同期チェック (gen-config)
         run: npm run gen-config:check
+      - name: パフォーマンス予算チェック (perf-budget)
+        run: npm run perf-budget:check
       - run: npm test
 
   e2e:
