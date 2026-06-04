@@ -220,6 +220,7 @@
 - **鳴き声（録音サンプル）**：なでた時のみ。`meow1〜3.mp3`（通常）/ `hiss1.mp3`（威嚇）
 - ヘッダーのトグルでON/OFF（設定は端末ローカル `settings.soundOn`、クラウド非同期）
 - AudioContext はユーザー操作後に解錠（ブラウザの自動再生ポリシー対策）
+- **省電力・自動 suspend（#146）**：効果音が鳴り終わってアイドルが続いたら（`IDLE_SUSPEND_MS`）AudioContext を `suspend()` し、音声ハードウェアを起こしっぱなしにしない。タブ非アクティブ時（`visibilitychange`→hidden）も `suspendAudio()`、復帰時に `resumeAudio()`。次の効果音再生で `getCtx()` が `resume()` するため状態は失わず体感遅延もない（モバイルのバッテリ節約）。
 
 ## せってい：データのバックアップ/復元（[backup.js](../js/backup.js)・#140）
 

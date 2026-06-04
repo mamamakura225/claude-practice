@@ -19,7 +19,7 @@ import {
   spentCoins,
 } from './shop.js';
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
-import { isSoundOn, toggleSound, playSound, playStamp, rollCatVoice, playCatVoice, unlockAudio } from './sound.js';
+import { isSoundOn, toggleSound, playSound, playStamp, rollCatVoice, playCatVoice, unlockAudio, suspendAudio, resumeAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { exportState, backupFilename, parseBackup, importErrorMessage, makeGateProblem, RESTORE_BACKUP_KEY } from './backup.js';
 import { initErrorMonitoring } from './sentry.js';
@@ -754,6 +754,7 @@ function submitRecord(event) {
     const newState = recomputeState({ ...state, sessions }, spentTotal(state));
     const gainedBadges = newlyEarned(prevBadges, newState.badges);
     commitState(newState);
+    cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
     track('practice_recorded', { totalCount: mergedCount }); // 回数のみ・曲名は送らない
     router.go('home');
     celebrateRecord({ leveled: newState.pet.level > prevLevel, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
@@ -769,6 +770,7 @@ function submitRecord(event) {
   const { state: newState, rewards } = applySession(state, { date, songs, totalCount });
   const gainedBadges = newlyEarned(prevBadges, newState.badges);
   commitState(newState);          // 保存 + ホーム再描画
+  cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');              // ホームへ遷移
   // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）
@@ -1130,6 +1132,22 @@ window.addEventListener('online', () => {
   if (cloudSynced) cloud?.pushCloud(cloudFields(state));  // 復帰時に最新を一度送る
   else initCloudSync();
 });
+
+// タブの表示状態に応じて省電力・取りこぼし防止を行う（#146）。
+//   - 非アクティブ化: 効果音用 AudioContext を suspend（音声HWを休ませバッテリ節約）し、
+//     保留中のクラウド書き込みを flush（バックグラウンド/終了で消えないよう確定送信）。
+//   - 復帰: AudioContext を resume（次の効果音に備える）。
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    suspendAudio();
+    cloud?.flushCloud();
+  } else {
+    resumeAudio();
+  }
+});
+// 離脱直前（タブ閉じ・遷移）にも保留中の書き込みを確定する。pagehide は
+// visibilitychange より確実に発火する端末があるため併用する。
+window.addEventListener('pagehide', () => cloud?.flushCloud());
 
 // 初回のクラウド同期はブラウザのアイドル時間まで遅延し、初回描画・操作を妨げない（#142）。
 // renderHome は既に localStorage から同期描画済み。Firebase SDK の動的取得・初期化はここで初めて走る。
