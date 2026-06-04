@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=9c258be5">
-  <link rel="stylesheet" href="css/cat.css?v=9c258be5">
+  <link rel="stylesheet" href="css/style.css?v=73dd8df6">
+  <link rel="stylesheet" href="css/cat.css?v=73dd8df6">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -22,6 +22,7 @@
       <header class="app-header">
         <h1 class="app-title">ピアノペット</h1>
         <button class="btn-sound" id="soundToggle" type="button" aria-pressed="true" aria-label="サウンドの オン・オフ">🔊</button>
+        <button class="btn-settings" id="settingsToggle" type="button" aria-label="せってい（おうちのひとへ）">⚙️</button>
       </header>
       <div class="view-body view-body--home">
         <div id="catStage" class="cat-stage" aria-live="polite"></div>
@@ -282,8 +283,39 @@
       </div>
     </div>
 
+    <!-- ===== せってい（おうちのひとへ）オーバーレイ・#140 ===== -->
+    <div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-label="おうちのひとへ" hidden>
+      <div class="settings-overlay__backdrop" data-action="close-settings"></div>
+
+      <!-- 親ゲート：子の誤操作で設定に入らないよう簡単な足し算を出す -->
+      <div class="settings-panel" id="settingsGate">
+        <h2 class="settings-panel__title">おうちのひとへ 🔒</h2>
+        <p class="settings-gate__q">けいさんを といてね</p>
+        <p class="settings-gate__problem"><span id="gateA">0</span> ＋ <span id="gateB">0</span> ＝ ?</p>
+        <input type="number" id="gateAnswer" class="settings-gate__input" inputmode="numeric" autocomplete="off" aria-label="こたえ">
+        <p class="settings-gate__error" id="gateError" hidden>ちがうみたい。もういちど。</p>
+        <div class="settings-panel__actions">
+          <button type="button" class="settings-btn settings-btn--ghost" data-action="close-settings">とじる</button>
+          <button type="button" class="settings-btn" id="gateSubmit">すすむ</button>
+        </div>
+      </div>
+
+      <!-- 親メニュー：ゲート通過後にバックアップ/復元を表示 -->
+      <div class="settings-panel" id="settingsMenu" hidden>
+        <h2 class="settings-panel__title">データの ほぞん・よみこみ</h2>
+        <p class="settings-menu__desc">きしゅへんこうや データさくじょに そなえて、データを ファイルに ほぞんできます。</p>
+        <button type="button" class="settings-btn settings-btn--block" id="exportBtn">📥 データを ほぞん</button>
+        <button type="button" class="settings-btn settings-btn--block" id="importBtn">📂 データを よみこむ</button>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <p class="settings-menu__note" id="importStatus" role="status" aria-live="polite" hidden></p>
+        <div class="settings-panel__actions">
+          <button type="button" class="settings-btn settings-btn--ghost" data-action="close-settings">とじる</button>
+        </div>
+      </div>
+    </div>
+
   </div>
 
-  <script type="module" src="js/app.js?v=9c258be5"></script>
+  <script type="module" src="js/app.js?v=73dd8df6"></script>
 </body>
 </html>
