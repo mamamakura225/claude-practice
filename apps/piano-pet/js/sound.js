@@ -94,6 +94,32 @@ export function unlockAudio() {
   getCtx();
 }
 
+// 効果音が鳴り終わってからアイドルで AudioContext を suspend するまでの猶予(ms)。
+// running のままだと音声ハードウェアが起きっぱなしでモバイルのバッテリを食うため、
+// 最後の再生からこの時間で自動 suspend する。次の再生で getCtx() が resume するので
+// 体感の遅延はない（#146）。
+const IDLE_SUSPEND_MS = 3000;
+let idleTimer = null;
+
+// 再生のたびに呼び、アイドルが続いたら AudioContext を休ませる。
+function scheduleIdleSuspend() {
+  if (typeof window === 'undefined') return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(suspendAudio, IDLE_SUSPEND_MS);
+}
+
+// AudioContext を休ませる（running のときだけ）。タブ非アクティブ時やアイドル時に呼ぶ。
+// 次の再生で getCtx() が resume するため、状態は失わない。
+export function suspendAudio() {
+  if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
+}
+
+// 休止中の AudioContext を起こす（タブ復帰時に呼ぶ）。解錠済み（一度ユーザー操作で
+// 生成済み）の ctx を resume するだけなので自動再生ポリシーには抵触しない。
+export function resumeAudio() {
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+}
+
 // note 配列（SOUND_SPECS の1エントリ形式）をオシレータで鳴らす。
 // 短いアタック＋指数フェードでプチノイズを抑える。再生エンジン共通の中核。
 function playNotes(audio, notes) {
@@ -112,6 +138,7 @@ function playNotes(audio, notes) {
     osc.start(start);
     osc.stop(end + 0.02);
   }
+  scheduleIdleSuspend();   // 鳴り終わったらアイドルで休ませる（#146）
 }
 
 // name の効果音を鳴らす。サウンドOFF・未対応環境では何もしない。
@@ -203,6 +230,7 @@ export function playCatVoice(state, kind) {
       gain.gain.value = 0.9;
       src.connect(gain).connect(audio.destination);
       src.start();
+      scheduleIdleSuspend();   // 鳴き終わったらアイドルで休ませる（#146）
     })
     .catch(() => {});  // ネットワーク/デコード失敗は握りつぶす
 }

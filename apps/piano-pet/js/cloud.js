@@ -39,11 +39,27 @@ export async function pushCloud(data) {
   }
 }
 
-// 連続する保存をまとめてから送る（トグル連打などの多重書き込みを抑制）。
+// 連続する保存をまとめてから送る（遅延バッチコミット・#146）。
+// スタンプ連打や購入・えさやりの連続操作を 1 回の書き込みにまとめ、Firestore の
+// 書き込み回数（＝通信量・課金）を抑える。delay 中に届いた最新データだけを保持し、
+// タイマー満了か flushCloud() で送る。記録確定・タブ離脱時は flushCloud() で即送る。
 let saveTimer = null;
-export function pushCloudDebounced(data, delay = 500) {
+let pendingData = null;
+export function pushCloudDebounced(data, delay = 2000) {
+  pendingData = data;
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => pushCloud(data), delay);
+  saveTimer = setTimeout(flushCloud, delay);
+}
+
+// 保留中の書き込みがあれば即座に送る（記録確定・タブ非アクティブ/離脱時に呼ぶ）。
+// 何も保留していなければ no-op。debounce 待ちのデータを取りこぼさないための確定経路。
+export function flushCloud() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  if (pendingData == null) return undefined;
+  const data = pendingData;
+  pendingData = null;
+  return pushCloud(data);
 }
 
 // 他端末の変更をリアルタイム反映。onRemote(data) を呼ぶ。
