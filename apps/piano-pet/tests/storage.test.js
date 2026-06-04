@@ -3,6 +3,8 @@ import {
   normalizeState,
   cloudFields,
   mergeCloud,
+  mergeSessionsKeepLarger,
+  mergeCloudInitial,
   migrate,
   CLOUD_FIELDS,
   SCHEMA_VERSION,
@@ -97,5 +99,81 @@ describe('mergeCloud', () => {
     const merged = mergeCloud(local, null);
     expect(merged.pet.coins).toBe(42);
     expect(merged.sessions).toHaveLength(1);
+  });
+});
+
+describe('mergeSessionsKeepLarger', () => {
+  it('片側のみの日付は両方残す', () => {
+    const local = [{ date: '2026-01-02', totalCount: 5 }];
+    const cloud = [{ date: '2026-01-01', totalCount: 3 }];
+    const m = mergeSessionsKeepLarger(local, cloud);
+    expect(m.map((s) => s.date)).toEqual(['2026-01-02', '2026-01-01']); // 降順
+  });
+
+  it('同日衝突は totalCount の大きい方を採用（合算しない）', () => {
+    const local = [{ date: '2026-01-01', totalCount: 5, songs: ['X'] }];
+    const cloud = [{ date: '2026-01-01', totalCount: 7, songs: ['X', 'X'] }];
+    const m = mergeSessionsKeepLarger(local, cloud);
+    expect(m).toHaveLength(1);
+    expect(m[0].totalCount).toBe(7);           // 12 にはしない（水増し防止）
+    expect(m[0].songs).toEqual(['X', 'X']);
+  });
+
+  it('同回数の tie はローカルを残す（自分の書き込みのエコー等）', () => {
+    const local = [{ date: '2026-01-01', totalCount: 5, songs: ['L'] }];
+    const cloud = [{ date: '2026-01-01', totalCount: 5, songs: ['C'] }];
+    const m = mergeSessionsKeepLarger(local, cloud);
+    expect(m[0].songs).toEqual(['L']);
+  });
+
+  it('起動直後にローカルだけが持つ当日記録を失わない（clobber 防止）', () => {
+    const cloud = [{ date: '2026-01-01', totalCount: 4 }];
+    const local = [{ date: '2026-01-02', totalCount: 6 }, { date: '2026-01-01', totalCount: 4 }];
+    const m = mergeSessionsKeepLarger(local, cloud);
+    expect(m.map((s) => s.date)).toEqual(['2026-01-02', '2026-01-01']);
+  });
+
+  it('null/欠損入力でも壊れない', () => {
+    expect(mergeSessionsKeepLarger(null, null)).toEqual([]);
+    expect(mergeSessionsKeepLarger([{ totalCount: 1 }], null)).toEqual([]); // date 無しは捨てる
+  });
+});
+
+describe('mergeCloudInitial', () => {
+  it('cloud が無ければ正規化したローカルをそのまま返す', () => {
+    const local = normalizeState({ pet: { coins: 9 }, sessions: [{ date: 'a', totalCount: 1 }] });
+    const m = mergeCloudInitial(local, null);
+    expect(m.pet.coins).toBe(9);
+    expect(m.sessions).toHaveLength(1);
+  });
+
+  it('sessions は keep-larger、inventory は重複除く union', () => {
+    const local = normalizeState({
+      inventory: ['ribbon', 'hat'],
+      sessions: [{ date: '2026-01-02', totalCount: 6 }],
+    });
+    const cloud = {
+      inventory: ['ribbon', 'crown'],
+      sessions: [{ date: '2026-01-01', totalCount: 3 }, { date: '2026-01-02', totalCount: 4 }],
+    };
+    const m = mergeCloudInitial(local, cloud);
+    expect([...m.inventory].sort()).toEqual(['crown', 'hat', 'ribbon']);
+    expect(m.sessions.find((s) => s.date === '2026-01-02').totalCount).toBe(6); // local 優先（大）
+    expect(m.sessions.map((s) => s.date)).toEqual(['2026-01-02', '2026-01-01']);
+  });
+
+  it('equippedItems は union のうちマージ後 inventory に含まれるものだけ', () => {
+    const local = normalizeState({ inventory: ['ribbon'], pet: { equippedItems: ['ribbon'] } });
+    const cloud = { inventory: ['hat'], pet: { equippedItems: ['hat', 'crown'] } }; // crown は誰も所持しない
+    const m = mergeCloudInitial(local, cloud);
+    expect([...m.pet.equippedItems].sort()).toEqual(['hat', 'ribbon']); // crown は除外
+  });
+
+  it('affinity / foodSpent は max を採る', () => {
+    const local = normalizeState({ pet: { affinity: 8, foodSpent: 30 } });
+    const cloud = { pet: { affinity: 3, foodSpent: 55 } };
+    const m = mergeCloudInitial(local, cloud);
+    expect(m.pet.affinity).toBe(8);
+    expect(m.pet.foodSpent).toBe(55);
   });
 });

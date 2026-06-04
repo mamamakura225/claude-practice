@@ -74,14 +74,63 @@ export function cloudFields(state) {
   return out;
 }
 
-// ローカル state にクラウドのデータフィールドを重ねる。
+// ローカル state にクラウドのデータフィールドを重ねる（realtime onSnapshot 経路: cloud-wins）。
 // settings 等の端末ローカル値は cloud に無いので保持される。
+// 初回 fetchCloud の取り込みは clobber を避けるため mergeCloudInitial を使う（#142）。
 export function mergeCloud(local, cloud) {
   const picked = {};
   for (const k of CLOUD_FIELDS) {
     if (cloud && cloud[k] !== undefined) picked[k] = cloud[k];
   }
   return normalizeState({ ...local, ...picked });
+}
+
+// sessions を date をキーに 1 日 1 件へ解決する（keep-larger）。
+// 両側に同じ日付があれば totalCount の大きい方をそのまま採用し、合算しない。
+// 合算すると部分同期後の共有ベースを二重計上してコイン/XP が水増しされるため
+// （record ID/vector clock が無い前提での安全側。設計合意 topic_1780534255497 / #142）。
+// 並びはアプリ慣習に合わせ date 降順（新しい順）。tie（同回数）はローカル優先。
+export function mergeSessionsKeepLarger(localSessions, cloudSessions) {
+  const byDate = new Map();
+  const consider = (s) => {
+    if (!s || s.date == null) return;
+    const prev = byDate.get(s.date);
+    if (!prev || (Number(s.totalCount) || 0) > (Number(prev.totalCount) || 0)) byDate.set(s.date, s);
+  };
+  for (const s of localSessions ?? []) consider(s);   // local を先に（tie でローカルが残る）
+  for (const s of cloudSessions ?? []) consider(s);
+  return [...byDate.values()].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+
+// 初回クラウド同期専用の「ローカル優先」マージ（#142）。
+// 起動直後にローカルで記録した内容を消さないよう、フィールドごとに無損失寄りで突き合わせる。
+//   - sessions: mergeSessionsKeepLarger（keep-larger）
+//   - inventory: 重複 ID を除いた union（所有は単調増加）
+//   - equippedItems: 両端末の union のうちマージ後 inventory に含まれるものだけ
+//   - pet.affinity / pet.foodSpent: sessions から導出されない累積値なので max
+// pet.coins/xp/level・streak・badges は sessions から導出されるため、呼び出し側で
+// recomputeState を通して再計算する（このモジュールは game ロジックに依存しない）。
+export function mergeCloudInitial(local, cloud) {
+  const l = normalizeState(local);
+  if (!cloud) return l;
+  const c = normalizeState(cloud);
+
+  const inventory = [...new Set([...(l.inventory ?? []), ...(c.inventory ?? [])])];
+  const owned = new Set(inventory);
+  const equippedItems = [...new Set([...(l.pet.equippedItems ?? []), ...(c.pet.equippedItems ?? [])])]
+    .filter((id) => owned.has(id));
+
+  return normalizeState({
+    ...l,
+    inventory,
+    sessions: mergeSessionsKeepLarger(l.sessions, c.sessions),
+    pet: {
+      ...l.pet,
+      equippedItems,
+      affinity: Math.max(l.pet.affinity ?? 0, c.pet.affinity ?? 0),
+      foodSpent: Math.max(l.pet.foodSpent ?? 0, c.pet.foodSpent ?? 0),
+    },
+  });
 }
 
 export function loadState() {

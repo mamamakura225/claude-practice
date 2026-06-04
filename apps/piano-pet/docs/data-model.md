@@ -134,6 +134,30 @@ Firestore に保存されるデータには `version` を含めていない（`C
 マイグレーションを追加する場合**は、`mergeCloud` 内でも取り込み前にクラウドペイロードへ移行処理を
 適用する必要がある。フィールド追加レベルの変更であれば `normalizeState` の補完で対応できる。
 
+## 起動シーケンスとクラウド同期（ローカルファースト・#142）
+
+起動時は localStorage を即座に読み込んでホームを同期描画し、クラウド同期は完全にバックグラウンドで走る。
+
+1. `loadState()`（localStorage）→ `renderHome()` を**同期実行**（最初の描画はクラウドを待たない）。
+2. クラウド同期の起動（`initCloudSync`）は **`requestIdleCallback`**（非対応環境は `setTimeout` フォールバック）で**アイドル時間まで遅延**。Firebase SDK の動的 import（CDN 取得）と初期化はこの時点で初めて走り、初回描画・操作と競合しない。
+3. オフライン等で SDK 取得に失敗してもローカル動作は妨げない（`online` 復帰で再試行）。
+
+### 初回取り込みのマージ（`mergeCloudInitial` ＝ ローカル優先）
+
+realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **cloud-wins**（自分の書き込みのエコーは差分比較でスキップ）。一方、**初回 `fetchCloud` の取り込み**で cloud-wins を使うと、idle 同期完了前にローカルで記録した内容を上書き（clobber）してしまう。これを防ぐため初回のみ `mergeCloudInitial(local, cloud)` で**フィールドごとにローカル優先**で突き合わせ、`recomputeState` で導出値を再計算してから反映・push する。
+
+| フィールド | マージ規則 | 理由 |
+|---|---|---|
+| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先 | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側 |
+| `inventory` | 重複 ID を除いた **union** | 所有は単調増加 |
+| `pet.equippedItems` | 両端末の union のうち、マージ後 `inventory` に含まれるものだけ | 未所持の装備を残さない |
+| `pet.affinity` / `pet.foodSpent` | **max** | sessions から導出されない累積値 |
+| `pet.coins` / `pet.xp` / `pet.level` / `streak` / `badges` | マージ後の `sessions` から `recomputeState` で再計算 | sessions が唯一の正。`spent = spentCoins(merged inventory) + pet.foodSpent` を第2引数に渡す（`spent` の scalar マージは不要・`spentCoins` が inventory から導出するため） |
+
+マージ結果がクラウドと異なれば（ローカルだけが持つ記録があった等）`pushCloud` で確定する。
+
+> **設計判断**（Antigravity との設計レビュー topic_1780534255497 で合意）: 同日衝突の「合算 vs keep-larger」は、無損失（合算）よりも**経済水増しの回避（keep-larger）**を優先した。水増しは不可逆で気づきにくく、ゲーム経済（コイン/レベル/ストリーク）の整合を壊すため。朝スマホ・夜タブレットで別端末・同日記録という稀ケースでは小さい方を失うが、これは record ID 不在ゆえの既存の一般同期の曖昧さであり、合算するには ID か vector clock の導入（#142 スコープ外）が要る。
+
 ## バックアップ/復元（JSON 書き出し・読み込み・#140）
 
 認証なし・匿名クラウド同期のため、端末故障やブラウザデータ削除でデータが消えるリスクがある。
