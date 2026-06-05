@@ -276,6 +276,108 @@ body {
   color: #e0a91f;
 }
 
+/* ===== きょうの きょく（しゅくだい・#143） ===== */
+.assignment-card {
+  background: #fff;
+  border-radius: 18px;
+  padding: 16px 18px;
+  box-shadow: 0 4px 14px var(--shadow);
+  border: 2px solid var(--hw-accent, #ffd1e0);
+}
+
+.assignment-card__head {
+  margin-bottom: 8px;
+}
+
+.assignment-card__badge {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #b86b86;
+  background: #ffe8f0;
+  border-radius: 999px;
+  padding: 3px 12px;
+}
+
+.assignment-card__song {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.assignment-card__swatch {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  background: var(--hw-accent, #ffd1e0);
+}
+
+.assignment-card__name {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.25rem;
+  color: #4a3b3b;
+  word-break: break-word;
+}
+
+.assignmentbar {
+  height: 18px;
+  background: #f3e6ec;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.assignmentbar-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ffb3c1, #ff7a93);
+  transition: width 0.5s ease;
+}
+
+.assignment-card__msg {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #b86b86;
+  text-align: center;
+}
+
+.assignment-card--done {
+  background: linear-gradient(135deg, #fff5fa, #ffe4ef);
+}
+
+.assignment-card--done .assignment-card__msg {
+  color: #e0518a;
+}
+
+/* ===== せってい：宿題入力（#143） ===== */
+.settings-hw__row {
+  display: flex;
+  gap: 14px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.settings-hw__target {
+  flex: 1 1 120px;
+}
+
+.settings-hw__period {
+  flex: 1 1 160px;
+}
+
+.settings-divider {
+  border: none;
+  border-top: 1px solid #f0e0e6;
+  margin: 18px 0;
+}
+
 .stat-cards {
   display: flex;
   flex-wrap: wrap;
