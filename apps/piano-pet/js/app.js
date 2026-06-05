@@ -4,6 +4,7 @@ import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProg
 import { catMarkup, playHappy, playReaction, playCelebrate } from './cat.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
 import { songColor } from './song-color.js';
+import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
 import {
   weeklyTotals,
   weeklyChartModel,
@@ -86,7 +87,37 @@ export function renderHome() {
   if (nameEl) nameEl.textContent = state.pet.name;
 
   renderStats();
+  renderAssignment();
   renderSoundToggle();
+}
+
+// きょうの きょく（しゅくだい・#143）。宿題があればカードを表示し進捗を描く。
+function renderAssignment() {
+  const card = document.getElementById('assignmentCard');
+  if (!card) return;
+  const prog = assignmentProgress(state.sessions, state.assignment, todayStr());
+  if (!prog) {
+    card.hidden = true;
+    return;
+  }
+  card.hidden = false;
+
+  const color = songColor(prog.name);
+  card.style.setProperty('--hw-accent', color.tint);
+  setText('assignmentBadge', prog.period === 'week' ? '🎀 こんしゅうの きょく' : '🎀 きょうの きょく');
+  setText('assignmentName', prog.name);
+  const swatch = document.getElementById('assignmentSwatch');
+  if (swatch) swatch.style.background = color.fill;
+
+  const fillEl = document.getElementById('assignmentFill');
+  if (fillEl) fillEl.style.width = `${Math.round(prog.ratio * 100)}%`;
+  const barEl = document.getElementById('assignmentBar');
+  if (barEl) barEl.setAttribute('aria-valuenow', String(Math.round(prog.ratio * 100)));
+
+  setText('assignmentMsg', prog.achieved
+    ? 'やったね！しゅくだい たっせい！🎉'
+    : `${prog.count} / ${prog.target} かい（あと ${prog.remaining}）`);
+  card.classList.toggle('assignment-card--done', prog.achieved);
 }
 
 // サウンドON/OFFトグルの表示を state に同期
@@ -633,11 +664,20 @@ const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
 // 記録直後の猫の演出を出し分ける。節目（レベルアップ／新バッジ／連続日数の節目）は
 // 特別演出 playCelebrate、それ以外の通常記録は日常のお祝い playHappy（ランダム）。
-function celebrateRecord({ leveled, badgeCount, streakCurrent }) {
+function celebrateRecord({ leveled, badgeCount, streakCurrent, assignmentAchieved }) {
   const svg = document.querySelector('#catStage svg');
-  const milestone = leveled || badgeCount > 0 || STREAK_CELEBRATIONS.has(streakCurrent);
+  const milestone = leveled || badgeCount > 0 || STREAK_CELEBRATIONS.has(streakCurrent) || assignmentAchieved;
   if (milestone) playCelebrate(svg);
   else playHappy(svg);
+}
+
+// 宿題が「未達成→達成」に切り替わったか（記録適用前後の進捗を比較・#143）。
+// sessions を唯一の正とする派生判定なので、追加のフラグを持たずに再演出を防げる
+// （達成済みの日に追記しても prev が既に達成なので false）。
+function assignmentJustAchieved(prevSessions, nextState, today) {
+  const before = assignmentProgress(prevSessions, state.assignment, today)?.achieved ?? false;
+  const after = assignmentProgress(nextState.sessions, nextState.assignment, today);
+  return !before && !!after?.achieved ? after.name : null;
 }
 
 function showCoinPopup({ coins, leveled, newLevel }) {
@@ -703,6 +743,22 @@ function showBadgePopup(badges) {
   showNext();
 }
 
+// きょうの きょく（しゅくだい）達成のポップアップ・#143
+function showAssignmentPopup(songName) {
+  const popup = document.getElementById('assignmentPopup');
+  if (!popup) return;
+  setText('assignmentPopupSong', songName);
+  popup.hidden = false;
+  void popup.getBoundingClientRect();
+  popup.classList.add('coin-popup--show');
+  playSound('levelup', state);
+  clearTimeout(showAssignmentPopup._t);
+  showAssignmentPopup._t = setTimeout(() => {
+    popup.classList.remove('coin-popup--show');
+    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
+  }, 2400);
+}
+
 // お休み券で連続を守ったときのポップアップ
 function showFreezePopup() {
   const popup = document.getElementById('freezePopup');
@@ -728,6 +784,10 @@ function submitRecord(event) {
     if (recordErrorEl) recordErrorEl.hidden = false;
     return;
   }
+
+  // 宿題の達成遷移を判定するため、記録適用前の sessions を控える（#143）
+  const prevSessions = state.sessions;
+  const today = todayStr();
 
   // 編集モード：該当セッションを置き換えて全再計算（報酬演出はしない）
   // 日付変更による同日衝突も mergeSameDaySessions で統合する
@@ -757,11 +817,14 @@ function submitRecord(event) {
     cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
     track('practice_recorded', { totalCount: mergedCount }); // 回数のみ・曲名は送らない
     router.go('home');
-    celebrateRecord({ leveled: newState.pet.level > prevLevel, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
+    const hwSong = assignmentJustAchieved(prevSessions, newState, today);
+    celebrateRecord({ leveled: newState.pet.level > prevLevel, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, assignmentAchieved: !!hwSong });
     showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled: newState.pet.level > prevLevel, newLevel: newState.pet.level });
     playSound('record', state);
     if (newState.pet.level > prevLevel) playSound('levelup', state);
-    if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 2200);
+    let nextDelay = 2200;
+    if (gainedBadges.length) { setTimeout(() => showBadgePopup(gainedBadges), nextDelay); nextDelay += 2200; }
+    if (hwSong) setTimeout(() => showAssignmentPopup(hwSong), nextDelay);
     resetRecordForm();
     return;
   }
@@ -773,19 +836,21 @@ function submitRecord(event) {
   cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');              // ホームへ遷移
-  // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）
-  celebrateRecord({ leveled: rewards.leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
+  // 節目（レベルアップ／新バッジ／連続日数の節目／宿題達成）は特別演出、通常はランダムなお祝い（#81/#143）
+  const hwSong = assignmentJustAchieved(prevSessions, newState, today);
+  celebrateRecord({ leveled: rewards.leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, assignmentAchieved: !!hwSong });
   showCoinPopup(rewards);         // 獲得コインのポップアップ
   // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
   playSound('record', state);
   if (rewards.leveled) playSound('levelup', state);
-  // コインポップアップの後に、お休み券→新規バッジの順で表示
+  // コインポップアップの後に、お休み券→新規バッジ→宿題達成の順で表示
   let nextDelay = 2200;
   if (rewards.frozeDays > 0) {
     setTimeout(showFreezePopup, nextDelay);
     nextDelay += 2200;
   }
-  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), nextDelay);
+  if (gainedBadges.length) { setTimeout(() => showBadgePopup(gainedBadges), nextDelay); nextDelay += 2200; }
+  if (hwSong) setTimeout(() => showAssignmentPopup(hwSong), nextDelay);
   resetRecordForm();
 }
 
@@ -923,6 +988,7 @@ function submitGate() {
   if (Number(gateAnswerEl?.value) === gateExpected) {
     if (settingsGateEl) settingsGateEl.hidden = true;
     if (settingsMenuEl) settingsMenuEl.hidden = false;
+    loadHwInputs();                       // 宿題の現在値をフォームに反映（#143）
   } else if (gateErrorEl) {
     gateErrorEl.hidden = false;
     if (gateAnswerEl) gateAnswerEl.value = '';
@@ -986,6 +1052,62 @@ function handleImportFile(file) {
   reader.onerror = () => showImportStatus(importErrorMessage('parse'), true);
   reader.readAsText(file);
 }
+
+// ===== せってい：きょうの きょく（しゅくだい）設定・#143 =====
+const hwNameEl = document.getElementById('hwName');
+const hwTargetEl = document.getElementById('hwTarget');
+const hwStatusEl = document.getElementById('hwStatus');
+const hwPeriodDayBtn = document.getElementById('hwPeriodDay');
+const hwPeriodWeekBtn = document.getElementById('hwPeriodWeek');
+let hwPeriod = 'day';
+
+// 期間トグル（きょう / こんしゅう）の見た目と状態を切り替える。
+function setHwPeriod(period) {
+  hwPeriod = period === 'week' ? 'week' : 'day';
+  const isWeek = hwPeriod === 'week';
+  hwPeriodDayBtn?.classList.toggle('is-active', !isWeek);
+  hwPeriodWeekBtn?.classList.toggle('is-active', isWeek);
+  hwPeriodDayBtn?.setAttribute('aria-pressed', String(!isWeek));
+  hwPeriodWeekBtn?.setAttribute('aria-pressed', String(isWeek));
+}
+
+// 現在の state.assignment をフォームへ反映（ゲート通過時に呼ぶ）。
+function loadHwInputs() {
+  const item = primaryItem(state.assignment);
+  if (hwNameEl) hwNameEl.value = item ? item.name : '';
+  if (hwTargetEl) hwTargetEl.value = item ? String(item.target) : '5';
+  setHwPeriod(state.assignment?.period ?? 'day');
+  if (hwStatusEl) hwStatusEl.hidden = true;
+}
+
+function showHwStatus(msg) {
+  if (!hwStatusEl) return;
+  hwStatusEl.textContent = msg;
+  hwStatusEl.hidden = false;
+}
+
+// 宿題を保存。曲名が空なら保存しない（クリアは「けす」ボタン）。
+function saveHomework() {
+  const name = String(hwNameEl?.value ?? '').trim();
+  if (!name) { showHwStatus('きょくめいを いれてね'); return; }
+  const assignment = makeAssignment({ name, target: hwTargetEl?.value, period: hwPeriod });
+  commitState({ ...state, assignment });
+  cloud?.flushCloud();
+  showHwStatus('きめたよ！ホームに でるよ 🎀');
+}
+
+// 宿題をクリア（items:[] のトゥームストーンで他端末へも伝播）。
+function clearHomework() {
+  commitState({ ...state, assignment: makeAssignment({ name: '', period: hwPeriod }) });
+  cloud?.flushCloud();
+  if (hwNameEl) hwNameEl.value = '';
+  showHwStatus('しゅくだいを けしたよ');
+}
+
+hwPeriodDayBtn?.addEventListener('click', () => setHwPeriod('day'));
+hwPeriodWeekBtn?.addEventListener('click', () => setHwPeriod('week'));
+document.getElementById('hwSaveBtn')?.addEventListener('click', saveHomework);
+document.getElementById('hwClearBtn')?.addEventListener('click', clearHomework);
 
 document.getElementById('settingsToggle')?.addEventListener('click', openSettings);
 settingsOverlayEl?.addEventListener('click', (e) => {

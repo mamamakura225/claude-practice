@@ -5,10 +5,13 @@ import {
   mergeCloud,
   mergeSessionsKeepLarger,
   mergeCloudInitial,
+  pickNewerAssignment,
   migrate,
   CLOUD_FIELDS,
   SCHEMA_VERSION,
 } from '../js/storage.js';
+
+const hw = (name, setAt) => ({ items: [{ name, target: 5 }], period: 'day', setAt });
 
 describe('normalizeState', () => {
   it('空入力で DEFAULTS を返す', () => {
@@ -100,6 +103,40 @@ describe('mergeCloud', () => {
     expect(merged.pet.coins).toBe(42);
     expect(merged.sessions).toHaveLength(1);
   });
+
+  it('assignment は cloud-wins ではなく setAt の新しい方を採る（#143）', () => {
+    const local = normalizeState({ assignment: hw('local-new', '2026-06-05T10:00:00Z') });
+    const merged = mergeCloud(local, { assignment: hw('cloud-old', '2026-06-05T09:00:00Z') });
+    expect(merged.assignment.items[0].name).toBe('local-new');   // 新しいローカルを保持
+  });
+});
+
+describe('pickNewerAssignment（宿題 LWW・#143）', () => {
+  it('片方 null は非 null を採る', () => {
+    const a = hw('x', '2026-06-05T00:00:00Z');
+    expect(pickNewerAssignment(a, null)).toBe(a);
+    expect(pickNewerAssignment(null, a)).toBe(a);
+    expect(pickNewerAssignment(null, null)).toBe(null);
+  });
+
+  it('setAt の新しい方を採る', () => {
+    const older = hw('old', '2026-06-05T08:00:00Z');
+    const newer = hw('new', '2026-06-05T09:00:00Z');
+    expect(pickNewerAssignment(older, newer).items[0].name).toBe('new');
+    expect(pickNewerAssignment(newer, older).items[0].name).toBe('new');
+  });
+
+  it('setAt 同値はローカル(a)優先', () => {
+    const a = hw('a', '2026-06-05T08:00:00Z');
+    const b = hw('b', '2026-06-05T08:00:00Z');
+    expect(pickNewerAssignment(a, b).items[0].name).toBe('a');
+  });
+
+  it('クリア(items:[])もトゥームストーンとして LWW で伝播する', () => {
+    const set = hw('x', '2026-06-05T08:00:00Z');
+    const cleared = { items: [], period: 'day', setAt: '2026-06-05T09:00:00Z' };
+    expect(pickNewerAssignment(set, cleared).items).toEqual([]);   // 新しいクリアが勝つ
+  });
 });
 
 describe('mergeSessionsKeepLarger', () => {
@@ -175,5 +212,12 @@ describe('mergeCloudInitial', () => {
     const m = mergeCloudInitial(local, cloud);
     expect(m.pet.affinity).toBe(8);
     expect(m.pet.foodSpent).toBe(55);
+  });
+
+  it('assignment は setAt の新しい方を採る（#143）', () => {
+    const local = normalizeState({ assignment: hw('local-old', '2026-06-05T08:00:00Z') });
+    const cloud = { assignment: hw('cloud-new', '2026-06-05T09:00:00Z') };
+    const m = mergeCloudInitial(local, cloud);
+    expect(m.assignment.items[0].name).toBe('cloud-new');
   });
 });

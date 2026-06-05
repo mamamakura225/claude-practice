@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=543e7a98">
-  <link rel="stylesheet" href="css/cat.css?v=543e7a98">
+  <link rel="stylesheet" href="css/style.css?v=781b7398">
+  <link rel="stylesheet" href="css/cat.css?v=781b7398">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -29,6 +29,22 @@
         <p id="petName" class="pet-name">きーちゃん</p>
 
         <div class="stats">
+          <!-- きょうの きょく（しゅくだい・#143）。宿題が設定されているときだけ表示 -->
+          <div class="assignment-card" id="assignmentCard" hidden>
+            <div class="assignment-card__head">
+              <span class="assignment-card__badge" id="assignmentBadge">🎀 きょうの きょく</span>
+            </div>
+            <div class="assignment-card__song">
+              <span class="assignment-card__swatch" id="assignmentSwatch" aria-hidden="true">🎵</span>
+              <span class="assignment-card__name" id="assignmentName"></span>
+            </div>
+            <div class="assignmentbar" id="assignmentBar" role="progressbar"
+                 aria-label="きょうの きょくの もくひょう" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <div class="assignmentbar-fill" id="assignmentFill"></div>
+            </div>
+            <p class="assignment-card__msg" id="assignmentMsg"></p>
+          </div>
+
           <div class="goal-block" id="goalBlock">
             <div class="goal-line">
               <span class="goal-label">きょうの もくひょう</span>
@@ -283,6 +299,15 @@
       </div>
     </div>
 
+    <!-- ===== しゅくだい たっせいの ポップアップ・#143 ===== -->
+    <div id="assignmentPopup" class="coin-popup" role="status" aria-live="polite" hidden>
+      <div class="coin-popup__card">
+        <span class="coin-popup__icon" aria-hidden="true">🎀</span>
+        <span class="badge-popup__name">きょうの きょく<br>たっせい！🎉</span>
+        <span class="coin-popup__label" id="assignmentPopupSong"></span>
+      </div>
+    </div>
+
     <!-- ===== せってい（おうちのひとへ）オーバーレイ・#140 ===== -->
     <div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-label="おうちのひとへ" hidden>
       <div class="settings-overlay__backdrop" data-action="close-settings"></div>
@@ -300,8 +325,38 @@
         </div>
       </div>
 
-      <!-- 親メニュー：ゲート通過後にバックアップ/復元を表示 -->
+      <!-- 親メニュー：ゲート通過後に宿題設定・バックアップ/復元を表示 -->
       <div class="settings-panel" id="settingsMenu" hidden>
+        <!-- きょうの きょく（しゅくだい）設定・#143 -->
+        <section class="settings-hw">
+          <h2 class="settings-panel__title">きょうの きょく（しゅくだい）</h2>
+          <p class="settings-menu__desc">せんせいの しゅくだいを とうろくすると、ホームに大きく でて、たっせいで おいわいします。</p>
+          <label class="field">
+            <span class="field-label">きょくめい</span>
+            <input type="text" id="hwName" class="field-input" maxlength="40" placeholder="れい：きらきらぼし" autocomplete="off">
+          </label>
+          <div class="settings-hw__row">
+            <label class="field settings-hw__target">
+              <span class="field-label">もくひょう かいすう</span>
+              <input type="number" id="hwTarget" class="field-input" inputmode="numeric" min="1" max="999" value="5">
+            </label>
+            <div class="settings-hw__period">
+              <span class="field-label">きかん</span>
+              <div class="record-mode" role="radiogroup" aria-label="きかん">
+                <button type="button" class="record-mode__btn is-active" id="hwPeriodDay" data-period="day" aria-pressed="true">きょう</button>
+                <button type="button" class="record-mode__btn" id="hwPeriodWeek" data-period="week" aria-pressed="false">こんしゅう</button>
+              </div>
+            </div>
+          </div>
+          <div class="settings-panel__actions">
+            <button type="button" class="settings-btn settings-btn--ghost" id="hwClearBtn">けす</button>
+            <button type="button" class="settings-btn" id="hwSaveBtn">きめる</button>
+          </div>
+          <p class="settings-menu__note" id="hwStatus" role="status" aria-live="polite" hidden></p>
+        </section>
+
+        <hr class="settings-divider">
+
         <h2 class="settings-panel__title">データの ほぞん・よみこみ</h2>
         <p class="settings-menu__desc">きしゅへんこうや データさくじょに そなえて、データを ファイルに ほぞんできます。</p>
         <button type="button" class="settings-btn settings-btn--block" id="exportBtn">📥 データを ほぞん</button>
@@ -334,6 +389,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=543e7a98"></script>
+  <script type="module" src="js/app.js?v=781b7398"></script>
 </body>
 </html>

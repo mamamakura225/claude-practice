@@ -15,9 +15,10 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 | `streak` | Streak | ✓ | 連続練習記録 |
 | `badges` | string[] | ✓ | 獲得バッジID |
 | `sessions` | Session[] | ✓ | 練習セッション履歴（XP/レベル等の計算元） |
+| `assignment` | Assignment \| null | ✓ | きょうの きょく（宿題・#143）。親が設定する単一値。未設定は `null` |
 | `settings` | Settings | − | 端末ローカル設定（音など）。クラウド非同期 |
 
-クラウド (Firestore `pianopet/data`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions`）のみ。
+クラウド (Firestore `pianopet/data`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions, assignment`）のみ。
 `settings` と `version` は端末ローカルに留まる。
 
 ### State 以外の localStorage キー（端末ローカル・クラウド非同期）
@@ -79,8 +80,25 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 |---|---|---|
 | `soundOn` | boolean | `true` |
 
-正規化は `normalizeState(saved)` が担い、`pet`/`streak`/`settings` の不足キーを `DEFAULTS` で補完する。
-フィールド追加程度であれば正規化のデフォルト補完だけで済むため、スキーマバージョンを上げる必要はない。
+### Assignment（きょうの きょく・#143）
+親が「先生の宿題」を代理登録する単一値。ホームに大きなカードで表示し、達成で特別演出を出す。純粋ロジックは [assignment.js](../js/assignment.js)。
+
+| フィールド | 型 | 説明 |
+|---|---|---|
+| `items` | `{ name, target }[]` | 宿題の曲リスト。**MVP は先頭1件のみ**を入力・表示（`primaryItem`）。スキーマは将来の複数曲拡張に備え配列 |
+| `period` | `'day'` \| `'week'` | 目標期間。`day`=当日、`week`=今週（**月曜始まり**・`history.js` `weekStart` に追従し週次グラフと一致） |
+| `setAt` | ISO文字列 | 設定時刻。クラウド競合解決（LWW）に使う |
+
+- **達成判定は `sessions` から導出**（`assignmentProgress`）。対象曲の period 内合計回数が `target` 以上なら達成。専用の達成フラグは持たない（曲色・なかよし同様）。記録の編集・削除で全再計算しても矛盾しない。
+- **クリアはトゥームストーン**：`items: []`＋新しい `setAt`。`null` でなく空配列にすることで「消した」操作も LWW で他端末へ伝播する。`hasAssignment` は `items` が空なら false。
+- **演出**：記録適用前後で `assignmentProgress(...).achieved` が `false→true` に切り替わったときだけ、紙吹雪（`playCelebrate`）＋達成ポップアップを出す（[app.js](../js/app.js) `assignmentJustAchieved`）。遷移検出なので達成済みの日に追記しても再演出されず、フラグ不要。
+
+> **設計判断**: `assignment` は `sessions` から導出されない単一値のため、クラウドマージは sessions の keep-larger とは別に **`setAt` の Last-Write-Wins**（`pickNewerAssignment`・片方 null は非 null 優先）で解決する。親が直近に設定した宿題が正、というデータ性質に合致する。`mergeCloud`(cloud-wins) / `mergeCloudInitial`(ローカル優先) の両経路で LWW を適用する。
+>
+> **設計判断（達成ボーナスコインの先送り）**: 設計レビューでは達成ボーナスコイン（🪙+5）案も出たが、コインは `sessions` から `recomputeState` で全再計算される派生値のため、宿題ボーナスを永続させるには affinity/foodSpent 同様の別アキュムレータと全再計算経路の改修が必要になる。MVP（軽量 M）では**特別演出（紙吹雪＋ポップアップ）のみ**とし、ボーナスコインは別Issueの拡張余地とした。
+
+正規化は `normalizeState(saved)` が担い、`pet`/`streak`/`settings` の不足キーを `DEFAULTS` で補完する（`assignment` はトップレベルの単純値なので spread でそのまま引き継がれる）。
+フィールド追加程度であれば正規化のデフォルト補完だけで済むため、スキーマバージョンを上げる必要はない（`assignment` 追加も `DEFAULTS.assignment: null` の補完だけで migration 不要）。
 
 ## マイグレーション戦略
 
@@ -152,6 +170,7 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 | `inventory` | 重複 ID を除いた **union** | 所有は単調増加 |
 | `pet.equippedItems` | 両端末の union のうち、マージ後 `inventory` に含まれるものだけ | 未所持の装備を残さない |
 | `pet.affinity` / `pet.foodSpent` | **max** | sessions から導出されない累積値 |
+| `assignment` | `setAt` の **Last-Write-Wins**（`pickNewerAssignment`・片方 null は非 null 優先）| 親が設定する単一値。keep-larger/合算ではなく直近設定が正（#143）。`mergeCloud` 経路も同じ LWW |
 | `pet.coins` / `pet.xp` / `pet.level` / `streak` / `badges` | マージ後の `sessions` から `recomputeState` で再計算 | sessions が唯一の正。`spent = spentCoins(merged inventory) + pet.foodSpent` を第2引数に渡す（`spent` の scalar マージは不要・`spentCoins` が inventory から導出するため） |
 
 マージ結果がクラウドと異なれば（ローカルだけが持つ記録があった等）`pushCloud` で確定する。
