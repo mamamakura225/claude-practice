@@ -2,6 +2,7 @@ import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState } from './storage.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
+import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
 import { songColor } from './song-color.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
@@ -57,8 +58,20 @@ function spentTotal(s) {
   return spentCoins(s) + foodSpent(s);
 }
 
+// 装備していない衣装の配置座標を itemLayout から除く（#168 ゴーストデータ防止）。
+// shop.js は無改修（装備ロジック温存）なので、外した衣装の座標はここで掃除する。
+function cleanItemLayout(pet) {
+  const layout = pet.itemLayout ?? {};
+  const equipped = new Set(pet.equippedItems ?? []);
+  const cleaned = {};
+  for (const id of Object.keys(layout)) {
+    if (equipped.has(id)) cleaned[id] = layout[id];
+  }
+  return cleaned;
+}
+
 export function commitState(newState) {
-  state = newState;
+  state = { ...newState, pet: { ...newState.pet, itemLayout: cleanItemLayout(newState.pet) } };
   saveState(state);                 // ローカルキャッシュ（オフライン用）
   if (cloud) cloud.pushCloudDebounced(cloudFields(state));  // クラウドへ反映（読み込み済みのときだけ）
   renderHome();
@@ -81,6 +94,7 @@ export function renderHome() {
       equippedItems: state.pet.equippedItems,
       name: state.pet.name,
       bond,                                          // なかよしレベルのエンブレム（#124）→ tier導出にも使う
+      itemLayout: state.pet.itemLayout,              // 衣装の自由配置（#168）
     });
     preloadTier(tierFromBond(bond));                 // 現tierの4moodを先読み（演出時のガタつき防止）
     prefetchNextTier(affinity(state));               // 次tier境界の手前なら次の4枚を先読み
@@ -934,6 +948,8 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
 // なでる/タップで反応（鳴く・喜ぶ・しっぽふり）。記録には影響しない安全な操作。
 // たまに威嚇（hiss）したときは、喜び演出（ハート・しっぽふり）は出さない。
 function petCat() {
+  // きせかえ編集モード中はドラッグ優先（なで演出は出さない・#168）
+  if (document.getElementById('catStage')?.classList.contains('cat-stage--editing')) return;
   unlockAudio();                                       // ユーザー操作で AudioContext を解錠
   const voice = rollCatVoice();                        // なで反応を抽選（音設定に依存しない）
   playCatVoice(state, voice);                          // 抽選結果の鳴き声を再生（OFF時は無音）
@@ -947,6 +963,30 @@ function petCat() {
   }
 }
 document.getElementById('catStage')?.addEventListener('click', petCat);
+
+// ===== きせかえ：編集モードのトグル（#168） =====
+// 「きせかえ」中はドラッグで衣装を動かせ、なでは無効。「できた！」で抜けて配置を保存。
+// commitState はドロップごとに走るので、トグル解除時に追加保存は不要。
+let dressupDisable = null;
+function toggleDressup() {
+  const stage = document.getElementById('catStage');
+  const btn = document.getElementById('dressupToggle');
+  if (!stage) return;
+  const editing = stage.classList.toggle('cat-stage--editing');
+  if (editing) {
+    dressupDisable = enableDressup(
+      stage,
+      () => state.pet.itemLayout ?? {},
+      (layout) => commitState({ ...state, pet: { ...state.pet, itemLayout: layout } }),
+    );
+    if (btn) { btn.textContent = '✅ できた！'; btn.setAttribute('aria-pressed', 'true'); }
+  } else {
+    dressupDisable?.();
+    dressupDisable = null;
+    if (btn) { btn.textContent = '👗 きせかえ'; btn.setAttribute('aria-pressed', 'false'); }
+  }
+}
+document.getElementById('dressupToggle')?.addEventListener('click', toggleDressup);
 
 // ===== サウンドON/OFFトグル =====
 document.getElementById('soundToggle')?.addEventListener('click', () => {

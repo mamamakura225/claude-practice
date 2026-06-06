@@ -3,7 +3,7 @@ const KEY = 'piano-pet';
 
 // localStorage に保存する state の現行スキーマバージョン。
 // 構造を破壊的に変更したらここを +1 し、MIGRATIONS に移行ステップを追加する。
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 const DEFAULTS = {
   version: SCHEMA_VERSION,
@@ -13,6 +13,9 @@ const DEFAULTS = {
     xp: 0,
     coins: 0,
     equippedItems: [],
+    // 衣装の自由配置座標（#168）。{ itemId: { x_pct, y_pct } }。
+    // 未登録のアイテムは cat-image.js が既定アンカー位置で描く（フォールバック）。
+    itemLayout: {},
     affinity: 0,
     foodSpent: 0,
   },
@@ -39,6 +42,9 @@ const DEFAULTS = {
 // 例: v1→v2 で sessions の形を変えるなら MIGRATIONS[1] に変換を追加する。
 const MIGRATIONS = [
   // v0 (バージョン番号を持たないレガシーデータ) → v1: 構造変更なし。version 付与のみ。
+  (s) => s,
+  // v1 → v2: 衣装の自由配置 pet.itemLayout を導入（#168）。
+  // 既定値の補完は normalizeState が行うため、ここでは version 付与のみ。
   (s) => s,
 ];
 

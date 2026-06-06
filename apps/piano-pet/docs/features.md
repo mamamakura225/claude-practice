@@ -151,6 +151,17 @@
 - 装備するとホームの猫画像の上に、アンカー位置（neck/head/face/back）の別レイヤーSVGで重ねて即時表示（cape は背面 `cat__back`、他は前面 `cat__front`）
 - 購入に使ったコインは `spentCoins`（インベントリの価格合計）として全再計算に反映
 
+### きせかえ 自由配置（ドラッグ＋スナップ・#168）
+ホームの「👗 きせかえ」トグルで編集モードに入ると、装備中の衣装を指/マウスで自由に動かせる。実装は [dressup.js](../js/dressup.js)（pointerドラッグ）＋ [cat-image.js](../js/cat-image.js) `itemsSvg`/`itemAnchorPct`。
+
+- **配置データ**: `pet.itemLayout = { itemId: {x_pct, y_pct} }`（ステージ=.catコンテナ基準の%・ビューポート非依存）。`pet` 内なので Firestore へ自動同期（ズレは LWW）。`shop.js` の装備ロジックは無改修
+- **フォールバック二段構え**: `itemLayout` に座標が無い衣装は既定アンカー位置で描画し、初ドラッグで `itemLayout` に記録
+- **スナップ吸着**: ドロップ時、その衣装の既定アンカー（`itemAnchorPct`）の閾値（12%）以内なら定位置へスナップ＝`itemLayout` から外す（フォールバックに戻す）。遠ければ自由配置。範囲外はステージ内に clamp。スロット跨ぎはしない
+- **なで競合の回避**: 編集モード中は `petCat`（なで演出）を無効化。猫の周囲を点線で囲う視覚フィードバック。「✅ できた！」で抜ける
+- **ゴーストデータ掃除**: `commitState` の `cleanItemLayout` が、装備していない衣装の座標を `itemLayout` から除く（同期ペイロード健全化）
+
+> **設計判断（#168）**: 配置座標は `equippedItems`(id配列) に埋め込まず**別フィールド `pet.itemLayout`** に分離した。`shop.js`/`equipItem` 系の装備ロジックとテストを温存し、状態遷移へのバグ混入を避けるため。完全自由配置だと5歳児には絵が崩れやすいので、アイテム固有アンカー1点への吸着で「自由さ」と「見栄え」を両立する。
+
 ## バッジ（実績）
 
 実装は [badges.js](../js/badges.js)（カタログ）と [game.js](../js/game.js) `checkBadges`（判定）。

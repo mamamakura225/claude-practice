@@ -26,12 +26,19 @@ export function catImageSrc(tier, mood) {
 // ----- 衣装アイテムのアンカー（viewBox 0 0 200 200・正方画像基準・固定1セット） -----
 // stage(成長段階)は廃止。プリレンダ画像は正方キャンバスに猫が中央やや下で描かれるため、
 // 画像内の頭・首・背・顔の実位置に合わせた座標を1セット持つ（#168 のドラッグ配置で微調整可能）。
-const ANCHORS = {
+export const ANCHORS = {
   head: { x: 100, y: 46,  s: 0.90 },  // 頭頂（王冠・帽子・花）
   face: { x: 100, y: 72,  s: 0.85 },  // 顔中央（めがね）
   neck: { x: 100, y: 100, s: 0.80 },  // 首元（リボン・首輪・マフラー）
   back: { x: 100, y: 108, s: 0.92 },  // 背中（マント）
 };
+
+// アイテムの既定アンカー位置（%・.catコンテナ basis）。#168 のスナップ吸着点に使う。
+// viewBox は 0 0 200 200 なので %換算は座標/2。
+export function itemAnchorPct(id) {
+  const a = ANCHORS[ITEM_ANCHOR_TYPE[id]];
+  return a ? { x_pct: a.x / 2, y_pct: a.y / 2 } : null;
+}
 
 function n(v, d = 1) {
   return parseFloat(v.toFixed(d));
@@ -149,12 +156,18 @@ const ITEM_ANCHOR_TYPE = {
 export const ITEM_IDS = Object.keys(ITEMS);
 
 // 衣装を anchor 種別でフィルタして配置する（cape は背面、それ以外は前面）。
-function itemsSvg(equippedItems, anchorTypes) {
+// layout に座標があればその %（→viewBox 200系）で、無ければ既定アンカーで配置する（#168）。
+// 各 <g> は data-item / data-scale を持ち、きせかえドラッグ（dressup.js）が掴んで動かす。
+function itemsSvg(equippedItems, anchorTypes, layout = {}) {
   const parts = (equippedItems ?? [])
     .filter((id) => ITEMS[id] && anchorTypes.includes(ITEM_ANCHOR_TYPE[id]))
     .map((id) => {
       const a = ANCHORS[ITEM_ANCHOR_TYPE[id]];
-      return `<g transform="translate(${a.x} ${a.y}) scale(${a.s})">${ITEMS[id]()}</g>`;
+      const pos = layout[id];
+      const x = pos ? pos.x_pct * 2 : a.x;
+      const y = pos ? pos.y_pct * 2 : a.y;
+      return `<g class="cat__item" data-item="${id}" data-scale="${a.s}" `+
+        `transform="translate(${n(x)} ${n(y)}) scale(${a.s})">${ITEMS[id]()}</g>`;
     });
   return parts.join('');
 }
@@ -234,11 +247,11 @@ function zzzGroup() {
  * bond : なかよしレベル(1-5)。tier の導出とエンブレム表示に使う。
  * stage 引数は後方互換のため受け取るが無視する（成長段階は廃止）。
  */
-export function catMarkup({ mood = 'idle', equippedItems = [], name = 'ねこ', bond = 0 } = {}) {
+export function catMarkup({ mood = 'idle', equippedItems = [], name = 'ねこ', bond = 0, itemLayout = {} } = {}) {
   const tier = tierFromBond(bond);
   const m = IMG_MOODS.includes(mood) ? mood : 'idle';
-  const back = itemsSvg(equippedItems, ['back']);
-  const front = itemsSvg(equippedItems, ['neck', 'head', 'face']);
+  const back = itemsSvg(equippedItems, ['back'], itemLayout);
+  const front = itemsSvg(equippedItems, ['neck', 'head', 'face'], itemLayout);
   const fx = `${heartsGroup()}${sparklesGroup()}${zzzGroup()}${bondEmblemGroup(bond)}`;
   // 演出クラスは .cat コンテナに付く。本体アニメは .cat__body、fx は内部要素に効く。
   return `<div class="cat cat--${m}" role="img" aria-label="${name}" data-mood="${m}" data-tier="${tier}">
