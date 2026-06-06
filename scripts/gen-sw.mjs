@@ -30,6 +30,7 @@ function listAssets() {
   collectDir('js', ['.js']);
   assets.push('manifest.json');
   collectDir('icons', ['.svg', '.png']);
+  collectDir('img/cat', ['.png']);
   collectDir('sounds', ['.mp3', '.ogg', '.wav']);
   return assets;
 

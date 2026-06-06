@@ -21,7 +21,7 @@ test.describe('猫とのインタラクション', () => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
 
-    const catSvg = page.locator('#catStage svg');
+    const catSvg = page.locator('#catStage .cat');
     await expect(catSvg).toBeVisible();
 
     // タップ直後は反応クラス（喜ぶ or しっぽふり）が付く。終了時に剥がれる前に確認する。
@@ -35,7 +35,7 @@ test.describe('猫とのインタラクション', () => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
 
-    const catSvg = page.locator('#catStage svg');
+    const catSvg = page.locator('#catStage .cat');
     await expect(catSvg).toBeVisible();
 
     await page.click('#catStage');
@@ -53,7 +53,7 @@ test.describe('猫とのインタラクション', () => {
     // サウンドをOFFにする（デフォルトON）。OFFでも威嚇判定は走るべき。
     await page.click('#soundToggle');
 
-    const catSvg = page.locator('#catStage svg');
+    const catSvg = page.locator('#catStage .cat');
     await expect(catSvg).toBeVisible();
 
     await page.click('#catStage');

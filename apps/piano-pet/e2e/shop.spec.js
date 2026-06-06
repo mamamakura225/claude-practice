@@ -48,7 +48,7 @@ test.describe('ショップ', () => {
     // ホームへ → 猫にアイテムグループが1つ乗る
     await page.click('.nav-btn[data-nav="home"]');
     await expect(page.locator('#view-home')).toBeVisible();
-    await expect(page.locator('#catStage .cat__items > g')).toHaveCount(1);
+    await expect(page.locator('#catStage .cat__back > g, #catStage .cat__front > g')).toHaveCount(1);
   });
 
   test('同じスロットのアイテムは付け替わる（リボン→星の首輪）', async ({ page }) => {
@@ -76,7 +76,7 @@ test.describe('ショップ', () => {
 
     // ホームの猫に乗っているアイテムは1つ（付け替えなので増えない）
     await page.click('.nav-btn[data-nav="home"]');
-    await expect(page.locator('#catStage .cat__items > g')).toHaveCount(1);
+    await expect(page.locator('#catStage .cat__back > g, #catStage .cat__front > g')).toHaveCount(1);
   });
 
   test('えさをあげるとコインが減り なかよし度が上がる', async ({ page }) => {

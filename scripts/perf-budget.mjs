@@ -52,6 +52,7 @@ const CATEGORIES = {
   css: collect('css', ['.css']),
   js: collect('js', ['.js']),
   icons: collect('icons', ['.svg', '.png']),
+  img: collect('img/cat', ['.png']),
   sounds: collect('sounds', ['.mp3', '.ogg', '.wav']),
 };
 
