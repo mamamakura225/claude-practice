@@ -32,14 +32,6 @@ export function xpProgress(totalXp) {
   };
 }
 
-// ----- 猫の成長段階 -----
-
-export function catStage(level) {
-  if (level <= 5) return 'kitten';   // 子猫
-  if (level <= 15) return 'young';   // 若猫
-  return 'adult';                    // 成猫
-}
-
 // ----- 今日の目標 -----
 
 // 1日の練習目標（回数）

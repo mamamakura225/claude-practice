@@ -1,4 +1,6 @@
-/* ===== 猫SVG 表示・アニメーション ===== */
+/* ===== 猫プリレンダ画像 表示・アニメーション（#167） ===== */
+/* 猫本体は tier×mood の透過PNG（img.cat__body）。衣装と演出は viewBox 0 0 200 236 の
+   オーバーレイSVG として本体の上に重ねる。演出クラス（cat--happy 等）は .cat コンテナに付く。 */
 .cat-stage {
   display: flex;
   justify-content: center;
@@ -9,13 +11,30 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* コンテナ：本体画像とオーバーレイ（衣装・演出）を重ねる基準 */
 .cat {
-  width: 72%;
-  max-width: 260px;
-  height: auto;
+  position: relative;
+  width: 80%;
+  max-width: min(320px, 90vw);
+  aspect-ratio: 1 / 1;
   display: block;
-  overflow: visible;
 }
+
+/* レイヤー共通：コンテナ全体に絶対配置で重ねる */
+.cat__body,
+.cat__back,
+.cat__front,
+.cat__fx {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cat__back  { z-index: 1; pointer-events: none; }
+.cat__body  { z-index: 2; object-fit: contain; }
+.cat__front { z-index: 3; pointer-events: none; }
+.cat__fx    { z-index: 4; pointer-events: none; overflow: visible; }
 
 .pet-name {
   font-family: 'Mochiy Pop One', sans-serif;
@@ -24,17 +43,10 @@
   margin-top: -8px;
 }
 
-/* ----- 通常：呼吸・尻尾 ----- */
+/* ----- 通常：呼吸（本体画像をふくらませて「生きてる感」を出す） ----- */
 .cat__body {
-  transform-box: fill-box;
   transform-origin: 50% 100%;
   animation: pp-breathe 3.6s ease-in-out infinite;
-}
-
-.cat__tail {
-  transform-box: fill-box;
-  transform-origin: 12% 88%;
-  animation: pp-tail 2.8s ease-in-out infinite;
 }
 
 @keyframes pp-breathe {
@@ -42,18 +54,7 @@
   50% { transform: scaleY(1.035); }
 }
 
-@keyframes pp-tail {
-  0%, 100% { transform: rotate(0deg); }
-  50% { transform: rotate(-9deg); }
-}
-
-/* ----- 目の開閉 ----- */
-.cat__eyes--closed { display: none; }
-
-/* ----- 寝る（2日以上練習なし） ----- */
-.cat--sleep .cat__eyes--open { display: none; }
-.cat--sleep .cat__eyes--closed { display: block; }
-.cat--sleep .cat__tail { animation-duration: 6s; }
+/* ----- 寝る（mood=sleep 画像 + Zzz・2日以上練習なし） ----- */
 .cat--sleep .cat__body { animation-duration: 7s; }
 
 .cat__zzz { opacity: 0; }
@@ -69,7 +70,7 @@
 }
 
 /* ----- 喜ぶ（練習記録後・単発） ----- */
-.cat--happy { animation: pp-hop 0.45s ease-in-out 3; }
+.cat--happy .cat__body { animation: pp-hop 0.45s ease-in-out 3; }
 
 @keyframes pp-hop {
   0%, 100% { transform: translateY(0); }
@@ -94,9 +95,8 @@
 }
 
 /* ----- しっぽをふる（なでた時・単発） ----- */
-.cat--wiggle {
+.cat--wiggle .cat__body {
   animation: pp-wiggle 0.5s ease-in-out 2;
-  transform-box: fill-box;
   transform-origin: 50% 88%;
 }
 
@@ -108,9 +108,8 @@
 
 /* ----- 喜ぶ バリエーション（日常のお祝い・ランダム / #81） ----- */
 /* 日常は軽く・節目（celebrate）を濃く、というメリハリ設計。playHappy が
-   素のぴょん（cat--happy）/ 2段跳ね（hop）/ くるっと揺れ（spin）から選ぶ。
-   variant は cat--happy と併用され、root への animation を上書きする。 */
-.cat--happy-hop { animation: pp-hop2 0.72s ease-in-out; }
+   素のぴょん（cat--happy）/ 2段跳ね（hop）/ くるっと揺れ（spin）から選ぶ。 */
+.cat--happy-hop .cat__body { animation: pp-hop2 0.72s ease-in-out; }
 
 @keyframes pp-hop2 {
   0%   { transform: translateY(0) scale(1); }
@@ -121,9 +120,8 @@
   100% { transform: translateY(0) scale(1); }
 }
 
-.cat--happy-spin {
+.cat--happy-spin .cat__body {
   animation: pp-happy-spin 0.7s ease-in-out;
-  transform-box: fill-box;
   transform-origin: 50% 80%;
 }
 
@@ -136,8 +134,7 @@
 }
 
 /* ----- 節目の特別演出（大ジャンプ＋ハート＋きらきら / #81） ----- */
-/* playCelebrate はレベルアップ／新バッジ／連続日数の節目だけで再生する。 */
-.cat--celebrate { animation: pp-celebrate 1s ease-in-out; }
+.cat--celebrate .cat__body { animation: pp-celebrate 1s ease-in-out; }
 
 @keyframes pp-celebrate {
   0%   { transform: translateY(0) scale(1); }
@@ -192,12 +189,11 @@
 /* 揺れ・跳ねは止め、ご褒美フィードバック（ハート/きらきら）は静止表示で残す。 */
 @media (prefers-reduced-motion: reduce) {
   .cat__body,
-  .cat__tail,
-  .cat--happy,
-  .cat--happy-hop,
-  .cat--happy-spin,
-  .cat--celebrate,
-  .cat--wiggle,
+  .cat--happy .cat__body,
+  .cat--happy-hop .cat__body,
+  .cat--happy-spin .cat__body,
+  .cat--celebrate .cat__body,
+  .cat--wiggle .cat__body,
   .cat--sleep .cat__zzz,
   .cat--happy .cat__heart,
   .cat--celebrate .cat__heart,

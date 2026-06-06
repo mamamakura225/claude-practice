@@ -1,7 +1,7 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState } from './storage.js';
-import { catStage, todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate } from './cat.js';
+import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
 import { songColor } from './song-color.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
@@ -75,13 +75,15 @@ function moodForState(s) {
 export function renderHome() {
   const stageEl = document.getElementById('catStage');
   if (stageEl) {
+    const bond = affinityLevel(affinity(state)).level;
     stageEl.innerHTML = catMarkup({
-      stage: catStage(state.pet.level),
       mood: moodForState(state),
       equippedItems: state.pet.equippedItems,
       name: state.pet.name,
-      bond: affinityLevel(affinity(state)).level,   // なかよしレベルのエンブレム（#124）
+      bond,                                          // なかよしレベルのエンブレム（#124）→ tier導出にも使う
     });
+    preloadTier(tierFromBond(bond));                 // 現tierの4moodを先読み（演出時のガタつき防止）
+    prefetchNextTier(affinity(state));               // 次tier境界の手前なら次の4枚を先読み
   }
   const nameEl = document.getElementById('petName');
   if (nameEl) nameEl.textContent = state.pet.name;
@@ -665,10 +667,10 @@ const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 // 記録直後の猫の演出を出し分ける。節目（レベルアップ／新バッジ／連続日数の節目）は
 // 特別演出 playCelebrate、それ以外の通常記録は日常のお祝い playHappy（ランダム）。
 function celebrateRecord({ leveled, badgeCount, streakCurrent, assignmentAchieved }) {
-  const svg = document.querySelector('#catStage svg');
+  const catEl = document.querySelector('#catStage .cat');
   const milestone = leveled || badgeCount > 0 || STREAK_CELEBRATIONS.has(streakCurrent) || assignmentAchieved;
-  if (milestone) playCelebrate(svg);
-  else playHappy(svg);
+  if (milestone) playCelebrate(catEl);
+  else playHappy(catEl);
 }
 
 // 宿題が「未達成→達成」に切り替わったか（記録適用前後の進捗を比較・#143）。
@@ -936,12 +938,12 @@ function petCat() {
   const voice = rollCatVoice();                        // なで反応を抽選（音設定に依存しない）
   playCatVoice(state, voice);                          // 抽選結果の鳴き声を再生（OFF時は無音）
   if (voice === 'hiss') return;                        // 威嚇のときは演出なし（ミュートでも一貫）
-  const svg = document.querySelector('#catStage svg');
+  const catEl = document.querySelector('#catStage .cat');
   // なかよしレベルが高いと、たまに「とくべつな えんしゅつ」が出る（#124 専用演出）
   if (Math.random() < bondCelebrateChance(affinityLevel(affinity(state)).level)) {
-    playCelebrate(svg);
+    playCelebrate(catEl);
   } else {
-    playReaction(svg);
+    playReaction(catEl);
   }
 }
 document.getElementById('catStage')?.addEventListener('click', petCat);
@@ -1152,9 +1154,9 @@ function renderOnboardingStep() {
 function showOnboarding() {
   if (!onboardingEl) return;
   onboardStep = 0;
-  // 既存の猫SVGを流用（新規アセットなし）。案内中はうれしそうな若猫を出す。
+  // ホームと同じ猫描画を流用（新規アセットなし）。案内中は通常表情を出す。
   const catEl = document.getElementById('onboardingCat');
-  if (catEl) catEl.innerHTML = catMarkup({ stage: 'young', mood: 'idle', name: state.pet.name });
+  if (catEl) catEl.innerHTML = catMarkup({ mood: 'idle', name: state.pet.name });
   renderOnboardingStep();
   onboardingEl.hidden = false;
 }

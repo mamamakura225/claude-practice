@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import {
   calcLevel,
   xpProgress,
-  catStage,
   updateStreak,
   calcRewards,
   applySession,
@@ -74,16 +73,6 @@ describe('dailyProgress', () => {
     expect(p.count).toBe(0);
     expect(p.remaining).toBe(10);
     expect(p.achieved).toBe(false);
-  });
-});
-
-describe('catStage', () => {
-  it('レベルに応じた成長段階を返す', () => {
-    expect(catStage(1)).toBe('kitten');
-    expect(catStage(5)).toBe('kitten');
-    expect(catStage(6)).toBe('young');
-    expect(catStage(15)).toBe('young');
-    expect(catStage(16)).toBe('adult');
   });
 });
 
