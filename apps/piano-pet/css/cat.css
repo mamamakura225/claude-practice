@@ -36,6 +36,44 @@
 .cat__front { z-index: 3; pointer-events: none; }
 .cat__fx    { z-index: 4; pointer-events: none; overflow: visible; }
 
+/* ----- きせかえ編集モード（#168）：衣装をドラッグで動かす ----- */
+/* 通常は衣装も pointer-events:none（猫タップ＝なで優先）。編集中だけ衣装を掴めるようにする。 */
+.cat-stage--editing { touch-action: none; }            /* ドラッグ中のスクロール抑制 */
+.cat-stage--editing .cat__back,
+.cat-stage--editing .cat__front { pointer-events: none; }
+.cat-stage--editing .cat__item { pointer-events: auto; cursor: grab; }
+.cat-stage--editing .cat__item--grabbing { cursor: grabbing; }
+
+/* 編集中であることが伝わる視覚フィードバック（猫のまわりをやわらかく囲う） */
+.cat-stage--editing .cat {
+  outline: 3px dashed var(--pink-deep, #ff7a93);
+  outline-offset: 6px;
+  border-radius: 16px;
+  animation: pp-dressup-glow 1.6s ease-in-out infinite;
+}
+
+@keyframes pp-dressup-glow {
+  0%, 100% { outline-color: #ffc0cb; }
+  50%      { outline-color: #ff7a93; }
+}
+
+.btn-dressup {
+  margin-top: 4px;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.95rem;
+  color: #fff;
+  background: var(--pink-deep, #ff7a93);
+  border: none;
+  border-radius: 999px;
+  padding: 7px 18px;
+  box-shadow: 0 2px 0 #e0607c;
+  cursor: pointer;
+}
+.btn-dressup[aria-pressed="true"] {
+  background: #6cc24a;
+  box-shadow: 0 2px 0 #4e9a35;
+}
+
 .pet-name {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.3rem;
@@ -199,7 +237,8 @@
   .cat--celebrate .cat__heart,
   .cat--celebrate .cat__sparkle,
   .cat__bond,
-  .cat__bond-sparkle {
+  .cat__bond-sparkle,
+  .cat-stage--editing .cat {
     animation: none !important;
   }
   .cat--happy .cat__hearts,

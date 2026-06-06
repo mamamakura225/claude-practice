@@ -16,7 +16,7 @@ const hw = (name, setAt) => ({ items: [{ name, target: 5 }], period: 'day', setA
 describe('normalizeState', () => {
   it('空入力で DEFAULTS を返す', () => {
     const s = normalizeState();
-    expect(s.pet).toEqual({ name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], affinity: 0, foodSpent: 0 });
+    expect(s.pet).toEqual({ name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], itemLayout: {}, affinity: 0, foodSpent: 0 });
     expect(s.inventory).toEqual([]);
     expect(s.streak).toEqual({ current: 0, best: 0, lastPracticeDate: null, freezes: 0 });
     expect(s.badges).toEqual([]);
@@ -40,6 +40,12 @@ describe('normalizeState', () => {
 
   it('version を現行スキーマバージョンに揃える', () => {
     expect(normalizeState().version).toBe(SCHEMA_VERSION);
+  });
+
+  it('itemLayout が無ければ空オブジェクトで補完する（#168）', () => {
+    expect(normalizeState().pet.itemLayout).toEqual({});
+    const s = normalizeState({ pet: { itemLayout: { crown: { x_pct: 50, y_pct: 20 } } } });
+    expect(s.pet.itemLayout).toEqual({ crown: { x_pct: 50, y_pct: 20 } });
   });
 });
 
