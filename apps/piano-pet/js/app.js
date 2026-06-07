@@ -4,7 +4,7 @@ import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, merg
 import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
 import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
-import { songColor } from './song-color.js';
+import { songColor, assignSongColors } from './song-color.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
 import {
   weeklyTotals,
@@ -107,6 +107,25 @@ export function renderHome() {
   renderSoundToggle();
 }
 
+// 既知の曲すべてに衝突回避込みで色を割り当てた Map を返す（#165）。
+// 並びは累計回数順（songTotals）で決定的。extraNames に未保存の曲名（新規入力・
+// チップ候補）を渡すと末尾に足して色を割り当てる。全画面でこのマップを基準にすれば
+// 同じ曲が同じ色になり、近接ハッシュによる色かぶりも避けられる。
+function buildSongColors(extraNames = []) {
+  const ordered = songTotals(state.sessions).map((t) => t.name);
+  for (const n of extraNames) {
+    const name = String(n ?? '').trim();
+    if (name && !ordered.includes(name)) ordered.push(name);
+  }
+  return assignSongColors(ordered);
+}
+
+// 記録フォーム（チップ／スタンプ）で使う色マップ。候補曲（chipNames）を含めて
+// 1つのマップを共有し、チップとスタンプで同じ曲が同じ色になるようにする。
+function formSongColors() {
+  return buildSongColors(chipNames);
+}
+
 // きょうの きょく（しゅくだい・#143）。宿題があればカードを表示し進捗を描く。
 function renderAssignment() {
   const card = document.getElementById('assignmentCard');
@@ -118,7 +137,7 @@ function renderAssignment() {
   }
   card.hidden = false;
 
-  const color = songColor(prog.name);
+  const color = buildSongColors().get(prog.name) ?? songColor(prog.name);
   card.style.setProperty('--hw-accent', color.tint);
   setText('assignmentBadge', prog.period === 'week' ? '🎀 こんしゅうの きょく' : '🎀 きょうの きょく');
   setText('assignmentName', prog.name);
@@ -253,9 +272,10 @@ function historyCardMarkup(session, index) {
 
 // 曲別コレクション：曲ごとの色スウォッチ＋累計回数を多い順に並べる（#122）
 function songCollectionMarkup(totals) {
+  const colors = buildSongColors();
   return totals
     .map((t) => {
-      const c = songColor(t.name);
+      const c = colors.get(t.name) ?? songColor(t.name);
       return `<li class="song-collection__item">
         <span class="song-collection__swatch" style="background:${c.fill}" aria-hidden="true">🐾</span>
         <span class="song-collection__name">${escapeHtml(t.name)}</span>
@@ -452,12 +472,44 @@ let stamps = [];
 let selectedSong = null;
 let chipNames = [];
 
+// 当日のスタンプ下書きを退避する localStorage キー（#164）。ホームに戻って戻ってきても
+// 同じカードを引き継ぐ。打鍵ごとの Firestore 同期はせず、ここに一時キャッシュする。
+const STAMP_DRAFT_KEY = 'piano-pet:stamp-draft';
+
+// 現在の stamps を当日の下書きとして保存。編集中（既存セッションの修正）は
+// 当日の下書きを汚さないよう保存しない。
+function saveStampDraft() {
+  if (editingIndex != null) return;
+  try {
+    localStorage.setItem(STAMP_DRAFT_KEY, JSON.stringify({ date: todayStr(), stamps }));
+  } catch { /* 保存できなくても致命的でないため無視 */ }
+}
+
+function clearStampDraft() {
+  try { localStorage.removeItem(STAMP_DRAFT_KEY); } catch { /* 無視 */ }
+}
+
+// 当日のスタンプ下書きを読み出す。日付が変わっていれば破棄して [] を返す。
+function loadStampDraft() {
+  try {
+    const draft = JSON.parse(localStorage.getItem(STAMP_DRAFT_KEY) ?? 'null');
+    if (draft?.date !== todayStr() || !Array.isArray(draft.stamps)) {
+      clearStampDraft();
+      return [];
+    }
+    return draft.stamps.filter((s) => typeof s === 'string' && s.trim());
+  } catch {
+    return [];
+  }
+}
+
 function renderChips() {
   if (!songChipsEl) return;
+  const colors = formSongColors();
   songChipsEl.innerHTML = chipNames
     .map((name) => {
       const selected = name === selectedSong;
-      const c = songColor(name);
+      const c = colors.get(name) ?? songColor(name);
       // 選択中は曲の色で塗り、未選択は色スウォッチ（左の丸）で曲色を示す（#122）
       const style = selected
         ? `style="background:${c.fill};border-color:${c.fill}"`
@@ -482,14 +534,14 @@ function addNewSong() {
 }
 
 // 押されたマスを曲の色で塗るインラインスタイル（淡い背景＋濃い枠線）。
-function stampCellStyle(name) {
-  const c = songColor(name);
+function stampCellStyle(c) {
   return `background:${c.tint};border-color:${c.fill}`;
 }
 
 // スタンプカードを描画。最低10マス、超過時は常に1マス余分に出して押し続けられるようにする。
 function renderStampCard() {
   if (!stampCardEl) return;
+  const colors = formSongColors();
   const filled = stamps.length;
   const cells = Math.max(DAILY_GOAL, filled + 1);
   let html = '';
@@ -497,7 +549,7 @@ function renderStampCard() {
     const isFilled = i < filled;
     const isGoal = i === DAILY_GOAL - 1;
     // 押したマスは、その押下時に選ばれていた曲の色で塗る（曲ごとに色が変わる・#122）
-    const style = isFilled ? ` style="${stampCellStyle(stamps[i])}"` : '';
+    const style = isFilled ? ` style="${stampCellStyle(colors.get(stamps[i]) ?? songColor(stamps[i]))}"` : '';
     html += `<span class="stamp-cell${isFilled ? ' is-filled' : ''}${isGoal ? ' is-goal' : ''}"${style} aria-hidden="true">${isFilled ? '🐾' : ''}</span>`;
   }
   stampCardEl.innerHTML = html;
@@ -517,6 +569,7 @@ function addStamp() {
   }
   const reachedGoal = stamps.length + 1 === DAILY_GOAL;
   stamps.push(selectedSong);
+  saveStampDraft();
   renderStampCard();
   // 押したマスのindexでドレミ…と音程が上がり、目標マスは高いドに解決する(#139)
   playStamp(stamps.length - 1, state, DAILY_GOAL);
@@ -526,6 +579,7 @@ function addStamp() {
 function undoStamp() {
   if (!stamps.length) return;
   stamps.pop();
+  saveStampDraft();
   renderStampCard();
 }
 
@@ -588,6 +642,7 @@ function switchRecordMode(mode) {
     chipNames = [...new Set(songs.map((s) => s.name)),
       ...pastSongNames(state.sessions).filter((n) => !songs.some((s) => s.name === n))];
     selectedSong = songs.length ? songs[songs.length - 1].name : (chipNames[0] ?? null);
+    saveStampDraft();
     if (stampHintEl) stampHintEl.hidden = true;
     renderChips();
     renderStampCard();
@@ -626,9 +681,11 @@ function resetRecordForm() {
   setRecordMode(false);
   recordMode = 'stamp';
   if (recordDateEl) recordDateEl.value = todayStr();
-  stamps = [];
-  chipNames = pastSongNames(state.sessions);
-  selectedSong = chipNames[0] ?? null;
+  // 当日のスタンプ下書きを復元（ホーム戻り→再開でもカードを引き継ぐ・#164）
+  stamps = loadStampDraft();
+  const draftNames = [...new Set(stamps)];
+  chipNames = [...draftNames, ...pastSongNames(state.sessions).filter((n) => !draftNames.includes(n))];
+  selectedSong = draftNames[draftNames.length - 1] ?? chipNames[0] ?? null;
   if (newSongInputEl) newSongInputEl.value = '';
   if (stampHintEl) stampHintEl.hidden = true;
   renderChips();
@@ -815,6 +872,9 @@ function submitRecord(event) {
     router.go('history');
     return;
   }
+
+  // 新規記録の確定。当日のスタンプ下書きは役目を終えたので破棄する（#164）
+  clearStampDraft();
 
   // 同日に既存セッションがある場合は統合して全再計算（目標達成ボーナスの二重取りを防ぐ）
   const existingIndex = state.sessions.findIndex((s) => s.date === date);

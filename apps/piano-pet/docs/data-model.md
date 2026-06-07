@@ -29,6 +29,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 |---|---|---|
 | `piano-pet-onboarded` | `'1'` | 初回オンボーディング（紙芝居・#141）を見たか。端末ごとに案内するため state には含めない（[onboarding.js](../js/onboarding.js)） |
 | `piano-pet-backup-before-restore` | State JSON | 復元直前の現行 state を退避（`RESTORE_BACKUP_KEY`・#140） |
+| `piano-pet:stamp-draft` | `{ date, stamps: string[] }` | 当日の未記録スタンプ下書き。ホーム戻り→記録再開でカードを引き継ぐ（#164）。打鍵ごとに保存、記録 submit 時に破棄。読み出し時に `date !== todayStr()` なら破棄（日付変更でリセット） |
 
 ### Session
 1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。

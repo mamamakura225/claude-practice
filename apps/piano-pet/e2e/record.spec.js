@@ -91,6 +91,36 @@ test.describe('練習記録', () => {
     await expect(page.locator('#statStreak')).toHaveText('1');
   });
 
+  test('スタンプは当日ホームに戻っても引き継がれる（#164）', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#view-record')).toBeVisible();
+
+    // 曲を選んでスタンプを3回押す
+    await page.fill('#newSongInput', 'きらきらぼし');
+    await page.click('#addSongBtn');
+    for (let i = 0; i < 3; i += 1) await page.click('#stampCard');
+    await expect(page.locator('#recordTotal')).toHaveText('3');
+
+    // ホームに戻ってから記録画面を開き直す
+    await page.click('.nav-btn[data-nav="home"]');
+    await expect(page.locator('#view-home')).toBeVisible();
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#view-record')).toBeVisible();
+
+    // 0からリスタートせず3個のまま引き継がれている
+    await expect(page.locator('#recordTotal')).toHaveText('3');
+    await expect(page.locator('#stampCard .stamp-cell.is-filled')).toHaveCount(3);
+
+    // 記録すると下書きは消え、次回は0から
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-home')).toBeVisible();
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#recordTotal')).toHaveText('0');
+  });
+
   test('合計0かいでは記録できずエラーが出る', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
