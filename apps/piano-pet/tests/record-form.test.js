@@ -6,6 +6,8 @@ import {
   songsToStamps,
   pastSongNames,
   songTotals,
+  isSongMaster,
+  SONG_MASTER_COUNT,
 } from '../js/record-form.js';
 
 describe('collectSongs', () => {
@@ -195,5 +197,18 @@ describe('songTotals', () => {
   it('セッションなしは空配列', () => {
     expect(songTotals([])).toEqual([]);
     expect(songTotals(undefined)).toEqual([]);
+  });
+});
+
+describe('isSongMaster', () => {
+  it('累計が閾値以上ならマスター（#149）', () => {
+    expect(isSongMaster(SONG_MASTER_COUNT)).toBe(true);
+    expect(isSongMaster(SONG_MASTER_COUNT + 10)).toBe(true);
+  });
+
+  it('閾値未満・無効値はマスターでない', () => {
+    expect(isSongMaster(SONG_MASTER_COUNT - 1)).toBe(false);
+    expect(isSongMaster(0)).toBe(false);
+    expect(isSongMaster(undefined)).toBe(false);
   });
 });

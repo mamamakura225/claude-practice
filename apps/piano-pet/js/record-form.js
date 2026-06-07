@@ -72,6 +72,14 @@ export function songTotals(sessions) {
     .sort((a, b) => (b.count - a.count) || (lastSeen.get(b.name) - lastSeen.get(a.name)));
 }
 
+// 曲マスター（#149）：その曲の累計回数がこの回数に達したら「マスター」とみなす。
+// songTotals から決定的に導出するだけで専用フラグは持たない（再計算で矛盾しない）。
+export const SONG_MASTER_COUNT = 50;
+
+export function isSongMaster(count) {
+  return (Math.floor(Number(count)) || 0) >= SONG_MASTER_COUNT;
+}
+
 // 過去のセッションから曲名候補を「よく弾く順（合計回数）→新しさ」で返す。
 // 曲選択チップのサジェストに使う。limit 件まで。
 export function pastSongNames(sessions, limit = 8) {
