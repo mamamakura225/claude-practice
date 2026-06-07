@@ -9,6 +9,8 @@ import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js
 import {
   weeklyTotals,
   weeklyChartModel,
+  weeklySummary,
+  reviewShareText,
   formatDateJa,
 } from './history.js';
 import {
@@ -311,10 +313,21 @@ function renderSongCollection() {
     : '<p class="history-empty">まだ きょくが ないよ。</p>';
 }
 
+// 今週のふりかえりカード（#144）：今週の回数・きょく数・日数を集計して表示。
+function renderReviewCard() {
+  const sum = weeklySummary(state.sessions, todayStr());
+  setText('reviewCount', sum.count);
+  setText('reviewSongs', sum.songCount);
+  setText('reviewDays', sum.dayCount);
+  const note = document.getElementById('reviewShareNote');
+  if (note) note.hidden = true;            // 再表示のたびに前回の案内を消す
+}
+
 export function renderHistory() {
   setText('historyStreakCurrent', state.streak.current);
   setText('historyStreakBest', state.streak.best);
 
+  renderReviewCard();
   renderSongCollection();
 
   const chartEl = document.getElementById('weeklyChart');
@@ -1016,6 +1029,44 @@ batchRowsEl?.addEventListener('click', (e) => {
   }
 });
 batchRowsEl?.addEventListener('input', updateBatchTotal);
+
+// ===== 今週のふりかえりカードの共有（#144） =====
+// Web Share API でワンタップ送信。非対応はクリップボードコピー→スクショ案内にフォールバック。
+function showReviewNote(msg) {
+  const note = document.getElementById('reviewShareNote');
+  if (!note) return;
+  note.textContent = msg;
+  note.hidden = false;
+}
+
+async function shareReview() {
+  const sum = weeklySummary(state.sessions, todayStr());
+  const text = reviewShareText({
+    petName: state.pet.name,
+    count: sum.count,
+    songCount: sum.songCount,
+    dayCount: sum.dayCount,
+    streak: state.streak.current,
+  });
+  const title = 'ピアノれんしゅう ふりかえり';
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text });
+      track('review_shared', {});       // 共有した操作のみ記録（内容は送らない）
+    } catch { /* ユーザーのキャンセルは無視 */ }
+    return;
+  }
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      showReviewNote('コピーしたよ！はりつけて おくってね 📋');
+      track('review_shared', {});
+      return;
+    } catch { /* コピー失敗時はスクショ案内へ */ }
+  }
+  showReviewNote('スクショして せんせいに おくってね 📸');
+}
+document.getElementById('reviewShareBtn')?.addEventListener('click', shareReview);
 
 // ===== 記録履歴の編集・削除 =====
 document.getElementById('historyList')?.addEventListener('click', (e) => {

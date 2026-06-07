@@ -843,6 +843,71 @@ body {
   gap: 14px;
 }
 
+/* ----- 今週のふりかえりカード（#144） ----- */
+.review-card {
+  width: 100%;
+  max-width: 360px;
+  background: linear-gradient(135deg, #fff, #fff1f4);
+  border-radius: 18px;
+  padding: 16px 14px;
+  box-shadow: 0 4px 12px var(--shadow);
+  text-align: center;
+}
+
+.review-card__title {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1rem;
+  color: var(--pink-deep);
+  margin-bottom: 12px;
+}
+
+.review-card__stats {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 14px;
+}
+
+.review-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.review-stat__num {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.6rem;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.review-stat__unit {
+  font-size: 0.78rem;
+  color: #b48a92;
+}
+
+.review-share-btn {
+  width: 100%;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 16px;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.95rem;
+  color: #fff;
+  background: linear-gradient(90deg, #ffd06a, var(--pink-deep));
+  box-shadow: 0 4px 12px var(--shadow);
+  cursor: pointer;
+}
+
+.review-share-btn:active {
+  transform: translateY(1px);
+}
+
+.review-card__note {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--pink-deep);
+}
+
 .stat-card--best .stat-value {
   color: #d98a2b;
 }
