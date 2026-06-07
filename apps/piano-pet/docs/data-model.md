@@ -42,6 +42,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `coinsEarned` | number | その記録で得た**基本**コイン（`calcRewards`。再計算で都度上書き。表示・参照用。おまけは含まない） |
 | `xpEarned` | number | その記録で得たXP（同上） |
 | `bonusCoins` | number | きょうのおまけ（#148）で得た乱数由来のコイン。**記録に保存して `recomputeState` で復元**（再抽選しない）。0=未当選 |
+| `praise` | string? | はなまるスタンプ（#145）。親がワンタップで付ける評価 id（`hanamaru`/`jouzu`/`ganbatta`）。未設定=なし。派生値でないので再計算・マージで保持 |
 
 ### Song
 | フィールド | 型 | 説明 |
@@ -171,7 +172,7 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 
 | フィールド | マージ規則 | 理由 |
 |---|---|---|
-| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。ただし `bonusCoins`（#148）は衝突時に双方の **max** を救済 | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側。`bonusCoins` は totalCount から導出されない当選値なので keep-larger で消さず max で残す（affinity/foodSpent と同じ哲学） |
+| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。ただし `bonusCoins`（#148）は衝突時に双方の **max**、`praise`（#145）は採用側に無ければ他方から救済 | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側。`bonusCoins`/`praise` は totalCount から導出されない値なので keep-larger で消さず残す（affinity/foodSpent と同じ哲学） |
 | `inventory` | 重複 ID を除いた **union** | 所有は単調増加 |
 | `pet.equippedItems` | 両端末の union のうち、マージ後 `inventory` に含まれるものだけ | 未所持の装備を残さない |
 | `pet.affinity` / `pet.foodSpent` | **max** | sessions から導出されない累積値 |

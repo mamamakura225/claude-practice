@@ -995,6 +995,49 @@ body {
   white-space: nowrap;
 }
 
+/* はなまるスタンプ（#145）：親がワンタップで付ける評価 */
+.history-praise {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.praise-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 2px solid #ffe1e8;
+  background: #fff7f9;
+  color: #b0a3a3;
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 11px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.praise-stamp__emoji {
+  font-size: 1.1rem;
+  filter: grayscale(0.6);
+}
+
+.praise-stamp:active {
+  transform: scale(0.94);
+}
+
+.praise-stamp.is-active {
+  background: #fff2c2;
+  border-color: #ffcf3f;
+  color: #b8860b;
+}
+
+.praise-stamp.is-active .praise-stamp__emoji {
+  filter: none;
+}
+
 .history-card__actions {
   display: flex;
   justify-content: flex-end;

@@ -122,6 +122,7 @@ export function mergeCloud(local, cloud) {
 // 並びはアプリ慣習に合わせ date 降順（新しい順）。tie（同回数）はローカル優先。
 // 例外: bonusCoins（きょうのおまけ #148）は totalCount から導出されない当選値なので、
 // 衝突時は双方の max を採用してどちらかの端末で当たったおまけを消さない（affinity/foodSpent と同じ哲学）。
+// 同様に praise（はなまる #145）も親注釈なので、採用側に無ければ他方から救済する。
 export function mergeSessionsKeepLarger(localSessions, cloudSessions) {
   const byDate = new Map();
   const consider = (s) => {
@@ -131,8 +132,11 @@ export function mergeSessionsKeepLarger(localSessions, cloudSessions) {
     // 練習量の多い方を基本採用しつつ、きょうのおまけ(#148)はどちらかの当選を救済（max）。
     // bonusCoins は totalCount から導出されない当選フラグなので keep-larger で消さない。
     const chosen = (Number(s.totalCount) || 0) > (Number(prev.totalCount) || 0) ? s : prev;
+    const other = chosen === s ? prev : s;
     const bonusCoins = Math.max(Number(prev.bonusCoins) || 0, Number(s.bonusCoins) || 0);
-    byDate.set(s.date, { ...chosen, bonusCoins });
+    // praise（はなまる #145）も totalCount 非依存の親注釈なので、採用側に無ければ他方から救済
+    const praise = chosen.praise ?? other.praise;
+    byDate.set(s.date, { ...chosen, bonusCoins, praise });
   };
   for (const s of localSessions ?? []) consider(s);   // local を先に（tie でローカルが残る）
   for (const s of cloudSessions ?? []) consider(s);

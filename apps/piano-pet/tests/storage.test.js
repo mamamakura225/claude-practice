@@ -171,6 +171,15 @@ describe('mergeSessionsKeepLarger', () => {
     expect(m[0].bonusCoins).toBe(3);   // おまけは消さない
   });
 
+  it('衝突時 praise は採用側に無ければ他方から救済する（はなまる #145）', () => {
+    // 練習量は cloud(5)が多いが、はなまるは local(3) 側だけ → 残す
+    const local = [{ date: '2026-01-01', totalCount: 3, praise: 'hanamaru' }];
+    const cloud = [{ date: '2026-01-01', totalCount: 5 }];
+    const m = mergeSessionsKeepLarger(local, cloud);
+    expect(m[0].totalCount).toBe(5);
+    expect(m[0].praise).toBe('hanamaru');
+  });
+
   it('同回数の tie はローカルを残す（自分の書き込みのエコー等）', () => {
     const local = [{ date: '2026-01-01', totalCount: 5, songs: ['L'] }];
     const cloud = [{ date: '2026-01-01', totalCount: 5, songs: ['C'] }];

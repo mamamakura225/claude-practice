@@ -6,6 +6,8 @@ import {
   weeklyChartModel,
   weekLabel,
   formatDateJa,
+  PRAISE_OPTIONS,
+  praiseById,
 } from '../js/history.js';
 
 describe('weekStart', () => {
@@ -106,5 +108,21 @@ describe('formatDateJa', () => {
   it('M月D日（曜）形式を返す', () => {
     expect(formatDateJa('2026-05-22')).toBe('5月22日（金）');
     expect(formatDateJa('2026-05-18')).toBe('5月18日（月）');
+  });
+});
+
+describe('praiseById（はなまるスタンプ #145）', () => {
+  it('固定の3種（はなまる/じょうず/がんばった）を持つ', () => {
+    expect(PRAISE_OPTIONS.map((p) => p.id)).toEqual(['hanamaru', 'jouzu', 'ganbatta']);
+    expect(PRAISE_OPTIONS.every((p) => p.emoji && p.label)).toBe(true);
+  });
+
+  it('id から選択肢を引ける', () => {
+    expect(praiseById('hanamaru')).toMatchObject({ emoji: '💮', label: 'はなまる' });
+  });
+
+  it('未設定・不正値は null', () => {
+    expect(praiseById(undefined)).toBeNull();
+    expect(praiseById('nope')).toBeNull();
   });
 });

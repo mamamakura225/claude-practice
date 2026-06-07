@@ -3,6 +3,19 @@ import { todayStr } from './game.js';
 
 const WEEKDAYS_JA = ['日', '月', '火', '水', '木', '金', '土'];
 
+// はなまるスタンプ（#145）：親がワンタップで記録に付ける固定の評価。
+// session.praise に id を保存。字が読めない子にも絵文字で褒められたことが伝わる。
+export const PRAISE_OPTIONS = [
+  { id: 'hanamaru', emoji: '💮', label: 'はなまる' },
+  { id: 'jouzu', emoji: '🌟', label: 'じょうず' },
+  { id: 'ganbatta', emoji: '👍', label: 'がんばった' },
+];
+
+// praise id から選択肢を引く（未設定・不正値は null）。
+export function praiseById(id) {
+  return PRAISE_OPTIONS.find((p) => p.id === id) ?? null;
+}
+
 // 日付文字列を n 日ずらして返す（UTC基準でタイムゾーン非依存）
 function shiftDays(dateStr, days) {
   const d = new Date(dateStr + 'T00:00:00Z');

@@ -121,6 +121,44 @@ test.describe('練習記録', () => {
     await expect(page.locator('#recordTotal')).toHaveText('0');
   });
 
+  test('履歴の記録にはなまるスタンプをワンタップで付けて解除できる（#145）', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    // 1件記録する
+    await page.click('#goRecordBtn');
+    await page.fill('#newSongInput', 'きらきらぼし');
+    await page.click('#addSongBtn');
+    await page.click('#stampCard');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-home')).toBeVisible();
+
+    // きろく画面の記録カードへ
+    await page.click('.nav-btn[data-nav="history"]');
+    await expect(page.locator('#view-history')).toBeVisible();
+    const card = page.locator('.history-card').first();
+    const hanamaru = card.locator('.praise-stamp[data-praise="hanamaru"]');
+
+    // 初期は未選択
+    await expect(hanamaru).toHaveAttribute('aria-pressed', 'false');
+
+    // ワンタップで付与 → 強調（aria-pressed=true）
+    await hanamaru.click();
+    await expect(hanamaru).toHaveAttribute('aria-pressed', 'true');
+    await expect(hanamaru).toHaveClass(/is-active/);
+
+    // 再読み込みしても保持される（localStorage 永続）
+    await page.reload();
+    await page.click('.nav-btn[data-nav="history"]');
+    await expect(page.locator('.history-card').first().locator('.praise-stamp[data-praise="hanamaru"]'))
+      .toHaveAttribute('aria-pressed', 'true');
+
+    // 同じスタンプを再タップで解除
+    await page.locator('.history-card').first().locator('.praise-stamp[data-praise="hanamaru"]').click();
+    await expect(page.locator('.history-card').first().locator('.praise-stamp[data-praise="hanamaru"]'))
+      .toHaveAttribute('aria-pressed', 'false');
+  });
+
   test('合計0かいでは記録できずエラーが出る', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });

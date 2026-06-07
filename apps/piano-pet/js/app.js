@@ -10,6 +10,7 @@ import {
   weeklyTotals,
   weeklyChartModel,
   formatDateJa,
+  PRAISE_OPTIONS,
 } from './history.js';
 import {
   SHOP_ITEMS,
@@ -263,6 +264,12 @@ function historyCardMarkup(session, index) {
       <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
     </div>
     <ul class="history-songs">${songs}</ul>
+    <div class="history-praise" role="group" aria-label="おうちのひとからの はなまる">
+      ${PRAISE_OPTIONS.map((o) => {
+        const active = session.praise === o.id;
+        return `<button type="button" class="praise-stamp${active ? ' is-active' : ''}" data-action="set-praise" data-index="${index}" data-praise="${o.id}" aria-pressed="${active}" aria-label="${o.label}"><span class="praise-stamp__emoji" aria-hidden="true">${o.emoji}</span><span class="praise-stamp__label">${o.label}</span></button>`;
+      }).join('')}
+    </div>
     <div class="history-card__actions">
       <button type="button" class="history-action" data-action="edit-session" data-index="${index}" aria-label="この きろくを なおす">✏️ なおす</button>
       <button type="button" class="history-action history-action--del" data-action="delete-session" data-index="${index}" aria-label="この きろくを けす">🗑️ けす</button>
@@ -732,6 +739,18 @@ function deleteSession(index) {
   renderHistory();
 }
 
+// はなまるスタンプ（#145）：記録へワンタップで評価を付与／同じものを再タップで解除。
+// praise は派生値でないため recompute を通さず該当 session のみ更新する。
+function setPraise(index, praiseId) {
+  const session = state.sessions[index];
+  if (!session) return;
+  const next = session.praise === praiseId ? undefined : praiseId;
+  const sessions = state.sessions.map((s, i) => (i === index ? { ...s, praise: next } : s));
+  commitState({ ...state, sessions });
+  renderHistory();
+  if (next) playSound('coin', state); // 付与時だけ小さな合図
+}
+
 // 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。
 const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
@@ -995,6 +1014,7 @@ document.getElementById('historyList')?.addEventListener('click', (e) => {
   const index = Number(btn.dataset.index);
   if (btn.dataset.action === 'edit-session') startEditSession(index);
   else if (btn.dataset.action === 'delete-session') deleteSession(index);
+  else if (btn.dataset.action === 'set-praise') setPraise(index, btn.dataset.praise);
 });
 
 // ===== ショップの購入・装備操作 =====

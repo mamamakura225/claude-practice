@@ -383,4 +383,11 @@ describe('recomputeState', () => {
     const after = recomputeState({ ...live, sessions: [] }, 0);
     expect(after.badges).not.toContain('first_practice');
   });
+
+  it('派生でない praise（はなまる #145）は再計算後も保持される', () => {
+    const live = buildHistory(['2026-05-21', '2026-05-22'], [5, 5]);
+    live.sessions[0].praise = 'hanamaru';
+    const after = recomputeState(live, 0);
+    expect(after.sessions[0].praise).toBe('hanamaru');
+  });
 });
