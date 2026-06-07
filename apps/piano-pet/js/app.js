@@ -3,7 +3,7 @@ import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, norma
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
 import { enableDressup } from './dressup.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals, isSongMaster } from './record-form.js';
+import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
 import {
@@ -252,6 +252,18 @@ function weeklyChartSvg(bars) {
     `</linearGradient></defs>${parts.join('')}</svg>`;
 }
 
+// はなまるスタンプ行（#145）：選択中のものを強調。タップで付与／同じものを再タップで解除。
+function praiseRowMarkup(session, index) {
+  const current = normalizePraise(session.praise);
+  const buttons = PRAISE_STAMPS.map((p) => {
+    const on = p.id === current;
+    return `<button type="button" class="praise-stamp${on ? ' praise-stamp--on' : ''}"` +
+      ` data-action="set-praise" data-index="${index}" data-praise="${p.id}"` +
+      ` aria-pressed="${on}" title="${p.label}" aria-label="${p.label}">${p.emoji}</button>`;
+  }).join('');
+  return `<div class="praise-row" role="group" aria-label="はなまるスタンプ">${buttons}</div>`;
+}
+
 function historyCardMarkup(session, index) {
   const songs = (session.songs ?? [])
     .map((s) => `<li><span class="song-title">${escapeHtml(s.name)}</span>` +
@@ -263,6 +275,7 @@ function historyCardMarkup(session, index) {
       <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
     </div>
     <ul class="history-songs">${songs}</ul>
+    ${praiseRowMarkup(session, index)}
     <div class="history-card__actions">
       <button type="button" class="history-action" data-action="edit-session" data-index="${index}" aria-label="この きろくを なおす">✏️ なおす</button>
       <button type="button" class="history-action history-action--del" data-action="delete-session" data-index="${index}" aria-label="この きろくを けす">🗑️ けす</button>
@@ -736,6 +749,18 @@ function deleteSession(index) {
   renderHistory();
 }
 
+// はなまるスタンプを付与／解除（#145）。報酬に影響しないので再計算は不要。
+// 同じスタンプを再タップしたら解除（null）。保存してクラウドへ即送信。
+function setPraise(index, praiseId) {
+  const session = state.sessions[index];
+  if (!session) return;
+  const next = normalizePraise(session.praise) === praiseId ? null : normalizePraise(praiseId);
+  state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, praise: next } : s));
+  saveState(state);
+  if (cloud) cloud.pushCloudDebounced(cloudFields(state));
+  renderHistory();
+}
+
 // 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。
 const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
@@ -999,6 +1024,7 @@ document.getElementById('historyList')?.addEventListener('click', (e) => {
   const index = Number(btn.dataset.index);
   if (btn.dataset.action === 'edit-session') startEditSession(index);
   else if (btn.dataset.action === 'delete-session') deleteSession(index);
+  else if (btn.dataset.action === 'set-praise') setPraise(index, btn.dataset.praise);
 });
 
 // ===== ショップの購入・装備操作 =====

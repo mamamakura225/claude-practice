@@ -42,6 +42,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `coinsEarned` | number | その記録で得た**基本**コイン（`calcRewards`。再計算で都度上書き。表示・参照用。おまけは含まない） |
 | `xpEarned` | number | その記録で得たXP（同上） |
 | `bonusCoins` | number | きょうのおまけ（#148）で得た乱数由来のコイン。**記録に保存して `recomputeState` で復元**（再抽選しない）。0=未当選 |
+| `praise` | string \| null | はなまるスタンプ（#145）。親がワンタップで付与する評価。`PRAISE_STAMPS` の id（`hanamaru`/`jouzu`/`ganbatta`）か未設定の `null`。曲数からは導出されないが、全状態のスプレッド更新（`recomputeState`・各種マージ）で保持される。表示時に `normalizePraise` で検証 |
 
 ### Song
 | フィールド | 型 | 説明 |

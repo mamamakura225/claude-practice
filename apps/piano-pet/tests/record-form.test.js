@@ -8,6 +8,8 @@ import {
   songTotals,
   isSongMaster,
   SONG_MASTER_COUNT,
+  PRAISE_STAMPS,
+  normalizePraise,
 } from '../js/record-form.js';
 
 describe('collectSongs', () => {
@@ -210,5 +212,20 @@ describe('isSongMaster', () => {
     expect(isSongMaster(SONG_MASTER_COUNT - 1)).toBe(false);
     expect(isSongMaster(0)).toBe(false);
     expect(isSongMaster(undefined)).toBe(false);
+  });
+});
+
+describe('normalizePraise', () => {
+  it('有効な praise id はそのまま返す（#145）', () => {
+    for (const p of PRAISE_STAMPS) {
+      expect(normalizePraise(p.id)).toBe(p.id);
+    }
+  });
+
+  it('未設定・無効値は null', () => {
+    expect(normalizePraise(undefined)).toBeNull();
+    expect(normalizePraise(null)).toBeNull();
+    expect(normalizePraise('')).toBeNull();
+    expect(normalizePraise('unknown')).toBeNull();
   });
 });
