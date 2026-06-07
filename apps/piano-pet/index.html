@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=855c71af">
-  <link rel="stylesheet" href="css/cat.css?v=855c71af">
+  <link rel="stylesheet" href="css/style.css?v=88098c88">
+  <link rel="stylesheet" href="css/cat.css?v=88098c88">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -313,11 +313,11 @@
     <div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-label="おうちのひとへ" hidden>
       <div class="settings-overlay__backdrop" data-action="close-settings"></div>
 
-      <!-- 親ゲート：子の誤操作で設定に入らないよう簡単な足し算を出す -->
+      <!-- 親ゲート：子の誤操作で設定に入らないよう簡単な掛け算（九九）を出す -->
       <div class="settings-panel" id="settingsGate">
         <h2 class="settings-panel__title">おうちのひとへ 🔒</h2>
         <p class="settings-gate__q">けいさんを といてね</p>
-        <p class="settings-gate__problem"><span id="gateA">0</span> ＋ <span id="gateB">0</span> ＝ ?</p>
+        <p class="settings-gate__problem"><span id="gateA">0</span> × <span id="gateB">0</span> ＝ ?</p>
         <input type="number" id="gateAnswer" class="settings-gate__input" inputmode="numeric" autocomplete="off" aria-label="こたえ">
         <p class="settings-gate__error" id="gateError" hidden>ちがうみたい。もういちど。</p>
         <div class="settings-panel__actions">
@@ -390,6 +390,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=855c71af"></script>
+  <script type="module" src="js/app.js?v=88098c88"></script>
 </body>
 </html>

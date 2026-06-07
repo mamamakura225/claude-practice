@@ -78,10 +78,10 @@ export function importErrorMessage(reason) {
   }
 }
 
-// ペアレンタルゲート用の足し算問題を作る（1桁＋1桁）。子の誤操作で設定に入るのを防ぐ。
+// ペアレンタルゲート用の掛け算問題を作る（1桁×1桁・九九）。足し算より子の突破を防ぐ。
 // rng を差し替え可能にしてテストしやすくする。
 export function makeGateProblem(rng = Math.random) {
   const a = Math.floor(rng() * 9) + 1; // 1..9
   const b = Math.floor(rng() * 9) + 1; // 1..9
-  return { a, b, answer: a + b };
+  return { a, b, answer: a * b };
 }
