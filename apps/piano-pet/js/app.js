@@ -3,7 +3,7 @@ import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, norma
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
 import { enableDressup } from './dressup.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
+import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals, isSongMaster } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
 import {
@@ -276,9 +276,13 @@ function songCollectionMarkup(totals) {
   return totals
     .map((t) => {
       const c = colors.get(t.name) ?? songColor(t.name);
+      const crown = isSongMaster(t.count)
+        ? '<span class="song-collection__crown" title="マスター" aria-label="マスター">👑</span>'
+        : '';
       return `<li class="song-collection__item">
         <span class="song-collection__swatch" style="background:${c.fill}" aria-hidden="true">🐾</span>
         <span class="song-collection__name">${escapeHtml(t.name)}</span>
+        ${crown}
         <span class="song-collection__count" style="color:${c.ink}">${t.count}かい</span>
       </li>`;
     })

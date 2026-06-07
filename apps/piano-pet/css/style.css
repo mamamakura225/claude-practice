@@ -930,6 +930,12 @@ body {
   white-space: nowrap;
 }
 
+.song-collection__crown {
+  flex: 0 0 auto;
+  font-size: 1.05rem;
+  line-height: 1;
+}
+
 .song-collection__count {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.95rem;
