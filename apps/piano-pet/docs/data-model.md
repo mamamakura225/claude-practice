@@ -171,7 +171,7 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 
 | フィールド | マージ規則 | 理由 |
 |---|---|---|
-| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先 | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側 |
+| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。ただし `bonusCoins`（#148）は衝突時に双方の **max** を救済 | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側。`bonusCoins` は totalCount から導出されない当選値なので keep-larger で消さず max で残す（affinity/foodSpent と同じ哲学） |
 | `inventory` | 重複 ID を除いた **union** | 所有は単調増加 |
 | `pet.equippedItems` | 両端末の union のうち、マージ後 `inventory` に含まれるものだけ | 未所持の装備を残さない |
 | `pet.affinity` / `pet.foodSpent` | **max** | sessions から導出されない累積値 |
