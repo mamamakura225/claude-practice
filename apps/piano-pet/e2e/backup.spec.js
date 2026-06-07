@@ -44,7 +44,7 @@ async function passGate(page) {
   await expect(page.locator('#settingsGate')).toBeVisible();
   const a = Number(await page.locator('#gateA').textContent());
   const b = Number(await page.locator('#gateB').textContent());
-  await page.fill('#gateAnswer', String(a + b));
+  await page.fill('#gateAnswer', String(a * b));
   await page.click('#gateSubmit');
   await expect(page.locator('#settingsMenu')).toBeVisible();
 }
@@ -70,12 +70,12 @@ test.describe('データのバックアップ/復元', () => {
     const a = Number(await page.locator('#gateA').textContent());
     const b = Number(await page.locator('#gateB').textContent());
 
-    await page.fill('#gateAnswer', String(a + b + 1)); // 誤答
+    await page.fill('#gateAnswer', String(a * b + 1)); // 誤答
     await page.click('#gateSubmit');
     await expect(page.locator('#settingsMenu')).toBeHidden();
     await expect(page.locator('#gateError')).toBeVisible();
 
-    await page.fill('#gateAnswer', String(a + b)); // 正答
+    await page.fill('#gateAnswer', String(a * b)); // 正答
     await page.click('#gateSubmit');
     await expect(page.locator('#settingsMenu')).toBeVisible();
   });

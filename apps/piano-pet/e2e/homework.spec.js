@@ -14,13 +14,13 @@ test.describe('きょうの きょく（しゅくだい）', () => {
     });
   });
 
-  // 親ゲート（足し算）を解いてメニューを開く。
+  // 親ゲート（掛け算・九九）を解いてメニューを開く。
   async function passGate(page) {
     await page.click('#settingsToggle');
     await expect(page.locator('#settingsGate')).toBeVisible();
     const a = Number(await page.locator('#gateA').textContent());
     const b = Number(await page.locator('#gateB').textContent());
-    await page.fill('#gateAnswer', String(a + b));
+    await page.fill('#gateAnswer', String(a * b));
     await page.click('#gateSubmit');
     await expect(page.locator('#settingsMenu')).toBeVisible();
   }

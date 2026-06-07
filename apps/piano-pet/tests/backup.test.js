@@ -90,11 +90,11 @@ describe('importErrorMessage', () => {
 });
 
 describe('makeGateProblem', () => {
-  it('1桁＋1桁で answer = a + b', () => {
+  it('1桁×1桁で answer = a * b', () => {
     const p = makeGateProblem(() => 0); // a=1,b=1
-    expect(p).toEqual({ a: 1, b: 1, answer: 2 });
+    expect(p).toEqual({ a: 1, b: 1, answer: 1 });
     const q = makeGateProblem(() => 0.999); // a=9,b=9
-    expect(q).toEqual({ a: 9, b: 9, answer: 18 });
+    expect(q).toEqual({ a: 9, b: 9, answer: 81 });
   });
 
   it('既定の乱数でも 1..9 の範囲', () => {
@@ -104,7 +104,7 @@ describe('makeGateProblem', () => {
       expect(a).toBeLessThanOrEqual(9);
       expect(b).toBeGreaterThanOrEqual(1);
       expect(b).toBeLessThanOrEqual(9);
-      expect(answer).toBe(a + b);
+      expect(answer).toBe(a * b);
     }
   });
 });
