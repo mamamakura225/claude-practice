@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=53eeb920">
-  <link rel="stylesheet" href="css/cat.css?v=53eeb920">
+  <link rel="stylesheet" href="css/style.css?v=120c22e1">
+  <link rel="stylesheet" href="css/cat.css?v=120c22e1">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -184,6 +184,17 @@
             <span class="stat-label">さいこう きろく</span>
           </div>
         </div>
+
+        <section class="review-card" id="reviewCard" aria-label="今週の ふりかえり">
+          <h2 class="review-card__title">今週の ふりかえり</h2>
+          <div class="review-card__stats">
+            <div class="review-stat"><b class="review-stat__num" id="reviewCount">0</b><span class="review-stat__unit">かい</span></div>
+            <div class="review-stat"><b class="review-stat__num" id="reviewSongs">0</b><span class="review-stat__unit">きょく</span></div>
+            <div class="review-stat"><b class="review-stat__num" id="reviewDays">0</b><span class="review-stat__unit">日</span></div>
+          </div>
+          <button type="button" class="review-share-btn" id="reviewShareBtn">📤 せんせいに おくる</button>
+          <p class="review-card__note" id="reviewShareNote" role="status" hidden></p>
+        </section>
 
         <section class="history-section">
           <h2 class="history-heading">しゅうごとの れんしゅう</h2>
@@ -399,6 +410,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=53eeb920"></script>
+  <script type="module" src="js/app.js?v=120c22e1"></script>
 </body>
 </html>

@@ -89,6 +89,7 @@
 ## 記録履歴（きろく）
 
 - 連続記録カード：いまの れんぞく / さいこう きろく
+- **今週の ふりかえりカード**（#144）：今週（月曜起点）の「かいすう／きょく数／れんしゅうした日数」を集計表示（[history.js](../js/history.js) `weeklySummary`）。「📤 せんせいに おくる」で Web Share API（`navigator.share`）にワンタップ送信。本文は `reviewShareText`（曲名は載せない＝送信は最小限）。Web Share 非対応はクリップボードコピー→スクショ案内にフォールバック。送信用ストレージ・外部ライブラリ・サーバー不要（端末内完結）。計測は操作フラグ `review_shared` のみ（内容は送らない）
 - 週ごとの合計回数の棒グラフ（直近8週、SVG・外部ライブラリなし＝[history.js](../js/history.js) `weeklyChartModel`）
 - **きょくべつ コレクション**（#122）：曲ごとの累計回数を「多い順→新しさ」で一覧表示（[record-form.js](../js/record-form.js) `songTotals`）。各曲は決定的ハッシュ色のスウォッチ＋「○かい」。回数0や空名の曲は出さない
 - **曲マスター👑**（#149）：曲の累計回数が `SONG_MASTER_COUNT`（=50）回に達した曲はコレクションに👑を表示（[record-form.js](../js/record-form.js) `isSongMaster`）。`songTotals` から決定的に導出し専用フラグは持たない（再計算で矛盾しない）

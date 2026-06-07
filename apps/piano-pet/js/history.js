@@ -53,6 +53,35 @@ export function weekLabel(dateStr) {
   return `${Number(m)}/${Number(d)}`;
 }
 
+// 今週（月曜起点）のふりかえりサマリ（#144）。回数・きょく数・れんしゅうした日数を集計。
+export function weeklySummary(sessions, today = todayStr()) {
+  const current = weekStart(today);
+  const songs = new Set();
+  const days = new Set();
+  let count = 0;
+  for (const s of sessions ?? []) {
+    if (weekStart(s.date) !== current) continue;
+    count += Number(s.totalCount) || 0;
+    days.add(s.date);
+    for (const song of s.songs ?? []) {
+      const name = String(song?.name ?? '').trim();
+      if (name && (Math.floor(Number(song.count)) || 0) > 0) songs.add(name);
+    }
+  }
+  return { weekStart: current, count, songCount: songs.size, dayCount: days.size };
+}
+
+// ふりかえりカードの共有テキスト（#144）。Web Share / クリップボードで送る本文。
+// 曲名は載せない（送信は最小限）。共有はユーザーの明示操作だが、内容は簡潔に保つ。
+export function reviewShareText({ petName, count, songCount, dayCount, streak } = {}) {
+  const lines = [
+    `🎹 ${petName || 'ねこ'}と ピアノれんしゅう ふりかえり`,
+    `今週は ${count}かい・${songCount}きょく・${dayCount}日 れんしゅうしたよ！`,
+  ];
+  if (streak > 0) lines.push(`れんぞく ${streak}日 つづいてるよ 🔥`);
+  return lines.join('\n');
+}
+
 // 記録リスト用に "M月D日（曜）" 形式へ整形する
 export function formatDateJa(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');
