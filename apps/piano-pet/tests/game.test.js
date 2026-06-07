@@ -9,6 +9,9 @@ import {
   MAX_FREEZES,
   dailyProgress,
   mergeSameDaySessions,
+  rollDailyBonus,
+  BONUS_CHANCE,
+  BONUS_COINS,
 } from '../js/game.js';
 
 function baseState(overrides = {}) {
@@ -241,6 +244,52 @@ describe('applySession', () => {
     expect(state.streak.current).toBe(6);
     expect(state.streak.freezes).toBe(0);
     expect(rewards.frozeDays).toBe(1);
+  });
+});
+
+describe('rollDailyBonus（きょうのおまけ #148）', () => {
+  it('しきい値未満で当たり＝プチ報酬コインを返す', () => {
+    expect(rollDailyBonus(0)).toBe(BONUS_COINS);
+    expect(rollDailyBonus(BONUS_CHANCE - 0.0001)).toBe(BONUS_COINS);
+  });
+
+  it('しきい値以上は外れ＝0', () => {
+    expect(rollDailyBonus(BONUS_CHANCE)).toBe(0);
+    expect(rollDailyBonus(0.99)).toBe(0);
+  });
+});
+
+describe('applySession × きょうのおまけ', () => {
+  it('bonusCoins を所持コインに上乗せし、記録と rewards に保存する', () => {
+    const { state, rewards } = applySession(
+      baseState(),
+      { date: '2026-05-22', songs: [{ name: 'A', count: 5 }], totalCount: 5 },
+      BONUS_COINS,
+    );
+    expect(rewards.bonus).toBe(BONUS_COINS);
+    expect(state.pet.coins).toBe(5 + BONUS_COINS); // 基本5 + おまけ
+    expect(state.sessions[0].bonusCoins).toBe(BONUS_COINS);
+    expect(state.sessions[0].coinsEarned).toBe(5); // coinsEarned は基本分のみ
+  });
+
+  it('bonus 省略時は 0 で従来通り', () => {
+    const { state, rewards } = applySession(
+      baseState(),
+      { date: '2026-05-22', songs: [{ name: 'A', count: 5 }], totalCount: 5 },
+    );
+    expect(rewards.bonus).toBe(0);
+    expect(state.pet.coins).toBe(5);
+  });
+
+  it('recomputeState は保存した bonusCoins を所持コインに復元する', () => {
+    const { state } = applySession(
+      baseState(),
+      { date: '2026-05-22', songs: [{ name: 'A', count: 5 }], totalCount: 5 },
+      BONUS_COINS,
+    );
+    const after = recomputeState(state, 0);
+    expect(after.pet.coins).toBe(5 + BONUS_COINS); // 再計算で消えない
+    expect(after.sessions[0].bonusCoins).toBe(BONUS_COINS);
   });
 });
 

@@ -110,6 +110,17 @@ export function calcRewards(totalCount, streakCurrent) {
   return { coins, xp };
 }
 
+// ----- きょうのおまけ（#148） -----
+
+// 練習した日だけ低確率で猫がくれるプチ報酬コイン。
+export const BONUS_CHANCE = 0.2; // 低確率（その日初回の記録でのみ抽選）
+export const BONUS_COINS = 3;    // 既存コインを流用したプチ報酬
+
+// 0..1 の乱数を受け取り、当たれば付与コイン、外れれば0を返す（純粋関数・テスト可能）。
+export function rollDailyBonus(roll) {
+  return roll < BONUS_CHANCE ? BONUS_COINS : 0;
+}
+
 // ----- バッジ判定 -----
 
 export function checkBadges(state) {
@@ -133,7 +144,7 @@ export function checkBadges(state) {
 
 // ----- セッション適用（state を受け取り新 state + 報酬を返す） -----
 
-export function applySession(state, { date, songs, totalCount }) {
+export function applySession(state, { date, songs, totalCount }, bonusCoins = 0) {
   const updated = updateStreak(state.streak, date);
   const { coins, xp } = calcRewards(totalCount, updated.current);
 
@@ -154,10 +165,11 @@ export function applySession(state, { date, songs, totalCount }) {
     ...state.pet,
     xp: newXp,
     level: newLevel,
-    coins: state.pet.coins + coins,
+    coins: state.pet.coins + coins + bonusCoins,
   };
 
-  const record = { date, songs, totalCount, coinsEarned: coins, xpEarned: xp };
+  // bonusCoins は乱数由来のため記録に保存し、全再計算（recomputeState）で復元する
+  const record = { date, songs, totalCount, coinsEarned: coins, xpEarned: xp, bonusCoins };
   const partial = {
     ...state,
     pet: newPet,
@@ -174,6 +186,7 @@ export function applySession(state, { date, songs, totalCount }) {
       newLevel,
       frozeDays: updated.frozeDays,
       freezeGranted: freezes - updated.freezes,
+      bonus: bonusCoins,
     },
   };
 }
@@ -207,7 +220,7 @@ export function recomputeState(state, spent = 0) {
       freezes: Math.min(MAX_FREEZES, updated.freezes + granted),
     };
     totalXp += xp;
-    earned += coins;
+    earned += coins + (s.bonusCoins || 0); // きょうのおまけ（#148）は保存値を保持
     recomputed[i] = { ...s, coinsEarned: coins, xpEarned: xp };
   }
 

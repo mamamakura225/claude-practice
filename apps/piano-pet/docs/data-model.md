@@ -39,8 +39,9 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `date` | `YYYY-MM-DD` | 練習したローカル暦日。同一日付は記録時に1件へ統合（`mergeSameDaySessions`） |
 | `songs` | `Song[]` | 曲ごとの回数リスト（空名・0回以下は除外済み） |
 | `totalCount` | number | その日の合計回数（`songs` の `count` 合計） |
-| `coinsEarned` | number | その記録で得たコイン（再計算で都度上書き。表示・参照用） |
+| `coinsEarned` | number | その記録で得た**基本**コイン（`calcRewards`。再計算で都度上書き。表示・参照用。おまけは含まない） |
 | `xpEarned` | number | その記録で得たXP（同上） |
+| `bonusCoins` | number | きょうのおまけ（#148）で得た乱数由来のコイン。**記録に保存して `recomputeState` で復元**（再抽選しない）。0=未当選 |
 
 ### Song
 | フィールド | 型 | 説明 |
@@ -98,6 +99,8 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 > **設計判断**: `assignment` は `sessions` から導出されない単一値のため、クラウドマージは sessions の keep-larger とは別に **`setAt` の Last-Write-Wins**（`pickNewerAssignment`・片方 null は非 null 優先）で解決する。親が直近に設定した宿題が正、というデータ性質に合致する。`mergeCloud`(cloud-wins) / `mergeCloudInitial`(ローカル優先) の両経路で LWW を適用する。
 >
 > **設計判断（達成ボーナスコインの先送り）**: 設計レビューでは達成ボーナスコイン（🪙+5）案も出たが、コインは `sessions` から `recomputeState` で全再計算される派生値のため、宿題ボーナスを永続させるには affinity/foodSpent 同様の別アキュムレータと全再計算経路の改修が必要になる。MVP（軽量 M）では**特別演出（紙吹雪＋ポップアップ）のみ**とし、ボーナスコインは別Issueの拡張余地とした。
+>
+> **設計判断（きょうのおまけ #148 のコイン永続）**: 上記の「派生値だから乱数ボーナスを足せない」制約を、別アキュムレータではなく**記録への保存値（`bonusCoins`）**で解決した。乱数抽選は app.js 側（`rollDailyBonus(Math.random())`）でその日の初回記録時のみ行い、結果を `applySession(state, session, bonusCoins)` に渡して記録へ焼き込む。`recomputeState` は `s.bonusCoins` を `earned` に再加算するため、編集・削除・クラウドマージ後も再抽選されず金額が保たれる。`game.js` は純粋なまま（乱数は注入）。
 
 正規化は `normalizeState(saved)` が担い、`pet`/`streak`/`settings` の不足キーを `DEFAULTS` で補完する（`assignment` はトップレベルの単純値なので spread でそのまま引き継がれる）。
 フィールド追加程度であれば正規化のデフォルト補完だけで済むため、スキーマバージョンを上げる必要はない（`assignment` 追加も `DEFAULTS.assignment: null` の補完だけで migration 不要）。

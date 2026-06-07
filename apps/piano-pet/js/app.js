@@ -1,6 +1,6 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState } from './storage.js';
-import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL } from './game.js';
+import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
 import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals } from './record-form.js';
@@ -832,6 +832,22 @@ function showAssignmentPopup(songName) {
   }, 2400);
 }
 
+// きょうのおまけ（#148）：練習した日だけ低確率でもらえるプチ報酬のポップアップ
+function showBonusPopup(amount) {
+  const popup = document.getElementById('bonusPopup');
+  if (!popup) return;
+  setText('bonusPopupAmount', `+${amount}`);
+  popup.hidden = false;
+  void popup.getBoundingClientRect();
+  popup.classList.add('coin-popup--show');
+  playSound('coin', state);
+  clearTimeout(showBonusPopup._t);
+  showBonusPopup._t = setTimeout(() => {
+    popup.classList.remove('coin-popup--show');
+    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
+  }, 2200);
+}
+
 // お休み券で連続を守ったときのポップアップ
 function showFreezePopup() {
   const popup = document.getElementById('freezePopup');
@@ -906,7 +922,9 @@ function submitRecord(event) {
   }
 
   const prevBadges = state.badges;
-  const { state: newState, rewards } = applySession(state, { date, songs, totalCount });
+  // きょうのおまけ（#148）：その日の初回記録（同日既存なし）でのみ低確率で抽選
+  const bonus = rollDailyBonus(Math.random());
+  const { state: newState, rewards } = applySession(state, { date, songs, totalCount }, bonus);
   const gainedBadges = newlyEarned(prevBadges, newState.badges);
   commitState(newState);          // 保存 + ホーム再描画
   cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
@@ -921,6 +939,7 @@ function submitRecord(event) {
   if (rewards.leveled) playSound('levelup', state);
   // コインポップアップの後に、お休み券→新規バッジ→宿題達成の順で表示
   let nextDelay = 2200;
+  if (rewards.bonus > 0) { setTimeout(() => showBonusPopup(rewards.bonus), nextDelay); nextDelay += 2200; }
   if (rewards.frozeDays > 0) {
     setTimeout(showFreezePopup, nextDelay);
     nextDelay += 2200;
