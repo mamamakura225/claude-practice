@@ -936,6 +936,36 @@ body {
   line-height: 1;
 }
 
+/* ----- はなまるスタンプ（#145） ----- */
+.praise-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.praise-stamp {
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 6px 10px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: var(--cream);
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s, border-color 0.15s, transform 0.1s;
+}
+
+.praise-stamp:hover {
+  opacity: 0.85;
+}
+
+.praise-stamp--on {
+  opacity: 1;
+  border-color: var(--pink-deep);
+  background: #fff;
+  transform: scale(1.08);
+}
+
 .song-collection__count {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.95rem;

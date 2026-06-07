@@ -80,6 +80,19 @@ export function isSongMaster(count) {
   return (Math.floor(Number(count)) || 0) >= SONG_MASTER_COUNT;
 }
 
+// はなまるスタンプ（#145）：記録へのワンタップ評価。固定のパステル絵文字のみ。
+// 自由記述（text）は持たない＝PII を増やさず字が読めなくても絵文字で褒めが伝わる。
+export const PRAISE_STAMPS = [
+  { id: 'hanamaru', emoji: '💮', label: 'はなまる' },
+  { id: 'jouzu', emoji: '🌟', label: 'じょうず' },
+  { id: 'ganbatta', emoji: '👍', label: 'がんばった' },
+];
+
+// 有効な praise id ならそのまま返す。未設定・無効値は null。
+export function normalizePraise(value) {
+  return PRAISE_STAMPS.some((s) => s.id === value) ? value : null;
+}
+
 // 過去のセッションから曲名候補を「よく弾く順（合計回数）→新しさ」で返す。
 // 曲選択チップのサジェストに使う。limit 件まで。
 export function pastSongNames(sessions, limit = 8) {
