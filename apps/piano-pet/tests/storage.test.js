@@ -162,6 +162,15 @@ describe('mergeSessionsKeepLarger', () => {
     expect(m[0].songs).toEqual(['X', 'X']);
   });
 
+  it('衝突時 bonusCoins は双方の max を救済する（おまけ消失防止 #148）', () => {
+    // 練習量は cloud(5)が多いが、おまけ当選は local(3) 側だけ → 両方残す
+    const local = [{ date: '2026-01-01', totalCount: 3, bonusCoins: 3 }];
+    const cloud = [{ date: '2026-01-01', totalCount: 5, bonusCoins: 0 }];
+    const m = mergeSessionsKeepLarger(local, cloud);
+    expect(m[0].totalCount).toBe(5);   // 練習量の多い方を採用
+    expect(m[0].bonusCoins).toBe(3);   // おまけは消さない
+  });
+
   it('同回数の tie はローカルを残す（自分の書き込みのエコー等）', () => {
     const local = [{ date: '2026-01-01', totalCount: 5, songs: ['L'] }];
     const cloud = [{ date: '2026-01-01', totalCount: 5, songs: ['C'] }];
