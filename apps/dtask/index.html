@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=29">
+  <link rel="stylesheet" href="style.css?v=30">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -386,9 +386,12 @@
   <!-- FAB（モバイル用タスク追加ボタン） -->
   <button class="fab" id="fabAddTask" aria-label="新しいタスクを追加" title="新しいタスクを追加">＋</button>
 
+  <!-- カード操作メニュー（⋮：移動・ステータス・削除。ビュー非依存の単一ポップアップ #111） -->
+  <div class="card-menu hidden" id="cardMenu" role="menu" aria-label="カード操作メニュー" aria-hidden="true"></div>
+
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=30"></script>
+  <script type="module" src="app.js?v=32"></script>
 </body>
 </html>

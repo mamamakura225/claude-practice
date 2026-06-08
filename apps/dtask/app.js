@@ -56,6 +56,7 @@ const THEME_KEY     = 'dtask_theme';
 const FONTSIZE_KEY  = 'dtask_fontsize';
 const EXPANDED_KEY  = 'dtask_expanded';
 const VIEW_KEY      = 'dtask_view'; // 'list' | 'kanban'（ビュー形式のみ復元。preset は毎回 today 固定）
+const HINT_KEY      = 'dtask_hint_actions'; // 操作メニュー(⋮)の初回ヒント表示済みフラグ
 
 const SYNC_STATES = {
   idle:    { html: '' },
@@ -531,6 +532,7 @@ function renderListView() {
         <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集" aria-label="編集: ${titleText}">✏️</button>
         <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除" aria-label="削除: ${titleText}">🗑️</button>
       </div>
+      <button type="button" class="card-menu-btn" data-action="card-menu" data-id="${task.id}" title="操作メニュー" aria-label="操作メニュー: ${titleText}" aria-haspopup="menu" aria-expanded="false">⋮</button>
     `;
     // .task-card を .swipe-wrapper で包む
     const wrapper = document.createElement('div');
@@ -621,6 +623,7 @@ function renderKanbanView() {
             ${task.recurrence?.type && task.status !== 'done' ? `<button class="btn-action skip" data-action="skip" data-id="${task.id}" title="今回だけスキップ" aria-label="今回だけスキップ: ${kTitleText}">⏭</button>` : ''}
             <button class="btn-action" data-action="edit" data-id="${task.id}" title="編集" aria-label="編集: ${kTitleText}">✏️</button>
             <button class="btn-action delete" data-action="delete" data-id="${task.id}" title="削除" aria-label="削除: ${kTitleText}">🗑️</button>
+            <button type="button" class="btn-action card-menu-btn" data-action="card-menu" data-id="${task.id}" title="操作メニュー" aria-label="操作メニュー: ${kTitleText}" aria-haspopup="menu" aria-expanded="false">⋮</button>
           </div>
         </div>
       `;
@@ -750,6 +753,7 @@ function applyHomeState(showReward) {
 
 /* ===== Render (full) ===== */
 function render() {
+  closeCardMenu(); // 再描画でトリガー要素が差し替わるため開いていれば閉じる
   renderStats();
   const todayTasks = getFilteredTasks();
   const showReward = state.filters.preset === 'today' &&
@@ -957,8 +961,141 @@ function startAddSubtask(btn) {
   input.addEventListener('blur', commit);
 }
 
+/* ===== Card action menu（ドラッグ非依存の明示操作 #111） =====
+ * 常時表示の「⋮」ボタンから 編集 / 上へ・下へ / ステータス移動 / 削除 を
+ * タップ・キーボードで実行できる正規ルート。スワイプ・D&D はショートカット扱い。 */
+const STATUS_MOVE = [
+  { value: 'todo',       label: '未着手へ移動' },
+  { value: 'inprogress', label: '進行中へ移動' },
+  { value: 'done',       label: '完了にする' },
+];
+
+/* 表示順で1つ上/下へ入れ替え（手動ソートに切替）。D&D と同じく表示中タスクの order を再採番 */
+function moveTask(id, dir) {
+  const visible = getFilteredTasks();
+  const idx = visible.findIndex(t => t.id === id);
+  const swap = idx + dir;
+  if (idx < 0 || swap < 0 || swap >= visible.length) return;
+  [visible[idx], visible[swap]] = [visible[swap], visible[idx]];
+  visible.forEach((t, i) => {
+    const real = state.tasks.find(x => x.id === t.id);
+    if (real) real.order = i;
+  });
+  syncManualSort();
+  saveCloud();
+  render();
+}
+
+/* ステータス変更（完了化時は toggleDone と同じく繰り返しを自動生成） */
+function moveToStatus(id, status) {
+  const task = state.tasks.find(t => t.id === id);
+  if (!task || task.status === status) return;
+  const becomingDone = status === 'done' && task.status !== 'done';
+  task.status = status;
+  if (becomingDone && task.recurrence && task.recurrence.type) spawnNextRecurrence(task);
+  saveCloud();
+  render();
+}
+
+let cardMenuState = { open: false, triggerBtn: null };
+
+function closeCardMenu() {
+  const menu = document.getElementById('cardMenu');
+  if (cardMenuState.triggerBtn && document.contains(cardMenuState.triggerBtn)) {
+    cardMenuState.triggerBtn.setAttribute('aria-expanded', 'false');
+  }
+  cardMenuState = { open: false, triggerBtn: null };
+  if (!menu) return;
+  menu.classList.add('hidden');
+  menu.setAttribute('aria-hidden', 'true');
+  menu.innerHTML = '';
+  menu._items = null;
+}
+
+function openCardMenu(triggerBtn, id) {
+  const task = state.tasks.find(t => t.id === id);
+  const menu = document.getElementById('cardMenu');
+  if (!task || !menu) return;
+  // 同じトリガーで既に開いていれば作り直さない（再クリック時のちらつき・DOM差し替え防止）
+  if (cardMenuState.open && cardMenuState.triggerBtn === triggerBtn) return;
+
+  const visible = getFilteredTasks();
+  const idx = visible.findIndex(t => t.id === id);
+  const items = [
+    { label: '✏️ 編集',  fn: () => openTaskModal(task) },
+    { label: '⬆️ 上へ',  fn: () => moveTask(id, -1), disabled: idx <= 0 },
+    { label: '⬇️ 下へ',  fn: () => moveTask(id, +1), disabled: idx < 0 || idx >= visible.length - 1 },
+    ...STATUS_MOVE.filter(s => s.value !== task.status)
+      .map(s => ({ label: s.label, fn: () => moveToStatus(id, s.value) })),
+    { label: '🗑️ 削除', danger: true, fn: () => deleteTask(id) },
+  ];
+  menu._items = items;
+  menu.innerHTML = items.map((it, i) =>
+    `<button type="button" role="menuitem" class="card-menu-item${it.danger ? ' danger' : ''}" data-i="${i}"${it.disabled ? ' disabled' : ''}>${it.label}</button>`
+  ).join('');
+
+  menu.classList.remove('hidden');
+  menu.setAttribute('aria-hidden', 'false');
+  const r = triggerBtn.getBoundingClientRect();
+  let left = r.right - menu.offsetWidth;
+  let top  = r.bottom + 4;
+  if (top + menu.offsetHeight > window.innerHeight) top = r.top - menu.offsetHeight - 4;
+  menu.style.left = `${Math.max(8, left)}px`;
+  menu.style.top  = `${Math.max(8, top)}px`;
+
+  triggerBtn.setAttribute('aria-expanded', 'true');
+  cardMenuState = { open: true, triggerBtn };
+  menu.querySelector('.card-menu-item:not([disabled])')?.focus();
+}
+
+function activateCardMenuItem(i) {
+  const menu = document.getElementById('cardMenu');
+  const it = menu?._items?.[i];
+  closeCardMenu();
+  if (it && !it.disabled) it.fn();
+}
+
+function handleCardMenuKeydown(e) {
+  if (!cardMenuState.open) return;
+  const menu = document.getElementById('cardMenu');
+  if (!menu) return;
+  const els = [...menu.querySelectorAll('.card-menu-item:not([disabled])')];
+  const pos = els.indexOf(document.activeElement);
+  if (e.key === 'Escape') {
+    e.preventDefault();
+    const t = cardMenuState.triggerBtn;
+    closeCardMenu();
+    t?.focus();
+  } else if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    els[(pos + 1) % els.length]?.focus();
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    els[(pos - 1 + els.length) % els.length]?.focus();
+  }
+}
+
+/* 操作メニュー(⋮)の初回ヒント。チュートリアルの壁は作らず、トースト1回だけ。 */
+function maybeShowActionHint() {
+  try {
+    if (localStorage.getItem(HINT_KEY)) return;
+    if (!state.tasks.length) return; // タスクが無いと意味がないので出さない
+    localStorage.setItem(HINT_KEY, '1');
+    showToast('カード右の ⋮ から 移動・完了・削除 ができます', undefined, 7000);
+  } catch {}
+}
+
 /* ===== Event Delegation ===== */
 function handleGlobalClick(e) {
+  // 操作メニュー：項目クリックで実行
+  const menuItem = e.target.closest('.card-menu-item');
+  if (menuItem) { activateCardMenuItem(Number(menuItem.dataset.i)); return; }
+  // 開いている時、メニュー外・トリガー外クリックで閉じる
+  if (cardMenuState.open &&
+      !e.target.closest('#cardMenu') &&
+      !e.target.closest('[data-action="card-menu"]')) {
+    closeCardMenu();
+  }
   const el     = e.target.closest('[data-action]');
   const catBtn = e.target.closest('[data-category-id]');
 
@@ -974,6 +1111,7 @@ function handleGlobalClick(e) {
   if (!el) return;
   const { action, id } = el.dataset;
 
+  if (action === 'card-menu')   { openCardMenu(el, id); return; }
   if (action === 'toggle')      { toggleDone(id); return; }
   if (action === 'edit')        { openTaskModal(state.tasks.find(t => t.id === id)); return; }
   if (action === 'delete')      { deleteTask(id); return; }
@@ -1178,7 +1316,7 @@ function attachSwipeListeners(card, wrapper, id) {
   card.addEventListener('touchstart', (e) => {
     if (card.classList.contains('removing')) return;
     // インライン操作領域（サブタスク展開・トグル・アクションボタン）はスワイプ対象外
-    if (e.target.closest('.task-subtasks-inline, .subtask-toggle, .task-actions')) {
+    if (e.target.closest('.task-subtasks-inline, .subtask-toggle, .task-actions, .card-menu-btn')) {
       active = false;
       canceled = true;
       return;
@@ -1251,7 +1389,7 @@ function attachCardDragHandlers(card) {
   card.addEventListener('dragstart', e => {
     // インライン操作領域（サブタスク展開・トグル・アクションボタン・編集 input）
     // から発火したドラッグはキャンセル。テキスト選択やクリックを優先。
-    if (e.target.closest('.task-subtasks-inline, .subtask-toggle, .task-actions, .kanban-status-select')) {
+    if (e.target.closest('.task-subtasks-inline, .subtask-toggle, .task-actions, .kanban-status-select, .card-menu-btn')) {
       e.preventDefault();
       return;
     }
@@ -1386,6 +1524,7 @@ async function init() {
   syncPresetChipUI(state.filters.preset);
   renderSidebar();
   render();
+  maybeShowActionHint();
 
   /* リアルタイム同期: 他デバイスの変更を自動反映 */
   onSnapshot(DATA_DOC, (snap) => {
@@ -1601,12 +1740,14 @@ async function init() {
   const header = document.querySelector('.header');
   window.addEventListener('scroll', () => {
     header.classList.toggle('elevated', window.scrollY > 4);
+    if (cardMenuState.open) closeCardMenu(); // スクロールで位置がずれるため閉じる
   }, { passive: true });
 
   /* Global delegation */
   document.addEventListener('click', handleGlobalClick);
   document.addEventListener('change', handleGlobalChange);
   document.addEventListener('keydown', handleDelegatedActivation);
+  document.addEventListener('keydown', handleCardMenuKeydown);
 
   /* Swipe gestures (mobile list view) */
   initSwipeGestures();
