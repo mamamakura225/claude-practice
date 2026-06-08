@@ -14,6 +14,9 @@ test.describe('練習記録', () => {
     // 「見た」フラグを立てて出さない（オンボーディング自体は onboarding.spec.js で検証）。
     await page.addInitScript(() => {
       try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+      // きょうのおまけ（#148）は記録時に Math.random<0.2 で +3コイン付与され、
+      // 固定コイン額を検証する E2E をフレーキーにする。乱数を 0.2 以上に固定し抽選を無効化。
+      Math.random = () => 0.99;
     });
   });
 

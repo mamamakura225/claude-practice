@@ -11,6 +11,8 @@ test.describe('きょうの きょく（しゅくだい）', () => {
 
     await page.addInitScript(() => {
       try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+      // きょうのおまけ（#148）の乱数コインで演出・コイン額がブレないよう抽選を無効化（→ record.spec.js）。
+      Math.random = () => 0.99;
     });
   });
 
