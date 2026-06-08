@@ -1016,6 +1016,8 @@ function openCardMenu(triggerBtn, id) {
   const task = state.tasks.find(t => t.id === id);
   const menu = document.getElementById('cardMenu');
   if (!task || !menu) return;
+  // 同じトリガーで既に開いていれば作り直さない（再クリック時のちらつき・DOM差し替え防止）
+  if (cardMenuState.open && cardMenuState.triggerBtn === triggerBtn) return;
 
   const visible = getFilteredTasks();
   const idx = visible.findIndex(t => t.id === id);
