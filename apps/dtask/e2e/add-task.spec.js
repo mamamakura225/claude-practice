@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+// 起動既定が「今日」フィルタ(#33)のため、全タスク表示前提のテストは「すべて」へ切替える
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 test.describe('タスク追加', () => {
   test.beforeEach(async ({ page }) => {
     // 本番Firebaseへの書き込みを防ぐためAPIを全てブロック
@@ -14,6 +23,7 @@ test.describe('タスク追加', () => {
 
     // アプリ初期化を待つ（追加ボタンが出現したらOK）
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    await showAll(page);
 
     // モーダルが開くまでリトライ（init() 完了＝クリックハンドラ登録完了を待つ）
     await expect(async () => {

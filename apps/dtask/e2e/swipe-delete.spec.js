@@ -23,6 +23,15 @@ function seedTasks(page, tasks) {
   }, tasks);
 }
 
+// 起動既定が「今日」フィルタ(#33)のため、全タスク表示前提のテストは「すべて」へ切替える
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 /**
  * page.evaluate でカードに対し TouchEvent を直接ディスパッチして左スワイプを再現。
  * Chromium は標準で TouchEvent / Touch コンストラクタをサポートする。
@@ -85,7 +94,8 @@ test.describe('スワイプ削除（モバイル）', () => {
       },
     ]);
     await page.goto('/');
-    // モバイル幅では #addTaskBtn が非表示なので、seed したカードの出現で init 完了を判定
+    // モバイル幅では #addTaskBtn が非表示。「すべて」切替が init 完了待ちを兼ねる
+    await showAll(page);
     const card = page.locator('#taskList .task-card[data-id="t-swipe"]');
     await expect(card).toBeVisible({ timeout: 10000 });
 

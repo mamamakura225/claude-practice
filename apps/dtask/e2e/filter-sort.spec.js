@@ -19,6 +19,15 @@ function seedTasks(page, tasks) {
   }, tasks);
 }
 
+// 起動既定が「今日」フィルタ(#33)のため、全件表示を前提とするテストは「すべて」へ切替える
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 test.describe('フィルタ・ソート切替', () => {
   const today = isoDay(0);
   const yesterday = isoDay(-1);
@@ -86,6 +95,8 @@ test.describe('フィルタ・ソート切替', () => {
     await seedTasks(page, tasks);
     await page.goto('/');
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    // 起動既定は「今日」フィルタ。各テストは全件表示を前提とするため「すべて」へ切替
+    await showAll(page);
     // 4 件のカードがレンダリングされた状態を待つ
     await expect(page.locator('#taskList .task-card')).toHaveCount(4);
   });
@@ -131,11 +142,14 @@ test.describe('フィルタ・ソート切替', () => {
       page.locator('#taskList .task-card', { hasText: 'E2E_中_期限切れ' })
     ).toBeVisible();
 
-    // 「今日」に切替えると本日締切の高タスクに変わる
+    // 「今日」に切替えると「今日締切＋期限切れ未完了」の2件になる(#33)
     await page.locator('.preset-chip[data-preset="today"]').click();
-    await expect(page.locator('#taskList .task-card')).toHaveCount(1);
+    await expect(page.locator('#taskList .task-card')).toHaveCount(2);
     await expect(
       page.locator('#taskList .task-card', { hasText: 'E2E_高_未着手_今日' })
+    ).toBeVisible();
+    await expect(
+      page.locator('#taskList .task-card', { hasText: 'E2E_中_期限切れ' })
     ).toBeVisible();
   });
 });

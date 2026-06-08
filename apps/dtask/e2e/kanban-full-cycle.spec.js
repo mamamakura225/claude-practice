@@ -14,6 +14,16 @@ function seedTasks(page, tasks) {
   }, tasks);
 }
 
+// 起動既定が「今日」フィルタ(#33)のため、全タスク表示前提のテストは「すべて」へ切替える
+// （preset='' により done 時のご褒美空状態も無効化され、従来どおり done 列で検証できる）
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 test.describe('Kanban フルサイクル', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
@@ -39,6 +49,7 @@ test.describe('Kanban フルサイクル', () => {
     ]);
     await page.goto('/');
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    await showAll(page);
 
     // Kanban に切替
     await page.click('#kanbanViewBtn');

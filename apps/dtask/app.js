@@ -32,7 +32,7 @@ const state = {
     sort: 'manual',
     search: '',
     hideCompleted: false,
-    preset: '', // '', 'today', 'week', 'overdue'
+    preset: 'today', // 起動既定は「今日やること」。'', 'today', 'week', 'overdue'
   },
   theme: 'light',
 };
@@ -55,6 +55,7 @@ let swipeDidMove = false;
 const THEME_KEY     = 'dtask_theme';
 const FONTSIZE_KEY  = 'dtask_fontsize';
 const EXPANDED_KEY  = 'dtask_expanded';
+const VIEW_KEY      = 'dtask_view'; // 'list' | 'kanban'（ビュー形式のみ復元。preset は毎回 today 固定）
 
 const SYNC_STATES = {
   idle:    { html: '' },
@@ -703,9 +704,57 @@ function renderStats() {
   requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.width = `${pct}%`; }));
 }
 
+/* ===== Today home: 達成（ご褒美）空状態 ===== */
+function nextDeadlineInfo() {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = state.tasks
+    .filter(t => t.status !== 'done' && t.deadline && t.deadline > today)
+    .map(t => t.deadline)
+    .sort();
+  if (!upcoming.length) return null;
+  const next = upcoming[0];
+  const days = Math.round((new Date(next) - new Date(today)) / 86_400_000);
+  return { date: next, days };
+}
+
+function renderTodayDone(el) {
+  const info = nextDeadlineInfo();
+  const sub = info
+    ? `次の締切は <strong>${formatDate(info.date)}</strong>（${info.days}日後）です。`
+    : '次の締切はありません ☕ ゆっくり休みましょう。';
+  el.innerHTML = `
+    <div class="empty-icon" aria-hidden="true">🎉</div>
+    <p class="today-done-title">今日のタスクは完了！</p>
+    <p class="empty-sub">${sub}</p>
+  `;
+}
+
+/* 達成画面 / 通常ビューの出し分け（ビュー非依存）。
+   preset==='today' かつ「今日対象タスクはあるが全て完了」のときご褒美画面を出す。
+   今日対象が元々0件（新規ユーザー等）は各ビュー既存の汎用空状態に委ねる。 */
+function applyHomeState(showReward) {
+  const todayDone  = document.getElementById('todayDoneState');
+  const listView   = document.getElementById('listView');
+  const kanbanView = document.getElementById('kanbanView');
+  if (showReward) {
+    renderTodayDone(todayDone);
+    todayDone.classList.remove('hidden');
+    listView.classList.add('hidden');
+    kanbanView.classList.add('hidden');
+  } else {
+    todayDone.classList.add('hidden');
+    listView.classList.toggle('hidden',   state.currentView !== 'list');
+    kanbanView.classList.toggle('hidden', state.currentView !== 'kanban');
+  }
+}
+
 /* ===== Render (full) ===== */
 function render() {
   renderStats();
+  const todayTasks = getFilteredTasks();
+  const showReward = state.filters.preset === 'today' &&
+    todayTasks.length > 0 && todayTasks.every(t => t.status === 'done');
+  applyHomeState(showReward);
   if (state.currentView === 'list') renderListView();
   else renderKanbanView();
 }
@@ -1025,9 +1074,7 @@ function toggleSidebar() {
 }
 
 /* ===== View toggle helper ===== */
-function switchView(view) {
-  state.currentView = view;
-  track('view_changed', { view });
+function syncViewToggleUI(view) {
   const isList = view === 'list';
   ['listViewBtn', 'listViewBtnMobile'].forEach(id => {
     const el = document.getElementById(id);
@@ -1041,6 +1088,23 @@ function switchView(view) {
     el.classList.toggle('active', !isList);
     el.setAttribute('aria-pressed', !isList ? 'true' : 'false');
   });
+}
+
+/* preset-chips の active 表示を state に同期（起動時の復元用） */
+function syncPresetChipUI(preset) {
+  document.querySelectorAll('.preset-chip').forEach(c => {
+    const isActive = (c.dataset.preset || '') === (preset || '');
+    c.classList.toggle('active', isActive);
+    c.setAttribute('aria-selected', isActive ? 'true' : 'false');
+  });
+}
+
+function switchView(view) {
+  state.currentView = view;
+  try { localStorage.setItem(VIEW_KEY, view); } catch {}
+  track('view_changed', { view });
+  const isList = view === 'list';
+  syncViewToggleUI(view);
   const showEl = document.getElementById(isList ? 'listView' : 'kanbanView');
   const hideEl = document.getElementById(isList ? 'kanbanView' : 'listView');
   hideEl.classList.add('hidden');
@@ -1315,6 +1379,11 @@ async function init() {
   await loadStorage();
   applyTheme(state.theme);
   applyFontSize(localStorage.getItem(FONTSIZE_KEY) || 'standard');
+  // ビュー形式（List/Kanban）のみ前回値を復元。preset は state 既定の 'today' 固定
+  const savedView = localStorage.getItem(VIEW_KEY);
+  state.currentView = savedView === 'kanban' ? 'kanban' : 'list';
+  syncViewToggleUI(state.currentView);
+  syncPresetChipUI(state.filters.preset);
   renderSidebar();
   render();
 

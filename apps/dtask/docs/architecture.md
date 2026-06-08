@@ -69,10 +69,10 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 | `tasks` | Task配列 | **Firestore**（`saveCloud` が書込） |
 | `categories` | Category配列 | **Firestore**（同上） |
 | `theme` | `'light'` \| `'dark'` | **localStorage**（`dtask_theme`）。クラウド非同期 |
-| `currentView` | `'list'` \| `'kanban'` | **永続化なし**（メモリのみ。リロードで `'list'` に戻る） |
-| `filters` | フィルタ・ソート・検索条件 | **永続化なし**（メモリのみ。リロードで既定にリセット） |
+| `currentView` | `'list'` \| `'kanban'` | **localStorage**（`dtask_view`）。`switchView` で保存し `init` で復元(#33) |
+| `filters` | フィルタ・ソート・検索条件 | **永続化なし**（メモリのみ。リロードで既定にリセット。ただし `preset` の既定は `'today'`=「今日やること」固定(#33)） |
 
-> **重要**: クラウド（Firestore）へ書き込むのは `saveCloud()` の `setDoc(DATA_DOC, { tasks, categories })` のみ。`theme` は localStorage、`currentView` / `filters` はメモリ上の一時状態で、いずれもクラウド同期されない。
+> **重要**: クラウド（Firestore）へ書き込むのは `saveCloud()` の `setDoc(DATA_DOC, { tasks, categories })` のみ。`theme` / `currentView` は localStorage（クラウド非同期）、`filters` はメモリ上の一時状態でクラウド同期されない。
 
 ### `uiState`（端末ローカル、クラウド非同期）
 - `expanded`: `Set<taskId>` — インライン展開中のタスクIDセット（localStorage `dtask_expanded` に永続化）

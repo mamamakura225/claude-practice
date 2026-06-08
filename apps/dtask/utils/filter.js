@@ -17,7 +17,12 @@ export function filterTasks(tasks, filters, today) {
   }
   if (filters.preset) {
     if (filters.preset === 'today') {
-      result = result.filter(t => t.deadline === today);
+      // 「今日やること」: 今日が期限（完了済みも含む＝進捗バー・完了確認のため）
+      // ＋ 期限切れ未完了（やり残し）
+      result = result.filter(t =>
+        t.deadline === today ||
+        (t.deadline && t.deadline < today && t.status !== 'done')
+      );
     } else if (filters.preset === 'week') {
       const weekEnd = addDays(today, 6);
       result = result.filter(t => t.deadline && t.deadline >= today && t.deadline <= weekEnd);

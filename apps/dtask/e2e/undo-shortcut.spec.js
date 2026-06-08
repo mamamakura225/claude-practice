@@ -14,6 +14,15 @@ function seedTasks(page, tasks) {
   }, tasks);
 }
 
+// 起動既定が「今日」フィルタ(#33)のため、全タスク表示前提のテストは「すべて」へ切替える
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 const baseTask = (id, title) => ({
   id,
   title,
@@ -38,6 +47,7 @@ test.describe('Ctrl+Z / Cmd+Z Undo', () => {
   test('削除後 Ctrl+Z でタスクが復元される', async ({ page }) => {
     await seedTasks(page, [baseTask('t-undo-1', 'E2E_Undo_対象タスク')]);
     await page.goto('/');
+    await showAll(page);
 
     const card = page.locator('#taskList .task-card[data-id="t-undo-1"]');
     await expect(card).toBeVisible({ timeout: 10000 });
@@ -59,6 +69,7 @@ test.describe('Ctrl+Z / Cmd+Z Undo', () => {
   test('入力中はアプリのUndoが発火しない（テキスト編集中）', async ({ page }) => {
     await seedTasks(page, [baseTask('t-undo-2', 'E2E_Undo_削除済み')]);
     await page.goto('/');
+    await showAll(page);
 
     const card = page.locator('#taskList .task-card[data-id="t-undo-2"]');
     await expect(card).toBeVisible({ timeout: 10000 });
@@ -87,6 +98,7 @@ test.describe('Ctrl+Z / Cmd+Z Undo', () => {
       baseTask('t-undo-3b', 'E2E_Undo_B'),
     ]);
     await page.goto('/');
+    await showAll(page);
 
     const cardA = page.locator('#taskList .task-card[data-id="t-undo-3a"]');
     const cardB = page.locator('#taskList .task-card[data-id="t-undo-3b"]');
