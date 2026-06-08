@@ -86,7 +86,7 @@ dtask (collection)
 | `sort` | `'manual'` \| `'created'` \| `'deadline'` \| `'priority'` | `'manual'` | ソート種別 |
 | `search` | string | `''` | 検索クエリ（フルテキスト／`#tag`） |
 | `hideCompleted` | boolean | `false` | 完了タスクを非表示 |
-| `preset` | `''` \| `'today'` \| `'week'` \| `'overdue'` | `''` | 期限プリセット |
+| `preset` | `''` \| `'today'` \| `'week'` \| `'overdue'` | `'today'` | 期限プリセット。起動既定は `'today'`（今日締切＋期限切れ未完了）に固定(#33)。`today` は完了確認のため当日完了済みも含む |
 
 ## スキーマ変更時の注意
 

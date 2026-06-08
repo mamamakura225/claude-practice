@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+// 起動既定が「今日」フィルタ(#33)のため、全タスク表示前提のテストは「すべて」へ切替える
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 test.describe('サブタスク', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
@@ -10,6 +19,7 @@ test.describe('サブタスク', () => {
   test('詳細モーダルでサブタスクを2件追加でき、カードに進捗が表示される', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    await showAll(page);
 
     // モーダル開く（init待ち）
     await expect(async () => {

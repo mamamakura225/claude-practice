@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test';
 
+// 起動既定が「今日」フィルタ(#33)のため、全タスク表示前提のテストは「すべて」へ切替える
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 test.describe('Kanban ビュー', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
@@ -10,6 +19,7 @@ test.describe('Kanban ビュー', () => {
   test('Kanban に切り替えてステータスを inprogress に変更できる', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    await showAll(page);
 
     // タスクを1件作成
     await expect(async () => {

@@ -15,6 +15,15 @@ function seedTasks(page, tasks) {
   }, tasks);
 }
 
+// 起動既定が「今日」フィルタ(#33)のため、全タスク表示前提のテストは「すべて」へ切替える
+async function showAll(page) {
+  const allChip = page.locator('.preset-chip[data-preset=""]');
+  await expect(async () => {
+    await allChip.click();
+    await expect(allChip).toHaveClass(/active/, { timeout: 500 });
+  }).toPass({ timeout: 15000 });
+}
+
 function baseTask(overrides = {}) {
   return {
     id: 'task-sub',
@@ -43,6 +52,7 @@ test.describe('サブタスク インライン操作', () => {
     await seedTasks(page, [baseTask({ subtasks: [] })]);
     await page.goto('/');
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    await showAll(page);
 
     const card = page.locator('#taskList .task-card[data-id="task-sub"]');
     await expect(card).toBeVisible();
@@ -75,6 +85,7 @@ test.describe('サブタスク インライン操作', () => {
     ]);
     await page.goto('/');
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    await showAll(page);
 
     const card = page.locator('#taskList .task-card[data-id="task-sub"]');
     await expect(card).toContainText('0/2');
@@ -109,6 +120,7 @@ test.describe('サブタスク インライン操作', () => {
     ]);
     await page.goto('/');
     await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+    await showAll(page);
 
     const card = page.locator('#taskList .task-card[data-id="task-sub"]');
     // 展開

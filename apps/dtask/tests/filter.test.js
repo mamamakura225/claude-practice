@@ -36,9 +36,16 @@ describe('filterTasks', () => {
     expect(result.find(t => t.id === '3')).toBeUndefined();
   });
 
-  it('preset=today: 今日が期限のタスクだけ返す', () => {
+  it('preset=today: 今日が期限のタスク＋期限切れ未完了を返す', () => {
+    // 今日が期限(id=1, todo) ＋ 期限切れ未完了(id=5)。完了済み期限切れ(id=3)は除外
     const result = filterTasks(sampleTasks, { preset: 'today' }, today);
-    expect(result.map(t => t.id)).toEqual(['1']);
+    expect(result.map(t => t.id)).toEqual(['1', '5']);
+  });
+
+  it('preset=today: 今日が期限なら完了済みも含む（進捗確認のため）', () => {
+    const doneToday = [{ id: 'dt', title: '完了済み', status: 'done', deadline: today }];
+    const result = filterTasks(doneToday, { preset: 'today' }, today);
+    expect(result.map(t => t.id)).toEqual(['dt']);
   });
 
   it('preset=week: 今日から7日以内のタスクを返す', () => {

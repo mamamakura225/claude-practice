@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>dタスク</title>
-  <link rel="stylesheet" href="style.css?v=28">
+  <link rel="stylesheet" href="style.css?v=29">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -196,6 +196,9 @@
         </div>
       </div>
 
+      <!-- 達成（ご褒美）空状態：今日のタスクを全て完了したとき表示（ビュー非依存） -->
+      <div id="todayDoneState" class="empty-state today-done-state hidden" role="status"></div>
+
       <!-- リストビュー -->
       <div id="listView" class="view-container">
         <div id="taskList" class="task-list">
@@ -386,6 +389,6 @@
   <!-- トーストコンテナ（削除Undo等） -->
   <div class="toast-container" id="toastContainer" role="region" aria-live="polite" aria-label="通知"></div>
 
-  <script type="module" src="app.js?v=29"></script>
+  <script type="module" src="app.js?v=30"></script>
 </body>
 </html>
