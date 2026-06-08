@@ -744,6 +744,57 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 .btn-action.delete:hover { background: var(--primary-bg); color: var(--primary); }
 .btn-action.skip:hover { background: var(--status-inprogress-bg); color: var(--status-inprogress); }
 
+/* 操作メニュー(⋮) トリガー：常時表示（ホバー非依存＝タッチ/キーボードの正規ルート #111） */
+.card-menu-btn {
+  flex-shrink: 0;
+  width: 30px; height: 30px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-sub);
+  font-size: 20px;
+  line-height: 1;
+  transition: all 0.12s;
+}
+.card-menu-btn:hover { background: var(--bg); color: var(--text); }
+.card-menu-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+/* list カードの ⋮ は task-actions の右隣に常時表示 */
+.task-card > .card-menu-btn { align-self: flex-start; }
+
+/* 操作メニュー ポップアップ（body直下の単一要素・ビュー非依存） */
+.card-menu {
+  position: fixed;
+  z-index: 200;
+  min-width: 168px;
+  padding: 6px;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-hover);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: fadeIn 0.12s ease both;
+}
+.card-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  color: var(--text);
+  text-align: left;
+  white-space: nowrap;
+}
+.card-menu-item:hover:not([disabled]),
+.card-menu-item:focus-visible { background: var(--primary-bg); color: var(--primary); outline: none; }
+.card-menu-item.danger:hover:not([disabled]) { background: var(--primary-bg); color: var(--primary); }
+.card-menu-item[disabled] { opacity: 0.4; cursor: default; }
+body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
+
 /* ===== Empty State ===== */
 .empty-state {
   text-align: center;

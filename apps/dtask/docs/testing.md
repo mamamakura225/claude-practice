@@ -52,6 +52,7 @@ npm run test:e2e   # E2Eテスト実行
 |---|---|
 | [e2e/add-task.spec.js](../e2e/add-task.spec.js) | クイック追加バーから新規タスク作成→リストに表示されることを確認。Firestore APIをブロックしてオフライン挙動を検証 |
 | [e2e/today-home.spec.js](../e2e/today-home.spec.js) | 「今日やること」ホームビュー(#33)：起動時 today フィルタON（今日＋期限切れ表示・未来非表示）、ビュー形式の localStorage 復元、今日分全完了時のご褒美空状態 |
+| [e2e/card-menu.spec.js](../e2e/card-menu.spec.js) | カード操作メニュー(#111)：⋮ から削除・下へ並び替え・完了化、キーボードでの開閉（Enter/Esc・フォーカス復帰） |
 
 > 起動既定が「今日」フィルタ(#33)のため、全件表示を前提とする既存 spec は冒頭で「すべて」chip へ切替える `showAll(page)` ヘルパを通す。
 
