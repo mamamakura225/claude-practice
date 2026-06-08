@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=f77a769c">
-  <link rel="stylesheet" href="css/cat.css?v=f77a769c">
+  <link rel="stylesheet" href="css/style.css?v=ea2cf9d2">
+  <link rel="stylesheet" href="css/cat.css?v=ea2cf9d2">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -346,8 +346,17 @@
         </div>
       </div>
 
-      <!-- 親メニュー：ゲート通過後に宿題設定・バックアップ/復元を表示 -->
+      <!-- 親メニュー：ゲート通過後にアカウント切替・宿題設定・バックアップ/復元を表示 -->
       <div class="settings-panel" id="settingsMenu" hidden>
+        <!-- アカウント切替（マルチアカウント・#182） -->
+        <section class="settings-account">
+          <h2 class="settings-panel__title">アカウント</h2>
+          <p class="settings-menu__desc">けんしょう用の「テスト用」と じっさいの「娘」を きりかえます。データ（ねこ・アイテム・きろく）は アカウントごとに わかれます。</p>
+          <div id="accountList" class="account-list"></div>
+        </section>
+
+        <hr class="settings-divider">
+
         <!-- きょうの きょく（しゅくだい）設定・#143 -->
         <section class="settings-hw">
           <h2 class="settings-panel__title">きょうの きょく（しゅくだい）</h2>
@@ -417,6 +426,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=f77a769c"></script>
+  <script type="module" src="js/app.js?v=ea2cf9d2"></script>
 </body>
 </html>
