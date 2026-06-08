@@ -127,6 +127,30 @@ test.describe('データのバックアップ/復元', () => {
     await expect(page.locator('#statCoins')).toHaveText('123');
   });
 
+  test('しょきか：確認OKで新品に戻り、リロード後にコインが0になる（#183）', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#statCoins')).toHaveText('123');
+    await passGate(page);
+
+    page.on('dialog', (d) => d.accept());
+    await page.click('#resetBtn');
+
+    // reload 後に DEFAULTS（coins:0）へ戻る
+    await expect(page.locator('#statCoins')).toHaveText('0', { timeout: 10000 });
+  });
+
+  test('しょきか：確認キャンセルなら初期化しない（#183）', async ({ page }) => {
+    await page.goto('/');
+    await passGate(page);
+
+    page.on('dialog', (d) => d.dismiss());
+    await page.click('#resetBtn');
+
+    await expect(page.locator('#settingsMenu')).toBeVisible(); // 初期化されずメニューのまま
+    await page.click('#settingsMenu [data-action="close-settings"]');
+    await expect(page.locator('#statCoins')).toHaveText('123');
+  });
+
   test('別アプリの JSON はエラー表示で復元されない', async ({ page }) => {
     await page.goto('/');
     await passGate(page);

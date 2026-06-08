@@ -276,8 +276,11 @@
 |---|---|
 | データを ほぞん | 現行 state を `exportState()` でラップ JSON 化し `piano-pet-backup-YYYY-MM-DD.json` をダウンロード。無害なので確認なし |
 | データを よみこむ | ファイル選択 → `parseBackup()` で検証 → 上書き確認 → 復元。検証 NG はひらがなで理由表示（壊れ/別アプリ/必須キー欠落/未来バージョン） |
+| データを ぜんぶ けす | 確認 → 新品の `normalizeState({})` で上書き（猫の状態・アイテム・練習記録・宿題をすべて初期化）。#183 |
 
 **復元フロー（クラウド競合対策）**: ①直前データを `piano-pet-backup-before-restore` へ自動退避 → ②cloud 購読を一時解除 → ③ローカル保存 → ④`pushCloud` 完了を await → ⑤`reload`。古いスナップショットによる巻き戻しを断つ。詳細・設計判断は [data-model.md](./data-model.md) の「バックアップ/復元」を参照。
+
+**データ初期化（`resetData`・#183）**: 機種変更・配布前のテストデータ汚染をリセットする手段。復元フローと同一の安全手順をたどり、取り込み先が「新品の `DEFAULTS`」になるだけ。退避（`piano-pet-backup-before-restore`）も同じく行うため、誤操作してもこの localStorage キーから最後の手段で復旧できる。`settings`（音 ON/OFF 等の端末ローカル値）も既定へ戻る。
 
 ## ポップアップ演出
 
