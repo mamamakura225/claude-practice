@@ -1239,6 +1239,27 @@ async function applyImportedState(imported) {
   window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
 }
 
+// データ初期化（#183）：購入履歴・猫の状態・練習記録をすべて消して新品に戻す。
+// applyImportedState と同じ安全手順（退避→購読解除→ローカル保存→クラウド反映→reload）で、
+// 取り込み先が「新品の DEFAULTS」になるだけ。古いスナップショットの巻き戻しを断つ。
+async function resetData() {
+  if (!window.confirm('ねこの じょうたい・アイテム・れんしゅうきろくが ぜんぶ きえて、さいしょから になります。よろしいですか？')) return;
+  try {
+    const cur = localStorage.getItem('piano-pet');
+    if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤操作からの復旧用に退避
+  } catch { /* 退避失敗は致命的でないので無視 */ }
+  if (cloudUnsub) {
+    try { cloudUnsub(); } catch { /* 解除失敗は無視 */ }
+    cloudUnsub = null;
+  }
+  state = normalizeState({});            // 新品の DEFAULTS へ
+  saveState(state);
+  if (cloud) {
+    try { await cloud.pushCloud(cloudFields(state)); } catch { /* push 失敗時もローカルは初期化済み */ }
+  }
+  window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
+}
+
 // 選択ファイルを読んで検証。OK なら確認のうえ復元、NG なら理由をひらがなで表示。
 function handleImportFile(file) {
   const reader = new FileReader();
@@ -1323,6 +1344,7 @@ gateAnswerEl?.addEventListener('keydown', (e) => {
 });
 document.getElementById('exportBtn')?.addEventListener('click', downloadBackup);
 document.getElementById('importBtn')?.addEventListener('click', () => importFileEl?.click());
+document.getElementById('resetBtn')?.addEventListener('click', resetData);
 importFileEl?.addEventListener('change', (e) => {
   const file = e.target.files?.[0];
   if (file) handleImportFile(file);

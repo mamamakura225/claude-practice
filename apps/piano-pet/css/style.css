@@ -1542,6 +1542,9 @@ body {
   border-radius: 24px;
   padding: 28px 24px;
   box-shadow: 0 12px 34px var(--shadow);
+  /* 画面より高いメニュー（宿題＋バックアップ＋初期化）でも全項目に届くようパネル内スクロール */
+  max-height: 100%;
+  overflow-y: auto;
 }
 
 .settings-panel__title {
