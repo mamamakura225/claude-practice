@@ -28,6 +28,19 @@ function seedTasks(page, tasks) {
   }, tasks);
 }
 
+// 委譲クリックは init 末尾で登録されるため、カード表示直後はクリックが空振りしうる。
+// メニューが開くまでリトライして init 完了を待つ（既存 spec の modal リトライと同方針）。
+async function openCardMenu(page, cardId) {
+  const kebab = page.locator(`.task-card[data-id="${cardId}"] .card-menu-btn`);
+  const menu = page.locator('#cardMenu');
+  await expect(kebab).toBeVisible({ timeout: 10000 });
+  await expect(async () => {
+    await kebab.click();
+    await expect(menu).toBeVisible({ timeout: 700 });
+  }).toPass({ timeout: 15000 });
+  return menu;
+}
+
 test.describe('カード操作メニュー (#111)', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
@@ -39,11 +52,8 @@ test.describe('カード操作メニュー (#111)', () => {
     await seedTasks(page, [mkTask('t-a', 'E2E_A', 0), mkTask('t-b', 'E2E_B', 1)]);
     await page.goto('/');
     const cardA = page.locator('#taskList .task-card[data-id="t-a"]');
-    await expect(cardA).toBeVisible({ timeout: 10000 });
 
-    await cardA.locator('.card-menu-btn').click();
-    const menu = page.locator('#cardMenu');
-    await expect(menu).toBeVisible();
+    const menu = await openCardMenu(page, 't-a');
     await menu.locator('.card-menu-item', { hasText: '削除' }).click();
 
     await expect(cardA).toHaveCount(0, { timeout: 3000 });
@@ -53,13 +63,11 @@ test.describe('カード操作メニュー (#111)', () => {
   test('⋮ メニューの「下へ」で並び替えできる', async ({ page }) => {
     await seedTasks(page, [mkTask('t-a', 'E2E_A', 0), mkTask('t-b', 'E2E_B', 1)]);
     await page.goto('/');
-    await expect(page.locator('#taskList .task-card[data-id="t-a"]')).toBeVisible({ timeout: 10000 });
 
+    const menu = await openCardMenu(page, 't-a');
     // 初期は A が先頭
     await expect(page.locator('#taskList .task-card').first()).toHaveAttribute('data-id', 't-a');
-
-    await page.locator('.task-card[data-id="t-a"] .card-menu-btn').click();
-    await page.locator('#cardMenu .card-menu-item', { hasText: '下へ' }).click();
+    await menu.locator('.card-menu-item', { hasText: '下へ' }).click();
 
     // A が B の下へ → 先頭が B
     await expect(page.locator('#taskList .task-card').first()).toHaveAttribute('data-id', 't-b');
@@ -69,10 +77,9 @@ test.describe('カード操作メニュー (#111)', () => {
     await seedTasks(page, [mkTask('t-a', 'E2E_A', 0), mkTask('t-b', 'E2E_B', 1)]);
     await page.goto('/');
     const cardA = page.locator('#taskList .task-card[data-id="t-a"]');
-    await expect(cardA).toBeVisible({ timeout: 10000 });
 
-    await cardA.locator('.card-menu-btn').click();
-    await page.locator('#cardMenu .card-menu-item', { hasText: '完了にする' }).click();
+    const menu = await openCardMenu(page, 't-a');
+    await menu.locator('.card-menu-item', { hasText: '完了にする' }).click();
 
     // 今日締切は完了済みも表示に残る → done-card になる
     await expect(cardA).toHaveClass(/done-card/);
@@ -82,17 +89,18 @@ test.describe('カード操作メニュー (#111)', () => {
     await seedTasks(page, [mkTask('t-a', 'E2E_A', 0), mkTask('t-b', 'E2E_B', 1)]);
     await page.goto('/');
     const kebab = page.locator('.task-card[data-id="t-a"] .card-menu-btn');
-    await expect(kebab).toBeVisible({ timeout: 10000 });
 
-    await kebab.focus();
-    await page.keyboard.press('Enter');
-    const menu = page.locator('#cardMenu');
-    await expect(menu).toBeVisible();
-    // 最初の有効項目にフォーカスが移る
+    // init 完了を保証しつつ開く（最初の有効項目にフォーカスが移る）
+    const menu = await openCardMenu(page, 't-a');
     await expect(menu.locator('.card-menu-item:not([disabled])').first()).toBeFocused();
 
+    // Esc で閉じてトリガーへフォーカス復帰
     await page.keyboard.press('Escape');
     await expect(menu).toBeHidden();
     await expect(kebab).toBeFocused();
+
+    // キーボード（Enter）で再オープンできる（リスナは既に登録済み）
+    await page.keyboard.press('Enter');
+    await expect(menu).toBeVisible();
   });
 });
