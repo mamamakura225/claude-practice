@@ -61,7 +61,13 @@ test.describe('きょうの きょく（しゅくだい）', () => {
     await page.click('#goRecordBtn');
     await page.fill('#newSongInput', 'きらきらぼし');
     await page.click('#addSongBtn');
-    for (let i = 0; i < 3; i += 1) await page.click('#stampCard');
+    // 各スタンプの登録を #recordTotal で待ってから次を押す。
+    // 連打すると遅いCIでクリックが取りこぼされ count<3＝達成未検出になり、
+    // 達成ポップアップが発火せず曲名が空になる（#143 フレーキーの真因）。
+    for (let i = 0; i < 3; i += 1) {
+      await page.click('#stampCard');
+      await expect(page.locator('#recordTotal')).toHaveText(String(i + 1));
+    }
     await page.click('#recordSubmitBtn');
 
     // ホームのカードが達成状態になる
@@ -69,8 +75,11 @@ test.describe('きょうの きょく（しゅくだい）', () => {
     await expect(page.locator('#assignmentMsg')).toHaveText('やったね！しゅくだい たっせい！🎉');
     await expect(page.locator('#assignmentCard')).toHaveClass(/assignment-card--done/);
 
-    // 達成ポップアップが曲名つきで出る（コイン等の後にディレイ表示）
-    await expect(page.locator('#assignmentPopup')).toBeVisible({ timeout: 8000 });
+    // 達成ポップアップが曲名つきで出る。コイン→ボーナス→お休み券→バッジの後に
+    // setTimeout 累積（最悪 2200×4≒8800ms）でディレイ表示されるため余裕を持って待つ。
+    // .coin-popup は常時 display:flex（可視は coin-popup--show=opacity で制御）なので
+    // toBeVisible では実際の表示を検知できない。表示クラスの付与で「本当に出た」ことを待つ。
+    await expect(page.locator('#assignmentPopup')).toHaveClass(/coin-popup--show/, { timeout: 15000 });
     await expect(page.locator('#assignmentPopupSong')).toHaveText('きらきらぼし');
   });
 
