@@ -7,10 +7,13 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
+import { getActiveAccountId, cloudDocIdFor } from './account.js';
 
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
-const DATA_DOC = doc(db, 'pianopet', 'data');
+// 有効アカウントの保存先ドキュメント（マルチアカウント・#182）。アカウント切替時は
+// ページをリロードして本モジュールを貼り直すため、import 時点の有効アカウントで固定してよい。
+const DATA_DOC = doc(db, 'pianopet', cloudDocIdFor(getActiveAccountId()));
 
 // 初回読み込み: クラウド doc を取得する。
 //   - 存在すれば data() を返す（呼び出し側が local state にマージ）

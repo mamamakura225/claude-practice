@@ -378,6 +378,39 @@ body {
   margin: 18px 0;
 }
 
+/* アカウント切替の一覧（#182） */
+.account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid #f0e0e6;
+  border-radius: 12px;
+}
+
+.account-row--active {
+  background: #fff4f7;
+  border-color: var(--accent, #ff7a93);
+}
+
+.account-row__name {
+  font-weight: 700;
+}
+
+.account-row__badge {
+  font-size: 0.85rem;
+  color: var(--accent, #ff7a93);
+  font-weight: 700;
+}
+
 .stat-cards {
   display: flex;
   flex-wrap: wrap;

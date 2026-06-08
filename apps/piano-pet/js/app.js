@@ -1,5 +1,6 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
-import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState } from './storage.js';
+import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, activeStorageKey } from './storage.js';
+import { getAccounts, getActiveAccountId, setActiveAccount } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
 import { enableDressup } from './dressup.js';
@@ -504,7 +505,8 @@ let chipNames = [];
 
 // 当日のスタンプ下書きを退避する localStorage キー（#164）。ホームに戻って戻ってきても
 // 同じカードを引き継ぐ。打鍵ごとの Firestore 同期はせず、ここに一時キャッシュする。
-const STAMP_DRAFT_KEY = 'piano-pet:stamp-draft';
+// アカウントごとに下書きを分離する（#182）。'data'（娘）は従来どおり 'piano-pet:stamp-draft'。
+const STAMP_DRAFT_KEY = `${activeStorageKey()}:stamp-draft`;
 
 // 現在の stamps を当日の下書きとして保存。編集中（既存セッションの修正）は
 // 当日の下書きを汚さないよう保存しない。
@@ -1191,6 +1193,7 @@ function submitGate() {
     if (settingsGateEl) settingsGateEl.hidden = true;
     if (settingsMenuEl) settingsMenuEl.hidden = false;
     loadHwInputs();                       // 宿題の現在値をフォームに反映（#143）
+    renderAccountList();                   // アカウント切替の現在値を反映（#182）
   } else if (gateErrorEl) {
     gateErrorEl.hidden = false;
     if (gateAnswerEl) gateAnswerEl.value = '';
@@ -1224,7 +1227,7 @@ function downloadBackup() {
 // ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
 async function applyImportedState(imported) {
   try {
-    const cur = localStorage.getItem('piano-pet');
+    const cur = localStorage.getItem(activeStorageKey());
     if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤読込からの復旧用に退避
   } catch { /* 退避失敗は致命的でないので無視 */ }
   if (cloudUnsub) {
@@ -1245,7 +1248,7 @@ async function applyImportedState(imported) {
 async function resetData() {
   if (!window.confirm('ねこの じょうたい・アイテム・れんしゅうきろくが ぜんぶ きえて、さいしょから になります。よろしいですか？')) return;
   try {
-    const cur = localStorage.getItem('piano-pet');
+    const cur = localStorage.getItem(activeStorageKey());
     if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤操作からの復旧用に退避
   } catch { /* 退避失敗は致命的でないので無視 */ }
   if (cloudUnsub) {
@@ -1275,6 +1278,32 @@ function handleImportFile(file) {
   reader.onerror = () => showImportStatus(importErrorMessage('parse'), true);
   reader.readAsText(file);
 }
+
+// ===== せってい：アカウント切替（マルチアカウント・#182） =====
+// 親ゲートの裏で、有効アカウント（娘／テスト用）を一覧表示し切り替える。切替は
+// localStorage の有効アカウントを書き換えてからページをリロードし、storage の参照キーと
+// cloud の購読 doc を新アカウントで貼り直す（import/reset と同じリロード方式）。
+function renderAccountList() {
+  const el = document.getElementById('accountList');
+  if (!el) return;
+  const activeId = getActiveAccountId();
+  el.innerHTML = getAccounts().map((a) => {
+    const isActive = a.id === activeId;
+    const right = isActive
+      ? '<span class="account-row__badge">いま これ ✓</span>'
+      : `<button type="button" class="settings-btn settings-btn--ghost account-switch" data-account="${a.id}">きりかえる</button>`;
+    return `<div class="account-row${isActive ? ' account-row--active' : ''}">
+      <span class="account-row__name">${escapeHtml(a.name)}</span>
+      ${right}
+    </div>`;
+  }).join('');
+}
+
+document.getElementById('accountList')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.account-switch');
+  if (!btn) return;
+  if (setActiveAccount(btn.dataset.account)) window.location.reload();
+});
 
 // ===== せってい：きょうの きょく（しゅくだい）設定・#143 =====
 const hwNameEl = document.getElementById('hwName');

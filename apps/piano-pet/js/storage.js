@@ -1,5 +1,11 @@
 // ===== LocalStorage CRUD + 状態の正規化／クラウド射影 =====
-const KEY = 'piano-pet';
+import { getActiveAccountId, storageKeyFor } from './account.js';
+
+// 有効アカウントの localStorage キー（マルチアカウント・#182）。アカウントごとに
+// キャッシュを分離するため、固定値ではなく有効アカウントから都度導出する。
+export function activeStorageKey() {
+  return storageKeyFor(getActiveAccountId());
+}
 
 // localStorage に保存する state の現行スキーマバージョン。
 // 構造を破壊的に変更したらここを +1 し、MIGRATIONS に移行ステップを追加する。
@@ -173,7 +179,7 @@ export function mergeCloudInitial(local, cloud) {
 
 export function loadState() {
   try {
-    const raw = localStorage.getItem(KEY);
+    const raw = localStorage.getItem(activeStorageKey());
     if (!raw) return structuredClone(DEFAULTS);
     return normalizeState(migrate(JSON.parse(raw)));
   } catch {
@@ -182,9 +188,9 @@ export function loadState() {
 }
 
 export function saveState(state) {
-  localStorage.setItem(KEY, JSON.stringify(state));
+  localStorage.setItem(activeStorageKey(), JSON.stringify(state));
 }
 
 export function clearState() {
-  localStorage.removeItem(KEY);
+  localStorage.removeItem(activeStorageKey());
 }

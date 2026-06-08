@@ -2,8 +2,10 @@
 
 > **更新ルール**: `apps/piano-pet/` のソースを変更したら、本書・[requirements.md](./requirements.md)（要件定義書）・[features.md](./features.md)（機能詳細）へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
 
-piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブジェクトとして保存される。
-読み込み・正規化・クラウド射影はすべて [js/storage.js](../js/storage.js) に集約されている。
+piano-pet の状態は localStorage に JSON オブジェクトとして保存される。保存キーは**有効アカウント**
+（マルチアカウント・#182）から導出され、既定（娘）は従来どおり `piano-pet`、テスト用は
+`piano-pet:test`。読み込み・正規化・クラウド射影はすべて [js/storage.js](../js/storage.js) に集約されている
+（キー導出は [js/account.js](../js/account.js) `storageKeyFor`）。
 
 ## State スキーマ (v1)
 
@@ -18,7 +20,8 @@ piano-pet の状態は localStorage の単一キー `piano-pet` に JSON オブ�
 | `assignment` | Assignment \| null | ✓ | きょうの きょく（宿題・#143）。親が設定する単一値。未設定は `null` |
 | `settings` | Settings | − | 端末ローカル設定（音など）。クラウド非同期 |
 
-クラウド (Firestore `pianopet/data`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions, assignment`）のみ。
+クラウド (Firestore `pianopet/<アカウントID>`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions, assignment`）のみ。
+既定（娘）は `pianopet/data`、テスト用は `pianopet/test`（doc ID は [account.js](../js/account.js) `cloudDocIdFor`・[cloud.js](../js/cloud.js)）。
 `settings` と `version` は端末ローカルに留まる。
 
 ### State 以外の localStorage キー（端末ローカル・クラウド非同期）
@@ -27,9 +30,10 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 
 | キー | 値 | 用途 |
 |---|---|---|
-| `piano-pet-onboarded` | `'1'` | 初回オンボーディング（紙芝居・#141）を見たか。端末ごとに案内するため state には含めない（[onboarding.js](../js/onboarding.js)） |
+| `piano-pet-onboarded` | `'1'` | 初回オンボーディング（紙芝居・#141）を見たか。端末ごとに案内するため state には含めない（[onboarding.js](../js/onboarding.js)）。アカウント横断で共有 |
+| `piano-pet:accounts` | `{ active, accounts: [{id,name}] }` | マルチアカウント（#182）の有効アカウントと一覧（[account.js](../js/account.js)）。端末ローカルの選択なのでクラウド非同期。壊れていれば既定2アカウント（娘=`data`／テスト用=`test`）にフォールバック |
 | `piano-pet-backup-before-restore` | State JSON | 復元直前の現行 state を退避（`RESTORE_BACKUP_KEY`・#140） |
-| `piano-pet:stamp-draft` | `{ date, stamps: string[] }` | 当日の未記録スタンプ下書き。ホーム戻り→記録再開でカードを引き継ぐ（#164）。打鍵ごとに保存、記録 submit 時に破棄。読み出し時に `date !== todayStr()` なら破棄（日付変更でリセット） |
+| `<アカウントキー>:stamp-draft` | `{ date, stamps: string[] }` | 当日の未記録スタンプ下書き。ホーム戻り→記録再開でカードを引き継ぐ（#164）。打鍵ごとに保存、記録 submit 時に破棄。読み出し時に `date !== todayStr()` なら破棄（日付変更でリセット）。**アカウントごとに分離**（娘=`piano-pet:stamp-draft`・#182） |
 
 ### Session
 1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。
@@ -254,3 +258,28 @@ app.js の復元フローは次の順で行う（設計レビュー topic_178053
 設定は専用ナビ画面を増やさず、ホームヘッダの ⚙️ ボタン → オーバーレイで提供する。子が面白がって
 開くのを防ぐため、オーバーレイは簡単な掛け算（1桁×1桁の九九・`makeGateProblem`）の正解時のみメニューを開く。
 保存（export）は無害なので確認なし、読み込み（import）は上書き確認ダイアログを挟む。
+
+## マルチアカウント（アカウント分離・#182）
+
+検証用と実運用でデータを分けるための機能。認証（Firebase Auth）は導入せず、**読み書きする
+Firestore ドキュメントと localStorage キーをアカウント単位で名前空間化する**だけの最小構成。
+純粋ロジックは [js/account.js](../js/account.js)、UI は親ゲート内の「アカウント」セクション。
+
+- **既定アカウント**：娘（`id: 'data'`）／テスト用（`id: 'test'`）の2つ。`piano-pet:accounts` キーに
+  有効アカウントと一覧を持つ（端末ローカル・クラウド非同期）。
+- **名前空間**：localStorage は `storageKeyFor(id)`、Firestore doc は `cloudDocIdFor(id)` で導出。
+  `id: 'data'` は既存の保存先（localStorage `piano-pet`・doc `pianopet/data`）をそのまま指すため、
+  **本機能導入で娘の既存データは一切移動しない**（後方互換）。
+- **切替**：親ゲートの裏で `setActiveAccount(id)` → `window.location.reload()`。リロード後に storage の
+  参照キーと cloud の購読 doc が新アカウントで貼り直される（import/reset と同じリロード方式）。
+  `cloud.js` は doc を import 時の有効アカウントで固定するが、切替が必ずリロードを伴うため整合する。
+
+> **設計判断**: Issue では Firebase 匿名/Google 認証で `users/{uid}` にネストする案も挙がったが、
+> piano-pet は元々「認証なし・Firestore ルールでアクセス制御」の設計で、dtask プロジェクト（`dtask-d08b6`）を
+> 間借りしている。認証導入は共有プロジェクトとデータ構造への影響が大きいため、**家庭内ツール前提**で
+> 認証なしのドキュメント切替に倒し、実装と影響範囲を最小化した。誰でも全アカウントを見られるが、
+> 子の切替は親ゲートで防ぐ。
+>
+> **前提（Firestore ルール）**: テスト用アカウントは `pianopet/test` を読み書きするため、ルールが
+> `pianopet` コレクション全体（doc ワイルドカード）を許可している必要がある。`pianopet/data` 限定だと
+> テスト用 doc への書き込みが拒否され、ローカルのみ動作になる（`pushCloud` は失敗を握りつぶす）。
