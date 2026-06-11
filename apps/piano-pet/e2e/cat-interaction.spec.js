@@ -29,7 +29,7 @@ test.describe('猫とのインタラクション', () => {
     await expect(catSvg).toHaveClass(/cat--(happy|wiggle)/);
   });
 
-  test('威嚇(hiss)したときは喜び演出（ハート・しっぽふり）を出さない', async ({ page }) => {
+  test('威嚇(hiss)したときは喜び演出を出さず威嚇表情に差し替える（#187）', async ({ page }) => {
     // Math.random を 0 に固定して必ず hiss にする。
     await page.addInitScript(() => { Math.random = () => 0; });
     await page.goto('/');
@@ -39,6 +39,9 @@ test.describe('猫とのインタラクション', () => {
     await expect(catSvg).toBeVisible();
 
     await page.click('#catStage');
+    // 威嚇表情への一時差し替え（#187）：cat--hiss が付き、本体画像が hiss になる
+    await expect(catSvg).toHaveClass(/cat--hiss/);
+    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_low_hiss\.png/);
     // 反応クラスが付かないこと。誤って付くなら数百ms残るので、少し待ってから確認する。
     await page.waitForTimeout(300);
     await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);

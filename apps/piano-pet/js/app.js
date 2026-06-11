@@ -2,7 +2,7 @@ import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, activeStorageKey } from './storage.js';
 import { getAccounts, getActiveAccountId, setActiveAccount } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
 import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
@@ -1115,8 +1115,11 @@ function petCat() {
   unlockAudio();                                       // ユーザー操作で AudioContext を解錠
   const voice = rollCatVoice();                        // なで反応を抽選（音設定に依存しない）
   playCatVoice(state, voice);                          // 抽選結果の鳴き声を再生（OFF時は無音）
-  if (voice === 'hiss') return;                        // 威嚇のときは演出なし（ミュートでも一貫）
   const catEl = document.querySelector('#catStage .cat');
+  if (voice === 'hiss') {                              // 威嚇は喜び演出なし・威嚇表情のみ（#187）
+    playHiss(catEl);
+    return;
+  }
   // なかよしレベルが高いと、たまに「とくべつな えんしゅつ」が出る（#124 専用演出）
   if (Math.random() < bondCelebrateChance(affinityLevel(affinity(state)).level)) {
     playCelebrate(catEl);
