@@ -81,6 +81,9 @@
   gap: 10px;
   margin-top: 8px;
 }
+.style-picker[hidden] {
+  display: none;   /* display:flex が hidden 属性のUAスタイルを上書きするのを防ぐ */
+}
 .style-picker__btn {
   display: flex;
   flex-direction: column;
