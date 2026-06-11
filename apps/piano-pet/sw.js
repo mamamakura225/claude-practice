@@ -1,14 +1,14 @@
 // ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
-const CACHE = 'piano-pet-ea2cf9d2';
+const CACHE = 'piano-pet-6897ee28';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=ea2cf9d2',
-  './css/style.css?v=ea2cf9d2',
+  './css/cat.css?v=6897ee28',
+  './css/style.css?v=6897ee28',
   './js/account.js',
   './js/analytics.js',
-  './js/app.js?v=ea2cf9d2',
+  './js/app.js?v=6897ee28',
   './js/assignment.js',
   './js/backup.js',
   './js/badges.js',
@@ -31,14 +31,17 @@ const APP_SHELL = [
   './manifest.json',
   './icons/icon.svg',
   './img/cat/cat_high_happy.png',
+  './img/cat/cat_high_hiss.png',
   './img/cat/cat_high_idle.png',
   './img/cat/cat_high_love.png',
   './img/cat/cat_high_sleep.png',
   './img/cat/cat_low_happy.png',
+  './img/cat/cat_low_hiss.png',
   './img/cat/cat_low_idle.png',
   './img/cat/cat_low_love.png',
   './img/cat/cat_low_sleep.png',
   './img/cat/cat_mid_happy.png',
+  './img/cat/cat_mid_hiss.png',
   './img/cat/cat_mid_idle.png',
   './img/cat/cat_mid_love.png',
   './img/cat/cat_mid_sleep.png',

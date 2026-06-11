@@ -46,6 +46,11 @@ describe('catImageSrc', () => {
     expect(catImageSrc('bogus', 'happy')).toBe('img/cat/cat_low_happy.png');
     expect(catImageSrc('mid', 'bogus')).toBe('img/cat/cat_mid_idle.png');
   });
+
+  it('威嚇（hiss・#187）も既知 mood としてパスを組む', () => {
+    expect(catImageSrc('low', 'hiss')).toBe('img/cat/cat_low_hiss.png');
+    expect(catImageSrc('high', 'hiss')).toBe('img/cat/cat_high_hiss.png');
+  });
 });
 
 // 衣装の自由配置（#168）：スナップ吸着点と layout による座標反映。

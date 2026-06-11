@@ -6,7 +6,8 @@ import { affinityLevel } from './feed.js';
 
 // ----- 画像セレクタ -----
 export const IMG_TIERS = ['low', 'mid', 'high'];
-export const IMG_MOODS = ['idle', 'happy', 'sleep', 'love'];
+// hiss はなで反応の威嚇（シャー）専用。恒常表示には使わず演出中の一時差し替えのみ（#187）。
+export const IMG_MOODS = ['idle', 'happy', 'sleep', 'love', 'hiss'];
 
 // 既存5段階「なかよしレベル」(#124) を画像の3 tier に集約する。
 // 新しい閾値は作らず affinityLevel().level からの導出に一本化（#124温存）。
@@ -296,7 +297,7 @@ export function prefetchNextTier(affinityValue) {
 // 演出中だけ本体画像を happy/love に一時差し替え、終了時に元の mood へ戻す。
 const REACTION_CLASSES = [
   'cat--happy', 'cat--wiggle', 'cat--celebrate',
-  'cat--happy-hop', 'cat--happy-spin',
+  'cat--happy-hop', 'cat--happy-spin', 'cat--hiss',
 ];
 
 function bodyEl(catEl) {
@@ -349,6 +350,11 @@ export function playCelebrate(catEl) {
 
 // なでた時の反応。喜ぶ（だいすき表情）/ しっぽふりをランダムに出す。
 const PET_MOODS = ['happy', 'wiggle'];
+
+/** 威嚇（シャー）の反応。喜び演出は出さず、威嚇表情への一時差し替えのみ（#187） */
+export function playHiss(catEl) {
+  playClasses(catEl, ['cat--hiss'], 1200, 'hiss');
+}
 
 /** 猫をなでた時の反応アニメーションを単発再生（#79 タッチ interaction） */
 export function playReaction(catEl, rng = Math.random) {
