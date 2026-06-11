@@ -72,6 +72,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `itemLayout` | object | `{}` | 衣装の自由配置座標 `{ itemId: {x_pct, y_pct} }`（#168・ステージ%）。未登録は既定アンカー位置で描画。装備外しは `cleanItemLayout` が掃除 |
 | `affinity` | number | `0` | なかよし度（えさやりで上昇）。3段階tier（low/mid/high）に集約され猫画像の表情・ポーズに反映（#167） |
 | `foodSpent` | number | `0` | えさに使ったコイン総額（全再計算で消費分を復活させないため） |
+| `catStyle` | string | `'tora'` | 猫スタイル（#66）。`'tora'` / `'shiro'` / `'russianblue'`。未知値は表示側（`normalizeStyle`）が tora にフォールバック。realtime 同期は pet ごと cloud-wins、初回マージはローカル優先（name と同じ扱い） |
 
 ### Streak
 | フィールド | 型 | デフォルト |

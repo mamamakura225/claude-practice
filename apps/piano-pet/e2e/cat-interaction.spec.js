@@ -41,7 +41,7 @@ test.describe('猫とのインタラクション', () => {
     await page.click('#catStage');
     // 威嚇表情への一時差し替え（#187）：cat--hiss が付き、本体画像が hiss になる
     await expect(catSvg).toHaveClass(/cat--hiss/);
-    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_low_hiss\.png/);
+    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_tora_low_hiss\.png/);
     // 反応クラスが付かないこと。誤って付くなら数百ms残るので、少し待ってから確認する。
     await page.waitForTimeout(300);
     await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
@@ -63,6 +63,26 @@ test.describe('猫とのインタラクション', () => {
     // ミュートでも hiss は抽選され、喜び演出は抑制される（抽選を再生から分離した修正）
     await page.waitForTimeout(300);
     await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
+  });
+
+  test('きせかえ中に猫スタイルを切り替えられる（#66）', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    // ピッカーはきせかえ編集モード中だけ出る
+    await expect(page.locator('#stylePicker')).toBeHidden();
+    await page.click('#dressupToggle');
+    await expect(page.locator('#stylePicker')).toBeVisible();
+
+    // しろ を選ぶと本体画像と data-style が切り替わる
+    await page.click('.style-picker__btn[data-style="shiro"]');
+    await expect(page.locator('#catStage .cat')).toHaveAttribute('data-style', 'shiro');
+    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_shiro_low_idle\.png/);
+
+    // 「できた！」で抜けてもスタイルは維持され、ピッカーは隠れる
+    await page.click('#dressupToggle');
+    await expect(page.locator('#stylePicker')).toBeHidden();
+    await expect(page.locator('#catStage .cat')).toHaveAttribute('data-style', 'shiro');
   });
 
   test('猫をなでる操作は記録ボタンとは別の安全操作（コインは増えない）', async ({ page }) => {
