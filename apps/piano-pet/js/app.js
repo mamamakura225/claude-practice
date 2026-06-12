@@ -361,10 +361,10 @@ function shopCardMarkup(item) {
   } else if (equipped) {
     btn = `<button type="button" class="shop-btn shop-btn--unequip" data-action="toggle" data-id="${item.id}">はずす</button>`;
   } else {
-    btn = `<button type="button" class="shop-btn shop-btn--equip" data-action="toggle" data-id="${item.id}">そうびする</button>`;
+    btn = `<button type="button" class="shop-btn shop-btn--equip" data-action="toggle" data-id="${item.id}">みにつける</button>`;
   }
 
-  const badge = equipped ? '<span class="shop-card__badge">そうび中 ✓</span>' : '';
+  const badge = equipped ? '<span class="shop-card__badge">みにつけてる ✓</span>' : '';
   return `<div class="shop-card${equipped ? ' shop-card--equipped' : ''}">
     <span class="shop-card__icon" aria-hidden="true">${item.icon}</span>
     <div class="shop-card__info">

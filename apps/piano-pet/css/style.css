@@ -738,30 +738,6 @@ body {
   box-shadow: 0 2px 6px rgba(240, 138, 160, 0.3);
 }
 
-/* ----- 役割ラベル（親=曲えらび／子=スタンプ） ----- */
-.role-label {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.role-tag {
-  font-family: 'Noto Sans JP', sans-serif;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #fff;
-  border-radius: 999px;
-  padding: 3px 10px;
-}
-
-.role-tag--parent {
-  background: #8aa6c1;
-}
-
-.role-tag--child {
-  background: var(--pink);
-}
-
 /* ----- まとめモード（曲名＋回数ステッパーの複数行） ----- */
 .batch-rows {
   display: flex;
