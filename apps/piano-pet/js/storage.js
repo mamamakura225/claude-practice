@@ -24,6 +24,8 @@ const DEFAULTS = {
     itemLayout: {},
     affinity: 0,
     foodSpent: 0,
+    // 猫スタイル（#66）。'tora' | 'shiro' | 'russianblue'。未知値は表示側が tora にフォールバック。
+    catStyle: 'tora',
   },
   inventory: [],
   streak: {

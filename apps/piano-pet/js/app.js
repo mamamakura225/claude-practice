@@ -2,7 +2,7 @@ import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, activeStorageKey } from './storage.js';
 import { getAccounts, getActiveAccountId, setActiveAccount } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond } from './cat-image.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle } from './cat-image.js';
 import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
@@ -98,9 +98,10 @@ export function renderHome() {
       name: state.pet.name,
       bond,                                          // なかよしレベルのエンブレム（#124）→ tier導出にも使う
       itemLayout: state.pet.itemLayout,              // 衣装の自由配置（#168）
+      style: state.pet.catStyle,                     // 猫スタイル（#66）。未指定は tora
     });
-    preloadTier(tierFromBond(bond));                 // 現tierの4moodを先読み（演出時のガタつき防止）
-    prefetchNextTier(affinity(state));               // 次tier境界の手前なら次の4枚を先読み
+    preloadTier(state.pet.catStyle, tierFromBond(bond));   // 選択中スタイルの現tierを先読み（演出時のガタつき防止）
+    prefetchNextTier(state.pet.catStyle, affinity(state)); // 次tier境界の手前なら次の5枚を先読み
   }
   const nameEl = document.getElementById('petName');
   if (nameEl) nameEl.textContent = state.pet.name;
@@ -1136,6 +1137,7 @@ let dressupDisable = null;
 function toggleDressup() {
   const stage = document.getElementById('catStage');
   const btn = document.getElementById('dressupToggle');
+  const picker = document.getElementById('stylePicker');
   if (!stage) return;
   const editing = stage.classList.toggle('cat-stage--editing');
   if (editing) {
@@ -1145,13 +1147,38 @@ function toggleDressup() {
       (layout) => commitState({ ...state, pet: { ...state.pet, itemLayout: layout } }),
     );
     if (btn) { btn.textContent = '✅ できた！'; btn.setAttribute('aria-pressed', 'true'); }
+    if (picker) { renderStylePicker(); picker.hidden = false; }   // 猫スタイル選択（#66）
   } else {
     dressupDisable?.();
     dressupDisable = null;
     if (btn) { btn.textContent = '👗 きせかえ'; btn.setAttribute('aria-pressed', 'false'); }
+    if (picker) picker.hidden = true;
   }
 }
 document.getElementById('dressupToggle')?.addEventListener('click', toggleDressup);
+
+// ===== 猫スタイル切り替え（#66） =====
+// きせかえ編集モード中だけ表示。サムネイルに本番 idle 画像をそのまま使うことで、
+// 選択UIを開いた時点で各スタイルの画像が自動ロードされ、切替時のチラつきを防ぐ。
+const STYLE_LABELS = { tora: 'ちゃとら', shiro: 'しろ', russianblue: 'ぐれー' };
+function renderStylePicker() {
+  const el = document.getElementById('stylePicker');
+  if (!el) return;
+  const current = normalizeStyle(state.pet.catStyle);
+  el.innerHTML = CAT_STYLES.map((s) => `
+    <button type="button" class="style-picker__btn" data-style="${s}" aria-pressed="${s === current}">
+      <img src="${catImageSrc(s, 'low', 'idle')}" alt="" draggable="false">
+      <span>${STYLE_LABELS[s]}</span>
+    </button>`).join('');
+}
+document.getElementById('stylePicker')?.addEventListener('click', (e) => {
+  const btnEl = e.target.closest('.style-picker__btn');
+  if (!btnEl) return;
+  const style = btnEl.dataset.style;
+  if (style === normalizeStyle(state.pet.catStyle)) return;
+  commitState({ ...state, pet: { ...state.pet, catStyle: style } });  // renderHome が猫を差し替え＆新スタイルを先読み
+  renderStylePicker();                                                // 選択状態の更新
+});
 
 // ===== サウンドON/OFFトグル =====
 document.getElementById('soundToggle')?.addEventListener('click', () => {
@@ -1410,7 +1437,7 @@ function showOnboarding() {
   onboardStep = 0;
   // ホームと同じ猫描画を流用（新規アセットなし）。案内中は通常表情を出す。
   const catEl = document.getElementById('onboardingCat');
-  if (catEl) catEl.innerHTML = catMarkup({ mood: 'idle', name: state.pet.name });
+  if (catEl) catEl.innerHTML = catMarkup({ mood: 'idle', name: state.pet.name, style: state.pet.catStyle });
   renderOnboardingStep();
   onboardingEl.hidden = false;
 }

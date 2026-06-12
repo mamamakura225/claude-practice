@@ -5,9 +5,15 @@
 import { affinityLevel } from './feed.js';
 
 // ----- 画像セレクタ -----
+// スタイル＝猫種（#66）。未知値は 'tora'（茶トラ）にフォールバック＝既存ユーザー後方互換。
+export const CAT_STYLES = ['tora', 'shiro', 'russianblue'];
 export const IMG_TIERS = ['low', 'mid', 'high'];
 // hiss はなで反応の威嚇（シャー）専用。恒常表示には使わず演出中の一時差し替えのみ（#187）。
 export const IMG_MOODS = ['idle', 'happy', 'sleep', 'love', 'hiss'];
+
+export function normalizeStyle(style) {
+  return CAT_STYLES.includes(style) ? style : 'tora';
+}
 
 // 既存5段階「なかよしレベル」(#124) を画像の3 tier に集約する。
 // 新しい閾値は作らず affinityLevel().level からの導出に一本化（#124温存）。
@@ -18,10 +24,11 @@ export function tierFromBond(bondLevel) {
   return 'low';                 // ともだち / なかよし
 }
 
-export function catImageSrc(tier, mood) {
+export function catImageSrc(style, tier, mood) {
+  const s = normalizeStyle(style);
   const t = IMG_TIERS.includes(tier) ? tier : 'low';
   const m = IMG_MOODS.includes(mood) ? mood : 'idle';
-  return `img/cat/cat_${t}_${m}.png`;
+  return `img/cat/cat_${s}_${t}_${m}.png`;
 }
 
 // ----- 衣装アイテムのアンカー（viewBox 0 0 200 200・正方画像基準・固定1セット） -----
@@ -34,11 +41,24 @@ export const ANCHORS = {
   back: { x: 100, y: 108, s: 0.92 },  // 背中（マント）
 };
 
+// スタイル別アンカー補正（#66）。立ち耳のロシアンブルー等で頭頂位置がずれる場合に
+// { russianblue: { head: { y: -6 } } } の形で加算する。値は納品画像の実測で決める
+// （ズレが小さければ空のまま。手動ドラッグ（#168）でも調整可能なので過剰に作らない）。
+export const STYLE_ANCHOR_OFFSETS = {};
+
+function anchorFor(style, type) {
+  const a = ANCHORS[type];
+  const o = STYLE_ANCHOR_OFFSETS[normalizeStyle(style)]?.[type];
+  return o ? { x: a.x + (o.x ?? 0), y: a.y + (o.y ?? 0), s: a.s } : a;
+}
+
 // アイテムの既定アンカー位置（%・.catコンテナ basis）。#168 のスナップ吸着点に使う。
 // viewBox は 0 0 200 200 なので %換算は座標/2。
-export function itemAnchorPct(id) {
-  const a = ANCHORS[ITEM_ANCHOR_TYPE[id]];
-  return a ? { x_pct: a.x / 2, y_pct: a.y / 2 } : null;
+export function itemAnchorPct(id, style = 'tora') {
+  const type = ITEM_ANCHOR_TYPE[id];
+  if (!type) return null;
+  const a = anchorFor(style, type);
+  return { x_pct: a.x / 2, y_pct: a.y / 2 };
 }
 
 function n(v, d = 1) {
@@ -159,11 +179,11 @@ export const ITEM_IDS = Object.keys(ITEMS);
 // 衣装を anchor 種別でフィルタして配置する（cape は背面、それ以外は前面）。
 // layout に座標があればその %（→viewBox 200系）で、無ければ既定アンカーで配置する（#168）。
 // 各 <g> は data-item / data-scale を持ち、きせかえドラッグ（dressup.js）が掴んで動かす。
-function itemsSvg(equippedItems, anchorTypes, layout = {}) {
+function itemsSvg(equippedItems, anchorTypes, layout = {}, style = 'tora') {
   const parts = (equippedItems ?? [])
     .filter((id) => ITEMS[id] && anchorTypes.includes(ITEM_ANCHOR_TYPE[id]))
     .map((id) => {
-      const a = ANCHORS[ITEM_ANCHOR_TYPE[id]];
+      const a = anchorFor(style, ITEM_ANCHOR_TYPE[id]);
       const pos = layout[id];
       const x = pos ? pos.x_pct * 2 : a.x;
       const y = pos ? pos.y_pct * 2 : a.y;
@@ -243,21 +263,23 @@ function zzzGroup() {
 // ----- 公開API：猫の描画 -----
 
 /**
- * catMarkup({ mood, equippedItems, name, bond })
+ * catMarkup({ mood, equippedItems, name, bond, style })
  * mood : 'idle' | 'happy' | 'sleep' | 'love'（恒常表示は idle/sleep、happy/love は演出時の一時差替）
  * bond : なかよしレベル(1-5)。tier の導出とエンブレム表示に使う。
+ * style: 猫スタイル（#66）。未知値・未指定は 'tora'。
  * stage 引数は後方互換のため受け取るが無視する（成長段階は廃止）。
  */
-export function catMarkup({ mood = 'idle', equippedItems = [], name = 'ねこ', bond = 0, itemLayout = {} } = {}) {
+export function catMarkup({ mood = 'idle', equippedItems = [], name = 'ねこ', bond = 0, itemLayout = {}, style = 'tora' } = {}) {
+  const s = normalizeStyle(style);
   const tier = tierFromBond(bond);
   const m = IMG_MOODS.includes(mood) ? mood : 'idle';
-  const back = itemsSvg(equippedItems, ['back'], itemLayout);
-  const front = itemsSvg(equippedItems, ['neck', 'head', 'face'], itemLayout);
+  const back = itemsSvg(equippedItems, ['back'], itemLayout, s);
+  const front = itemsSvg(equippedItems, ['neck', 'head', 'face'], itemLayout, s);
   const fx = `${heartsGroup()}${sparklesGroup()}${zzzGroup()}${bondEmblemGroup(bond)}`;
   // 演出クラスは .cat コンテナに付く。本体アニメは .cat__body、fx は内部要素に効く。
-  return `<div class="cat cat--${m}" role="img" aria-label="${name}" data-mood="${m}" data-tier="${tier}">
+  return `<div class="cat cat--${m}" role="img" aria-label="${name}" data-mood="${m}" data-tier="${tier}" data-style="${s}">
     <svg class="cat__back" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${back}</svg>
-    <img class="cat__body" src="${catImageSrc(tier, m)}" alt="" draggable="false" decoding="async">
+    <img class="cat__body" src="${catImageSrc(s, tier, m)}" alt="" draggable="false" decoding="async">
     <svg class="cat__front" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${front}</svg>
     <svg class="cat__fx" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${fx}</svg>
   </div>`;
@@ -274,9 +296,9 @@ function preloadSrc(src) {
   img.src = src;
 }
 
-// 指定 tier の4mood分をまとめて先読みする。
-export function preloadTier(tier) {
-  for (const m of IMG_MOODS) preloadSrc(catImageSrc(tier, m));
+// 指定スタイル×tier の全mood分をまとめて先読みする（選択中スタイルのみ・#66）。
+export function preloadTier(style, tier) {
+  for (const m of IMG_MOODS) preloadSrc(catImageSrc(style, tier, m));
 }
 
 const idle = (cb) =>
@@ -287,10 +309,10 @@ const idle = (cb) =>
 // affinity 値が次 tier 境界の手前（2pt以内）に来たら、次 tier の4枚を
 // バックグラウンドで先読みして mood/tier 切替時のガタつきを防ぐ。
 // 境界: low→mid は なかよしLv3 (affinity 15)、mid→high は Lv5 (affinity 50)。
-export function prefetchNextTier(affinityValue) {
+export function prefetchNextTier(style, affinityValue) {
   const v = Number(affinityValue) || 0;
-  if (v >= 13 && v < 15) idle(() => preloadTier('mid'));
-  else if (v >= 48 && v < 50) idle(() => preloadTier('high'));
+  if (v >= 13 && v < 15) idle(() => preloadTier(style, 'mid'));
+  else if (v >= 48 && v < 50) idle(() => preloadTier(style, 'high'));
 }
 
 // ----- 演出（単発再生） -----
@@ -315,7 +337,7 @@ function playClasses(catEl, classes, duration, reactionMood) {
   const body = bodyEl(catEl);
   if (body && reactionMood) {
     const tier = catEl.dataset.tier || 'low';
-    body.src = catImageSrc(tier, reactionMood);
+    body.src = catImageSrc(catEl.dataset.style, tier, reactionMood);
   }
 
   clearTimeout(catEl._catAnimTimer);
@@ -323,7 +345,7 @@ function playClasses(catEl, classes, duration, reactionMood) {
     catEl.classList.remove(...classes);
     if (body && reactionMood) {
       const tier = catEl.dataset.tier || 'low';
-      body.src = catImageSrc(tier, catEl.dataset.mood || 'idle');
+      body.src = catImageSrc(catEl.dataset.style, tier, catEl.dataset.mood || 'idle');
     }
   }, duration);
 }

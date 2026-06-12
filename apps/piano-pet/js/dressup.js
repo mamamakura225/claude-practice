@@ -53,7 +53,9 @@ export function enableDressup(stageEl, getLayout, onCommit) {
     if (!drag) return;
     drag.el.classList.remove('cat__item--grabbing');
     if (drag.cur) {
-      const anchor = itemAnchorPct(drag.id);
+      // スナップ吸着点はスタイル別アンカー補正（#66）込みで求める。
+      const style = stageEl.querySelector('.cat')?.dataset.style;
+      const anchor = itemAnchorPct(drag.id, style);
       const dist = anchor
         ? Math.hypot(drag.cur.x_pct - anchor.x_pct, drag.cur.y_pct - anchor.y_pct)
         : Infinity;

@@ -35,21 +35,23 @@ describe('tierFromBond', () => {
   });
 });
 
-// 画像セレクタ：tier×mood からファイルパスを決定的に組む。
+// 画像セレクタ：style×tier×mood からファイルパスを決定的に組む（#66）。
 describe('catImageSrc', () => {
-  it('tier と mood からパスを組む', () => {
-    expect(catImageSrc('mid', 'happy')).toBe('img/cat/cat_mid_happy.png');
-    expect(catImageSrc('high', 'sleep')).toBe('img/cat/cat_high_sleep.png');
+  it('style・tier・mood からパスを組む', () => {
+    expect(catImageSrc('tora', 'mid', 'happy')).toBe('img/cat/cat_tora_mid_happy.png');
+    expect(catImageSrc('shiro', 'high', 'sleep')).toBe('img/cat/cat_shiro_high_sleep.png');
+    expect(catImageSrc('russianblue', 'low', 'idle')).toBe('img/cat/cat_russianblue_low_idle.png');
   });
 
-  it('未知の tier / mood は low / idle にフォールバック', () => {
-    expect(catImageSrc('bogus', 'happy')).toBe('img/cat/cat_low_happy.png');
-    expect(catImageSrc('mid', 'bogus')).toBe('img/cat/cat_mid_idle.png');
+  it('未知の style / tier / mood は tora / low / idle にフォールバック', () => {
+    expect(catImageSrc(undefined, 'mid', 'happy')).toBe('img/cat/cat_tora_mid_happy.png');
+    expect(catImageSrc('bogus', 'bogus', 'happy')).toBe('img/cat/cat_tora_low_happy.png');
+    expect(catImageSrc('tora', 'mid', 'bogus')).toBe('img/cat/cat_tora_mid_idle.png');
   });
 
   it('威嚇（hiss・#187）も既知 mood としてパスを組む', () => {
-    expect(catImageSrc('low', 'hiss')).toBe('img/cat/cat_low_hiss.png');
-    expect(catImageSrc('high', 'hiss')).toBe('img/cat/cat_high_hiss.png');
+    expect(catImageSrc('tora', 'low', 'hiss')).toBe('img/cat/cat_tora_low_hiss.png');
+    expect(catImageSrc('shiro', 'high', 'hiss')).toBe('img/cat/cat_shiro_high_hiss.png');
   });
 });
 
@@ -93,7 +95,21 @@ describe('catMarkup の なかよしエンブレム', () => {
   });
 
   it('bond レベルから tier を導出して本体画像を選ぶ', () => {
-    expect(catMarkup({ bond: 1 })).toContain('img/cat/cat_low_idle.png');
-    expect(catMarkup({ bond: 5, mood: 'sleep' })).toContain('img/cat/cat_high_sleep.png');
+    expect(catMarkup({ bond: 1 })).toContain('img/cat/cat_tora_low_idle.png');
+    expect(catMarkup({ bond: 5, mood: 'sleep' })).toContain('img/cat/cat_tora_high_sleep.png');
+  });
+});
+
+// 猫スタイル切り替え（#66）：style で本体画像と data-style が変わる。未知値は tora。
+describe('catMarkup の style', () => {
+  it('style 指定で本体画像と data-style が切り替わる', () => {
+    const html = catMarkup({ style: 'shiro' });
+    expect(html).toContain('img/cat/cat_shiro_low_idle.png');
+    expect(html).toContain('data-style="shiro"');
+  });
+
+  it('未指定・未知の style は tora にフォールバック（既存ユーザー後方互換）', () => {
+    expect(catMarkup()).toContain('data-style="tora"');
+    expect(catMarkup({ style: 'bogus' })).toContain('img/cat/cat_tora_low_idle.png');
   });
 });

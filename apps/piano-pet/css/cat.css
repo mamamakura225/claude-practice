@@ -74,6 +74,40 @@
   box-shadow: 0 2px 0 #4e9a35;
 }
 
+/* ----- 猫スタイル切り替え（#66・きせかえ編集モード中のみ表示） ----- */
+.style-picker {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 8px;
+}
+.style-picker[hidden] {
+  display: none;   /* display:flex が hidden 属性のUAスタイルを上書きするのを防ぐ */
+}
+.style-picker__btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 10px 4px;
+  background: #fff;
+  border: 3px solid #ffd0d9;
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.75rem;
+  color: var(--pink-deep, #ff7a93);
+}
+.style-picker__btn img {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+}
+.style-picker__btn[aria-pressed="true"] {
+  border-color: var(--pink-deep, #ff7a93);
+  background: #fff0f3;
+}
+
 .pet-name {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.3rem;
