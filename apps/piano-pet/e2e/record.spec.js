@@ -117,11 +117,40 @@ test.describe('練習記録', () => {
     await expect(page.locator('#recordTotal')).toHaveText('3');
     await expect(page.locator('#stampCard .stamp-cell.is-filled')).toHaveCount(3);
 
-    // 記録すると下書きは消え、次回は0から
+    // 記録しても当日は引き継ぐ：再度開くと0ではなく当日の3個から続けられる（#186）
     await page.click('#recordSubmitBtn');
     await expect(page.locator('#view-home')).toBeVisible();
     await page.click('#goRecordBtn');
-    await expect(page.locator('#recordTotal')).toHaveText('0');
+    await expect(page.locator('#recordTotal')).toHaveText('3');
+  });
+
+  test('当日中はスタンプを継続でき、同日同曲は1レコードに合算される（#186）', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    // 1回目：きらきらぼしを2回押して記録
+    await page.click('#goRecordBtn');
+    await page.fill('#newSongInput', 'きらきらぼし');
+    await page.click('#addSongBtn');
+    for (let i = 0; i < 2; i += 1) await page.click('#stampCard');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-home')).toBeVisible();
+
+    // 2回目：当日カウント(2)を引き継いだ状態から続けて1回押して記録
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#recordTotal')).toHaveText('2');
+    await page.click('#stampCard');
+    await expect(page.locator('#recordTotal')).toHaveText('3');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-home')).toBeVisible();
+
+    // きろくタブ：同日同曲が1行「きらきらぼし 3かい」に合算される（二重計上しない）
+    await page.click('.nav-btn[data-nav="history"]');
+    const card = page.locator('.history-card').first();
+    await expect(card.locator('.history-card__total')).toContainText('3');
+    await expect(card.locator('.history-songs li')).toHaveCount(1);
+    await expect(card.locator('.history-songs li').first()).toContainText('きらきらぼし');
+    await expect(card.locator('.history-songs li').first()).toContainText('3かい');
   });
 
   test('合計0かいでは記録できずエラーが出る', async ({ page }) => {

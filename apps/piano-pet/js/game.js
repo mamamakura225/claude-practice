@@ -1,5 +1,7 @@
 // ===== ゲームロジック（純粋関数群） =====
 
+import { combineSongs } from './record-form.js';
+
 // ----- レベル・XP -----
 
 // 各レベルに到達するために必要な累計XP
@@ -281,7 +283,8 @@ export function mergeSameDaySessions(sessions) {
       const prev = result[idx];
       result[idx] = {
         ...prev,
-        songs: [...prev.songs, ...(s.songs ?? [])],
+        // 同日同曲は1行に合算する（#186）
+        songs: combineSongs([...prev.songs, ...(s.songs ?? [])]),
         totalCount: prev.totalCount + (Number(s.totalCount) || 0),
       };
     }
