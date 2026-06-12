@@ -6,6 +6,7 @@ import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTie
 import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
+import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
 import {
   weeklyTotals,
@@ -106,9 +107,22 @@ export function renderHome() {
   const nameEl = document.getElementById('petName');
   if (nameEl) nameEl.textContent = state.pet.name;
 
+  renderChildAvatar();
   renderStats();
   renderAssignment();
   renderSoundToggle();
+}
+
+// ヘッダ隅のこどもアバター（#121）。home/history の両ヘッダに同じ内容を反映する。
+function renderChildAvatar() {
+  const emoji = avatarEmoji(state.pet.childAvatar);
+  const name = normalizeChildName(state.pet.childName);
+  for (const el of document.querySelectorAll('.child-avatar')) {
+    const face = el.querySelector('.child-avatar__face');
+    const label = el.querySelector('.child-avatar__name');
+    if (face) face.textContent = emoji;
+    if (label) label.textContent = name;
+  }
 }
 
 // 既知の曲すべてに衝突回避込みで色を割り当てた Map を返す（#165）。
@@ -330,6 +344,7 @@ export function renderHistory() {
   setText('historyStreakCurrent', state.streak.current);
   setText('historyStreakBest', state.streak.best);
 
+  renderChildAvatar();
   renderReviewCard();
   renderSongCollection();
 
@@ -1401,6 +1416,58 @@ document.getElementById('hwClearBtn')?.addEventListener('click', clearHomework);
 document.getElementById('settingsToggle')?.addEventListener('click', openSettings);
 settingsOverlayEl?.addEventListener('click', (e) => {
   if (e.target.closest('[data-action="close-settings"]')) closeSettings();
+});
+
+// ===== じぶんの アイコン（こどもアバター・#121） =====
+const avatarOverlayEl = document.getElementById('avatarOverlay');
+const childNameInputEl = document.getElementById('childNameInput');
+
+// 選択グリッドを現在のアバターに合わせて描く。
+function renderAvatarGrid() {
+  const grid = document.getElementById('avatarGrid');
+  if (!grid) return;
+  const current = normalizeChildAvatar(state.pet.childAvatar);
+  grid.innerHTML = CHILD_AVATARS.map((a) => `
+    <button type="button" class="avatar-grid__btn" role="option" data-avatar="${a.id}" aria-selected="${a.id === current}" aria-pressed="${a.id === current}">${a.emoji}</button>`).join('');
+}
+
+function openAvatarPicker() {
+  if (childNameInputEl) childNameInputEl.value = normalizeChildName(state.pet.childName);
+  renderAvatarGrid();
+  if (avatarOverlayEl) avatarOverlayEl.hidden = false;
+}
+
+// アバター/名前の変更を確定保存する。入力中の名前も一緒に正規化して載せるので、
+// 名前だけ変えた場合も確実に永続化される。差分が無ければ保存しない。
+function commitChildProfile(avatarId) {
+  const childAvatar = normalizeChildAvatar(avatarId ?? state.pet.childAvatar);
+  const childName = normalizeChildName(childNameInputEl?.value);
+  if (childAvatar === state.pet.childAvatar && childName === state.pet.childName) return;
+  commitState({ ...state, pet: { ...state.pet, childAvatar, childName } });  // renderHome→renderChildAvatar で両ヘッダ更新
+}
+
+function closeAvatarPicker() {
+  commitChildProfile();
+  if (avatarOverlayEl) avatarOverlayEl.hidden = true;
+}
+
+document.querySelector('.app')?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="open-avatar"]')) openAvatarPicker();
+});
+avatarOverlayEl?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="close-avatar"]')) closeAvatarPicker();
+});
+document.getElementById('avatarGrid')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.avatar-grid__btn');
+  if (!btn) return;
+  commitChildProfile(btn.dataset.avatar);   // アバター選択を即確定（名前も一緒に保存）
+  renderAvatarGrid();                        // 選択状態の更新
+});
+// 名前は入力中もヘッダに即反映（state には触れず DOM だけ。確定は commitChildProfile）。
+childNameInputEl?.addEventListener('input', () => {
+  for (const el of document.querySelectorAll('.child-avatar__name')) {
+    el.textContent = childNameInputEl.value;
+  }
 });
 document.getElementById('gateSubmit')?.addEventListener('click', submitGate);
 gateAnswerEl?.addEventListener('keydown', (e) => {

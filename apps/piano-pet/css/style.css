@@ -95,6 +95,80 @@ body {
   opacity: 0.7;
 }
 
+/* ----- こどものアバター（ヘッダ隅・#121） ----- */
+.child-avatar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 45%;
+  border: none;
+  padding: 4px 10px 4px 4px;
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 999px;
+  color: #fff;
+  cursor: pointer;
+}
+
+.child-avatar:active {
+  transform: scale(0.94);
+}
+
+.child-avatar__face {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  background: #fff;
+  border-radius: 999px;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.child-avatar__name {
+  font-family: 'Noto Sans JP', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 名前が空のときは丸アイコンだけ（右パディングを詰める） */
+.child-avatar__name:empty {
+  display: none;
+}
+.child-avatar:has(.child-avatar__name:empty) {
+  padding-right: 4px;
+}
+
+/* ----- アイコン選択グリッド（#121） ----- */
+.avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin: 4px 0 8px;
+}
+
+.avatar-grid__btn {
+  border: 2px solid transparent;
+  background: var(--cream, #fff7fa);
+  border-radius: 16px;
+  aspect-ratio: 1;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.avatar-grid__btn:active {
+  transform: scale(0.94);
+}
+
+.avatar-grid__btn[aria-pressed="true"] {
+  border-color: var(--pink);
+  background: var(--pink-soft, #ffe3ea);
+}
+
 /* ===== ビュー本文 ===== */
 .view-body {
   flex: 1;
