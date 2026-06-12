@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=35fc1018">
-  <link rel="stylesheet" href="css/cat.css?v=35fc1018">
+  <link rel="stylesheet" href="css/style.css?v=6d64ca31">
+  <link rel="stylesheet" href="css/cat.css?v=6d64ca31">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -20,6 +20,10 @@
     <!-- ===== ホーム ===== -->
     <section class="view" id="view-home" data-view="home">
       <header class="app-header">
+        <button class="child-avatar" type="button" data-action="open-avatar" aria-label="じぶんの アイコンを えらぶ">
+          <span class="child-avatar__face" aria-hidden="true">🐥</span>
+          <span class="child-avatar__name"></span>
+        </button>
         <h1 class="app-title">ピアノペット</h1>
         <button class="btn-sound" id="soundToggle" type="button" aria-pressed="true" aria-label="サウンドの オン・オフ">🔊</button>
         <button class="btn-settings" id="settingsToggle" type="button" aria-label="せってい（おうちのひとへ）">⚙️</button>
@@ -168,6 +172,10 @@
     <!-- ===== 記録履歴 ===== -->
     <section class="view" id="view-history" data-view="history" hidden>
       <header class="app-header">
+        <button class="child-avatar" type="button" data-action="open-avatar" aria-label="じぶんの アイコンを えらぶ">
+          <span class="child-avatar__face" aria-hidden="true">🐥</span>
+          <span class="child-avatar__name"></span>
+        </button>
         <h1 class="app-title">きろく</h1>
       </header>
       <div class="view-body view-body--history">
@@ -329,6 +337,22 @@
     </div>
 
     <!-- ===== せってい（おうちのひとへ）オーバーレイ・#140 ===== -->
+    <!-- じぶんの アイコン（#121）。こども本人が選ぶので親ゲートは挟まない -->
+    <div id="avatarOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-label="じぶんの アイコン" hidden>
+      <div class="settings-overlay__backdrop" data-action="close-avatar"></div>
+      <div class="settings-panel">
+        <h2 class="settings-panel__title">じぶんの アイコン ✨</h2>
+        <label class="field">
+          <span class="field-label">なまえ</span>
+          <input type="text" id="childNameInput" class="field-input" maxlength="12" placeholder="なまえを いれてね" autocomplete="off" aria-label="じぶんの なまえ">
+        </label>
+        <div id="avatarGrid" class="avatar-grid" role="listbox" aria-label="アイコンを えらぶ"></div>
+        <div class="settings-panel__actions">
+          <button type="button" class="settings-btn" data-action="close-avatar">できた</button>
+        </div>
+      </div>
+    </div>
+
     <div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-label="おうちのひとへ" hidden>
       <div class="settings-overlay__backdrop" data-action="close-settings"></div>
 
@@ -425,6 +449,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=35fc1018"></script>
+  <script type="module" src="js/app.js?v=6d64ca31"></script>
 </body>
 </html>

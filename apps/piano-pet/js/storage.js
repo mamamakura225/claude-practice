@@ -26,6 +26,10 @@ const DEFAULTS = {
     foodSpent: 0,
     // 猫スタイル（#66）。'tora' | 'shiro' | 'russianblue'。未知値は表示側が tora にフォールバック。
     catStyle: 'tora',
+    // こども本人のプロフィール（#121）。ヘッダ隅のアバターに使う。クラウド同期で別端末にも反映。
+    // childAvatar は絵文字ID（child-profile.js）。未設定・未知IDは表示側が既定にフォールバック。
+    childName: '',
+    childAvatar: 'chick',
   },
   inventory: [],
   streak: {
