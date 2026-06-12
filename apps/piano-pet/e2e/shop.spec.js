@@ -40,7 +40,7 @@ test.describe('ショップ', () => {
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
     await expect(page.locator('#shopCoins')).toHaveText('150');
 
-    // 装備する → 「そうび中」バッジが出る
+    // 装備する → 「みにつけてる」バッジが出る
     await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');
     const ribbonCard = page.locator('.shop-card', { hasText: '赤いリボン' });
     await expect(ribbonCard.locator('.shop-card__badge')).toBeVisible();
@@ -66,13 +66,13 @@ test.describe('ショップ', () => {
     await page.click('.shop-btn[data-action="buy"][data-id="collar"]');
     await page.click('.shop-btn[data-action="toggle"][data-id="collar"]');
 
-    // 星の首輪が装備中、リボンは外れて「そうびする」に戻る
+    // 星の首輪が装備中、リボンは外れて「みにつける」に戻る
     await expect(
       page.locator('.shop-card', { hasText: '星の首輪' }).locator('.shop-card__badge'),
     ).toBeVisible();
     await expect(
       page.locator('.shop-card', { hasText: '赤いリボン' }).locator('.shop-btn'),
-    ).toHaveText('そうびする');
+    ).toHaveText('みにつける');
 
     // ホームの猫に乗っているアイテムは1つ（付け替えなので増えない）
     await page.click('.nav-btn[data-nav="home"]');
