@@ -4,6 +4,7 @@ import {
   isValidSession,
   stampsToSongs,
   songsToStamps,
+  combineSongs,
   pastSongNames,
   songTotals,
   isSongMaster,
@@ -126,6 +127,25 @@ describe('songsToStamps', () => {
   it('無効な行（空名・0以下）は除外する', () => {
     expect(songsToStamps([{ name: '', count: 3 }, { name: 'A', count: 0 }, { name: 'B', count: 1 }]))
       .toEqual(['B']);
+  });
+});
+
+describe('combineSongs', () => {
+  it('同じ曲名を合算し、最初に現れた順序を保つ', () => {
+    expect(combineSongs([
+      { name: 'よるのおはなし', count: 1 },
+      { name: 'きらきら星', count: 2 },
+      { name: 'よるのおはなし', count: 2 },
+    ])).toEqual([
+      { name: 'よるのおはなし', count: 3 },
+      { name: 'きらきら星', count: 2 },
+    ]);
+  });
+
+  it('空名・0以下・空配列は除外して空配列を返す', () => {
+    expect(combineSongs([{ name: '', count: 3 }, { name: 'A', count: 0 }])).toEqual([]);
+    expect(combineSongs([])).toEqual([]);
+    expect(combineSongs(undefined)).toEqual([]);
   });
 });
 

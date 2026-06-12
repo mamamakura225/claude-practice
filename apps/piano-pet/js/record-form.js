@@ -38,6 +38,21 @@ export function stampsToSongs(stamps) {
   return { songs, totalCount };
 }
 
+// 同じ曲名の {name, count} を1件に合算する（最初に現れた順序を保つ・#186）。
+// 同日同曲が複数行に分かれて記録・表示されるのを防ぐ。空名・0以下は除外。
+export function combineSongs(songs) {
+  const order = [];
+  const counts = new Map();
+  for (const s of songs ?? []) {
+    const name = String(s?.name ?? '').trim();
+    const count = Math.floor(Number(s?.count)) || 0;
+    if (!name || count <= 0) continue;
+    if (!counts.has(name)) order.push(name);
+    counts.set(name, (counts.get(name) ?? 0) + count);
+  }
+  return order.map((name) => ({ name, count: counts.get(name) }));
+}
+
 // 既存セッションの songs を押した順スタンプ配列に展開する（編集時の復元用）。
 // count 個ぶん曲名を並べる。無効な行（空名・0以下）は除外。
 export function songsToStamps(songs) {

@@ -4,7 +4,7 @@ import { getAccounts, getActiveAccountId, setActiveAccount } from './account.js'
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle } from './cat-image.js';
 import { enableDressup } from './dressup.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise } from './record-form.js';
+import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
 import {
@@ -269,7 +269,8 @@ function praiseRowMarkup(session, index) {
 }
 
 function historyCardMarkup(session, index) {
-  const songs = (session.songs ?? [])
+  // 同日同曲が複数行に分かれた既存データも1行に合算して表示する（#186）
+  const songs = combineSongs(session.songs)
     .map((s) => `<li><span class="song-title">${escapeHtml(s.name)}</span>` +
       `<span class="song-times">${Number(s.count) || 0}かい</span></li>`)
     .join('');
@@ -714,8 +715,13 @@ function resetRecordForm() {
   setRecordMode(false);
   recordMode = 'stamp';
   if (recordDateEl) recordDateEl.value = todayStr();
-  // 当日のスタンプ下書きを復元（ホーム戻り→再開でもカードを引き継ぐ・#164）
-  stamps = loadStampDraft();
+  // 当日のスタンプを引き継ぐ。記録確定後は当日セッションが正なのでそこから復元し、
+  // 続きを押せるようにする（#186）。未確定（初回記録前）はホーム往復用の下書きから復元（#164）。
+  const todaySession = state.sessions.find((s) => s.date === todayStr());
+  stamps = todaySession
+    ? songsToStamps(combineSongs(todaySession.songs))
+    : loadStampDraft();
+  saveStampDraft();
   const draftNames = [...new Set(stamps)];
   chipNames = [...draftNames, ...pastSongNames(state.sessions).filter((n) => !draftNames.includes(n))];
   selectedSong = draftNames[draftNames.length - 1] ?? chipNames[0] ?? null;
@@ -934,15 +940,16 @@ function submitRecord(event) {
     return;
   }
 
-  // 新規記録の確定。当日のスタンプ下書きは役目を終えたので破棄する（#164）
-  clearStampDraft();
-
   // 同日に既存セッションがある場合は統合して全再計算（目標達成ボーナスの二重取りを防ぐ）
   const existingIndex = state.sessions.findIndex((s) => s.date === date);
   if (existingIndex !== -1) {
     const existing = state.sessions[existingIndex];
-    const mergedSongs = [...existing.songs, ...songs];
-    const mergedCount = existing.totalCount + totalCount;
+    // 当日の記録画面は「その日ぜんぶ」を表す（resetRecordForm で当日セッションから復元済み）。
+    // よって追記ではなく置き換えて、当日中の押し増しが二重計上されないようにする（#186）。
+    // 当日以外（日付欄を過去日に変えた場合）は従来どおり合算する。
+    const isToday = date === today;
+    const mergedSongs = combineSongs(isToday ? songs : [...existing.songs, ...songs]);
+    const mergedCount = isToday ? totalCount : existing.totalCount + totalCount;
     const sessions = state.sessions.map((s, i) =>
       i === existingIndex ? { ...s, songs: mergedSongs, totalCount: mergedCount } : s);
     const prevCoins = state.pet.coins;
