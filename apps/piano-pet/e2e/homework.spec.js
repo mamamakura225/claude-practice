@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 
 // 宿題ループ（きょうの きょく・#143）：親が設定 → ホーム表示 → 記録で達成演出。
-test.describe('きょうの きょく（しゅくだい）', () => {
+// 先生連携は当面閉塞（#192）。設定UIを非表示にしたため本E2Eは skip。機能再開時に戻す。
+test.describe.skip('きょうの きょく（しゅくだい）', () => {
   test.beforeEach(async ({ page }) => {
     // 本番Firestoreへの読み書きと干渉を防ぐためFirebase関連を全てブロック。
     await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());

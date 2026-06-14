@@ -102,7 +102,7 @@
 ## 記録履歴（きろく）
 
 - 連続記録カード：いまの れんぞく / さいこう きろく
-- **今週の ふりかえりカード**（#144）：今週（月曜起点）の「かいすう／きょく数／れんしゅうした日数」を集計表示（[history.js](../js/history.js) `weeklySummary`）。「📤 せんせいに おくる」で Web Share API（`navigator.share`）にワンタップ送信。本文は `reviewShareText`（曲名は載せない＝送信は最小限）。Web Share 非対応はクリップボードコピー→スクショ案内にフォールバック。送信用ストレージ・外部ライブラリ・サーバー不要（端末内完結）。計測は操作フラグ `review_shared` のみ（内容は送らない）
+- **今週の ふりかえりカード**（#144）：今週（月曜起点）の「かいすう／きょく数／れんしゅうした日数」を集計表示（[history.js](../js/history.js) `weeklySummary`）。**「📤 せんせいに おくる」共有ボタンは現在閉塞（#192・先生は利用者として登場しない方針 #152）＝UI 非表示。ハンドラ `shareReview`・計測 `review_shared` は温存。** 共有時は Web Share API（`navigator.share`）にワンタップ送信。本文は `reviewShareText`（曲名は載せない＝送信は最小限）。Web Share 非対応はクリップボードコピー→スクショ案内にフォールバック。送信用ストレージ・外部ライブラリ・サーバー不要（端末内完結）。計測は操作フラグ `review_shared` のみ（内容は送らない）
 - 週ごとの合計回数の棒グラフ（直近8週、SVG・外部ライブラリなし＝[history.js](../js/history.js) `weeklyChartModel`）
 - **きょくべつ コレクション**（#122）：曲ごとの累計回数を「多い順→新しさ」で一覧表示（[record-form.js](../js/record-form.js) `songTotals`）。各曲は決定的ハッシュ色のスウォッチ＋「○かい」。回数0や空名の曲は出さない
 - **曲マスター👑**（#149）：曲の累計回数が `SONG_MASTER_COUNT`（=50）回に達した曲はコレクションに👑を表示（[record-form.js](../js/record-form.js) `isSongMaster`）。`songTotals` から決定的に導出し専用フラグは持たない（再計算で矛盾しない）
@@ -316,6 +316,8 @@
 - 認証は導入しない（家庭内ツール前提）。詳細・設計判断・Firestore ルール前提は [data-model.md](./data-model.md)「マルチアカウント」を参照。
 
 **きょうの きょく（宿題）設定・#143**
+
+> **閉塞中（#192）**: 先生はアプリの利用者として登場しない方針（#152）に伴い、しゅくだい登録UI（せってい内セクション・ホームのカード・達成演出）と「せんせいに おくる」共有ボタンは現在 UI 非表示。ロジック（`assignment.js`）・保存データ・クラウド同期（LWW）は温存し、`app.js` の `HW_ENABLED=false` と HTML の `hidden` で閉塞している。再開は容易。
 
 先生の宿題を親が代理登録する。実装は純粋ロジック [assignment.js](../js/assignment.js)＋[app.js](../js/app.js)。
 
