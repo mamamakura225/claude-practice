@@ -145,10 +145,13 @@ function formSongColors() {
 }
 
 // きょうの きょく（しゅくだい・#143）。宿題があればカードを表示し進捗を描く。
+// 先生連携（しゅくだい）は当面閉塞・#192。設定エントリを隠したため、既存データの
+// カードが操作不能で残らないよう表示を抑止する。集計ロジック・保存データは温存（再開はこれを true）。
+const HW_ENABLED = false;
 function renderAssignment() {
   const card = document.getElementById('assignmentCard');
   if (!card) return;
-  const prog = assignmentProgress(state.sessions, state.assignment, todayStr());
+  const prog = HW_ENABLED ? assignmentProgress(state.sessions, state.assignment, todayStr()) : null;
   if (!prog) {
     card.hidden = true;
     return;
@@ -814,6 +817,7 @@ function celebrateRecord({ leveled, badgeCount, streakCurrent, assignmentAchieve
 // sessions を唯一の正とする派生判定なので、追加のフラグを持たずに再演出を防げる
 // （達成済みの日に追記しても prev が既に達成なので false）。
 function assignmentJustAchieved(prevSessions, nextState, today) {
+  if (!HW_ENABLED) return null;                 // 閉塞中は達成演出も止める・#192
   const before = assignmentProgress(prevSessions, state.assignment, today)?.achieved ?? false;
   const after = assignmentProgress(nextState.sessions, nextState.assignment, today);
   return !before && !!after?.achieved ? after.name : null;

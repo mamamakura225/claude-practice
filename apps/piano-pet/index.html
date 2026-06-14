@@ -8,8 +8,8 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=6d64ca31">
-  <link rel="stylesheet" href="css/cat.css?v=6d64ca31">
+  <link rel="stylesheet" href="css/style.css?v=d0476ba1">
+  <link rel="stylesheet" href="css/cat.css?v=d0476ba1">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -199,7 +199,8 @@
             <div class="review-stat"><b class="review-stat__num" id="reviewSongs">0</b><span class="review-stat__unit">きょく</span></div>
             <div class="review-stat"><b class="review-stat__num" id="reviewDays">0</b><span class="review-stat__unit">日</span></div>
           </div>
-          <button type="button" class="review-share-btn" id="reviewShareBtn">📤 せんせいに おくる</button>
+          <!-- 「せんせいに おくる」共有は当面使わないため閉塞（#192）。ハンドラ・track は温存。 -->
+          <button type="button" class="review-share-btn" id="reviewShareBtn" hidden>📤 せんせいに おくる</button>
           <p class="review-card__note" id="reviewShareNote" role="status" hidden></p>
         </section>
 
@@ -378,10 +379,10 @@
           <div id="accountList" class="account-list"></div>
         </section>
 
-        <hr class="settings-divider">
+        <!-- きょうの きょく（しゅくだい）設定・#143。先生連携は当面使わないため閉塞（#192）。コード・保存データは温存。 -->
+        <hr class="settings-divider" hidden>
 
-        <!-- きょうの きょく（しゅくだい）設定・#143 -->
-        <section class="settings-hw">
+        <section class="settings-hw" hidden>
           <h2 class="settings-panel__title">きょうの きょく（しゅくだい）</h2>
           <p class="settings-menu__desc">せんせいの しゅくだいを とうろくすると、ホームに大きく でて、たっせいで おいわいします。</p>
           <label class="field">
@@ -449,6 +450,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=6d64ca31"></script>
+  <script type="module" src="js/app.js?v=d0476ba1"></script>
 </body>
 </html>
