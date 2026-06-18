@@ -52,6 +52,19 @@ test.describe('ショップ', () => {
   });
 
   test('同じスロットのアイテムは付け替わる（リボン→星の首輪）', async ({ page }) => {
+    // 星の首輪は unlockLevel 2（#126）。解放済みにするため affinity を盛る
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'piano-pet',
+        JSON.stringify({
+          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 50, foodSpent: 0 },
+          inventory: [],
+          streak: { current: 0, best: 0, lastPracticeDate: null },
+          badges: [],
+          sessions: [],
+        }),
+      );
+    });
     await page.goto('/#/shop');
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
 
@@ -123,6 +136,19 @@ test.describe('ショップ', () => {
   });
 
   test('コイン不足のアイテムは購入ボタンが無効', async ({ page }) => {
+    // 王冠は unlockLevel 5（#126）。解放はクリアしコイン不足だけを検証するため affinity を盛る
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'piano-pet',
+        JSON.stringify({
+          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 50, foodSpent: 0 },
+          inventory: [],
+          streak: { current: 0, best: 0, lastPracticeDate: null },
+          badges: [],
+          sessions: [],
+        }),
+      );
+    });
     await page.goto('/#/shop');
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
 
@@ -130,5 +156,25 @@ test.describe('ショップ', () => {
     const crownBtn = page.locator('.shop-card', { hasText: '王冠' }).locator('.shop-btn');
     await expect(crownBtn).toBeDisabled();
     await expect(crownBtn).toHaveText('コインが たりない');
+  });
+
+  test('なかよしLv未到達のアイテムはロック表示で買えない（#126）', async ({ page }) => {
+    // 既定シードは affinity 0（なかよしLv1）。マフラー(Lv3)・王冠(Lv5)は未解放。
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+
+    const scarfCard = page.locator('.shop-card', { hasText: 'マフラー' });
+    const scarfBtn = scarfCard.locator('.shop-btn');
+    await expect(scarfBtn).toBeDisabled();
+    await expect(scarfBtn).toHaveText('なかよしLv3で あえる');
+    await expect(scarfCard.locator('.shop-card__badge--locked')).toBeVisible();
+
+    // ロック中は buy アクションのボタン自体が存在しない（誤購入できない）
+    await expect(scarfCard.locator('.shop-btn[data-action="buy"]')).toHaveCount(0);
+
+    // Lv1 のリボンは解放済みで買える
+    await expect(
+      page.locator('.shop-card', { hasText: '赤いリボン' }).locator('.shop-btn[data-action="buy"]'),
+    ).toBeVisible();
   });
 });

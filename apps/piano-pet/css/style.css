@@ -1363,6 +1363,11 @@ body {
   outline: 2px solid var(--pink-deep);
 }
 
+/* なかよしLv未解放（#126）：非表示にせずアイコンだけ控えめにして「もうすぐ あえる」目標感を出す */
+.shop-card--locked .shop-card__icon {
+  opacity: 0.5;
+}
+
 .shop-card__icon {
   font-size: 2rem;
   line-height: 1;
@@ -1394,6 +1399,10 @@ body {
   font-size: 0.72rem;
   font-weight: 700;
   color: var(--pink-deep);
+}
+
+.shop-card__badge--locked {
+  color: #b08d57;
 }
 
 .shop-btn {
