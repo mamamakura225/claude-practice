@@ -76,6 +76,12 @@ describe('catMarkup の itemLayout（#168 自由配置）', () => {
     const html = catMarkup({ equippedItems: ['crown'] });
     expect(html).toContain('translate(100 46)');   // head アンカー
   });
+
+  // #196: 衣装は水彩透過PNGを <image> で重ねる（手書きSVG path から移行）
+  it('装備アイテムは img/cat/items/{id}.png を <image> で描画する', () => {
+    const html = catMarkup({ equippedItems: ['ribbon'] });
+    expect(html).toContain('<image href="img/cat/items/ribbon.png"');
+  });
 });
 
 // なかよしエンブレム（#124）：bond レベルで猫の隅のハートしるしを出し分ける。

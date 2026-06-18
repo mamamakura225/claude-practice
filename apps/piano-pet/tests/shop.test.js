@@ -36,6 +36,12 @@ describe('カタログ', () => {
       expect(item.icon).toBeTruthy();
     }
   });
+
+  // #191/#196: 絵文字一致と表示名の確定（id は据え置き＝保存データ後方互換）
+  it('bowtie はループリボン・cape は 🧥（#191 個別決定）', () => {
+    expect(itemById('bowtie').name).toBe('ループリボン');
+    expect(itemById('cape').icon).toBe('🧥');
+  });
 });
 
 describe('canBuy', () => {

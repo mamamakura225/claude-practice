@@ -31,6 +31,7 @@ function listAssets() {
   assets.push('manifest.json');
   collectDir('icons', ['.svg', '.png']);
   collectDir('img/cat', ['.png']);
+  collectDir('img/cat/items', ['.png']);
   collectDir('sounds', ['.mp3', '.ogg', '.wav']);
   return assets;
 

@@ -65,101 +65,33 @@ function n(v, d = 1) {
   return parseFloat(v.toFixed(d));
 }
 
-// ----- 衣装アイテムSVG（原点(0,0)基準・アンカーに translate+scale で配置） -----
-// 5枚花弁の小さな花（flower / flowerCrown で共用）
-function flowerSvg(cx, cy, scale, petalColor) {
-  const r = n(7 * scale);
-  const o = 9 * scale;
-  return `<g transform="translate(${n(cx)} ${n(cy)})" fill="${petalColor}">
-    <circle cx="0" cy="${n(-o)}" r="${r}"/>
-    <circle cx="${n(o)}" cy="${n(-o * 0.3)}" r="${r}"/>
-    <circle cx="${n(o * 0.6)}" cy="${n(o * 0.8)}" r="${r}"/>
-    <circle cx="${n(-o * 0.6)}" cy="${n(o * 0.8)}" r="${r}"/>
-    <circle cx="${n(-o)}" cy="${n(-o * 0.3)}" r="${r}"/>
-    <circle cx="0" cy="0" r="${n(r * 0.7)}" fill="#ffd34d"/>
-  </g>`;
+// ----- 衣装アイテム（水彩透過PNG・原点(0,0)＝アンカー基準で <image> を重ねる・#196） -----
+// 本体（プリレンダ水彩PNG）と画風を統一するため、手書きインラインSVGから水彩ラスターへ移行。
+// 各 box は旧SVGの描画範囲（描画座標系・原点はアンカー）に対応し、画像はこの box の縦横比で
+// `img/cat/items/{id}.png`（透過・retina 2x・mood/tier 非依存で1 id 1枚）として作成する。
+// box を据え置くことで dressup の <g transform>・アンカー・スナップ（#168）は無改修。
+const ITEM_BOX = {
+  ribbon:      { x: -28, y: -16, w: 56,  h: 32 },
+  collar:      { x: -40, y: -20, w: 80,  h: 47 },
+  hat:         { x: -50, y: -50, w: 100, h: 65 },
+  cape:        { x: -50, y: -24, w: 100, h: 112 },
+  crown:       { x: -36, y: -18, w: 72,  h: 40 },
+  bowtie:      { x: -26, y: -30, w: 52,  h: 64 },   // ループリボン（縦長・🎀蝶結びと形で差別化）#191
+  scarf:       { x: -42, y: -24, w: 84,  h: 72 },
+  glasses:     { x: -42, y: -15, w: 84,  h: 30 },   // レンズ透明＋猫の目を残す #191
+  flower:      { x: -22, y: -22, w: 44,  h: 44 },
+  flowerCrown: { x: -48, y: -16, w: 96,  h: 40 },
+};
+
+function itemImage(id) {
+  const b = ITEM_BOX[id];
+  return `<image href="img/cat/items/${id}.png" x="${b.x}" y="${b.y}" `+
+    `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet"/>`;
 }
 
-const ITEMS = {
-  ribbon: () => `
-    <g>
-      <path d="M0 0 L-28 -16 L-28 16 Z" fill="#ff5d7a"/>
-      <path d="M0 0 L28 -16 L28 16 Z"  fill="#ff5d7a"/>
-      <path d="M-28 -16 Q-8 0 -28 16 Z" fill="#e23f5e"/>
-      <path d="M28 -16 Q8 0 28 16 Z"   fill="#e23f5e"/>
-      <circle r="9" fill="#e23f5e"/>
-    </g>`,
-
-  collar: () => `
-    <g>
-      <path d="M-40 -7 Q0 -20 40 -7 L40 7 Q0 20 -40 7 Z" fill="#7fc6ff"/>
-      <path d="M0 7 l8 14 -8 6 -8 -6 z" fill="#ffd34d" stroke="#e0a91f" stroke-width="1.5"/>
-    </g>`,
-
-  hat: () => `
-    <g>
-      <ellipse cy="2" rx="50" ry="13" fill="#e8c270"/>
-      <path d="M-32 2 Q0 -50 32 2" fill="#f0d089"/>
-      <rect x="-32" y="-4" width="64" height="10" rx="5" fill="#c8783c"/>
-    </g>`,
-
-  cape: () => `
-    <g>
-      <path d="M-50 -6 Q0 -24 50 -6 L46 70 Q0 88 -46 70 Z" fill="#9b6bff"/>
-      <path d="M-50 -6 Q0 -24 50 -6 L44 12 Q0 28 -44 12 Z" fill="#6f3fd6"/>
-      <path d="M-50 -6 Q0 -24 50 -6" fill="none" stroke="#c9a0ff" stroke-width="4"/>
-    </g>`,
-
-  crown: () => `
-    <g>
-      <path d="M-36 18 L-36 -12 L-18 6 L0 -18 L18 6 L36 -12 L36 18 Z" fill="#ffd34d" stroke="#e0a91f" stroke-width="2"/>
-      <rect x="-36" y="14" width="72" height="8" rx="4" fill="#e0a91f"/>
-      <circle cy="2"  r="6" fill="#ff5d7a"/>
-      <circle cx="-22" cy="10" r="5" fill="#7fc6ff"/>
-      <circle cx="22"  cy="10" r="5" fill="#7fc6ff"/>
-    </g>`,
-
-  bowtie: () => `
-    <g>
-      <path d="M-4 0 L-30 -15 L-30 15 Z" fill="#6f8cff"/>
-      <path d="M4 0 L30 -15 L30 15 Z"   fill="#6f8cff"/>
-      <path d="M-30 -15 Q-12 0 -30 15 Z" fill="#4a63d8"/>
-      <path d="M30 -15 Q12 0 30 15 Z"   fill="#4a63d8"/>
-      <rect x="-7" y="-10" width="14" height="20" rx="4" fill="#4a63d8"/>
-    </g>`,
-
-  scarf: () => `
-    <g>
-      <path d="M-42 -9 Q0 -24 42 -9 L40 7 Q0 16 -40 7 Z" fill="#ff8a8a"/>
-      <path d="M-40 7 Q0 16 40 7" fill="none" stroke="#e85d5d" stroke-width="3"/>
-      <path d="M4 4 L20 4 L16 40 L8 40 Z" fill="#ff8a8a" stroke="#e85d5d" stroke-width="1.5"/>
-      <g stroke="#e85d5d" stroke-width="2" stroke-linecap="round">
-        <line x1="9"  y1="40" x2="9"  y2="48"/>
-        <line x1="13" y1="40" x2="13" y2="48"/>
-        <line x1="17" y1="40" x2="17" y2="48"/>
-      </g>
-    </g>`,
-
-  glasses: () => `
-    <g fill="none" stroke="#5a4632" stroke-width="3" stroke-linecap="round">
-      <circle cx="-20" cy="0" r="13"/>
-      <circle cx="20"  cy="0" r="13"/>
-      <path d="M-7 -1 Q0 -5 7 -1"/>
-      <path d="M-33 -3 L-42 -7"/>
-      <path d="M33 -3 L42 -7"/>
-    </g>`,
-
-  flower: () => flowerSvg(0, 0, 1.3, '#ff9ec4'),
-
-  flowerCrown: () => {
-    const cols = ['#ff9ec4', '#c9a0ff', '#fff0a6', '#c9a0ff', '#ff9ec4'];
-    const xs = [-38, -19, 0, 19, 38];
-    const ys = [10, 2, -2, 2, 10];
-    const band = `<path d="M-46 8 Q0 -8 46 8" fill="none" stroke="#8fd19a" stroke-width="5" stroke-linecap="round"/>`;
-    const flowers = xs.map((x, i) => flowerSvg(x, ys[i], 0.62, cols[i])).join('');
-    return `<g>${band}${flowers}</g>`;
-  },
-};
+const ITEMS = Object.fromEntries(
+  Object.keys(ITEM_BOX).map((id) => [id, () => itemImage(id)])
+);
 
 const ITEM_ANCHOR_TYPE = {
   ribbon: 'neck',
