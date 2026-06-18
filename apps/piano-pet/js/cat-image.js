@@ -86,7 +86,7 @@ const ITEM_BOX = {
 function itemImage(id) {
   const b = ITEM_BOX[id];
   return `<image href="img/cat/items/${id}.png" x="${b.x}" y="${b.y}" `+
-    `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet"/>`;
+    `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`;
 }
 
 const ITEMS = Object.fromEntries(
