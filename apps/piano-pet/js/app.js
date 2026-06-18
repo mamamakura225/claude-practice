@@ -20,6 +20,7 @@ import {
   isOwned,
   isEquipped,
   canBuy,
+  isUnlocked,
   buyItem,
   toggleEquip,
   spentCoins,
@@ -372,8 +373,13 @@ function shopCardMarkup(item) {
   const owned = isOwned(state, item.id);
   const equipped = isEquipped(state, item.id);
 
+  // 未所持で「なかよしLv」未到達なら、見せるロック（#126）：非表示にせず目標として見せる。
+  const locked = !owned && !isUnlocked(state, item.id);
+
   let btn;
-  if (!owned) {
+  if (locked) {
+    btn = `<button type="button" class="shop-btn shop-btn--locked" disabled>なかよしLv${item.unlockLevel}で あえる</button>`;
+  } else if (!owned) {
     btn = canBuy(state, item.id)
       ? `<button type="button" class="shop-btn shop-btn--buy" data-action="buy" data-id="${item.id}">かう</button>`
       : `<button type="button" class="shop-btn shop-btn--locked" disabled>コインが たりない</button>`;
@@ -383,8 +389,10 @@ function shopCardMarkup(item) {
     btn = `<button type="button" class="shop-btn shop-btn--equip" data-action="toggle" data-id="${item.id}">みにつける</button>`;
   }
 
-  const badge = equipped ? '<span class="shop-card__badge">みにつけてる ✓</span>' : '';
-  return `<div class="shop-card${equipped ? ' shop-card--equipped' : ''}">
+  const badge = equipped
+    ? '<span class="shop-card__badge">みにつけてる ✓</span>'
+    : (locked ? `<span class="shop-card__badge shop-card__badge--locked">🔒 なかよしLv${item.unlockLevel}</span>` : '');
+  return `<div class="shop-card${equipped ? ' shop-card--equipped' : ''}${locked ? ' shop-card--locked' : ''}">
     <span class="shop-card__icon" aria-hidden="true">${item.icon}</span>
     <div class="shop-card__info">
       <span class="shop-card__name">${item.name}</span>

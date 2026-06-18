@@ -60,6 +60,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 - **曲別の累計回数**（#122）：`sessions` から再集計する（[record-form.js](../js/record-form.js) `songTotals`）。専用フィールドは持たない。
 - **曲マスター👑**（#149）：累計回数が `SONG_MASTER_COUNT`（=50）以上かを `isSongMaster` で判定する派生値。専用フィールドは持たず、`songTotals` から再計算しても矛盾しない。
 - **なかよしレベルとご褒美解放**（#124）：`pet.affinity` のしきい値から決定的に導出する（[feed.js](../js/feed.js) `affinityLevel` / `affinityRewards`）。**解放済みフラグは持たない**。`recomputeState` は `pet.affinity` を保持するため、記録の編集・削除（全再計算）でも解放状態が矛盾しない。> **設計判断**: Issue では「解放済みフラグを `pet` に追加」案だったが、affinity 自体が単調増加で永続化済みのため、フラグを別持ちすると二重管理になり再計算との整合リスクが生じる。affinity からの導出に一本化した。
+- **きせかえ購入の解放ゲート**（#126）：ショップ装備の購入可否を `unlockLevel`（[shop.js](../js/shop.js) `SHOP_ITEMS` の静的カタログ値）と現在のなかよしLvで判定する（`isUnlocked`＝`affinityLevel(pet.affinity).level >= unlockLevel`）。**解放済みフラグは持たず** affinity から導出（#124 と同設計）。判定は購入時（`canBuy`）のみで、装備・描画は `inventory`/`equippedItems` の所属のみを参照するため、affinity 低下で再ロックされても所持品は保持される。`unlockLevel` はカタログ定数で state には保存しない。
 
 ### Pet
 | フィールド | 型 | デフォルト | 説明 |

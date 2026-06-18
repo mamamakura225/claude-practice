@@ -1,17 +1,21 @@
 // ===== ショップの純粋ロジック =====
 // アイテムIDと装備時の見た目は cat.js の ITEMS / ITEM_ANCHOR_TYPE に対応する。
 // slot は装備スロット（同一スロットは1つだけ装備できる）。
+// unlockLevel は購入解放に必要な「なかよしレベル」(#126・価格帯で割当)。判定は購入時のみ
+// （canBuy）に効き、装備・描画は所持/装備のみで判定＝affinity 低下でも所持品は保持される。
+import { affinityLevel } from './feed.js';
+
 export const SHOP_ITEMS = [
-  { id: 'ribbon', name: '赤いリボン', price: 50, slot: 'neck', icon: '🎀' },
-  { id: 'bowtie', name: 'ループリボン', price: 70, slot: 'neck', icon: '🎗️' },
-  { id: 'hat', name: '麦わら帽子', price: 80, slot: 'head', icon: '👒' },
-  { id: 'flower', name: 'おはな', price: 90, slot: 'head', icon: '🌸' },
-  { id: 'collar', name: '星の首輪', price: 100, slot: 'neck', icon: '⭐' },
-  { id: 'scarf', name: 'マフラー', price: 120, slot: 'neck', icon: '🧣' },
-  { id: 'glasses', name: 'めがね', price: 130, slot: 'face', icon: '👓' },
-  { id: 'cape', name: 'ミニマント', price: 150, slot: 'back', icon: '🧥' },
-  { id: 'flowerCrown', name: 'はなかんむり', price: 260, slot: 'head', icon: '💮' },
-  { id: 'crown', name: '王冠', price: 300, slot: 'head', icon: '👑' },
+  { id: 'ribbon', name: '赤いリボン', price: 50, slot: 'neck', icon: '🎀', unlockLevel: 1 },
+  { id: 'bowtie', name: 'ループリボン', price: 70, slot: 'neck', icon: '🎗️', unlockLevel: 1 },
+  { id: 'hat', name: '麦わら帽子', price: 80, slot: 'head', icon: '👒', unlockLevel: 1 },
+  { id: 'flower', name: 'おはな', price: 90, slot: 'head', icon: '🌸', unlockLevel: 2 },
+  { id: 'collar', name: '星の首輪', price: 100, slot: 'neck', icon: '⭐', unlockLevel: 2 },
+  { id: 'scarf', name: 'マフラー', price: 120, slot: 'neck', icon: '🧣', unlockLevel: 3 },
+  { id: 'glasses', name: 'めがね', price: 130, slot: 'face', icon: '👓', unlockLevel: 3 },
+  { id: 'cape', name: 'ミニマント', price: 150, slot: 'back', icon: '🧥', unlockLevel: 4 },
+  { id: 'flowerCrown', name: 'はなかんむり', price: 260, slot: 'head', icon: '💮', unlockLevel: 5 },
+  { id: 'crown', name: '王冠', price: 300, slot: 'head', icon: '👑', unlockLevel: 5 },
 ];
 
 export function itemById(id) {
@@ -31,10 +35,18 @@ export function isEquipped(state, id) {
   return (state.pet?.equippedItems ?? []).includes(id);
 }
 
-// 購入可否：未所持・実在アイテム・コインが価格以上
+// 解放可否（#126）：現在のなかよしレベルが unlockLevel 以上か。
+// affinity から決定的に導出（専用フラグなし）。購入時のみ参照し装備/描画では使わない。
+export function isUnlocked(state, id) {
+  const item = itemById(id);
+  if (!item) return false;
+  return affinityLevel(state.pet?.affinity ?? 0).level >= (item.unlockLevel ?? 1);
+}
+
+// 購入可否：未所持・実在アイテム・なかよしLv解放済み・コインが価格以上
 export function canBuy(state, id) {
   const item = itemById(id);
-  if (!item || isOwned(state, id)) return false;
+  if (!item || isOwned(state, id) || !isUnlocked(state, id)) return false;
   return (state.pet?.coins ?? 0) >= item.price;
 }
 
