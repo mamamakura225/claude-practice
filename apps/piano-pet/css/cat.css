@@ -90,8 +90,8 @@
   align-items: center;
   gap: 2px;
   padding: 6px 10px 4px;
-  background: #fff;
-  border: 3px solid #ffd0d9;
+  background: var(--surface, #fff);
+  border: 3px solid var(--pink-soft, #ffd0d9);
   border-radius: 14px;
   cursor: pointer;
   font-family: 'Mochiy Pop One', sans-serif;
@@ -105,7 +105,7 @@
 }
 .style-picker__btn[aria-pressed="true"] {
   border-color: var(--pink-deep, #ff7a93);
-  background: #fff0f3;
+  background: var(--surface-soft, #fff0f3);
 }
 
 .pet-name {

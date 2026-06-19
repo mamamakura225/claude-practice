@@ -1221,6 +1221,28 @@ document.getElementById('soundToggle')?.addEventListener('click', () => {
   if (isSoundOn(state)) playSound('coin', state);  // ONにした合図に短く鳴らす
 });
 
+// ===== がめんの あかるさ（テーマ・#151） =====
+// テーマは端末ごとの好み（夜配慮）なのでクラウド同期する state ではなく localStorage に保存。
+// 'auto' は属性を外して CSS の prefers-color-scheme に委ねる。head のインラインで先読み適用済み。
+const THEME_KEY = 'pp-theme';
+function applyTheme(choice) {
+  const root = document.documentElement;
+  if (choice === 'dark' || choice === 'light') root.dataset.theme = choice;
+  else delete root.dataset.theme;
+  document.querySelectorAll('#themeSwitch [data-theme-choice]').forEach((b) => {
+    const on = b.dataset.themeChoice === choice;
+    b.classList.toggle('is-active', on);
+    b.setAttribute('aria-pressed', String(on));
+  });
+}
+document.getElementById('themeSwitch')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('[data-theme-choice]');
+  if (!btn) return;
+  try { localStorage.setItem(THEME_KEY, btn.dataset.themeChoice); } catch (_) {}
+  applyTheme(btn.dataset.themeChoice);
+});
+try { applyTheme(localStorage.getItem(THEME_KEY) || 'auto'); } catch (_) { applyTheme('auto'); }
+
 // ===== せってい：データのバックアップ/復元（#140） =====
 const settingsOverlayEl = document.getElementById('settingsOverlay');
 const settingsGateEl = document.getElementById('settingsGate');

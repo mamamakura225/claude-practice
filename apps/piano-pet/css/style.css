@@ -6,6 +6,40 @@
   --ink: #4a3b3b;
   --shadow: rgba(255, 122, 147, 0.25);
   --nav-h: 68px;
+
+  /* セマンティック面（ダークモード切替の基点・#151）。
+     ライトでは従来の見た目と同値。data-theme/OS設定で下のブロックが上書きする。 */
+  --surface: #fff;          /* カード・パネルの面 */
+  --surface-soft: #fff6ee;  /* やわらかい面（スタンプ枠・入力背景） */
+  --surface-mute: var(--surface-mute);  /* ゴースト/ロックなど控えめなボタン面 */
+  --pink-soft: #ffe1e8;     /* 進捗バーの溝・淡ピンクの面/枠線 */
+  --text-muted: #b0a3a3;    /* 補助テキスト */
+}
+
+/* ダークテーマの変数上書き。手動トグル(data-theme="dark")とOS設定の両対応。
+   data-theme="light" のときは OS がダークでもライトを維持する。 */
+:root[data-theme="dark"] {
+  --cream: #1f1a1d;
+  --ink: #f3e9ec;
+  --shadow: rgba(0, 0, 0, 0.45);
+  --surface: #2a2327;
+  --surface-soft: #332a2f;
+  --surface-mute: #3a3236;
+  --pink-soft: #3d2f36;
+  --text-muted: #b9a8af;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cream: #1f1a1d;
+    --ink: #f3e9ec;
+    --shadow: rgba(0, 0, 0, 0.45);
+    --surface: #2a2327;
+    --surface-soft: #332a2f;
+    --surface-mute: #3a3236;
+    --pink-soft: #3d2f36;
+    --text-muted: #b9a8af;
+  }
 }
 
 * {
@@ -119,7 +153,7 @@ body {
   height: 32px;
   display: grid;
   place-items: center;
-  background: #fff;
+  background: var(--surface);
   border-radius: 999px;
   font-size: 1.2rem;
   line-height: 1;
@@ -195,7 +229,7 @@ body {
 }
 
 .level-block {
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
   padding: 14px 18px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -224,7 +258,7 @@ body {
 
 .xpbar {
   height: 18px;
-  background: #ffe1e8;
+  background: var(--pink-soft);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -239,7 +273,7 @@ body {
 
 /* ----- なかよしレベル（#124） ----- */
 .bond-block {
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
   padding: 14px 18px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -268,7 +302,7 @@ body {
 
 .bondbar {
   height: 18px;
-  background: #ffe1e8;
+  background: var(--pink-soft);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -289,7 +323,7 @@ body {
 }
 
 .goal-block {
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
   padding: 14px 18px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -321,7 +355,7 @@ body {
 
 .goalbar {
   height: 18px;
-  background: #e6f3ea;
+  background: var(--pink-soft);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -352,7 +386,7 @@ body {
 
 /* ===== きょうの きょく（しゅくだい・#143） ===== */
 .assignment-card {
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
   padding: 16px 18px;
   box-shadow: 0 4px 14px var(--shadow);
@@ -368,7 +402,7 @@ body {
   font-size: 0.78rem;
   font-weight: 700;
   color: #b86b86;
-  background: #ffe8f0;
+  background: var(--pink-soft);
   border-radius: 999px;
   padding: 3px 12px;
 }
@@ -395,13 +429,13 @@ body {
 .assignment-card__name {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.25rem;
-  color: #4a3b3b;
+  color: var(--ink);
   word-break: break-word;
 }
 
 .assignmentbar {
   height: 18px;
-  background: #f3e6ec;
+  background: var(--pink-soft);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -448,7 +482,7 @@ body {
 
 .settings-divider {
   border: none;
-  border-top: 1px solid #f0e0e6;
+  border-top: 1px solid var(--pink-soft);
   margin: 18px 0;
 }
 
@@ -466,12 +500,12 @@ body {
   justify-content: space-between;
   gap: 12px;
   padding: 10px 14px;
-  border: 1px solid #f0e0e6;
+  border: 1px solid var(--pink-soft);
   border-radius: 12px;
 }
 
 .account-row--active {
-  background: #fff4f7;
+  background: var(--surface-soft);
   border-color: var(--accent, #ff7a93);
 }
 
@@ -494,7 +528,7 @@ body {
 .stat-card {
   flex: 1 1 calc(50% - 7px);
   min-width: 0;
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
   padding: 14px 8px 12px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -587,8 +621,8 @@ body {
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 1rem;
   color: var(--ink);
-  background: #fff;
-  border: 2px solid #ffe1e8;
+  background: var(--surface);
+  border: 2px solid var(--pink-soft);
   border-radius: 14px;
   padding: 12px 14px;
   width: 100%;
@@ -617,8 +651,8 @@ body {
   font-size: 0.95rem;
   font-weight: 700;
   color: var(--pink-deep);
-  background: #fff;
-  border: 2px solid #ffe1e8;
+  background: var(--surface);
+  border: 2px solid var(--pink-soft);
   border-radius: 999px;
   padding: 10px 16px;
   min-height: 44px;
@@ -648,7 +682,7 @@ body {
 }
 
 .song-chip.is-selected::before {
-  background: #fff;
+  background: var(--surface);
 }
 
 .song-chip:active {
@@ -671,7 +705,7 @@ body {
   height: 48px;
   border: 2px dashed var(--pink);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   color: var(--pink-deep);
   font-size: 1.4rem;
   font-weight: 700;
@@ -696,9 +730,9 @@ body {
   grid-template-columns: repeat(5, 1fr);
   gap: 8px;
   padding: 14px;
-  border: 2px solid #ffe1e8;
+  border: 2px solid var(--pink-soft);
   border-radius: 18px;
-  background: #fff;
+  background: var(--surface);
   cursor: pointer;
 }
 
@@ -718,8 +752,8 @@ body {
   justify-content: center;
   font-size: 1.5rem;
   border-radius: 12px;
-  background: #fff6ee;
-  border: 2px dashed #ffd9e1;
+  background: var(--surface-soft);
+  border: 2px dashed var(--pink-soft);
 }
 
 .stamp-cell.is-goal {
@@ -727,7 +761,7 @@ body {
 }
 
 .stamp-cell.is-filled {
-  background: #ffe1e8;
+  background: var(--pink-soft);
   border-style: solid;
   border-color: var(--pink);
   animation: stamp-pop 0.18s ease-out;
@@ -760,7 +794,7 @@ body {
 .btn-undo-stamp {
   border: none;
   border-radius: 14px;
-  background: #ffe1e8;
+  background: var(--pink-soft);
   color: var(--pink-deep);
   font-weight: 700;
   font-size: 0.9rem;
@@ -789,7 +823,7 @@ body {
   display: flex;
   gap: 8px;
   padding: 4px;
-  background: #ffeef2;
+  background: var(--surface-soft);
   border-radius: 16px;
 }
 
@@ -807,7 +841,7 @@ body {
 }
 
 .record-mode__btn.is-active {
-  background: #fff;
+  background: var(--surface);
   color: var(--pink-deep);
   box-shadow: 0 2px 6px rgba(240, 138, 160, 0.3);
 }
@@ -840,9 +874,9 @@ body {
 .stepper__btn {
   width: 40px;
   height: 44px;
-  border: 2px solid #ffe1e8;
+  border: 2px solid var(--pink-soft);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   color: var(--pink-deep);
   font-size: 1.3rem;
   font-weight: 700;
@@ -860,9 +894,9 @@ body {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.05rem;
   color: var(--ink);
-  border: 2px solid #ffe1e8;
+  border: 2px solid var(--pink-soft);
   border-radius: 12px;
-  background: #fff;
+  background: var(--surface);
   -moz-appearance: textfield;
 }
 
@@ -878,7 +912,7 @@ body {
   height: 44px;
   border: none;
   border-radius: 12px;
-  background: #fff0f3;
+  background: var(--pink-soft);
   color: #e0506a;
   font-size: 1rem;
   font-weight: 700;
@@ -890,7 +924,7 @@ body {
   margin-top: 10px;
   border: 2px dashed var(--pink);
   border-radius: 14px;
-  background: #fff;
+  background: var(--surface);
   color: var(--pink-deep);
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 0.95rem;
@@ -930,7 +964,7 @@ body {
 .review-card {
   width: 100%;
   max-width: 360px;
-  background: linear-gradient(135deg, #fff, #fff1f4);
+  background: var(--surface);
   border-radius: 18px;
   padding: 16px 14px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1009,7 +1043,7 @@ body {
 }
 
 .weekly-chart {
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
   padding: 14px 12px 10px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1051,7 +1085,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 14px;
   padding: 10px 14px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1110,7 +1144,7 @@ body {
 .praise-stamp--on {
   opacity: 1;
   border-color: var(--pink-deep);
-  background: #fff;
+  background: var(--surface);
   transform: scale(1.08);
 }
 
@@ -1127,7 +1161,7 @@ body {
 }
 
 .history-card {
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
   padding: 12px 16px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1185,12 +1219,12 @@ body {
   gap: 8px;
   margin-top: 10px;
   padding-top: 8px;
-  border-top: 1px solid #ffeef2;
+  border-top: 1px solid var(--pink-soft);
 }
 
 .history-action {
   border: none;
-  background: #ffe1e8;
+  background: var(--pink-soft);
   color: var(--pink-deep);
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 0.78rem;
@@ -1205,7 +1239,7 @@ body {
 }
 
 .history-action--del {
-  background: #ffe7e0;
+  background: var(--pink-soft);
   color: #e0506a;
 }
 
@@ -1228,7 +1262,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
   padding: 12px 18px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1307,7 +1341,7 @@ body {
   display: flex;
   align-items: center;
   gap: 10px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 14px;
   padding: 10px 14px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1353,7 +1387,7 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 16px;
   padding: 12px 14px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1434,12 +1468,12 @@ body {
 }
 
 .shop-btn--unequip {
-  background: #ffe1e8;
+  background: var(--pink-soft);
   color: var(--pink-deep);
 }
 
 .shop-btn--locked {
-  background: #eadfdf;
+  background: var(--surface-mute);
   color: #b0a3a3;
   cursor: not-allowed;
   box-shadow: none;
@@ -1470,7 +1504,7 @@ body {
 }
 
 .badge-card {
-  background: #fff;
+  background: var(--surface);
   border-radius: 18px;
   padding: 18px 12px 14px;
   box-shadow: 0 4px 12px var(--shadow);
@@ -1499,7 +1533,7 @@ body {
 }
 
 .badge-card--locked {
-  background: #f3ebeb;
+  background: var(--surface-mute);
   box-shadow: none;
 }
 
@@ -1541,7 +1575,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 24px;
   padding: 28px 40px;
   box-shadow: 0 10px 30px var(--shadow);
@@ -1580,6 +1614,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .coin-popup,
   .coin-popup__card {
+    transition: none;
+  }
+  /* スタンプ/オンボーディングの登場アニメと、各種バーの伸び演出を止める（#151） */
+  .stamp-cell.is-filled,
+  .onboarding__card {
+    animation: none;
+  }
+  .xpbar-fill,
+  .bondbar-fill,
+  .goalbar-fill,
+  .assignmentbar-fill {
     transition: none;
   }
 }
@@ -1630,7 +1675,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 12px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 24px;
   padding: 28px 24px;
   box-shadow: 0 12px 34px var(--shadow);
@@ -1713,7 +1758,7 @@ body {
 }
 
 .settings-btn--ghost {
-  background: #eee0e3;
+  background: var(--surface-mute);
   color: var(--ink);
 }
 
@@ -1751,7 +1796,7 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 14px;
-  background: #fff;
+  background: var(--surface);
   border-radius: 28px;
   padding: 24px 22px 26px;
   box-shadow: 0 14px 38px var(--shadow);
@@ -1833,7 +1878,7 @@ body {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #f0d9de;
+  background: var(--pink-soft);
 }
 
 .onboarding__dot.is-active {
@@ -1860,7 +1905,7 @@ body {
 .onboarding__skip {
   flex: 0 0 auto;
   padding: 14px 20px;
-  background: #eee0e3;
+  background: var(--surface-mute);
   color: var(--ink);
 }
 
@@ -1883,8 +1928,8 @@ body {
   height: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
   display: flex;
-  background: #fff;
-  border-top: 2px solid #ffe1e8;
+  background: var(--surface);
+  border-top: 2px solid var(--pink-soft);
   box-shadow: 0 -2px 10px var(--shadow);
 }
 

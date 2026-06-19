@@ -8,8 +8,16 @@
   <link rel="manifest" href="manifest.json">
   <link rel="icon" type="image/svg+xml" href="icons/icon.svg">
   <link rel="apple-touch-icon" href="icons/icon.svg">
-  <link rel="stylesheet" href="css/style.css?v=05672028">
-  <link rel="stylesheet" href="css/cat.css?v=05672028">
+  <!-- 保存済みの手動テーマ（よる/あかるい）を描画前に適用してチラつきを防ぐ（#151）。
+       未設定(じどう)のときは属性を付けず、CSSの prefers-color-scheme に委ねる。 -->
+  <script>
+    try {
+      var t = localStorage.getItem('pp-theme');
+      if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="css/style.css?v=213a244b">
+  <link rel="stylesheet" href="css/cat.css?v=213a244b">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -411,6 +419,19 @@
 
         <hr class="settings-divider">
 
+        <!-- がめんの あかるさ（ダークモード・夜配慮・#151） -->
+        <section class="settings-theme">
+          <h2 class="settings-panel__title">がめんの あかるさ</h2>
+          <p class="settings-menu__desc">よるの れんしゅうに やさしい くらい がめんに できます。「じどう」は スマホの せっていに あわせます。</p>
+          <div class="record-mode" id="themeSwitch" role="radiogroup" aria-label="がめんの あかるさ">
+            <button type="button" class="record-mode__btn is-active" data-theme-choice="auto" aria-pressed="true">🌓 じどう</button>
+            <button type="button" class="record-mode__btn" data-theme-choice="light" aria-pressed="false">☀️ あかるい</button>
+            <button type="button" class="record-mode__btn" data-theme-choice="dark" aria-pressed="false">🌙 よる</button>
+          </div>
+        </section>
+
+        <hr class="settings-divider">
+
         <h2 class="settings-panel__title">データの ほぞん・よみこみ</h2>
         <p class="settings-menu__desc">きしゅへんこうや データさくじょに そなえて、データを ファイルに ほぞんできます。</p>
         <button type="button" class="settings-btn settings-btn--block" id="exportBtn">📥 データを ほぞん</button>
@@ -450,6 +471,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=05672028"></script>
+  <script type="module" src="js/app.js?v=213a244b"></script>
 </body>
 </html>
