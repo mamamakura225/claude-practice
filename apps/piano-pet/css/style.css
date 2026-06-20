@@ -11,7 +11,7 @@
      ライトでは従来の見た目と同値。data-theme/OS設定で下のブロックが上書きする。 */
   --surface: #fff;          /* カード・パネルの面 */
   --surface-soft: #fff6ee;  /* やわらかい面（スタンプ枠・入力背景） */
-  --surface-mute: var(--surface-mute);  /* ゴースト/ロックなど控えめなボタン面 */
+  --surface-mute: #eee0e3;  /* ゴースト/ロックなど控えめなボタン面 */
   --pink-soft: #ffe1e8;     /* 進捗バーの溝・淡ピンクの面/枠線 */
   --text-muted: #b0a3a3;    /* 補助テキスト */
 }
