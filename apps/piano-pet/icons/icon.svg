@@ -1,30 +1,98 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="ピアノペット">
-  <rect width="512" height="512" rx="112" fill="#ffb3c1"/>
-  <!-- スコティッシュフォールド（折れ耳・丸顔） -->
-  <g transform="translate(256 248)">
-    <!-- 折れ耳 -->
-    <path d="M-118 -78 q-22 36 8 70 q26 -18 30 -54 z" fill="#f3d9c6"/>
-    <path d="M118 -78 q22 36 -8 70 q-26 -18 -30 -54 z" fill="#f3d9c6"/>
-    <!-- 顔 -->
-    <ellipse cx="0" cy="0" rx="140" ry="128" fill="#fbe9da"/>
-    <!-- 目 -->
-    <circle cx="-54" cy="-6" r="17" fill="#4a3b3b"/>
-    <circle cx="54" cy="-6" r="17" fill="#4a3b3b"/>
-    <circle cx="-48" cy="-12" r="5" fill="#fff"/>
-    <circle cx="60" cy="-12" r="5" fill="#fff"/>
-    <!-- 鼻と口 -->
-    <path d="M0 28 l-12 -14 h24 z" fill="#ff7a93"/>
-    <path d="M0 28 q-16 22 -34 10 M0 28 q16 22 34 10" fill="none" stroke="#4a3b3b" stroke-width="5" stroke-linecap="round"/>
+  <!-- 背景：ピンクベタ塗り（フルブリード） -->
+  <rect width="512" height="512" fill="#ffb3c1"/>
+
+  <!-- 猫（茶トラのきーちゃん）の顔ドアップ。全体的にmaskable安全圏（中心(256,256)から半径205px）に収まるように配置 -->
+  <g id="cat-face" transform="translate(0, 10)">
+    <!-- 左耳（オレンジベースとピンクの内耳） -->
+    <path d="M 125 240 L 140 100 Q 185 95 210 165 Z" fill="#e67e22"/>
+    <path d="M 142 225 L 152 120 Q 180 115 195 168 Z" fill="#ffa4b4"/>
+
+    <!-- 右耳 -->
+    <path d="M 387 240 L 372 100 Q 327 95 302 165 Z" fill="#e67e22"/>
+    <path d="M 370 225 L 360 120 Q 332 115 317 168 Z" fill="#ffa4b4"/>
+
+    <!-- 頭の輪郭（ベースのオレンジ） -->
+    <ellipse cx="256" cy="245" rx="145" ry="122" fill="#e67e22"/>
+    
+    <!-- 額の縞模様（オレンジの濃い茶色/赤茶色：#d35400） -->
+    <path d="M 236 125 C 236 125 244 165 246 175 C 248 165 252 135 252 135 Z" fill="#d35400"/>
+    <path d="M 256 125 C 256 125 256 170 256 185 C 256 170 256 125 256 125 Z" stroke="#d35400" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 276 125 C 276 125 268 165 266 175 C 264 165 260 135 260 135 Z" fill="#d35400"/>
+
+    <path d="M 216 140 Q 236 180 240 190" fill="none" stroke="#d35400" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 296 140 Q 276 180 272 190" fill="none" stroke="#d35400" stroke-width="8" stroke-linecap="round"/>
+
+    <!-- 顔の前面（クリーム色） -->
+    <ellipse cx="256" cy="260" rx="128" ry="102" fill="#fbe9da"/>
+
+    <!-- 頬の縞模様（クリーム色の上にオレンジの縞） -->
+    <path d="M 120 260 Q 150 265 170 250" fill="none" stroke="#d35400" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 115 285 Q 145 285 162 272" fill="none" stroke="#d35400" stroke-width="8" stroke-linecap="round"/>
+    
+    <path d="M 392 260 Q 362 265 342 250" fill="none" stroke="#d35400" stroke-width="8" stroke-linecap="round"/>
+    <path d="M 397 285 Q 367 285 350 272" fill="none" stroke="#d35400" stroke-width="8" stroke-linecap="round"/>
+
+    <!-- つぶらな目 -->
+    <circle cx="196" cy="245" r="16" fill="#4a3b3b"/>
+    <circle cx="316" cy="245" r="16" fill="#4a3b3b"/>
+    <!-- ハイライト -->
+    <circle cx="191" cy="240" r="5" fill="#fff"/>
+    <circle cx="311" cy="240" r="5" fill="#fff"/>
+
+    <!-- 鼻 -->
+    <path d="M 256 270 L 244 256 H 268 Z" fill="#ff7a93" stroke="#ff7a93" stroke-width="2" stroke-linejoin="round"/>
+    
+    <!-- 口 -->
+    <path d="M 256 270 Q 240 288 222 280 M 256 270 Q 272 288 290 280" fill="none" stroke="#4a3b3b" stroke-width="6" stroke-linecap="round"/>
+
+    <!-- ほっぺのチーク（ほんのりピンク） -->
+    <ellipse cx="160" cy="275" rx="16" ry="10" fill="#ff7a93" opacity="0.4"/>
+    <ellipse cx="352" cy="275" rx="16" ry="10" fill="#ff7a93" opacity="0.4"/>
+
     <!-- ひげ -->
-    <g stroke="#d8c3b3" stroke-width="4" stroke-linecap="round">
-      <path d="M-70 18 l-58 -10 M-70 36 l-56 8"/>
-      <path d="M70 18 l58 -10 M70 36 l56 8"/>
+    <path d="M 130 290 L 80 290" stroke="#4a3b3b" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 130 302 L 85 310" stroke="#4a3b3b" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 382 290 L 432 290" stroke="#4a3b3b" stroke-width="3" stroke-linecap="round"/>
+    <path d="M 382 302 L 427 310" stroke="#4a3b3b" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <!-- 鍵盤（下端 y=412 から 512 まで。白鍵8本、黒鍵5本のレイアウト） -->
+  <g id="keyboard" transform="translate(0, 2)">
+    <!-- 白鍵背景 -->
+    <rect x="0" y="410" width="512" height="102" fill="#fffaf5"/>
+    
+    <!-- 白鍵境界（縦線） -->
+    <!-- 8等分: 0, 64, 128, 192, 256, 320, 384, 448, 512 -->
+    <g stroke="#4a3b3b" stroke-width="4">
+      <line x1="64" y1="410" x2="64" y2="512"/>
+      <line x1="128" y1="410" x2="128" y2="512"/>
+      <line x1="192" y1="410" x2="192" y2="512"/>
+      <line x1="256" y1="410" x2="256" y2="512"/>
+      <line x1="320" y1="410" x2="320" y2="512"/>
+      <line x1="384" y1="410" x2="384" y2="512"/>
+      <line x1="448" y1="410" x2="448" y2="512"/>
+      <!-- 上部枠線 -->
+      <line x1="0" y1="410" x2="512" y2="410" stroke-width="6"/>
+    </g>
+    
+    <!-- 黒鍵（区切りは #4a3b3b、白鍵とのコントラスト重視で暗い茶色。サイズ: w=22, h=62） -->
+    <!-- 配置：64, 128 の境界（ミとファの間は黒鍵なし）, 256, 320, 384 の境界 -->
+    <g fill="#4a3b3b">
+      <rect x="53" y="410" width="22" height="62" rx="4"/>
+      <rect x="117" y="410" width="22" height="62" rx="4"/>
+      
+      <rect x="245" y="410" width="22" height="62" rx="4"/>
+      <rect x="309" y="410" width="22" height="62" rx="4"/>
+      <rect x="373" y="410" width="22" height="62" rx="4"/>
     </g>
   </g>
-  <!-- 音符 -->
-  <g fill="#ff7a93">
-    <circle cx="392" cy="150" r="20"/>
-    <rect x="406" y="78" width="10" height="74" rx="5"/>
-    <path d="M406 78 q34 6 30 34 q-12 -18 -30 -16 z"/>
+
+  <!-- 音符（右上のアクセント） -->
+  <g fill="#ff7a93" transform="translate(30, -10)">
+    <!-- 8分音符 -->
+    <circle cx="370" cy="120" r="16"/>
+    <rect x="381" y="60" width="8" height="60" rx="3"/>
+    <path d="M 389 60 Q 415 65 410 88 Q 400 72 389 74 Z"/>
   </g>
 </svg>
