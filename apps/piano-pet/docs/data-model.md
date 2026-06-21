@@ -70,7 +70,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `xp` | number | `0` | 累計経験値 |
 | `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費）。記録の編集・削除時の全再計算（`recomputeState`）では `Math.max(0, 獲得総額 − spent)` で再導出する。`spent` ＝ 装備購入総額（`spentCoins`＝インベントリ価格合計）＋ `foodSpent` の合算で、[app.js](../js/app.js) が算出して渡す（→ 購入・えさ消費分が再計算で復活しない） |
 | `equippedItems` | string[] | `[]` | 装備中アイテムID（スロットごとに1つ） |
-| `itemLayout` | object | `{}` | 衣装の自由配置座標 `{ itemId: {x_pct, y_pct} }`（#168・ステージ%）。未登録は既定アンカー位置で描画。装備外しは `cleanItemLayout` が掃除 |
+| `itemLayout` | object | `{}` | 衣装の自由配置 `{ itemId: {x_pct, y_pct, scale?} }`（#168/#205・ステージ%）。`scale` は絶対値(0.3〜3.0・#205ピンチ)。スナップで定位置に戻した衣装はサイズだけ変えていれば座標を持たず `{scale}` のみ保持。未登録は既定アンカー位置・基準スケールで描画。装備外しは `cleanItemLayout` が掃除 |
 | `affinity` | number | `0` | なかよし度（えさやりで上昇）。3段階tier（low/mid/high）に集約され猫画像の表情・ポーズに反映（#167） |
 | `foodSpent` | number | `0` | えさに使ったコイン総額（全再計算で消費分を復活させないため） |
 | `catStyle` | string | `'tora'` | 猫スタイル（#66）。`'tora'` / `'shiro'` / `'russianblue'`。未知値は表示側（`normalizeStyle`）が tora にフォールバック。realtime 同期は pet ごと cloud-wins、初回マージはローカル優先（name と同じ扱い） |

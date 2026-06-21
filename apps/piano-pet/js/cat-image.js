@@ -61,6 +61,14 @@ export function itemAnchorPct(id, style = 'tora') {
   return { x_pct: a.x / 2, y_pct: a.y / 2 };
 }
 
+// アイテムの基準スケール（アンカー種別の既定 a.s）。#205 ピンチ拡縮で「元のサイズ」吸着と
+// スナップ時の atBase 判定に使う。未知 id は null。
+export function itemAnchorScale(id, style = 'tora') {
+  const type = ITEM_ANCHOR_TYPE[id];
+  if (!type) return null;
+  return anchorFor(style, type).s;
+}
+
 function n(v, d = 1) {
   return parseFloat(v.toFixed(d));
 }
@@ -110,17 +118,21 @@ export const ITEM_IDS = Object.keys(ITEMS);
 
 // 衣装を anchor 種別でフィルタして配置する（cape は背面、それ以外は前面）。
 // layout に座標があればその %（→viewBox 200系）で、無ければ既定アンカーで配置する（#168）。
-// 各 <g> は data-item / data-scale を持ち、きせかえドラッグ（dressup.js）が掴んで動かす。
+// scale は絶対値（#205）：layout に scale があればその値、無ければアンカー基準 a.s。
+// スナップ時は座標を持たず scale のみ残す形があるため、位置の有無は x_pct で判定する。
+// 各 <g> は data-item / data-scale を持ち、きせかえドラッグ／ピンチ（dressup.js）が掴んで動かす。
 function itemsSvg(equippedItems, anchorTypes, layout = {}, style = 'tora') {
   const parts = (equippedItems ?? [])
     .filter((id) => ITEMS[id] && anchorTypes.includes(ITEM_ANCHOR_TYPE[id]))
     .map((id) => {
       const a = anchorFor(style, ITEM_ANCHOR_TYPE[id]);
       const pos = layout[id];
-      const x = pos ? pos.x_pct * 2 : a.x;
-      const y = pos ? pos.y_pct * 2 : a.y;
-      return `<g class="cat__item" data-item="${id}" data-scale="${a.s}" `+
-        `transform="translate(${n(x)} ${n(y)}) scale(${a.s})">${ITEMS[id]()}</g>`;
+      const hasPos = pos && pos.x_pct != null;
+      const x = hasPos ? pos.x_pct * 2 : a.x;
+      const y = hasPos ? pos.y_pct * 2 : a.y;
+      const sc = pos?.scale ?? a.s;
+      return `<g class="cat__item" data-item="${id}" data-scale="${n(sc, 3)}" `+
+        `transform="translate(${n(x)} ${n(y)}) scale(${n(sc, 3)})">${ITEMS[id]()}</g>`;
     });
   return parts.join('');
 }

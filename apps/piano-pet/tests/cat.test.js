@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct } from '../js/cat-image.js';
+import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale } from '../js/cat-image.js';
 
 // 日常のお祝い演出のバリエーション選択（#81）。
 // 描画・アニメ自体は CSS / DOM 依存なので、ここでは純粋な選択ロジックだけ検証する。
@@ -81,6 +81,34 @@ describe('catMarkup の itemLayout（#168 自由配置）', () => {
   it('装備アイテムは img/cat/items/{id}.png を <image> で描画する', () => {
     const html = catMarkup({ equippedItems: ['ribbon'] });
     expect(html).toContain('<image href="img/cat/items/ribbon.png"');
+  });
+});
+
+// #205 ピンチ拡縮：scale は絶対値。layout の scale を transform/data-scale 両方へ反映する。
+describe('catMarkup の scale（#205 ピンチ拡縮）', () => {
+  it('scale 未指定なら基準スケール a.s（crown=head=0.9）で描画する', () => {
+    const html = catMarkup({ equippedItems: ['crown'] });
+    expect(html).toContain('data-scale="0.9"');
+    expect(html).toContain('scale(0.9)');
+  });
+  it('layout の scale を絶対値で transform と data-scale に適用する', () => {
+    const html = catMarkup({ equippedItems: ['crown'], itemLayout: { crown: { x_pct: 30, y_pct: 40, scale: 1.5 } } });
+    expect(html).toContain('data-scale="1.5"');
+    expect(html).toContain('translate(60 80) scale(1.5)');
+  });
+  it('座標を持たず scale のみの layout は既定アンカー位置＋指定 scale で描画する（スナップ時サイズ保持）', () => {
+    const html = catMarkup({ equippedItems: ['crown'], itemLayout: { crown: { scale: 2 } } });
+    expect(html).toContain('translate(100 46) scale(2)');   // head アンカー位置のまま、サイズだけ保持
+  });
+});
+
+describe('itemAnchorScale（#205 基準スケール）', () => {
+  it('アイテムの基準スケール a.s を返す（crown=head=0.9 / cape=back=0.92）', () => {
+    expect(itemAnchorScale('crown')).toBe(0.9);
+    expect(itemAnchorScale('cape')).toBe(0.92);
+  });
+  it('未知アイテムは null', () => {
+    expect(itemAnchorScale('bogus')).toBeNull();
   });
 });
 
