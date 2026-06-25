@@ -102,6 +102,25 @@ describe('catMarkup の scale（#205 ピンチ拡縮）', () => {
   });
 });
 
+// #215 ピンチで縮小しても掴めるよう、各アイテムに逆スケールの透明ヒット矩形を内包する。
+describe('catMarkup の最小タッチ領域（#215 ヒット矩形）', () => {
+  const hitWidth = (html) => Number(html.match(/cat__item-hit"[^>]*\bwidth="([\d.]+)"/)[1]);
+
+  it('全アイテムに透明ヒット矩形(cat__item-hit)を内包する', () => {
+    const html = catMarkup({ equippedItems: ['crown'] });
+    expect(html).toContain('class="cat__item-hit"');
+    expect(html).toContain('pointer-events="all"');
+  });
+  it('小さく縮小すると逆スケールでヒット矩形を拡大する（crown box.w=72 < 44/0.3≈146.7）', () => {
+    const html = catMarkup({ equippedItems: ['crown'], itemLayout: { crown: { x_pct: 50, y_pct: 50, scale: 0.3 } } });
+    expect(hitWidth(html)).toBeGreaterThan(140);   // max(72, 146.7) = 146.7
+  });
+  it('基準スケール付近ではヒット矩形は box サイズのまま（44/0.9≈48.9 < 72）', () => {
+    const html = catMarkup({ equippedItems: ['crown'] });   // crown=head a.s=0.9
+    expect(hitWidth(html)).toBe(72);
+  });
+});
+
 describe('itemAnchorScale（#205 基準スケール）', () => {
   it('アイテムの基準スケール a.s を返す（crown=head=0.9 / cape=back=0.92）', () => {
     expect(itemAnchorScale('crown')).toBe(0.9);
