@@ -2,6 +2,7 @@
 // 猫本体を「なつき度3段階(tier) × 表情4種(mood) = 12枚」の透過PNGで差し替え表示する。
 // 演出（ハート・きらきら・Zzz・なかよしエンブレム）と衣装は猫本体に依存しない
 // オーバーレイSVG（viewBox 0 0 200 236）として画像の上に重ねる（#168きせかえの土台）。
+// 衣装は全種を本体の前面（cat__front）に重ねる（#211：cape を含め背面描画は廃止）。
 import { affinityLevel } from './feed.js';
 
 // ----- 画像セレクタ -----
@@ -133,7 +134,7 @@ const ITEM_ANCHOR_TYPE = {
 
 export const ITEM_IDS = Object.keys(ITEMS);
 
-// 衣装を anchor 種別でフィルタして配置する（cape は背面、それ以外は前面）。
+// 衣装を anchor 種別でフィルタして配置する（#211 以降は cape も含め全種を前面に重ねる）。
 // layout に座標があればその %（→viewBox 200系）で、無ければ既定アンカーで配置する（#168）。
 // scale は絶対値（#205）：layout に scale があればその値、無ければアンカー基準 a.s。
 // スナップ時は座標を持たず scale のみ残す形があるため、位置の有無は x_pct で判定する。
@@ -234,14 +235,15 @@ export function catMarkup({ mood = 'idle', equippedItems = [], name = 'ねこ', 
   const s = normalizeStyle(style);
   const tier = tierFromBond(bond);
   const m = IMG_MOODS.includes(mood) ? mood : 'idle';
-  const back = itemsSvg(equippedItems, ['back'], itemLayout, s);
+  // cape(back アンカー)も本体の前面に描画する（#211）。背面だと不透明な本体PNGに隠れて見えず掴めないため。
+  // 前面内では cape を最初に描き、neck/head/face のアクセサリがその上に重なる順序にする。
+  const capeLayer = itemsSvg(equippedItems, ['back'], itemLayout, s);
   const front = itemsSvg(equippedItems, ['neck', 'head', 'face'], itemLayout, s);
   const fx = `${heartsGroup()}${sparklesGroup()}${zzzGroup()}${bondEmblemGroup(bond)}`;
   // 演出クラスは .cat コンテナに付く。本体アニメは .cat__body、fx は内部要素に効く。
   return `<div class="cat cat--${m}" role="img" aria-label="${name}" data-mood="${m}" data-tier="${tier}" data-style="${s}">
-    <svg class="cat__back" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${back}</svg>
     <img class="cat__body" src="${catImageSrc(s, tier, m)}" alt="" draggable="false" decoding="async">
-    <svg class="cat__front" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${front}</svg>
+    <svg class="cat__front" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${capeLayer}${front}</svg>
     <svg class="cat__fx" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${fx}</svg>
   </div>`;
 }

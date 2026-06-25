@@ -22,7 +22,6 @@
 
 /* レイヤー共通：コンテナ全体に絶対配置で重ねる */
 .cat__body,
-.cat__back,
 .cat__front,
 .cat__fx {
   position: absolute;
@@ -31,15 +30,13 @@
   height: 100%;
 }
 
-.cat__back  { z-index: 1; pointer-events: none; }
 .cat__body  { z-index: 2; object-fit: contain; }
-.cat__front { z-index: 3; pointer-events: none; }
+.cat__front { z-index: 3; pointer-events: none; }   /* 衣装は全種ここに重ねる（cape 含む・#211） */
 .cat__fx    { z-index: 4; pointer-events: none; overflow: visible; }
 
 /* ----- きせかえ編集モード（#168）：衣装をドラッグで動かす ----- */
 /* 通常は衣装も pointer-events:none（猫タップ＝なで優先）。編集中だけ衣装を掴めるようにする。 */
 .cat-stage--editing { touch-action: none; }            /* ドラッグ中のスクロール抑制 */
-.cat-stage--editing .cat__back,
 .cat-stage--editing .cat__front { pointer-events: none; }
 .cat-stage--editing .cat__item { pointer-events: auto; cursor: grab; }
 .cat-stage--editing .cat__item--grabbing { cursor: grabbing; }
