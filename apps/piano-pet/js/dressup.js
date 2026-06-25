@@ -1,13 +1,10 @@
-// ===== きせかえ：衣装のドラッグ＋スナップ自由配置（#168）＋2本指ピンチ拡縮（#205） =====
+// ===== きせかえ：衣装のドラッグ自由配置（#168）＋2本指ピンチ拡縮（#205） =====
 // ホームの「きせかえ」編集モード中だけ、猫に乗った衣装(.cat__item)を pointer で動かせる。
 // 1本指＝ドラッグで移動、2本指＝ピンチで拡縮。
-// ドロップ時、その衣装の既定アンカー位置の近く（閾値内）なら定位置にスナップ。スナップしても
-// ピンチで変えたサイズ(scale)は保持する（座標は持たず {scale} のみ記録）。遠ければ自由配置として
-// layout に %座標(+scale)を記録する。座標はステージ(.cat / #catStage)基準の %。
-// 完全自由だと5歳児には絵が崩れやすいので吸着で補正する（位置=アンカー吸着・サイズ=基準スケール吸着）。
+// ドロップ時は常に自由配置として layout に %座標(+scale)を記録する（#214 で位置スナップ廃止）。
+// 座標はステージ(.cat / #catStage)基準の %。サイズだけは基準スケールへの吸着を残す（#205）。
 import { itemAnchorPct, itemAnchorScale } from './cat-image.js';
 
-const SNAP_THRESHOLD_PCT = 12;  // 既定アンカーへ吸着する距離（%・猫サイズ基準）
 const SCALE_MIN = 0.3;          // ピンチ下限（#205）
 const SCALE_MAX = 3.0;          // ピンチ上限（#205）
 const SCALE_SNAP_RATIO = 0.05;  // 基準スケールの ±5% 以内なら「元のサイズ」へ吸着
@@ -130,23 +127,13 @@ export function enableDressup(stageEl, getLayout, onCommit) {
 
     drag.el.classList.remove('cat__item--grabbing');
     if (drag.dirty) {
-      // スナップ吸着点はスタイル別アンカー補正（#66）込みで求める。
-      const style = stageEl.querySelector('.cat')?.dataset.style;
-      const anchor = itemAnchorPct(drag.id, style);
-      const dist = anchor
-        ? Math.hypot(drag.pos.x_pct - anchor.x_pct, drag.pos.y_pct - anchor.y_pct)
-        : Infinity;
+      // 位置スナップは廃止（#214）：常にドロップ座標を自由配置として記録する。
+      // サイズは基準スケールなら座標のみ、変えていれば scale も持つ。
       const sc = drag.curScale;
       const atBase = Math.abs(sc - drag.baseScale) < 0.001;
       const layout = { ...getLayout() };
-      if (dist <= SNAP_THRESHOLD_PCT) {
-        // 位置は既定アンカーへ。サイズが基準なら完全フォールバック、変えていれば座標を持たず scale のみ残す。
-        if (atBase) delete layout[drag.id];
-        else layout[drag.id] = { scale: round3(sc) };
-      } else {
-        const xy = { x_pct: drag.pos.x_pct, y_pct: drag.pos.y_pct };
-        layout[drag.id] = atBase ? xy : { ...xy, scale: round3(sc) };
-      }
+      const xy = { x_pct: drag.pos.x_pct, y_pct: drag.pos.y_pct };
+      layout[drag.id] = atBase ? xy : { ...xy, scale: round3(sc) };
       onCommit(layout);
     }
     drag = null;
