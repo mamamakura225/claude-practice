@@ -1,14 +1,14 @@
 // ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
-const CACHE = 'piano-pet-f6853929';
+const CACHE = 'piano-pet-63b2af40';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=f6853929',
-  './css/style.css?v=f6853929',
+  './css/cat.css?v=63b2af40',
+  './css/style.css?v=63b2af40',
   './js/account.js',
   './js/analytics.js',
-  './js/app.js?v=f6853929',
+  './js/app.js?v=63b2af40',
   './js/assignment.js',
   './js/backup.js',
   './js/badges.js',

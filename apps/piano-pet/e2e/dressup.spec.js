@@ -59,7 +59,7 @@ test.describe('きせかえ 自由配置', () => {
     expect(layout.ribbon.y_pct).toBeLessThan(40);
   });
 
-  test('既定アンカーの近くにドロップするとスナップして itemLayout から外れる', async ({ page }) => {
+  test('既定アンカーの近くにドロップしてもスナップせず座標を保持する（#214 位置スナップ廃止）', async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
     await page.click('#dressupToggle');
@@ -69,9 +69,12 @@ test.describe('きせかえ 自由配置', () => {
     await dragItemTo(page, stage.x + stage.width * 0.2, stage.y + stage.height * 0.2);
     expect((await itemLayout(page)).ribbon).toBeTruthy();
 
-    // 次に首の既定アンカー（neck≒中央 x50% y50%）の至近へドロップ → スナップで layout から消える
+    // 首の既定アンカー（neck≒中央 x50% y50%）の至近へドロップしても、吸着で消えず座標が残る
     await dragItemTo(page, stage.x + stage.width * 0.5, stage.y + stage.height * 0.5);
-    expect((await itemLayout(page)).ribbon).toBeUndefined();
+    const layout = await itemLayout(page);
+    expect(layout.ribbon).toBeTruthy();
+    expect(layout.ribbon.x_pct).toBeGreaterThan(40);
+    expect(layout.ribbon.x_pct).toBeLessThan(60);
   });
 
   test('編集モード中は猫タップでなで演出（喜び/しっぽふり）が出ない', async ({ page }) => {
