@@ -97,6 +97,23 @@ function itemImage(id) {
     `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`;
 }
 
+// ----- 最小タッチ領域（#215） -----
+// アイテムは <g scale> で拡縮するため、ピンチで小さくすると <image> のヒット領域もそのまま縮み掴みにくい。
+// 各アイテムに透明ヒット矩形を「逆スケール」で内包し、<g> の scale 適用後の画面サイズが常に
+// MIN_HIT_UNITS 以上になるようにする（width = max(box, MIN_HIT_UNITS/scale)）。見た目（画像）は不変。
+// viewBox 0 0 200 系・.cat は最大320pxなので ~44単位 ≒ 約66px の指サイズを確保する。
+const MIN_HIT_UNITS = 44;
+
+function itemHitRect(id, scale) {
+  const b = ITEM_BOX[id];
+  const cx = b.x + b.w / 2;
+  const cy = b.y + b.h / 2;
+  const w = Math.max(b.w, MIN_HIT_UNITS / scale);
+  const h = Math.max(b.h, MIN_HIT_UNITS / scale);
+  return `<rect class="cat__item-hit" x="${n(cx - w / 2)}" y="${n(cy - h / 2)}" `+
+    `width="${n(w)}" height="${n(h)}" fill="none" pointer-events="all" aria-hidden="true"/>`;
+}
+
 const ITEMS = Object.fromEntries(
   Object.keys(ITEM_BOX).map((id) => [id, () => itemImage(id)])
 );
@@ -132,7 +149,7 @@ function itemsSvg(equippedItems, anchorTypes, layout = {}, style = 'tora') {
       const y = hasPos ? pos.y_pct * 2 : a.y;
       const sc = pos?.scale ?? a.s;
       return `<g class="cat__item" data-item="${id}" data-scale="${n(sc, 3)}" `+
-        `transform="translate(${n(x)} ${n(y)}) scale(${n(sc, 3)})">${ITEMS[id]()}</g>`;
+        `transform="translate(${n(x)} ${n(y)}) scale(${n(sc, 3)})">${itemHitRect(id, sc)}${ITEMS[id]()}</g>`;
     });
   return parts.join('');
 }
