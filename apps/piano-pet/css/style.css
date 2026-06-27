@@ -1611,10 +1611,45 @@ body {
   color: var(--pink-deep);
 }
 
+/* ===== えさやり演出（#217） ===== */
+/* えさは別タブ（ショップ）であげるためホームの猫が見えない。「あげた」感が伝わるよう、
+   ポップアップ内でえさアイコンが もぐもぐ揺れて → 食べられて消え、なかよし💖が弾む。 */
+.coin-popup--feed.coin-popup--show .coin-popup__icon {
+  animation: pp-feed-chew 1.4s ease-in-out forwards;
+  transform-origin: 50% 70%;
+}
+
+@keyframes pp-feed-chew {
+  0%   { transform: scale(0.6); opacity: 0; }
+  12%  { transform: scale(1); opacity: 1; }
+  24%  { transform: scale(0.92) rotate(-7deg); }
+  36%  { transform: scale(1) rotate(6deg); }
+  48%  { transform: scale(0.9) rotate(-5deg); }
+  60%  { transform: scale(1) rotate(4deg); }
+  72%  { transform: scale(0.95) rotate(0); opacity: 1; }
+  100% { transform: scale(0.15) rotate(0); opacity: 0; }
+}
+
+.coin-popup--feed.coin-popup--show .coin-popup__label {
+  display: inline-block;
+  animation: pp-feed-gain 1.4s ease-out forwards;
+}
+
+@keyframes pp-feed-gain {
+  0%, 60% { transform: translateY(0) scale(1); color: #b0a3a3; }
+  75%     { transform: translateY(-6px) scale(1.25); color: var(--pink-deep); }
+  100%    { transform: translateY(-12px) scale(1.1); color: var(--pink-deep); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .coin-popup,
   .coin-popup__card {
     transition: none;
+  }
+  /* えさやり演出（#217）は揺れ・消失を止め、内容は静止表示で残す */
+  .coin-popup--feed.coin-popup--show .coin-popup__icon,
+  .coin-popup--feed.coin-popup--show .coin-popup__label {
+    animation: none;
   }
   /* スタンプ/オンボーディングの登場アニメと、各種バーの伸び演出を止める（#151） */
   .stamp-cell.is-filled,
