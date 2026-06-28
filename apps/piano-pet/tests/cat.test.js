@@ -64,6 +64,13 @@ describe('itemAnchorPct（#168 スナップ吸着点）', () => {
   it('未知アイテムは null', () => {
     expect(itemAnchorPct('bogus')).toBeNull();
   });
+  // #210: 追加アイテムが想定アンカーに割り当てられている
+  it('追加アイテム（#210）のアンカー', () => {
+    expect(itemAnchorPct('beret')).toEqual({ x_pct: 50, y_pct: 23 });       // head
+    expect(itemAnchorPct('sunglasses')).toEqual({ x_pct: 50, y_pct: 36 });  // face x100/2, y72/2
+    expect(itemAnchorPct('bell')).toEqual({ x_pct: 50, y_pct: 50 });        // neck x100/2, y100/2
+    expect(itemAnchorPct('wings')).toEqual({ x_pct: 50, y_pct: 54 });       // back x100/2, y108/2
+  });
 });
 
 describe('catMarkup の itemLayout（#168 自由配置）', () => {

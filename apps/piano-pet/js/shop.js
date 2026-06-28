@@ -13,9 +13,13 @@ export const SHOP_ITEMS = [
   { id: 'hat', name: '麦わら帽子', price: 80, slot: 'head', icon: '👒', unlockLevel: 1 },
   { id: 'flower', name: 'おはな', price: 90, slot: 'head', icon: '🌸', unlockLevel: 2 },
   { id: 'collar', name: '星の首輪', price: 100, slot: 'neck', icon: '⭐', unlockLevel: 2 },
+  { id: 'beret', name: 'ベレーぼう', price: 110, slot: 'head', icon: '🎨', unlockLevel: 2 },
+  { id: 'bell', name: 'すずのくびわ', price: 110, slot: 'neck', icon: '🔔', unlockLevel: 2 },
   { id: 'scarf', name: 'マフラー', price: 120, slot: 'neck', icon: '🧣', unlockLevel: 4 },
   { id: 'glasses', name: 'めがね', price: 130, slot: 'face', icon: '👓', unlockLevel: 4 },
+  { id: 'sunglasses', name: 'サングラス', price: 140, slot: 'face', icon: '😎', unlockLevel: 4 },
   { id: 'cape', name: 'ミニマント', price: 150, slot: 'back', icon: '🧥', unlockLevel: 6 },
+  { id: 'wings', name: 'てんしのはね', price: 220, slot: 'back', icon: '🪽', unlockLevel: 6 },
   { id: 'flowerCrown', name: 'はなかんむり', price: 260, slot: 'head', icon: '💮', unlockLevel: 8 },
   { id: 'crown', name: '王冠', price: 300, slot: 'head', icon: '👑', unlockLevel: 8 },
 ];

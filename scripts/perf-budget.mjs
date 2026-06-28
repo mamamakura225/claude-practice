@@ -27,7 +27,7 @@ const BUDGETS_KIB = {
   html: 8,
   css: 12,
   js: 70,
-  total: 85, // html + css + js の合計
+  total: 88, // html + css + js の合計（#210 で着せ替えアイテム4点追加し 85→88 に。js 個別は 68.7/70 で余裕、合計が律速）
 };
 
 const KIB = 1024;
