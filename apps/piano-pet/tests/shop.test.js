@@ -20,8 +20,16 @@ function makeState(overrides = {}) {
 }
 
 describe('カタログ', () => {
-  it('10種類のアイテムを持つ', () => {
-    expect(SHOP_ITEMS).toHaveLength(10);
+  it('14種類のアイテムを持つ', () => {
+    expect(SHOP_ITEMS).toHaveLength(14);
+  });
+
+  // #210: 追加アイテムが各スロットに割り当てられている
+  it('追加アイテム（#210）の slot が正しい', () => {
+    expect(itemById('beret').slot).toBe('head');
+    expect(itemById('sunglasses').slot).toBe('face');
+    expect(itemById('bell').slot).toBe('neck');
+    expect(itemById('wings').slot).toBe('back');
   });
 
   it('itemById で取得・未知IDは null', () => {

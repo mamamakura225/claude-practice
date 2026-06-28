@@ -91,6 +91,10 @@ const ITEM_BOX = {
   glasses:     { x: -42, y: -15, w: 84,  h: 30 },   // レンズ透明＋猫の目を残す #191
   flower:      { x: -22, y: -22, w: 44,  h: 44 },
   flowerCrown: { x: -48, y: -24, w: 96,  h: 48 },   // 環状（半円アーチ）の花冠に縦幅拡張 #213
+  beret:       { x: -44, y: -46, w: 88,  h: 54 },   // 斜めがけのベレー帽（麦わら帽より小ぶり）#210
+  sunglasses:  { x: -44, y: -16, w: 88,  h: 34 },   // 色付きレンズのサングラス（めがねと差別化）#210
+  bell:        { x: -38, y: -18, w: 76,  h: 46 },   // 鈴つきの首輪（星の首輪と差別化）#210
+  wings:       { x: -60, y: -34, w: 120, h: 92 },   // 左右に広がる天使のはね（マントより横長）#210
 };
 
 function itemImage(id) {
@@ -131,6 +135,10 @@ const ITEM_ANCHOR_TYPE = {
   glasses: 'face',
   flower: 'head',
   flowerCrown: 'head',
+  beret: 'head',
+  sunglasses: 'face',
+  bell: 'neck',
+  wings: 'back',
 };
 
 export const ITEM_IDS = Object.keys(ITEMS);
