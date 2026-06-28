@@ -64,12 +64,12 @@ describe('canBuy', () => {
 
   // #126: なかよしLv未到達はコインが足りても買えない
   it('なかよしLv未解放はコインが足りても買えない', () => {
-    // crown は unlockLevel 5（affinity 50）。affinity 0 では Lv1 で未解放。
+    // crown は unlockLevel 8（affinity 42・#216）。affinity 0 では Lv1 で未解放。
     expect(canBuy(makeState({ pet: { coins: 9999, affinity: 0 } }), 'crown')).toBe(false);
   });
 
   it('なかよしLv到達＋コインありで買える', () => {
-    expect(canBuy(makeState({ pet: { coins: 9999, affinity: 50 } }), 'crown')).toBe(true);
+    expect(canBuy(makeState({ pet: { coins: 9999, affinity: 42 } }), 'crown')).toBe(true);
   });
 });
 
@@ -79,19 +79,19 @@ describe('isUnlocked（なかよしLv解放）', () => {
     expect(isUnlocked(makeState({ pet: { affinity: 0 } }), 'ribbon')).toBe(true);
   });
 
-  it('しきい値ちょうどで解放（Lv3=affinity15）', () => {
-    expect(isUnlocked(makeState({ pet: { affinity: 14 } }), 'scarf')).toBe(false);
-    expect(isUnlocked(makeState({ pet: { affinity: 15 } }), 'scarf')).toBe(true);
+  it('しきい値ちょうどで解放（Lv4=affinity12・#216）', () => {
+    expect(isUnlocked(makeState({ pet: { affinity: 11 } }), 'scarf')).toBe(false);
+    expect(isUnlocked(makeState({ pet: { affinity: 12 } }), 'scarf')).toBe(true);
   });
 
-  it('最上位 Lv5（affinity50）', () => {
-    expect(isUnlocked(makeState({ pet: { affinity: 49 } }), 'crown')).toBe(false);
-    expect(isUnlocked(makeState({ pet: { affinity: 50 } }), 'crown')).toBe(true);
+  it('最上位 Lv8（affinity42・#216）', () => {
+    expect(isUnlocked(makeState({ pet: { affinity: 41 } }), 'crown')).toBe(false);
+    expect(isUnlocked(makeState({ pet: { affinity: 42 } }), 'crown')).toBe(true);
   });
 
   it('affinity 未設定は Lv1 扱い', () => {
     expect(isUnlocked(makeState(), 'hat')).toBe(true);      // Lv1
-    expect(isUnlocked(makeState(), 'cape')).toBe(false);    // Lv4
+    expect(isUnlocked(makeState(), 'cape')).toBe(false);    // Lv6
   });
 });
 
@@ -99,7 +99,7 @@ describe('isUnlocked（なかよしLv解放）', () => {
 // affinity が下がって再ロック状態でも、所持済み・装備中のアイテムは保持される。
 describe('解放ゲートと後方互換（affinity 低下時の所持品保持）', () => {
   it('affinity が下がっても所持品は保持・装備継続できる', () => {
-    // crown(Lv5) を所持・装備中で affinity が 0 に低下した状態
+    // crown(Lv8) を所持・装備中で affinity が 0 に低下した状態
     const state = makeState({ inventory: ['crown'], pet: { affinity: 0, equippedItems: ['crown'] } });
     expect(isUnlocked(state, 'crown')).toBe(false);   // 購入は再ロック
     expect(isOwned(state, 'crown')).toBe(true);       // 所持は保持
