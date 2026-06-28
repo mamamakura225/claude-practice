@@ -89,7 +89,7 @@ const ITEM_BOX = {
   scarf:       { x: -42, y: -24, w: 84,  h: 72 },
   glasses:     { x: -42, y: -15, w: 84,  h: 30 },   // レンズ透明＋猫の目を残す #191
   flower:      { x: -22, y: -22, w: 44,  h: 44 },
-  flowerCrown: { x: -48, y: -16, w: 96,  h: 40 },
+  flowerCrown: { x: -48, y: -24, w: 96,  h: 48 },   // 環状（半円アーチ）の花冠に縦幅拡張 #213
 };
 
 function itemImage(id) {
