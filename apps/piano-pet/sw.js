@@ -1,14 +1,14 @@
 // ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
-const CACHE = 'piano-pet-41f59631';
+const CACHE = 'piano-pet-08495e92';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=41f59631',
-  './css/style.css?v=41f59631',
+  './css/cat.css?v=08495e92',
+  './css/style.css?v=08495e92',
   './js/account.js',
   './js/analytics.js',
-  './js/app.js?v=41f59631',
+  './js/app.js?v=08495e92',
   './js/assignment.js',
   './js/backup.js',
   './js/badges.js',
@@ -79,6 +79,8 @@ const APP_SHELL = [
   './img/cat/cat_tora_mid_idle.png',
   './img/cat/cat_tora_mid_love.png',
   './img/cat/cat_tora_mid_sleep.png',
+  './img/cat/items/bell.png',
+  './img/cat/items/beret.png',
   './img/cat/items/bowtie.png',
   './img/cat/items/cape.png',
   './img/cat/items/collar.png',
@@ -89,6 +91,8 @@ const APP_SHELL = [
   './img/cat/items/hat.png',
   './img/cat/items/ribbon.png',
   './img/cat/items/scarf.png',
+  './img/cat/items/sunglasses.png',
+  './img/cat/items/wings.png',
   './sounds/hiss1.mp3',
   './sounds/meow1.mp3',
   './sounds/meow2.mp3',
