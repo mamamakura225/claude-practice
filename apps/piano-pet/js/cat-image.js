@@ -16,12 +16,13 @@ export function normalizeStyle(style) {
   return CAT_STYLES.includes(style) ? style : 'tora';
 }
 
-// 既存5段階「なかよしレベル」(#124) を画像の3 tier に集約する。
-// 新しい閾値は作らず affinityLevel().level からの導出に一本化（#124温存）。
+// 8段階「なかよしレベル」(#124・#216) を画像の3 tier に集約する。
+// 新しい閾値は作らず affinityLevel().level からの導出に一本化（旧 high=Lv5/mid=Lv3 と
+// 等価な affinity 値の新レベルへ再マップ：high は最上位 Lv8、mid は Lv3 以上）。
 export function tierFromBond(bondLevel) {
   const lv = Number(bondLevel) || 1;
-  if (lv >= 5) return 'high';   // きずな
-  if (lv >= 3) return 'mid';    // だいすき / ベストフレンド
+  if (lv >= 8) return 'high';   // えいえんのきずな
+  if (lv >= 3) return 'mid';    // だいすき 〜 さいこうのなかま
   return 'low';                 // ともだち / なかよし
 }
 
@@ -194,12 +195,13 @@ function sparklesGroup() {
   return `<g class="cat__sparkles" aria-hidden="true">${groups}</g>`;
 }
 
-// なかよしエンブレム（#124）：Lv2 で常時ハート、Lv4 以上できらきらが加わる。
+// なかよしエンブレム（#124・#216）：Lv2 で常時ハート、Lv5 以上できらきらが加わる
+// （旧 Lv4 のきらきらは、8段階での「ハートがキラキラ」報酬 Lv5 に等価マップ）。
 function bondEmblemGroup(level) {
   const lv = Number(level) || 0;
   if (lv < 2) return '';
   const heart = 'M0 4 C -8 -7 -22 4 0 20 C 22 4 8 -7 0 4 Z';
-  const sparkles = lv >= 4
+  const sparkles = lv >= 5
     ? `<g class="cat__bond-sparkle" fill="#ffd34d">
          <circle cx="-15" cy="-9" r="2.4"/>
          <circle cx="15" cy="-11" r="2"/>
@@ -227,7 +229,7 @@ function zzzGroup() {
 /**
  * catMarkup({ mood, equippedItems, name, bond, style })
  * mood : 'idle' | 'happy' | 'sleep' | 'love'（恒常表示は idle/sleep、happy/love は演出時の一時差替）
- * bond : なかよしレベル(1-5)。tier の導出とエンブレム表示に使う。
+ * bond : なかよしレベル(1-8)。tier の導出とエンブレム表示に使う。
  * style: 猫スタイル（#66）。未知値・未指定は 'tora'。
  * stage 引数は後方互換のため受け取るが無視する（成長段階は廃止）。
  */
@@ -271,11 +273,11 @@ const idle = (cb) =>
 
 // affinity 値が次 tier 境界の手前（2pt以内）に来たら、次 tier の4枚を
 // バックグラウンドで先読みして mood/tier 切替時のガタつきを防ぐ。
-// 境界: low→mid は なかよしLv3 (affinity 15)、mid→high は Lv5 (affinity 50)。
+// 境界: low→mid は なかよしLv3 (affinity 7)、mid→high は Lv8 (affinity 42)（#216）。
 export function prefetchNextTier(style, affinityValue) {
   const v = Number(affinityValue) || 0;
-  if (v >= 13 && v < 15) idle(() => preloadTier(style, 'mid'));
-  else if (v >= 48 && v < 50) idle(() => preloadTier(style, 'high'));
+  if (v >= 5 && v < 7) idle(() => preloadTier(style, 'mid'));
+  else if (v >= 40 && v < 42) idle(() => preloadTier(style, 'high'));
 }
 
 // ----- 演出（単発再生） -----

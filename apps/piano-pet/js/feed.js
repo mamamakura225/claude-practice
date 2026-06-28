@@ -13,16 +13,24 @@ export function foodById(id) {
   return FOODS.find((f) => f.id === id) ?? null;
 }
 
-// ===== なかよしレベルとご褒美（#124） =====
+// ===== なかよしレベルとご褒美（#124・#216） =====
 // affinity（なかよし度）のしきい値で「なかよしレベル」が上がり、ご褒美が解放される。
 // 解放状態は affinity から決定的に導出する（専用フラグを持たない）。affinity は
 // recomputeState が pet ごと保持するため、全再計算でも解放状態は矛盾しない。
+//
+// #216: 段階を 5→8 に細分化し、刻みも詰めて「えさやり等の成果がすぐ見える」ようにした。
+// しきい値（min）は前半ほど近く（+3,+4,+5...）、最大は 42（旧 50 より手前）。番号キーで
+// 報酬を判定する消費側（shop.unlockLevel / bondCelebrateChance / tierFromBond / エンブレム）は
+// 既存ユーザーが退行しないよう、旧しきい値と等価な affinity 値の新レベルへ再マップしてある。
 export const AFFINITY_LEVELS = [
-  { level: 1, name: 'ともだち',       min: 0,  reward: 'いっしょに あそぼう' },
-  { level: 2, name: 'なかよし',       min: 5,  reward: 'ホームの ねこに ハートの しるしが つくよ' },
-  { level: 3, name: 'だいすき',       min: 15, reward: 'なでると ときどき とくべつな えんしゅつ' },
-  { level: 4, name: 'ベストフレンド', min: 30, reward: 'ハートが もっと キラキラ ひかるよ' },
-  { level: 5, name: 'きずな',         min: 50, reward: 'さいこうの なかよし えんしゅつ' },
+  { level: 1, name: 'ともだち',         min: 0,  reward: 'いっしょに あそぼう' },
+  { level: 2, name: 'なかよし',         min: 3,  reward: 'ホームの ねこに ハートの しるしが つくよ' },
+  { level: 3, name: 'だいすき',         min: 7,  reward: 'ねこの ひょうじょうが もっと ゆたかに なるよ' },
+  { level: 4, name: 'だいだいすき',     min: 12, reward: 'なでると ときどき とくべつな えんしゅつ' },
+  { level: 5, name: 'ベストフレンド',   min: 18, reward: 'ハートが キラキラ ひかって えんしゅつも ふえるよ' },
+  { level: 6, name: 'きずな',           min: 25, reward: 'とくべつな えんしゅつが もっと でやすく なるよ' },
+  { level: 7, name: 'さいこうのなかま', min: 33, reward: 'なで えんしゅつが さらに でやすく なるよ' },
+  { level: 8, name: 'えいえんのきずな', min: 42, reward: 'さいこうの なかよし えんしゅつ' },
 ];
 
 // affinity 値（数値）→ 現在のなかよしレベル情報＋次レベルへの進捗。
@@ -60,11 +68,13 @@ export function affinityRewards(value) {
 }
 
 // なでなで時に「とくべつな えんしゅつ」(playCelebrate) が出る確率。
-// なかよしレベル3で解放、レベルが上がるほど出やすくなる（#124 専用演出）。
+// なかよしレベル4で解放、レベルが上がるほど出やすくなる（#124 専用演出 / #216 で 8段階へ再マップ）。
 export function bondCelebrateChance(level) {
-  if (level >= 5) return 0.5;
-  if (level >= 4) return 0.35;
-  if (level >= 3) return 0.2;
+  if (level >= 8) return 0.55;
+  if (level >= 7) return 0.5;
+  if (level >= 6) return 0.4;
+  if (level >= 5) return 0.3;
+  if (level >= 4) return 0.2;
   return 0;
 }
 

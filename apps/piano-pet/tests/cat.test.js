@@ -21,12 +21,12 @@ describe('pickHappyVariant', () => {
 
 // なつき度3段階(tier)：既存5なかよしレベル(#124)を集約する（新閾値を作らない）。
 describe('tierFromBond', () => {
-  it('なかよしレベル 1-2 は low、3-4 は mid、5 は high', () => {
+  it('なかよしレベル 1-2 は low、3-7 は mid、8 は high（#216 8段階）', () => {
     expect(tierFromBond(1)).toBe('low');
     expect(tierFromBond(2)).toBe('low');
     expect(tierFromBond(3)).toBe('mid');
-    expect(tierFromBond(4)).toBe('mid');
-    expect(tierFromBond(5)).toBe('high');
+    expect(tierFromBond(7)).toBe('mid');
+    expect(tierFromBond(8)).toBe('high');
   });
 
   it('不正値は low にフォールバック', () => {
@@ -142,14 +142,14 @@ describe('catMarkup の なかよしエンブレム', () => {
     expect(catMarkup({ bond: 2 })).toContain('cat__bond');
   });
 
-  it('bond 4以上できらきらが加わる', () => {
-    expect(catMarkup({ bond: 3 })).not.toContain('cat__bond-sparkle');
-    expect(catMarkup({ bond: 4 })).toContain('cat__bond-sparkle');
+  it('bond 5以上できらきらが加わる（#216 8段階で再マップ）', () => {
+    expect(catMarkup({ bond: 4 })).not.toContain('cat__bond-sparkle');
+    expect(catMarkup({ bond: 5 })).toContain('cat__bond-sparkle');
   });
 
   it('bond レベルから tier を導出して本体画像を選ぶ', () => {
     expect(catMarkup({ bond: 1 })).toContain('img/cat/cat_tora_low_idle.png');
-    expect(catMarkup({ bond: 5, mood: 'sleep' })).toContain('img/cat/cat_tora_high_sleep.png');
+    expect(catMarkup({ bond: 8, mood: 'sleep' })).toContain('img/cat/cat_tora_high_sleep.png');
   });
 });
 
