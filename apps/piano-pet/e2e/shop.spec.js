@@ -51,6 +51,27 @@ test.describe('ショップ', () => {
     await expect(page.locator('#catStage .cat__front > g')).toHaveCount(1);
   });
 
+  // 置物・小物系（シーン配置型・#226）：購入 → 配置 → ホームの猫の前後レイヤーに反映
+  test('置物を買って「おく」とホームのシーンレイヤーに乗る（#226）', async ({ page }) => {
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+
+    // けいとだま（80コイン・前面）を買う → 残120
+    await page.click('.shop-btn[data-action="buy"][data-id="yarnBall"]');
+    await expect(page.locator('#shopCoins')).toHaveText('120');
+
+    // 「おく」（配置トグル）→ 「おうちに あるよ」バッジ
+    await page.click('.shop-btn[data-action="place"][data-id="yarnBall"]');
+    const yarnCard = page.locator('.shop-card', { hasText: 'けいとだま' });
+    await expect(yarnCard.locator('.shop-card__badge')).toBeVisible();
+
+    // ホームへ → 前面シーンレイヤー(z5)に毛糸玉、装備レイヤーは空
+    await page.click('.nav-btn[data-nav="home"]');
+    await expect(page.locator('#view-home')).toBeVisible();
+    await expect(page.locator('#catStage .cat__scene--front .cat__item[data-item="yarnBall"]')).toHaveCount(1);
+    await expect(page.locator('#catStage .cat__front > g')).toHaveCount(0);
+  });
+
   test('同じスロットのアイテムは付け替わる（リボン→星の首輪）', async ({ page }) => {
     // 星の首輪は unlockLevel 2（#126）。解放済みにするため affinity を盛る
     await page.addInitScript(() => {

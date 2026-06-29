@@ -4,12 +4,16 @@ import {
   itemById,
   isOwned,
   isEquipped,
+  isPlaced,
   canBuy,
   isUnlocked,
   buyItem,
   equipItem,
   unequipItem,
   toggleEquip,
+  placeItem,
+  unplaceItem,
+  togglePlace,
 } from '../js/shop.js';
 
 function makeState(overrides = {}) {
@@ -20,8 +24,8 @@ function makeState(overrides = {}) {
 }
 
 describe('カタログ', () => {
-  it('14種類のアイテムを持つ', () => {
-    expect(SHOP_ITEMS).toHaveLength(14);
+  it('16種類のアイテムを持つ', () => {
+    expect(SHOP_ITEMS).toHaveLength(16);
   });
 
   // #210: 追加アイテムが各スロットに割り当てられている
@@ -30,6 +34,12 @@ describe('カタログ', () => {
     expect(itemById('sunglasses').slot).toBe('face');
     expect(itemById('bell').slot).toBe('neck');
     expect(itemById('wings').slot).toBe('back');
+  });
+
+  // #226: 置物・小物系は slot:'scene'
+  it('置物アイテム（#226）の slot が scene', () => {
+    expect(itemById('yarnBall').slot).toBe('scene');
+    expect(itemById('cushion').slot).toBe('scene');
   });
 
   it('itemById で取得・未知IDは null', () => {
@@ -194,5 +204,35 @@ describe('isOwned / isEquipped', () => {
     expect(isOwned(state, 'crown')).toBe(false);
     expect(isEquipped(state, 'cape')).toBe(true);
     expect(isEquipped(state, 'crown')).toBe(false);
+  });
+});
+
+// 置物・小物系（シーン配置型・#226）。装備とは別配列 placedItems で排他なし管理。
+describe('placeItem / unplaceItem / togglePlace（#226）', () => {
+  it('所持品を配置できる（排他なし・装備配列は不変）', () => {
+    const state = makeState({ inventory: ['cushion', 'yarnBall'], pet: { equippedItems: ['ribbon'] } });
+    const a = placeItem(state, 'cushion');
+    const b = placeItem(a, 'yarnBall');                       // 排他しないので両方残る
+    expect([...b.pet.placedItems].sort()).toEqual(['cushion', 'yarnBall']);
+    expect(b.pet.equippedItems).toEqual(['ribbon']);          // 装備は汚さない
+  });
+
+  it('未所持・配置済みは無変更', () => {
+    const state = makeState({ inventory: ['cushion'], pet: { placedItems: ['cushion'] } });
+    expect(placeItem(state, 'yarnBall')).toBe(state);         // 未所持
+    expect(placeItem(state, 'cushion')).toBe(state);          // 既に配置済み（重複しない）
+  });
+
+  it('unplaceItem で配置を解除', () => {
+    const state = makeState({ inventory: ['cushion'], pet: { placedItems: ['cushion'] } });
+    expect(unplaceItem(state, 'cushion').pet.placedItems).toEqual([]);
+  });
+
+  it('togglePlace で配置のオンオフ、未所持は無変更', () => {
+    const owned = makeState({ inventory: ['yarnBall'] });
+    const placed = togglePlace(owned, 'yarnBall');
+    expect(isPlaced(placed, 'yarnBall')).toBe(true);
+    expect(isPlaced(togglePlace(placed, 'yarnBall'), 'yarnBall')).toBe(false);
+    expect(togglePlace(owned, 'cushion')).toBe(owned);        // 未所持は無変更
   });
 });

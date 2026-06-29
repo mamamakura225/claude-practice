@@ -57,6 +57,7 @@ function anchorFor(style, type) {
 // アイテムの既定アンカー位置（%・.catコンテナ basis）。#168 のスナップ吸着点に使う。
 // viewBox は 0 0 200 200 なので %換算は座標/2。
 export function itemAnchorPct(id, style = 'tora') {
+  if (isSceneItem(id)) return { ...SCENE_DEFAULT_PCT };  // 置物は装着アンカー非依存（#226）
   const type = ITEM_ANCHOR_TYPE[id];
   if (!type) return null;
   const a = anchorFor(style, type);
@@ -66,6 +67,7 @@ export function itemAnchorPct(id, style = 'tora') {
 // アイテムの基準スケール（アンカー種別の既定 a.s）。#205 ピンチ拡縮で「元のサイズ」吸着と
 // スナップ時の atBase 判定に使う。未知 id は null。
 export function itemAnchorScale(id, style = 'tora') {
+  if (isSceneItem(id)) return 1;  // 置物の基準スケールは等倍（#226）
   const type = ITEM_ANCHOR_TYPE[id];
   if (!type) return null;
   return anchorFor(style, type).s;
@@ -110,14 +112,17 @@ function itemImage(id) {
 // viewBox 0 0 200 系・.cat は最大320pxなので ~44単位 ≒ 約66px の指サイズを確保する。
 const MIN_HIT_UNITS = 44;
 
-function itemHitRect(id, scale) {
-  const b = ITEM_BOX[id];
+function hitRectMarkup(b, scale) {
   const cx = b.x + b.w / 2;
   const cy = b.y + b.h / 2;
   const w = Math.max(b.w, MIN_HIT_UNITS / scale);
   const h = Math.max(b.h, MIN_HIT_UNITS / scale);
   return `<rect class="cat__item-hit" x="${n(cx - w / 2)}" y="${n(cy - h / 2)}" `+
     `width="${n(w)}" height="${n(h)}" fill="none" pointer-events="all" aria-hidden="true"/>`;
+}
+
+function itemHitRect(id, scale) {
+  return hitRectMarkup(ITEM_BOX[id], scale);
 }
 
 const ITEMS = Object.fromEntries(
@@ -142,6 +147,49 @@ const ITEM_ANCHOR_TYPE = {
 };
 
 export const ITEM_IDS = Object.keys(ITEMS);
+
+// ----- 置物・小物系アイテム（シーン配置型・#226） -----
+// 装着系（猫アンカー基準）と異なり、ステージ(.cat正方枠)の自由座標に置く新カテゴリ。
+// 排他なし複数配置で、装備とは別配列 pet.placedItems で管理する（slot排他ロジックを汚さない）。
+// box は中心原点（配置点へ translate して中央に描く）。layer で猫本体の前後どちらに描くかを振り分ける
+// （back=cat__body より背面 / front=演出より手前）。viewBox は装着系と同じ 0 0 200 200・.cat 正方枠基準で、
+// dressup のドラッグ／ピンチ（#168/#205）をそのまま流用する。画像は img/cat/scene/{id}.png（透過・retina 2x）。
+const SCENE_BOX = {
+  cushion:  { x: -40, y: -25, w: 80, h: 50, layer: 'back'  },  // 背後に置く座布団（くつろぎ構図）
+  yarnBall: { x: -30, y: -30, w: 60, h: 60, layer: 'front' },  // 足元に転がす毛糸玉（前面 z5 の実証）
+};
+
+// 置物の既定配置（%・.cat 正方枠基準）。装着アンカーが無いため、dressup の掴み開始位置と
+// 描画の初期位置をこの一点に揃えて初回ドラッグ時のジャンプを防ぐ。猫の足元寄り。
+const SCENE_DEFAULT_PCT = { x_pct: 50, y_pct: 64 };
+
+export const SCENE_IDS = Object.keys(SCENE_BOX);
+
+export function isSceneItem(id) {
+  return Object.hasOwn(SCENE_BOX, id);
+}
+
+function sceneImage(id) {
+  const b = SCENE_BOX[id];
+  return `<image href="img/cat/scene/${id}.png" x="${b.x}" y="${b.y}" `+
+    `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`;
+}
+
+// 指定 layer の置物だけを <g transform> で描く。layout に座標があればその%、無ければ既定位置。
+// 各 <g> は装着系と同じ .cat__item クラスなので dressup.js が無改修で掴める。
+function sceneSvg(placedItems, layer, layout = {}) {
+  return (placedItems ?? [])
+    .filter((id) => SCENE_BOX[id] && SCENE_BOX[id].layer === layer)
+    .map((id) => {
+      const pos = layout[id];
+      const hasPos = pos && pos.x_pct != null;
+      const x = (hasPos ? pos.x_pct : SCENE_DEFAULT_PCT.x_pct) * 2;
+      const y = (hasPos ? pos.y_pct : SCENE_DEFAULT_PCT.y_pct) * 2;
+      const sc = pos?.scale ?? 1;
+      return `<g class="cat__item" data-item="${id}" data-scale="${n(sc, 3)}" `+
+        `transform="translate(${n(x)} ${n(y)}) scale(${n(sc, 3)})">${hitRectMarkup(SCENE_BOX[id], sc)}${sceneImage(id)}</g>`;
+    }).join('');
+}
 
 // 衣装を anchor 種別でフィルタして配置する（#211 以降は cape も含め全種を前面に重ねる）。
 // layout に座標があればその %（→viewBox 200系）で、無ければ既定アンカーで配置する（#168）。
@@ -241,7 +289,7 @@ function zzzGroup() {
  * style: 猫スタイル（#66）。未知値・未指定は 'tora'。
  * stage 引数は後方互換のため受け取るが無視する（成長段階は廃止）。
  */
-export function catMarkup({ mood = 'idle', equippedItems = [], name = 'ねこ', bond = 0, itemLayout = {}, style = 'tora' } = {}) {
+export function catMarkup({ mood = 'idle', equippedItems = [], placedItems = [], name = 'ねこ', bond = 0, itemLayout = {}, style = 'tora' } = {}) {
   const s = normalizeStyle(style);
   const tier = tierFromBond(bond);
   const m = IMG_MOODS.includes(mood) ? mood : 'idle';
@@ -250,11 +298,16 @@ export function catMarkup({ mood = 'idle', equippedItems = [], name = 'ねこ', 
   const capeLayer = itemsSvg(equippedItems, ['back'], itemLayout, s);
   const front = itemsSvg(equippedItems, ['neck', 'head', 'face'], itemLayout, s);
   const fx = `${heartsGroup()}${sparklesGroup()}${zzzGroup()}${bondEmblemGroup(bond)}`;
+  // 置物（#226）：背面(z1)は本体PNGの背後、前面(z5)は演出の手前に重ねる。座標は装着系と同じ itemLayout を共用。
+  const sceneBack = sceneSvg(placedItems, 'back', itemLayout);
+  const sceneFront = sceneSvg(placedItems, 'front', itemLayout);
   // 演出クラスは .cat コンテナに付く。本体アニメは .cat__body、fx は内部要素に効く。
   return `<div class="cat cat--${m}" role="img" aria-label="${name}" data-mood="${m}" data-tier="${tier}" data-style="${s}">
+    <svg class="cat__scene cat__scene--back" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${sceneBack}</svg>
     <img class="cat__body" src="${catImageSrc(s, tier, m)}" alt="" draggable="false" decoding="async">
     <svg class="cat__front" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${capeLayer}${front}</svg>
     <svg class="cat__fx" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${fx}</svg>
+    <svg class="cat__scene cat__scene--front" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${sceneFront}</svg>
   </div>`;
 }
 

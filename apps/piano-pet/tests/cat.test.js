@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale } from '../js/cat-image.js';
+import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS } from '../js/cat-image.js';
 
 // 日常のお祝い演出のバリエーション選択（#81）。
 // 描画・アニメ自体は CSS / DOM 依存なので、ここでは純粋な選択ロジックだけ検証する。
@@ -171,5 +171,48 @@ describe('catMarkup の style', () => {
   it('未指定・未知の style は tora にフォールバック（既存ユーザー後方互換）', () => {
     expect(catMarkup()).toContain('data-style="tora"');
     expect(catMarkup({ style: 'bogus' })).toContain('img/cat/cat_tora_low_idle.png');
+  });
+});
+
+// 置物・小物系（シーン配置型・#226）：ステージ正方枠に置く新カテゴリ。
+describe('置物アイテム（#226）', () => {
+  it('isSceneItem / SCENE_IDS', () => {
+    expect(SCENE_IDS).toEqual(['cushion', 'yarnBall']);
+    expect(isSceneItem('cushion')).toBe(true);
+    expect(isSceneItem('crown')).toBe(false);   // 装着系は置物でない
+    expect(isSceneItem('bogus')).toBe(false);
+  });
+
+  it('itemAnchorPct/Scale は置物の既定（足元寄り・等倍）を返す', () => {
+    expect(itemAnchorPct('cushion')).toEqual({ x_pct: 50, y_pct: 64 });  // SCENE_DEFAULT_PCT
+    expect(itemAnchorScale('yarnBall')).toBe(1);
+  });
+
+  it('placedItems を layer 別の scene SVG に振り分けて描く', () => {
+    const html = catMarkup({ placedItems: ['cushion', 'yarnBall'] });
+    // back レイヤーに cushion、front レイヤーに yarnBall の image が入る
+    const back = html.match(/cat__scene--back[^]*?<\/svg>/)[0];
+    const front = html.match(/cat__scene--front[^]*?<\/svg>/)[0];
+    expect(back).toContain('img/cat/scene/cushion.png');
+    expect(back).not.toContain('yarnBall');
+    expect(front).toContain('img/cat/scene/yarnBall.png');
+    expect(front).not.toContain('cushion');
+  });
+
+  it('未配置の置物は描かれない', () => {
+    const html = catMarkup({ placedItems: [] });
+    expect(html).not.toContain('img/cat/scene/');
+  });
+
+  it('置物の座標は itemLayout を共用（既定位置 50,64→100,128 / 指定座標も反映）', () => {
+    const def = catMarkup({ placedItems: ['cushion'] });
+    expect(def).toContain('translate(100 128)');                                   // 既定: 50%,64% → ×2
+    const moved = catMarkup({ placedItems: ['cushion'], itemLayout: { cushion: { x_pct: 30, y_pct: 80 } } });
+    expect(moved).toContain('translate(60 160)');                                  // 指定座標 ×2
+  });
+
+  it('置物も .cat__item クラスで dressup が掴める', () => {
+    const html = catMarkup({ placedItems: ['yarnBall'] });
+    expect(html).toContain('class="cat__item" data-item="yarnBall"');
   });
 });

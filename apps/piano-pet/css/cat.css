@@ -23,13 +23,18 @@
 /* レイヤー共通：コンテナ全体に絶対配置で重ねる */
 .cat__body,
 .cat__front,
-.cat__fx {
+.cat__fx,
+.cat__scene {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
 }
 
+/* 置物（#226）：背面は本体の背後(z1)、前面は演出の手前(z5)。通常は pointer-events:none で
+   猫タップ（なで）を優先し、きせかえ編集中だけ .cat__item が掴める（既存ルールが scene にも効く）。 */
+.cat__scene { z-index: 1; pointer-events: none; overflow: visible; }
+.cat__scene--front { z-index: 5; }
 .cat__body  { z-index: 2; object-fit: contain; }
 .cat__front { z-index: 3; pointer-events: none; }   /* 衣装は全種ここに重ねる（cape 含む・#211） */
 .cat__fx    { z-index: 4; pointer-events: none; overflow: visible; }
