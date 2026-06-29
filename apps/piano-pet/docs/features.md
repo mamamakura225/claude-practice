@@ -266,6 +266,19 @@
 
 > **設計判断（#211・Antigravity対称レビュー topic_1782394334271 で合意）**: cape を背面レイヤー（`cat__back`）から**前面（`cat__front`）へ移し**、`cat__back` SVG 自体を撤去した。背面だと不透明な本体PNGに完全に隠れて「見えない・掴めない」ため。代替案（背面のまま端だけ覗かせ＋本体 `pointer-events:none`）は可視性を解決できず、なで反応にも影響するため不採用。前面内では cape を最下層に描画し neck/head/face のアクセサリがその上に重なる順序を保つ。cape の**アンカー種別（`back`＝位置・基準スケール）は不変**で、変わるのは描画レイヤーのみ。前面化で旧アート（背面前提）が前掛けに見える点は別途アート修正（#213）へ申し送り。
 
+### 置物・小物系 アイテム（シーン配置型・#226）
+
+装着型（猫アンカー基準・slot排他）とは別カテゴリの、**ペットに着せず猫の前後シーンに置く装飾アイテム**。実装は [shop.js](../js/shop.js)（`slot:'scene'`＋配置ロジック）と [cat-image.js](../js/cat-image.js)（`SCENE_BOX`／前後2層の描画）。MVPは2点：🧶 けいとだま（前面）・🛋️ クッション（背面）。
+
+- **データ**: 配置中IDは `pet.placedItems`（装備 `equippedItems` とは**別配列・排他なし複数配置**）。`togglePlace`/`placeItem`/`unplaceItem` が管理し、`equipItem`/`spentCoins`/`canBuy` 等の装着ロジックは無改修。購入は装着と共通（`buyItem`・slot非依存）。
+- **描画（前後2層）**: `catMarkup` が `.cat` 正方枠に `cat__scene--back`(z1・本体PNGの背後) と `cat__scene--front`(z5・演出の手前) の2つのSVGを最初から持ち、`SCENE_BOX[id].layer`（`'back'|'front'`）で振り分ける。画像は `img/cat/scene/{id}.png`（透過・retina 2x・center原点）。`SCENE_BOX` の box は中心原点（配置点へ translate して中央描画）。
+- **配置/ドラッグ**: 置物も `.cat__item`＋`<g transform>` なので、きせかえ編集モードの dressup（#168/#205）が**無改修で**ドラッグ移動・ピンチ拡縮できる。装着アンカーを持たないため `itemAnchorPct`/`itemAnchorScale` は置物の既定（`SCENE_DEFAULT_PCT`＝足元寄り50%,64% / 基準スケール1）を返し、描画の初期位置と掴み開始位置を一致させて初回ドラッグのジャンプを防ぐ。座標は `pet.itemLayout` を装着系と**共用**（置物IDは装着IDと重複しない）。配置外しは `cleanItemLayout` が座標を掃除。
+- **同期**: `pet.placedItems` は CLOUD_FIELDS の `pet` 配下で同期。初回マージは equippedItems と同じ「union ∩ inventory」（未所持の配置は残さない）。
+
+> **設計判断（#226・Antigravity対称レビュー topic_1782737748350 で合意）**: ①装着の「slot排他1点」を置物に流用すると `equipItem`/`spentCoins`/`cleanItemLayout` が汚染されるため、**`placedItems` を新設**して装備と完全分離（排他なし複数配置）。②前面/背面の2層を**最初から**用意し `layer` で振り分ける——後から前面層を足すと catMarkup/DOM/dressup を再改修するコストが大きく、🛋️背面+🧶前面の2点で z5 までMVPで実証できるため。③座標は新フィールドを作らず `itemLayout` を共用（IDが装着系と重複しない前提でマージ規則の追加が不要）。
+
+> **設計判断（#226・実装時の精緻化）**: 合意時は「`.cat` の兄弟として*ステージ全面*にscene-SVGを張る」案だったが、実装で `.cat-stage` が高さ指定の無い flex で**ステージが非正方（横長）**である一方、dressup の%基準（`#catStage` rect）と装着系の描画枠は正方 `.cat` であることが判明。ステージ全面に張ると非正方ゆえに `preserveAspectRatio` で画像が歪むかドラッグ追従がズレるため、**scene-SVGを正方 `.cat` 内（`cat__front` の兄弟）に置き**、装着系と同一の viewBox/座標系・dressupのドラッグ数学にそのまま乗せた。前後はDOM順＋z-index（back z1<本体z2、front z5>演出z4）で表現し、合意の意図（猫の前後・ドラッグ可・座標整合）をより素直に満たす。
+
 ## バッジ（実績）
 
 実装は [badges.js](../js/badges.js)（カタログ）と [game.js](../js/game.js) `checkBadges`（判定）。

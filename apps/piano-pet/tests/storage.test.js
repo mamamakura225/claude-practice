@@ -16,7 +16,7 @@ const hw = (name, setAt) => ({ items: [{ name, target: 5 }], period: 'day', setA
 describe('normalizeState', () => {
   it('空入力で DEFAULTS を返す', () => {
     const s = normalizeState();
-    expect(s.pet).toEqual({ name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], itemLayout: {}, affinity: 0, foodSpent: 0, catStyle: 'tora', childName: '', childAvatar: 'chick' });
+    expect(s.pet).toEqual({ name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], placedItems: [], itemLayout: {}, affinity: 0, foodSpent: 0, catStyle: 'tora', childName: '', childAvatar: 'chick' });
     expect(s.inventory).toEqual([]);
     expect(s.streak).toEqual({ current: 0, best: 0, lastPracticeDate: null, freezes: 0 });
     expect(s.badges).toEqual([]);
@@ -219,6 +219,13 @@ describe('mergeCloudInitial', () => {
     const cloud = { inventory: ['hat'], pet: { equippedItems: ['hat', 'crown'] } }; // crown は誰も所持しない
     const m = mergeCloudInitial(local, cloud);
     expect([...m.pet.equippedItems].sort()).toEqual(['hat', 'ribbon']); // crown は除外
+  });
+
+  it('placedItems も union のうちマージ後 inventory に含まれるものだけ（#226）', () => {
+    const local = normalizeState({ inventory: ['cushion'], pet: { placedItems: ['cushion'] } });
+    const cloud = { inventory: ['yarnBall'], pet: { placedItems: ['yarnBall', 'crown'] } }; // crown は誰も所持しない
+    const m = mergeCloudInitial(local, cloud);
+    expect([...m.pet.placedItems].sort()).toEqual(['cushion', 'yarnBall']); // crown は除外
   });
 
   it('affinity / foodSpent は max を採る', () => {

@@ -70,7 +70,8 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `xp` | number | `0` | 累計経験値 |
 | `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費）。記録の編集・削除時の全再計算（`recomputeState`）では `Math.max(0, 獲得総額 − spent)` で再導出する。`spent` ＝ 装備購入総額（`spentCoins`＝インベントリ価格合計）＋ `foodSpent` の合算で、[app.js](../js/app.js) が算出して渡す（→ 購入・えさ消費分が再計算で復活しない） |
 | `equippedItems` | string[] | `[]` | 装備中アイテムID（スロットごとに1つ） |
-| `itemLayout` | object | `{}` | 衣装の自由配置 `{ itemId: {x_pct, y_pct, scale?} }`（#168/#205・ステージ%）。`scale` は絶対値(0.3〜3.0・#205ピンチ)。スナップで定位置に戻した衣装はサイズだけ変えていれば座標を持たず `{scale}` のみ保持。未登録は既定アンカー位置・基準スケールで描画。装備外しは `cleanItemLayout` が掃除 |
+| `placedItems` | string[] | `[]` | 配置中の置物・小物系アイテムID（シーン配置型・#226）。装備（`equippedItems`・slot排他）とは**別配列で排他なし複数配置**。`shop.js` `togglePlace`/`placeItem`/`unplaceItem` が管理し、装備ロジック（`equipItem`/`spentCoins`）には触れない。描画は `.cat` 正方枠の前後2層（[cat-image.js](../js/cat-image.js) `SCENE_BOX` の `layer`）。配置外しは `cleanItemLayout` が座標を掃除 |
+| `itemLayout` | object | `{}` | 衣装**と置物**の自由配置 `{ itemId: {x_pct, y_pct, scale?} }`（#168/#205/#226・.cat正方枠%）。`scale` は絶対値(0.3〜3.0・#205ピンチ)。スナップで定位置に戻した衣装はサイズだけ変えていれば座標を持たず `{scale}` のみ保持。未登録は既定位置（装着＝アンカー / 置物＝`SCENE_DEFAULT_PCT`）・基準スケールで描画。装備・配置外しは `cleanItemLayout` が掃除（置物IDは装着IDと重複しないため両系統を1つの layout で共用）|
 | `affinity` | number | `0` | なかよし度（えさやりで上昇）。3段階tier（low/mid/high）に集約され猫画像の表情・ポーズに反映（#167） |
 | `foodSpent` | number | `0` | えさに使ったコイン総額（全再計算で消費分を復活させないため） |
 | `catStyle` | string | `'tora'` | 猫スタイル（#66）。`'tora'` / `'shiro'` / `'russianblue'`。未知値は表示側（`normalizeStyle`）が tora にフォールバック。realtime 同期は pet ごと cloud-wins、初回マージはローカル優先（name と同じ扱い） |
@@ -186,6 +187,7 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 | `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。ただし `bonusCoins`（#148）は衝突時に双方の **max** を救済 | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側。`bonusCoins` は totalCount から導出されない当選値なので keep-larger で消さず max で残す（affinity/foodSpent と同じ哲学） |
 | `inventory` | 重複 ID を除いた **union** | 所有は単調増加 |
 | `pet.equippedItems` | 両端末の union のうち、マージ後 `inventory` に含まれるものだけ | 未所持の装備を残さない |
+| `pet.placedItems` | 両端末の union のうち、マージ後 `inventory` に含まれるものだけ（#226）| 未所持の置物の配置を残さない（equippedItems と同設計）|
 | `pet.affinity` / `pet.foodSpent` | **max** | sessions から導出されない累積値 |
 | `assignment` | `setAt` の **Last-Write-Wins**（`pickNewerAssignment`・片方 null は非 null 優先）| 親が設定する単一値。keep-larger/合算ではなく直近設定が正（#143）。`mergeCloud` 経路も同じ LWW |
 | `pet.coins` / `pet.xp` / `pet.level` / `streak` / `badges` | マージ後の `sessions` から `recomputeState` で再計算 | sessions が唯一の正。`spent = spentCoins(merged inventory) + pet.foodSpent` を第2引数に渡す（`spent` の scalar マージは不要・`spentCoins` が inventory から導出するため） |

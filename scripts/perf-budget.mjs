@@ -26,8 +26,8 @@ const CHECK = process.argv.includes('--check');
 const BUDGETS_KIB = {
   html: 8,
   css: 12,
-  js: 70,
-  total: 88, // html + css + js の合計（#210 で着せ替えアイテム4点追加し 85→88 に。js 個別は 68.7/70 で余裕、合計が律速）
+  js: 72,    // #226 で置物・小物系（シーン配置型）のロジック追加により 70→72 に。最小構成での正当な増加
+  total: 90, // html + css + js の合計（#210 で 85→88、#226 で js +1.1KiB に伴い 88→90 に引き上げ）
 };
 
 const KIB = 1024;

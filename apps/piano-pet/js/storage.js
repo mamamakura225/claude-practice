@@ -19,8 +19,11 @@ const DEFAULTS = {
     xp: 0,
     coins: 0,
     equippedItems: [],
-    // 衣装の自由配置座標（#168）。{ itemId: { x_pct, y_pct } }。
-    // 未登録のアイテムは cat-image.js が既定アンカー位置で描く（フォールバック）。
+    // 置物・小物系（シーン配置型・#226）。配置中の置物IDの配列。装備（equippedItems・slot排他）とは
+    // 別管理で排他なし複数配置。座標は itemLayout を共用（置物IDは装着IDと重複しない）。
+    placedItems: [],
+    // 衣装・置物の自由配置座標（#168/#226）。{ itemId: { x_pct, y_pct } }。
+    // 未登録のアイテムは cat-image.js が既定位置で描く（装着=アンカー / 置物=SCENE_DEFAULT_PCT）。
     itemLayout: {},
     affinity: 0,
     foodSpent: 0,
@@ -168,6 +171,9 @@ export function mergeCloudInitial(local, cloud) {
   const owned = new Set(inventory);
   const equippedItems = [...new Set([...(l.pet.equippedItems ?? []), ...(c.pet.equippedItems ?? [])])]
     .filter((id) => owned.has(id));
+  // 置物（#226）も装備と同じく union ∩ inventory（未所持の配置は残さない）。
+  const placedItems = [...new Set([...(l.pet.placedItems ?? []), ...(c.pet.placedItems ?? [])])]
+    .filter((id) => owned.has(id));
 
   return normalizeState({
     ...l,
@@ -177,6 +183,7 @@ export function mergeCloudInitial(local, cloud) {
     pet: {
       ...l.pet,
       equippedItems,
+      placedItems,
       affinity: Math.max(l.pet.affinity ?? 0, c.pet.affinity ?? 0),
       foodSpent: Math.max(l.pet.foodSpent ?? 0, c.pet.foodSpent ?? 0),
     },

@@ -19,10 +19,12 @@ import {
   SHOP_ITEMS,
   isOwned,
   isEquipped,
+  isPlaced,
   canBuy,
   isUnlocked,
   buyItem,
   toggleEquip,
+  togglePlace,
   spentCoins,
 } from './shop.js';
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
@@ -63,14 +65,14 @@ function spentTotal(s) {
   return spentCoins(s) + foodSpent(s);
 }
 
-// 装備していない衣装の配置座標を itemLayout から除く（#168 ゴーストデータ防止）。
-// shop.js は無改修（装備ロジック温存）なので、外した衣装の座標はここで掃除する。
+// 装備・配置していないアイテムの座標を itemLayout から除く（#168/#226 ゴーストデータ防止）。
+// itemLayout は装着衣装と置物（#226）で共用するため、装備中 or 配置中のIDだけ残す。
 function cleanItemLayout(pet) {
   const layout = pet.itemLayout ?? {};
-  const equipped = new Set(pet.equippedItems ?? []);
+  const active = new Set([...(pet.equippedItems ?? []), ...(pet.placedItems ?? [])]);
   const cleaned = {};
   for (const id of Object.keys(layout)) {
-    if (equipped.has(id)) cleaned[id] = layout[id];
+    if (active.has(id)) cleaned[id] = layout[id];
   }
   return cleaned;
 }
@@ -97,9 +99,10 @@ export function renderHome() {
     stageEl.innerHTML = catMarkup({
       mood: moodForState(state),
       equippedItems: state.pet.equippedItems,
+      placedItems: state.pet.placedItems,            // 置物・小物系の配置（#226）
       name: state.pet.name,
       bond,                                          // なかよしレベルのエンブレム（#124）→ tier導出にも使う
-      itemLayout: state.pet.itemLayout,              // 衣装の自由配置（#168）
+      itemLayout: state.pet.itemLayout,              // 衣装・置物の自由配置（#168/#226）
       style: state.pet.catStyle,                     // 猫スタイル（#66）。未指定は tora
     });
     preloadTier(state.pet.catStyle, tierFromBond(bond));   // 選択中スタイルの現tierを先読み（演出時のガタつき防止）
@@ -371,10 +374,17 @@ export function renderHistory() {
 // ===== ショップ画面（Epic 7） =====
 function shopCardMarkup(item) {
   const owned = isOwned(state, item.id);
-  const equipped = isEquipped(state, item.id);
+  // 置物（#226）は装備でなく「配置(placedItems)」。slotで判定し、ラベルと状態語を切り替える。
+  const scene = item.slot === 'scene';
+  const active = scene ? isPlaced(state, item.id) : isEquipped(state, item.id);
 
   // 未所持で「なかよしLv」未到達なら、見せるロック（#126）：非表示にせず目標として見せる。
   const locked = !owned && !isUnlocked(state, item.id);
+
+  // 置物は配置トグル（togglePlace）、装着は装備トグル（toggleEquip）へ振り分ける。
+  const action = scene ? 'place' : 'toggle';
+  const onLabel = scene ? 'おく' : 'みにつける';
+  const offLabel = scene ? 'しまう' : 'はずす';
 
   let btn;
   if (locked) {
@@ -383,16 +393,16 @@ function shopCardMarkup(item) {
     btn = canBuy(state, item.id)
       ? `<button type="button" class="shop-btn shop-btn--buy" data-action="buy" data-id="${item.id}">かう</button>`
       : `<button type="button" class="shop-btn shop-btn--locked" disabled>コインが たりない</button>`;
-  } else if (equipped) {
-    btn = `<button type="button" class="shop-btn shop-btn--unequip" data-action="toggle" data-id="${item.id}">はずす</button>`;
+  } else if (active) {
+    btn = `<button type="button" class="shop-btn shop-btn--unequip" data-action="${action}" data-id="${item.id}">${offLabel}</button>`;
   } else {
-    btn = `<button type="button" class="shop-btn shop-btn--equip" data-action="toggle" data-id="${item.id}">みにつける</button>`;
+    btn = `<button type="button" class="shop-btn shop-btn--equip" data-action="${action}" data-id="${item.id}">${onLabel}</button>`;
   }
 
-  const badge = equipped
-    ? '<span class="shop-card__badge">みにつけてる ✓</span>'
+  const badge = active
+    ? `<span class="shop-card__badge">${scene ? 'おうちに あるよ ✓' : 'みにつけてる ✓'}</span>`
     : (locked ? `<span class="shop-card__badge shop-card__badge--locked">🔒 なかよしLv${item.unlockLevel}</span>` : '');
-  return `<div class="shop-card${equipped ? ' shop-card--equipped' : ''}${locked ? ' shop-card--locked' : ''}">
+  return `<div class="shop-card${active ? ' shop-card--equipped' : ''}${locked ? ' shop-card--locked' : ''}">
     <span class="shop-card__icon" aria-hidden="true">${item.icon}</span>
     <div class="shop-card__info">
       <span class="shop-card__name">${item.name}</span>
@@ -1120,9 +1130,13 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.shop-btn[data-action]');
   if (!btn) return;
   const id = btn.dataset.id;
-  const next = btn.dataset.action === 'buy' ? buyItem(state, id) : toggleEquip(state, id);
+  const action = btn.dataset.action;
+  // buy=購入 / place=置物の配置トグル（#226） / toggle=装備トグル
+  const next = action === 'buy' ? buyItem(state, id)
+    : action === 'place' ? togglePlace(state, id)
+    : toggleEquip(state, id);
   if (next === state) return;       // 変化なし（買えない等）
-  if (btn.dataset.action === 'buy') playSound('purchase', state);  // 購入音
+  if (action === 'buy') playSound('purchase', state);  // 購入音
   commitState(next);                // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
 });

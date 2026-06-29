@@ -22,6 +22,10 @@ export const SHOP_ITEMS = [
   { id: 'wings', name: 'てんしのはね', price: 220, slot: 'back', icon: '🪽', unlockLevel: 6 },
   { id: 'flowerCrown', name: 'はなかんむり', price: 260, slot: 'head', icon: '💮', unlockLevel: 8 },
   { id: 'crown', name: '王冠', price: 300, slot: 'head', icon: '👑', unlockLevel: 8 },
+  // 置物・小物系（シーン配置型・#226）。slot:'scene' は排他なし複数配置で、装備とは別管理
+  // （placedItems）。価格・解放Lvは既存帯に合わせる。描画枠・layer は cat-image.js の SCENE_BOX。
+  { id: 'yarnBall', name: 'けいとだま', price: 80, slot: 'scene', icon: '🧶', unlockLevel: 1 },
+  { id: 'cushion', name: 'クッション', price: 120, slot: 'scene', icon: '🛋️', unlockLevel: 2 },
 ];
 
 export function itemById(id) {
@@ -89,4 +93,33 @@ export function unequipItem(state, id) {
 export function toggleEquip(state, id) {
   if (!isOwned(state, id)) return state;
   return isEquipped(state, id) ? unequipItem(state, id) : equipItem(state, id);
+}
+
+// ----- 置物・小物系（シーン配置型・#226） -----
+// 装備（slot排他あり・equippedItems）と分離し、排他なしで複数配置できる pet.placedItems を別管理する。
+// equipItem/spentCoins/cleanItemLayout 等の装着ロジックには一切触れない。
+export function isPlaced(state, id) {
+  return (state.pet?.placedItems ?? []).includes(id);
+}
+
+// 配置：所持品のみ。排他しないので既存配置はそのまま追加する（重複は防ぐ）。
+export function placeItem(state, id) {
+  if (!isOwned(state, id) || isPlaced(state, id)) return state;
+  return { ...state, pet: { ...state.pet, placedItems: [...(state.pet.placedItems ?? []), id] } };
+}
+
+export function unplaceItem(state, id) {
+  return {
+    ...state,
+    pet: {
+      ...state.pet,
+      placedItems: (state.pet.placedItems ?? []).filter((pid) => pid !== id),
+    },
+  };
+}
+
+// 配置のトグル（所持していなければ無変更）
+export function togglePlace(state, id) {
+  if (!isOwned(state, id)) return state;
+  return isPlaced(state, id) ? unplaceItem(state, id) : placeItem(state, id);
 }
