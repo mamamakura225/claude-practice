@@ -1654,6 +1654,17 @@ function reconcileInitialCloud(cloudData) {
   }
 }
 
+// 復帰時の再同期（#242）。iOS PWA 等はサスペンド中 onSnapshot が届かないため、復帰直後の
+// 古い in-memory state のまま操作すると、その古い pet が placedItems ごとクラウドを丸ごと
+// 上書き（pushCloud=setDoc 置換）し、他端末で配置した置物が消える。復帰時に最新クラウドを
+// fetch → 非破壊 union マージ（reconcileInitialCloud＝mergeCloudInitial 経路）で取り込み、
+// 以後の push が最新の配置込みになるようにする。差分が無ければ getDoc 1 回で no-op。
+async function resyncFromCloud() {
+  if (!cloudSynced || !cloud) return;
+  const cloudData = await cloud.fetchCloud();
+  if (cloudData) reconcileInitialCloud(cloudData);
+}
+
 // オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。
 window.addEventListener('online', () => {
   if (cloudSynced) cloud?.pushCloud(cloudFields(state));  // 復帰時に最新を一度送る
@@ -1670,6 +1681,7 @@ document.addEventListener('visibilitychange', () => {
     cloud?.flushCloud();
   } else {
     resumeAudio();
+    resyncFromCloud();            // 復帰時に最新クラウドを取り込んでから操作を受ける（#242）
   }
 });
 // 離脱直前（タブ閉じ・遷移）にも保留中の書き込みを確定する。pagehide は

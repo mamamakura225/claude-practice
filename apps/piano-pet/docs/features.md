@@ -273,7 +273,9 @@
 - **データ**: 配置中IDは `pet.placedItems`（装備 `equippedItems` とは**別配列・排他なし複数配置**）。`togglePlace`/`placeItem`/`unplaceItem` が管理し、`equipItem`/`spentCoins`/`canBuy` 等の装着ロジックは無改修。購入は装着と共通（`buyItem`・slot非依存）。
 - **描画（前後2層）**: `catMarkup` が `.cat` 正方枠に `cat__scene--back`(z1・本体PNGの背後) と `cat__scene--front`(z5・演出の手前) の2つのSVGを最初から持ち、`SCENE_BOX[id].layer`（`'back'|'front'`）で振り分ける。画像は `img/cat/scene/{id}.png`（透過・retina 2x・center原点）。`SCENE_BOX` の box は中心原点（配置点へ translate して中央描画）。
 - **配置/ドラッグ**: 置物も `.cat__item`＋`<g transform>` なので、きせかえ編集モードの dressup（#168/#205）が**無改修で**ドラッグ移動・ピンチ拡縮できる。装着アンカーを持たないため `itemAnchorPct`/`itemAnchorScale` は置物の既定（`SCENE_DEFAULT_PCT`＝足元寄り50%,64% / 基準スケール1）を返し、描画の初期位置と掴み開始位置を一致させて初回ドラッグのジャンプを防ぐ。座標は `pet.itemLayout` を装着系と**共用**（置物IDは装着IDと重複しない）。配置外しは `cleanItemLayout` が座標を掃除。
-- **同期**: `pet.placedItems` は CLOUD_FIELDS の `pet` 配下で同期。初回マージは equippedItems と同じ「union ∩ inventory」（未所持の配置は残さない）。
+- **同期**: `pet.placedItems` は CLOUD_FIELDS の `pet` 配下で同期。初回マージは equippedItems と同じ「union ∩ inventory」（未所持の配置は残さない）。`itemLayout` も union（cloud土台にローカル上書き）で他端末の配置座標を取り込む（#242）。
+
+> **設計判断（#242・復帰時の丸ごと上書き対策）**: `pushCloud` は `setDoc`（merge無し＝doc丸ごと置換）、realtime の `mergeCloud` は `pet` をフィールドごと cloud-wins で差し替える。iOS PWA 等はサスペンド中 `onSnapshot` が届かないため、**復帰直後の古い in-memory state のまま操作すると、その古い `pet` が `placedItems`/`itemLayout` ごとクラウドを上書きし、他端末で配置した置物が消える**。対策として `visibilitychange`→visible で `fetchCloud`→**非破壊 union マージ**（`reconcileInitialCloud`＝`mergeCloudInitial` 経路）を挟み、最新の配置を取り込んでから操作・push を受ける（差分なしなら getDoc 1回で no-op）。併せて `mergeCloudInitial` の `itemLayout` をローカル固定→union に修正（placedItems だけ union して座標をローカル固定だと置物が既定位置に戻るため）。**本筋の field 別タイムスタンプ/世代管理は #233（匿名認証＋ルール）と合わせて別途**。union の副作用（一方で外した装備の復活）は初回同期と同じ既知トレードオフ。
 
 > **設計判断（#226・Antigravity対称レビュー topic_1782737748350 で合意）**: ①装着の「slot排他1点」を置物に流用すると `equipItem`/`spentCoins`/`cleanItemLayout` が汚染されるため、**`placedItems` を新設**して装備と完全分離（排他なし複数配置）。②前面/背面の2層を**最初から**用意し `layer` で振り分ける——後から前面層を足すと catMarkup/DOM/dressup を再改修するコストが大きく、🛋️背面+🧶前面の2点で z5 までMVPで実証できるため。③座標は新フィールドを作らず `itemLayout` を共用（IDが装着系と重複しない前提でマージ規則の追加が不要）。
 

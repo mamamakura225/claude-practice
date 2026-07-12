@@ -236,6 +236,22 @@ describe('mergeCloudInitial', () => {
     expect(m.pet.foodSpent).toBe(55);
   });
 
+  it('itemLayout は union（cloud を土台にローカル上書き）で他端末の配置座標を消さない（#242）', () => {
+    // 端末B（サスペンド復帰直後の古い state）に、端末A がクラウドで置いた yarnBall の座標が無い状況。
+    const local = normalizeState({
+      inventory: ['cushion', 'yarnBall'],
+      pet: { placedItems: ['cushion'], itemLayout: { cushion: { x_pct: 40, y_pct: 60 } } },
+    });
+    const cloud = {
+      inventory: ['cushion', 'yarnBall'],
+      pet: { placedItems: ['yarnBall'], itemLayout: { yarnBall: { x_pct: 70, y_pct: 55 }, cushion: { x_pct: 10, y_pct: 10 } } },
+    };
+    const m = mergeCloudInitial(local, cloud);
+    expect([...m.pet.placedItems].sort()).toEqual(['cushion', 'yarnBall']); // A の置物が消えない
+    expect(m.pet.itemLayout.yarnBall).toEqual({ x_pct: 70, y_pct: 55 });    // A の座標を取り込む
+    expect(m.pet.itemLayout.cushion).toEqual({ x_pct: 40, y_pct: 60 });     // 競合はローカル優先
+  });
+
   it('assignment は setAt の新しい方を採る（#143）', () => {
     const local = normalizeState({ assignment: hw('local-old', '2026-06-05T08:00:00Z') });
     const cloud = { assignment: hw('cloud-new', '2026-06-05T09:00:00Z') };
