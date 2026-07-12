@@ -30,7 +30,7 @@ export function catImageSrc(style, tier, mood) {
   const s = normalizeStyle(style);
   const t = IMG_TIERS.includes(tier) ? tier : 'low';
   const m = IMG_MOODS.includes(mood) ? mood : 'idle';
-  return `img/cat/cat_${s}_${t}_${m}.png`;
+  return `img/cat/cat_${s}_${t}_${m}.webp`;
 }
 
 // ----- 衣装アイテムのアンカー（viewBox 0 0 200 200・正方画像基準・固定1セット） -----
@@ -80,7 +80,8 @@ function n(v, d = 1) {
 // ----- 衣装アイテム（水彩透過PNG・原点(0,0)＝アンカー基準で <image> を重ねる・#196） -----
 // 本体（プリレンダ水彩PNG）と画風を統一するため、手書きインラインSVGから水彩ラスターへ移行。
 // 各 box は旧SVGの描画範囲（描画座標系・原点はアンカー）に対応し、画像はこの box の縦横比で
-// `img/cat/items/{id}.png`（透過・retina 2x・mood/tier 非依存で1 id 1枚）として作成する。
+// `img/cat/items/{id}.webp`（透過・box×3＝#229・mood/tier 非依存で1 id 1枚）として作成する。
+// 画像フォーマットは #234 で PNG→WebP に移行（対応率実質100%・フォールバック無し）。
 // box を据え置くことで dressup の <g transform>・アンカー・スナップ（#168）は無改修。
 const ITEM_BOX = {
   ribbon:      { x: -28, y: -16, w: 56,  h: 32 },
@@ -101,7 +102,7 @@ const ITEM_BOX = {
 
 function itemImage(id) {
   const b = ITEM_BOX[id];
-  return `<image href="img/cat/items/${id}.png" x="${b.x}" y="${b.y}" `+
+  return `<image href="img/cat/items/${id}.webp" x="${b.x}" y="${b.y}" `+
     `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`;
 }
 
@@ -153,7 +154,7 @@ export const ITEM_IDS = Object.keys(ITEMS);
 // 排他なし複数配置で、装備とは別配列 pet.placedItems で管理する（slot排他ロジックを汚さない）。
 // box は中心原点（配置点へ translate して中央に描く）。layer で猫本体の前後どちらに描くかを振り分ける
 // （back=cat__body より背面 / front=演出より手前）。viewBox は装着系と同じ 0 0 200 200・.cat 正方枠基準で、
-// dressup のドラッグ／ピンチ（#168/#205）をそのまま流用する。画像は img/cat/scene/{id}.png（透過・retina 2x）。
+// dressup のドラッグ／ピンチ（#168/#205）をそのまま流用する。画像は img/cat/scene/{id}.webp（透過・box×3＝#229・WebP＝#234）。
 const SCENE_BOX = {
   cushion:  { x: -40, y: -25, w: 80, h: 50, layer: 'back'  },  // 背後に置く座布団（くつろぎ構図）
   yarnBall: { x: -30, y: -30, w: 60, h: 60, layer: 'front' },  // 足元に転がす毛糸玉（前面 z5 の実証）
@@ -171,7 +172,7 @@ export function isSceneItem(id) {
 
 function sceneImage(id) {
   const b = SCENE_BOX[id];
-  return `<image href="img/cat/scene/${id}.png" x="${b.x}" y="${b.y}" `+
+  return `<image href="img/cat/scene/${id}.webp" x="${b.x}" y="${b.y}" `+
     `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`;
 }
 

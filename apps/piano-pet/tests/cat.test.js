@@ -38,20 +38,20 @@ describe('tierFromBond', () => {
 // 画像セレクタ：style×tier×mood からファイルパスを決定的に組む（#66）。
 describe('catImageSrc', () => {
   it('style・tier・mood からパスを組む', () => {
-    expect(catImageSrc('tora', 'mid', 'happy')).toBe('img/cat/cat_tora_mid_happy.png');
-    expect(catImageSrc('shiro', 'high', 'sleep')).toBe('img/cat/cat_shiro_high_sleep.png');
-    expect(catImageSrc('russianblue', 'low', 'idle')).toBe('img/cat/cat_russianblue_low_idle.png');
+    expect(catImageSrc('tora', 'mid', 'happy')).toBe('img/cat/cat_tora_mid_happy.webp');
+    expect(catImageSrc('shiro', 'high', 'sleep')).toBe('img/cat/cat_shiro_high_sleep.webp');
+    expect(catImageSrc('russianblue', 'low', 'idle')).toBe('img/cat/cat_russianblue_low_idle.webp');
   });
 
   it('未知の style / tier / mood は tora / low / idle にフォールバック', () => {
-    expect(catImageSrc(undefined, 'mid', 'happy')).toBe('img/cat/cat_tora_mid_happy.png');
-    expect(catImageSrc('bogus', 'bogus', 'happy')).toBe('img/cat/cat_tora_low_happy.png');
-    expect(catImageSrc('tora', 'mid', 'bogus')).toBe('img/cat/cat_tora_mid_idle.png');
+    expect(catImageSrc(undefined, 'mid', 'happy')).toBe('img/cat/cat_tora_mid_happy.webp');
+    expect(catImageSrc('bogus', 'bogus', 'happy')).toBe('img/cat/cat_tora_low_happy.webp');
+    expect(catImageSrc('tora', 'mid', 'bogus')).toBe('img/cat/cat_tora_mid_idle.webp');
   });
 
   it('威嚇（hiss・#187）も既知 mood としてパスを組む', () => {
-    expect(catImageSrc('tora', 'low', 'hiss')).toBe('img/cat/cat_tora_low_hiss.png');
-    expect(catImageSrc('shiro', 'high', 'hiss')).toBe('img/cat/cat_shiro_high_hiss.png');
+    expect(catImageSrc('tora', 'low', 'hiss')).toBe('img/cat/cat_tora_low_hiss.webp');
+    expect(catImageSrc('shiro', 'high', 'hiss')).toBe('img/cat/cat_shiro_high_hiss.webp');
   });
 });
 
@@ -85,9 +85,9 @@ describe('catMarkup の itemLayout（#168 自由配置）', () => {
   });
 
   // #196: 衣装は水彩透過PNGを <image> で重ねる（手書きSVG path から移行）
-  it('装備アイテムは img/cat/items/{id}.png を <image> で描画する', () => {
+  it('装備アイテムは img/cat/items/{id}.webp を <image> で描画する', () => {
     const html = catMarkup({ equippedItems: ['ribbon'] });
-    expect(html).toContain('<image href="img/cat/items/ribbon.png"');
+    expect(html).toContain('<image href="img/cat/items/ribbon.webp"');
   });
 });
 
@@ -155,8 +155,8 @@ describe('catMarkup の なかよしエンブレム', () => {
   });
 
   it('bond レベルから tier を導出して本体画像を選ぶ', () => {
-    expect(catMarkup({ bond: 1 })).toContain('img/cat/cat_tora_low_idle.png');
-    expect(catMarkup({ bond: 8, mood: 'sleep' })).toContain('img/cat/cat_tora_high_sleep.png');
+    expect(catMarkup({ bond: 1 })).toContain('img/cat/cat_tora_low_idle.webp');
+    expect(catMarkup({ bond: 8, mood: 'sleep' })).toContain('img/cat/cat_tora_high_sleep.webp');
   });
 });
 
@@ -164,13 +164,13 @@ describe('catMarkup の なかよしエンブレム', () => {
 describe('catMarkup の style', () => {
   it('style 指定で本体画像と data-style が切り替わる', () => {
     const html = catMarkup({ style: 'shiro' });
-    expect(html).toContain('img/cat/cat_shiro_low_idle.png');
+    expect(html).toContain('img/cat/cat_shiro_low_idle.webp');
     expect(html).toContain('data-style="shiro"');
   });
 
   it('未指定・未知の style は tora にフォールバック（既存ユーザー後方互換）', () => {
     expect(catMarkup()).toContain('data-style="tora"');
-    expect(catMarkup({ style: 'bogus' })).toContain('img/cat/cat_tora_low_idle.png');
+    expect(catMarkup({ style: 'bogus' })).toContain('img/cat/cat_tora_low_idle.webp');
   });
 });
 
@@ -193,9 +193,9 @@ describe('置物アイテム（#226）', () => {
     // back レイヤーに cushion、front レイヤーに yarnBall の image が入る
     const back = html.match(/cat__scene--back[^]*?<\/svg>/)[0];
     const front = html.match(/cat__scene--front[^]*?<\/svg>/)[0];
-    expect(back).toContain('img/cat/scene/cushion.png');
+    expect(back).toContain('img/cat/scene/cushion.webp');
     expect(back).not.toContain('yarnBall');
-    expect(front).toContain('img/cat/scene/yarnBall.png');
+    expect(front).toContain('img/cat/scene/yarnBall.webp');
     expect(front).not.toContain('cushion');
   });
 
