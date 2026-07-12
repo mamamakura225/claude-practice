@@ -213,7 +213,9 @@
 
 ##### 画像の作画枠（`cat-image.js` `ITEM_BOX` ＝アンチグラビティ納品仕様・#196）
 
-各PNGは下表の **box（描画座標系・原点(0,0)＝装着アンカー）** の縦横比で、透過・retina 2x（推奨 2x で box の2倍px）で作成する。`<image>` は `preserveAspectRatio="xMidYMid meet"` で box にフィットさせるため、**画像の縦横比を box と一致**させ、原点位置（猫に対してどこに乗るか）を box の (x,y)〜(x+w,y+h) 範囲に合わせること。box を据え置くことで dressup／アンカー／スナップ（#168）は無改修・ドラッグ移動継続。
+各画像は下表の **box（描画座標系・原点(0,0)＝装着アンカー）** の縦横比で、透過・**box×3**（#229・box の3倍px。旧 retina 2x から引き上げ）の **WebP**（#234）で作成する。`<image>` は `preserveAspectRatio="xMidYMid meet"` で box にフィットさせるため、**画像の縦横比を box と一致**させ、原点位置（猫に対してどこに乗るか）を box の (x,y)〜(x+w,y+h) 範囲に合わせること。box を据え置くことで dressup／アンカー／スナップ（#168）は無改修・ドラッグ移動継続。
+
+> **設計判断（#229＋#234・高解像度化とWebP化を同時実施）**: ピンチ拡縮（#205・絶対スケール最大3.0倍）で 2x ソースが引き伸ばされアラが出るため、装着14点＋置物2点＋本体45枚の作画枠を **retina 2x → box×3** に引き上げた。PNG のまま倍率を上げると SWプリキャッシュ・初回DLが線形に増える（box×3 で ~5.2 MiB）ため、**同一ブランチで PNG→WebP 化**（`cat-image.js` の href 拡張子・`gen-sw.mjs` の収集拡張子を `.webp` に、全61枚を quality85 で変換）。結果 **4.82 MiB（従来PNG）→ 3.60 MiB（box×3 WebP）** と、解像度を上げつつ総量を約25%削減。WebP は iOS Safari 14+（2020〜）でネイティブ対応し 2026 時点で旧版シェアが実質消滅のため `<picture>` フォールバックは設けない（#167 の PNG統一判断を反転）。全61枚のブラウザデコード（naturalSize>0・404無し）を実測確認。演出・グラフSVGは対象外。
 
 | id | box (x, y, w, h) | 原点の位置 | 備考 |
 |---|---|---|---|
@@ -273,7 +275,7 @@
 装着型（猫アンカー基準・slot排他）とは別カテゴリの、**ペットに着せず猫の前後シーンに置く装飾アイテム**。実装は [shop.js](../js/shop.js)（`slot:'scene'`＋配置ロジック）と [cat-image.js](../js/cat-image.js)（`SCENE_BOX`／前後2層の描画）。MVPは2点：🧶 けいとだま（前面）・🛋️ クッション（背面）。
 
 - **データ**: 配置中IDは `pet.placedItems`（装備 `equippedItems` とは**別配列・排他なし複数配置**）。`togglePlace`/`placeItem`/`unplaceItem` が管理し、`equipItem`/`spentCoins`/`canBuy` 等の装着ロジックは無改修。購入は装着と共通（`buyItem`・slot非依存）。
-- **描画（前後2層）**: `catMarkup` が `.cat` 正方枠に `cat__scene--back`(z1・本体PNGの背後) と `cat__scene--front`(z5・演出の手前) の2つのSVGを最初から持ち、`SCENE_BOX[id].layer`（`'back'|'front'`）で振り分ける。画像は `img/cat/scene/{id}.png`（透過・retina 2x・center原点）。`SCENE_BOX` の box は中心原点（配置点へ translate して中央描画）。
+- **描画（前後2層）**: `catMarkup` が `.cat` 正方枠に `cat__scene--back`(z1・本体PNGの背後) と `cat__scene--front`(z5・演出の手前) の2つのSVGを最初から持ち、`SCENE_BOX[id].layer`（`'back'|'front'`）で振り分ける。画像は `img/cat/scene/{id}.webp`（透過・box×3・center原点／#229高解像度・#234 WebP）。`SCENE_BOX` の box は中心原点（配置点へ translate して中央描画）。
 - **配置/ドラッグ**: 置物も `.cat__item`＋`<g transform>` なので、きせかえ編集モードの dressup（#168/#205）が**無改修で**ドラッグ移動・ピンチ拡縮できる。装着アンカーを持たないため `itemAnchorPct`/`itemAnchorScale` は置物の既定（`SCENE_DEFAULT_PCT`＝足元寄り50%,64% / 基準スケール1）を返し、描画の初期位置と掴み開始位置を一致させて初回ドラッグのジャンプを防ぐ。座標は `pet.itemLayout` を装着系と**共用**（置物IDは装着IDと重複しない）。配置外しは `cleanItemLayout` が座標を掃除。
 - **背面置物の選択（#240）**: 背面置物（cushion=`cat__scene--back` z1）は不透明な本体img(`cat__body` z2)の下にあり、img が矩形全体で `pointerdown` を奪うため `onDown` の `e.target.closest('.cat__item')` が null になり掴めなかった。**編集中だけ本体を pointer 透過**（`.cat-stage--editing .cat__body { pointer-events: none }`）にして下の背面 `.cat__item` まで pointer を通す。なで（本体タップ）は非編集時のみなので無影響、前面置物(z5)・装着(z3)は本体より上で無影響。
 - **同期**: `pet.placedItems` は CLOUD_FIELDS の `pet` 配下で同期。初回マージは equippedItems と同じ「union ∩ inventory」（未所持の配置は残さない）。`itemLayout` も union（cloud土台にローカル上書き）で他端末の配置座標を取り込む（#242）。
@@ -337,7 +339,7 @@
 | mid | Lv3〜7（だいすき〜さいこうのなかま） | リラックス |
 | high | Lv8（えいえんのきずな） | デレデレ |
 
-> **設計判断（#167）**: ①旧 SVG 数式描画（kitten/young/adult のレベル連動ステージ）を**廃止**し、見た目の軸を **level → なつき度(affinity tier)** に一本化した（Issue要件「なつき度3段階で表情・ポーズが変化」に忠実。level はレベルバー・XP表示で存続）。②画像形式は **透過PNG統一**（WebP はやめた。5歳児が使う旧 iOS Safari の互換リスクを避け `<picture>` フォールバック不要にするため。減色16色 PNG で1枚~85KiB・12枚計~1MiB）。③閾値は**新設せず**既存5レベルを3 tier に集約して #124 を温存。④衣装・演出は猫本体に焼き込まず別レイヤーSVGで重ねる（#168きせかえの土台）。ロードは現 tier の4mood先行＋次 tier 境界の2pt手前で `requestIdleCallback` 先読み。
+> **設計判断（#167）**: ①旧 SVG 数式描画（kitten/young/adult のレベル連動ステージ）を**廃止**し、見た目の軸を **level → なつき度(affinity tier)** に一本化した（Issue要件「なつき度3段階で表情・ポーズが変化」に忠実。level はレベルバー・XP表示で存続）。②画像形式は当初 **透過PNG統一**（WebP はやめた。5歳児が使う旧 iOS Safari の互換リスクを避け `<picture>` フォールバック不要にするため）→ **#234 で WebP へ移行**（下記 #229/#234 の設計判断参照。iOS Safari 14+（2020〜）で WebP がネイティブ対応し 2026 時点で旧版シェアが実質消滅、フォールバック不要のまま容量削減できるため反転）。③閾値は**新設せず**既存5レベルを3 tier に集約して #124 を温存。④衣装・演出は猫本体に焼き込まず別レイヤーSVGで重ねる（#168きせかえの土台）。ロードは現 tier の4mood先行＋次 tier 境界の2pt手前で `requestIdleCallback` 先読み。
 
 > **設計判断（#66・Antigravity対称レビュー topic_1781184658026 で合意）**: ①スタイル切り替えUIは**きせかえ編集モード内**（「見た目を変える」文脈で5歳児が自分で発見できる。ショップ解放は #126 と被るので将来拡張）。②命名は既存も含め **`cat_{style}_{tier}_{mood}.png` に全リネーム**（特例分岐を残さない。SWは gen-sw 再生成で旧キャッシュを自動破棄。茶トラ15枚は中身同一でもURL変更により一度だけ再DLされるが許容）。③**JSの preload は選択中スタイルのみ**。SW は `img/cat` 全45枚（~3.8MiB）をプリキャッシュするため、これはネットワークではなく**デコード/メモリの抑制**であり、オフライン中のスタイル切替も保証される。④立ち耳ロシアンブルーの衣装アンカーずれは生成側でポーズを無理に揃えず（体格バランスが崩れる）、`STYLE_ANCHOR_OFFSETS` で吸収する。納品画像の実測では頭頂（中央列）が tora/shiro=viewBox y31・russianblue=y35 と差4ユニット（ステージ2%）で軽微だったため**オフセットは空のまま**（手動ドラッグ #168 でも調整可。ズレが問題になったら値を入れる）。
 
@@ -352,7 +354,7 @@
 
 ## 猫の表示とインタラクション（[cat-image.js](../js/cat-image.js)）
 
-- 猫本体は水彩タッチのプリレンダ透過PNG（style 3種 × tier×mood 15枚 = 45枚・#66）。コンテナ `.cat` に `img.cat__body`＋衣装(`cat__front`・全種前面 #211)＋演出(`cat__fx`：ハート/きらきら/Zzz/なかよしエンブレム)を別レイヤーで重ねる（衣装は #196 で SVG→水彩ラスター、演出は引き続きSVG）
+- 猫本体は水彩タッチのプリレンダ透過WebP（style 3種 × tier×mood 15枚 = 45枚・#66／#234 で PNG→WebP）。コンテナ `.cat` に `img.cat__body`＋衣装(`cat__front`・全種前面 #211)＋演出(`cat__fx`：ハート/きらきら/Zzz/なかよしエンブレム)を別レイヤーで重ねる（衣装は #196 で SVG→水彩ラスター、演出は引き続きSVG）
 - 演出クラス（`cat--happy` 等）は `.cat` コンテナに付き、本体は CSS アニメ（呼吸＝scaleY、跳ね、しっぽふり）、ハート等は fx 内で再生。happy/love/hiss は演出中だけ本体画像を一時差し替える
 - **なでなで**（猫タップ）：記録に影響しない安全な操作
   - 反応の種類（約15%で「シャー」＝威嚇、残りは「ニャー」）は `rollCatVoice()` が**音設定に依存せず**抽選する。鳴き声の再生（`playCatVoice`）は別関数で、サウンドOFFなら無音

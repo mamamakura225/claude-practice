@@ -41,7 +41,7 @@ test.describe('猫とのインタラクション', () => {
     await page.click('#catStage');
     // 威嚇表情への一時差し替え（#187）：cat--hiss が付き、本体画像が hiss になる
     await expect(catSvg).toHaveClass(/cat--hiss/);
-    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_tora_low_hiss\.png/);
+    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_tora_low_hiss\.webp/);
     // 反応クラスが付かないこと。誤って付くなら数百ms残るので、少し待ってから確認する。
     await page.waitForTimeout(300);
     await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
@@ -77,7 +77,7 @@ test.describe('猫とのインタラクション', () => {
     // しろ を選ぶと本体画像と data-style が切り替わる
     await page.click('.style-picker__btn[data-style="shiro"]');
     await expect(page.locator('#catStage .cat')).toHaveAttribute('data-style', 'shiro');
-    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_shiro_low_idle\.png/);
+    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_shiro_low_idle\.webp/);
 
     // 「できた！」で抜けてもスタイルは維持され、ピッカーは隠れる
     await page.click('#dressupToggle');

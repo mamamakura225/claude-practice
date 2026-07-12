@@ -30,9 +30,9 @@ function listAssets() {
   collectDir('js', ['.js']);
   assets.push('manifest.json');
   collectDir('icons', ['.svg', '.png']);
-  collectDir('img/cat', ['.png']);
-  collectDir('img/cat/items', ['.png']);
-  collectDir('img/cat/scene', ['.png']);   // 置物・小物系（#226）
+  collectDir('img/cat', ['.webp']);          // 猫本体・装着・置物は WebP（#234）
+  collectDir('img/cat/items', ['.webp']);
+  collectDir('img/cat/scene', ['.webp']);   // 置物・小物系（#226）
   collectDir('sounds', ['.mp3', '.ogg', '.wav']);
   return assets;
 
