@@ -184,6 +184,10 @@ export function mergeCloudInitial(local, cloud) {
       ...l.pet,
       equippedItems,
       placedItems,
+      // 自由配置座標も union（cloud を土台にローカルで上書き）。placedItems だけ union して
+      // itemLayout をローカル固定にすると、他端末が置いた置物が既定位置に戻ってしまうため（#242）。
+      // 初回同期でも他端末の配置座標を取り込める（従来はローカルのみ参照で既定位置に落ちていた）。
+      itemLayout: { ...(c.pet.itemLayout ?? {}), ...(l.pet.itemLayout ?? {}) },
       affinity: Math.max(l.pet.affinity ?? 0, c.pet.affinity ?? 0),
       foodSpent: Math.max(l.pet.foodSpent ?? 0, c.pet.foodSpent ?? 0),
     },
