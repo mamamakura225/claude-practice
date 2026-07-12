@@ -43,6 +43,11 @@
 /* 通常は衣装も pointer-events:none（猫タップ＝なで優先）。編集中だけ衣装を掴めるようにする。 */
 .cat-stage--editing { touch-action: none; }            /* ドラッグ中のスクロール抑制 */
 .cat-stage--editing .cat__front { pointer-events: none; }
+/* 編集中は本体PNGを pointer 透過にする（#240）。背面置物(cushion=scene--back z1)は不透明な
+   本体img(z2)の下にあり、img が矩形全体で pointerdown を奪うため onDown の closest('.cat__item')
+   が null になり掴めない。編集中だけ本体を透過させ、下の背面 .cat__item まで pointer を通す。
+   なで（本体タップ）は非編集時のみなので影響しない。前面置物(z5)・装着(z3)は元々本体より上で無影響。 */
+.cat-stage--editing .cat__body { pointer-events: none; }
 .cat-stage--editing .cat__item { pointer-events: auto; cursor: grab; }
 .cat-stage--editing .cat__item--grabbing { cursor: grabbing; }
 
