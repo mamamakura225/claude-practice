@@ -1118,14 +1118,16 @@ body {
   line-height: 1;
 }
 
-/* ----- はなまるスタンプ（#145） ----- */
-.praise-row {
+/* ----- はなまるスタンプ（#145）／練習の質メモ（#239） ----- */
+.praise-row,
+.tempo-row {
   display: flex;
   gap: 8px;
   margin-top: 8px;
 }
 
-.praise-stamp {
+.praise-stamp,
+.tempo-stamp {
   font-size: 1.25rem;
   line-height: 1;
   padding: 6px 10px;
@@ -1137,11 +1139,13 @@ body {
   transition: opacity 0.15s, border-color 0.15s, transform 0.1s;
 }
 
-.praise-stamp:hover {
+.praise-stamp:hover,
+.tempo-stamp:hover {
   opacity: 0.85;
 }
 
-.praise-stamp--on {
+.praise-stamp--on,
+.tempo-stamp--on {
   opacity: 1;
   border-color: var(--pink-deep);
   background: var(--surface);

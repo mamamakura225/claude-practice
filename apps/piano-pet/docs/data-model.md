@@ -47,6 +47,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `xpEarned` | number | その記録で得たXP（同上） |
 | `bonusCoins` | number | きょうのおまけ（#148）で得た乱数由来のコイン。**記録に保存して `recomputeState` で復元**（再抽選しない）。0=未当選 |
 | `praise` | string \| null | はなまるスタンプ（#145）。親がワンタップで付与する評価。`PRAISE_STAMPS` の id（`hanamaru`/`jouzu`/`ganbatta`）か未設定の `null`。曲数からは導出されないが、全状態のスプレッド更新（`recomputeState`・各種マージ）で保持される。表示時に `normalizePraise` で検証 |
+| `tempo` | string \| null | 練習の質メモ（#239）。「どう弾いたか」をワンタップ記録。`TEMPO_STAMPS` の id（`slow`🐢/`normal`🎵/`fast`🚀）か未設定の `null`。praise と同型で曲数から導出されず、スプレッド更新（`recomputeState`・マージ）で保持。表示時に `normalizeTempo` で検証。自由記述は持たない（PII規約準拠） |
 
 ### Song
 | フィールド | 型 | 説明 |

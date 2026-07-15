@@ -4,7 +4,7 @@ import { getAccounts, getActiveAccountId, setActiveAccount } from './account.js'
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle } from './cat-image.js';
 import { enableDressup } from './dressup.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise } from './record-form.js';
+import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
@@ -289,6 +289,18 @@ function praiseRowMarkup(session, index) {
   return `<div class="praise-row" role="group" aria-label="はなまるスタンプ">${buttons}</div>`;
 }
 
+// 練習の質メモ行（#239）：🐢/🎵/🚀 のワンタップ。praise と同型（付与／同じものを再タップで解除）。
+function tempoRowMarkup(session, index) {
+  const current = normalizeTempo(session.tempo);
+  const buttons = TEMPO_STAMPS.map((t) => {
+    const on = t.id === current;
+    return `<button type="button" class="tempo-stamp${on ? ' tempo-stamp--on' : ''}"` +
+      ` data-action="set-tempo" data-index="${index}" data-tempo="${t.id}"` +
+      ` aria-pressed="${on}" title="${t.label}" aria-label="${t.label}">${t.emoji}</button>`;
+  }).join('');
+  return `<div class="tempo-row" role="group" aria-label="れんしゅうの ようす">${buttons}</div>`;
+}
+
 function historyCardMarkup(session, index) {
   // 同日同曲が複数行に分かれた既存データも1行に合算して表示する（#186）
   const songs = combineSongs(session.songs)
@@ -302,6 +314,7 @@ function historyCardMarkup(session, index) {
     </div>
     <ul class="history-songs">${songs}</ul>
     ${praiseRowMarkup(session, index)}
+    ${tempoRowMarkup(session, index)}
     <div class="history-card__actions">
       <button type="button" class="history-action" data-action="edit-session" data-index="${index}" aria-label="この きろくを なおす">✏️ なおす</button>
       <button type="button" class="history-action history-action--del" data-action="delete-session" data-index="${index}" aria-label="この きろくを けす">🗑️ けす</button>
@@ -819,6 +832,18 @@ function setPraise(index, praiseId) {
   renderHistory();
 }
 
+// 練習の質メモ（#239）を付与／解除。praise と同じく報酬非依存なので再計算不要。
+// 同じスタンプ再タップで解除（null）。保存してクラウドへ即送信。
+function setTempo(index, tempoId) {
+  const session = state.sessions[index];
+  if (!session) return;
+  const next = normalizeTempo(session.tempo) === tempoId ? null : normalizeTempo(tempoId);
+  state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, tempo: next } : s));
+  saveState(state);
+  if (cloud) cloud.pushCloudDebounced(cloudFields(state));
+  renderHistory();
+}
+
 // 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。
 const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
@@ -1123,6 +1148,7 @@ document.getElementById('historyList')?.addEventListener('click', (e) => {
   if (btn.dataset.action === 'edit-session') startEditSession(index);
   else if (btn.dataset.action === 'delete-session') deleteSession(index);
   else if (btn.dataset.action === 'set-praise') setPraise(index, btn.dataset.praise);
+  else if (btn.dataset.action === 'set-tempo') setTempo(index, btn.dataset.tempo);
 });
 
 // ===== ショップの購入・装備操作 =====

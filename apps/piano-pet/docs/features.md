@@ -108,6 +108,7 @@
 - **曲マスター👑**（#149）：曲の累計回数が `SONG_MASTER_COUNT`（=50）回に達した曲はコレクションに👑を表示（[record-form.js](../js/record-form.js) `isSongMaster`）。`songTotals` から決定的に導出し専用フラグは持たない（再計算で矛盾しない）
 - 記録一覧（新しい順）：日付「M月D日（曜）」・曲名・回数・合計。各記録に「✏️ なおす」「🗑️ けす」
 - **はなまるスタンプ**（#145）：各記録にワンタップで評価スタンプ（💮はなまる／🌟じょうず／👍がんばった）を付与・表示。同じスタンプの再タップで解除。固定絵文字のみで自由記述は持たない（[record-form.js](../js/record-form.js) `PRAISE_STAMPS` / `normalizePraise`）。`session.praise` は曲数から導出されない単一値だが全再計算・同期で保持される
+- **練習の質メモ**（#239）：はなまるスタンプと同型で、履歴カードに「どう弾いたか」のワンタップ記録（🐢ゆっくり／🎵ふつう／🚀はやく）を追加。`TEMPO_STAMPS` / `normalizeTempo`・`session.tempo` に単一 id を保持し、`setTempo` が付与／再タップ解除→保存→クラウド即送信・`renderHistory` 再描画。報酬非依存で再計算不要。ゆっくり練習→仕上げの流れを親子で見返せる。**設計判断**: praise を素直にテンプレ流用（Session への1フィールド追加・merge/recompute はスプレッドで自動保持）し、CSS も praise-stamp と共通ルール化。自由記述は持たず analytics へも絵文字種別以外を送らない（PII規約準拠・#145と同方針）
 
 **編集・削除**
 - 「なおす」：record 画面に切り替え、スタンプカードへ内容を復元して編集モード（`songsToStamps`）
