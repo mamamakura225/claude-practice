@@ -11,6 +11,8 @@ import {
   SONG_MASTER_COUNT,
   PRAISE_STAMPS,
   normalizePraise,
+  TEMPO_STAMPS,
+  normalizeTempo,
 } from '../js/record-form.js';
 
 describe('collectSongs', () => {
@@ -247,5 +249,24 @@ describe('normalizePraise', () => {
     expect(normalizePraise(null)).toBeNull();
     expect(normalizePraise('')).toBeNull();
     expect(normalizePraise('unknown')).toBeNull();
+  });
+});
+
+describe('normalizeTempo', () => {
+  it('有効な tempo id はそのまま返す（#239）', () => {
+    for (const t of TEMPO_STAMPS) {
+      expect(normalizeTempo(t.id)).toBe(t.id);
+    }
+  });
+
+  it('3種（🐢ゆっくり/🎵ふつう/🚀はやく）を持つ', () => {
+    expect(TEMPO_STAMPS.map((t) => t.id)).toEqual(['slow', 'normal', 'fast']);
+  });
+
+  it('未設定・無効値は null', () => {
+    expect(normalizeTempo(undefined)).toBeNull();
+    expect(normalizeTempo(null)).toBeNull();
+    expect(normalizeTempo('')).toBeNull();
+    expect(normalizeTempo('unknown')).toBeNull();
   });
 });

@@ -108,6 +108,19 @@ export function normalizePraise(value) {
   return PRAISE_STAMPS.some((s) => s.id === value) ? value : null;
 }
 
+// 練習の質メモ（#239）。回数（量）に対して「どう弾いたか（テンポ感）」を日別に
+// ワンタップ記録する。praise（#145）と同型＝Session.tempo に id を1つ保持、自由記述なし。
+export const TEMPO_STAMPS = [
+  { id: 'slow', emoji: '🐢', label: 'ゆっくり' },
+  { id: 'normal', emoji: '🎵', label: 'ふつう' },
+  { id: 'fast', emoji: '🚀', label: 'はやく' },
+];
+
+// 有効な tempo id ならそのまま返す。未設定・無効値は null。
+export function normalizeTempo(value) {
+  return TEMPO_STAMPS.some((s) => s.id === value) ? value : null;
+}
+
 // 過去のセッションから曲名候補を「よく弾く順（合計回数）→新しさ」で返す。
 // 曲選択チップのサジェストに使う。limit 件まで。
 export function pastSongNames(sessions, limit = 8) {
