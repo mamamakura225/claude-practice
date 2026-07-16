@@ -165,4 +165,14 @@ test.describe('練習記録', () => {
     await expect(page.locator('#recordError')).toBeVisible();
     await expect(page.locator('#view-record')).toBeVisible();
   });
+
+  // manifest shortcuts（#235）の飛び先。ホームを経由せず記録画面が直接開くこと。
+  // shortcut の url（./index.html#/record）は起動時の router.syncFromHash が解決する。
+  test('#/record で起動するとホームを経由せず記録画面が開く（#235）', async ({ page }) => {
+    await page.goto('/index.html#/record');
+
+    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#view-home')).toBeHidden();
+    await expect(page.locator('#recordForm')).toBeVisible();
+  });
 });

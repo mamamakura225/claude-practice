@@ -9,6 +9,21 @@
   "orientation": "portrait",
   "background_color": "#fff6ee",
   "theme_color": "#ffb3c1",
+  "shortcuts": [
+    {
+      "name": "れんしゅうを きろくする",
+      "short_name": "きろくする",
+      "description": "きろく画面をひらきます",
+      "url": "./index.html#/record",
+      "icons": [
+        {
+          "src": "icons/icon-96.png",
+          "sizes": "96x96",
+          "type": "image/png"
+        }
+      ]
+    }
+  ],
   "icons": [
     {
       "src": "icons/icon.svg",
