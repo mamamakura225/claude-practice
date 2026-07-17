@@ -37,18 +37,18 @@ describe('カタログ', () => {
   });
 
   it('foodById で取得・未知IDは null', () => {
-    expect(foodById('fish').price).toBe(10);
+    expect(foodById('fish').price).toBe(5);
     expect(foodById('unknown')).toBeNull();
   });
 });
 
 describe('canFeed', () => {
   it('コインが足りれば あげられる', () => {
-    expect(canFeed(makeState({ pet: { coins: 10 } }), 'fish')).toBe(true);
+    expect(canFeed(makeState({ pet: { coins: 5 } }), 'fish')).toBe(true);
   });
 
   it('コイン不足なら あげられない', () => {
-    expect(canFeed(makeState({ pet: { coins: 9 } }), 'fish')).toBe(false);
+    expect(canFeed(makeState({ pet: { coins: 4 } }), 'fish')).toBe(false);
   });
 
   it('未知のえさは あげられない', () => {
@@ -59,22 +59,22 @@ describe('canFeed', () => {
 describe('feedCat', () => {
   it('コインを引き なかよし度と消費総額を加算する', () => {
     const next = feedCat(makeState({ pet: { coins: 100 } }), 'treat');
-    expect(next.pet.coins).toBe(70);          // 100 - 30
+    expect(next.pet.coins).toBe(85);          // 100 - 15
     expect(next.pet.affinity).toBe(3);        // treat は +3
-    expect(next.pet.foodSpent).toBe(30);
+    expect(next.pet.foodSpent).toBe(15);
   });
 
   it('連続であげると なかよし度・消費が積み上がる', () => {
     let s = makeState({ pet: { coins: 100 } });
-    s = feedCat(s, 'fish');   // -10, +1, spent 10
-    s = feedCat(s, 'milk');   // -15, +1, spent 25
-    expect(s.pet.coins).toBe(75);
+    s = feedCat(s, 'fish');   // -5, +1, spent 5
+    s = feedCat(s, 'milk');   // -7, +1, spent 12
+    expect(s.pet.coins).toBe(88);
     expect(s.pet.affinity).toBe(2);
-    expect(s.pet.foodSpent).toBe(25);
+    expect(s.pet.foodSpent).toBe(12);
   });
 
   it('コイン不足なら state を変えない', () => {
-    const state = makeState({ pet: { coins: 5 } });
+    const state = makeState({ pet: { coins: 4 } });
     expect(feedCat(state, 'fish')).toBe(state);
   });
 

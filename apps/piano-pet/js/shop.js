@@ -8,24 +8,24 @@
 import { affinityLevel } from './feed.js';
 
 export const SHOP_ITEMS = [
-  { id: 'ribbon', name: '赤いリボン', price: 50, slot: 'neck', icon: '🎀', unlockLevel: 1 },
-  { id: 'bowtie', name: 'ループリボン', price: 70, slot: 'neck', icon: '🎗️', unlockLevel: 1 },
-  { id: 'hat', name: '麦わら帽子', price: 80, slot: 'head', icon: '👒', unlockLevel: 1 },
-  { id: 'flower', name: 'おはな', price: 90, slot: 'head', icon: '🌸', unlockLevel: 2 },
-  { id: 'collar', name: '星の首輪', price: 100, slot: 'neck', icon: '⭐', unlockLevel: 2 },
-  { id: 'beret', name: 'ベレーぼう', price: 110, slot: 'head', icon: '🎨', unlockLevel: 2 },
-  { id: 'bell', name: 'すずのくびわ', price: 110, slot: 'neck', icon: '🔔', unlockLevel: 2 },
-  { id: 'scarf', name: 'マフラー', price: 120, slot: 'neck', icon: '🧣', unlockLevel: 4 },
-  { id: 'glasses', name: 'めがね', price: 130, slot: 'face', icon: '👓', unlockLevel: 4 },
-  { id: 'sunglasses', name: 'サングラス', price: 140, slot: 'face', icon: '😎', unlockLevel: 4 },
-  { id: 'cape', name: 'ミニマント', price: 150, slot: 'back', icon: '🧥', unlockLevel: 6 },
-  { id: 'wings', name: 'てんしのはね', price: 220, slot: 'back', icon: '🪽', unlockLevel: 6 },
-  { id: 'flowerCrown', name: 'はなかんむり', price: 260, slot: 'head', icon: '💮', unlockLevel: 8 },
-  { id: 'crown', name: '王冠', price: 300, slot: 'head', icon: '👑', unlockLevel: 8 },
+  { id: 'ribbon', name: '赤いリボン', price: 25, slot: 'neck', icon: '🎀', unlockLevel: 1 },
+  { id: 'bowtie', name: 'ループリボン', price: 35, slot: 'neck', icon: '🎗️', unlockLevel: 1 },
+  { id: 'hat', name: '麦わら帽子', price: 40, slot: 'head', icon: '👒', unlockLevel: 1 },
+  { id: 'flower', name: 'おはな', price: 45, slot: 'head', icon: '🌸', unlockLevel: 2 },
+  { id: 'collar', name: '星の首輪', price: 50, slot: 'neck', icon: '⭐', unlockLevel: 2 },
+  { id: 'beret', name: 'ベレーぼう', price: 55, slot: 'head', icon: '🎨', unlockLevel: 2 },
+  { id: 'bell', name: 'すずのくびわ', price: 55, slot: 'neck', icon: '🔔', unlockLevel: 2 },
+  { id: 'scarf', name: 'マフラー', price: 60, slot: 'neck', icon: '🧣', unlockLevel: 4 },
+  { id: 'glasses', name: 'めがね', price: 65, slot: 'face', icon: '👓', unlockLevel: 4 },
+  { id: 'sunglasses', name: 'サングラス', price: 70, slot: 'face', icon: '😎', unlockLevel: 4 },
+  { id: 'cape', name: 'ミニマント', price: 75, slot: 'back', icon: '🧥', unlockLevel: 6 },
+  { id: 'wings', name: 'てんしのはね', price: 110, slot: 'back', icon: '🪽', unlockLevel: 6 },
+  { id: 'flowerCrown', name: 'はなかんむり', price: 130, slot: 'head', icon: '💮', unlockLevel: 8 },
+  { id: 'crown', name: '王冠', price: 150, slot: 'head', icon: '👑', unlockLevel: 8 },
   // 置物・小物系（シーン配置型・#226）。slot:'scene' は排他なし複数配置で、装備とは別管理
   // （placedItems）。価格・解放Lvは既存帯に合わせる。描画枠・layer は cat-image.js の SCENE_BOX。
-  { id: 'yarnBall', name: 'けいとだま', price: 80, slot: 'scene', icon: '🧶', unlockLevel: 1 },
-  { id: 'cushion', name: 'クッション', price: 120, slot: 'scene', icon: '🛋️', unlockLevel: 2 },
+  { id: 'yarnBall', name: 'けいとだま', price: 40, slot: 'scene', icon: '🧶', unlockLevel: 1 },
+  { id: 'cushion', name: 'クッション', price: 60, slot: 'scene', icon: '🛋️', unlockLevel: 2 },
 ];
 
 export function itemById(id) {
@@ -36,7 +36,8 @@ export function isOwned(state, id) {
   return (state.inventory ?? []).includes(id);
 }
 
-// 所持アイテムの購入に使ったコイン総額
+// 所持アイテムの購入に使ったコイン総額。支払額ではなく現行価格で毎回導出するため、price を
+// 変えると次の recomputeState で既存ユーザーへ差額が反映される（#250 の設計判断・features.md）。
 export function spentCoins(state) {
   return (state.inventory ?? []).reduce((sum, id) => sum + (itemById(id)?.price ?? 0), 0);
 }
