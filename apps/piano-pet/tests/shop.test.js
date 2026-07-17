@@ -14,6 +14,7 @@ import {
   placeItem,
   unplaceItem,
   togglePlace,
+  spentCoins,
 } from '../js/shop.js';
 
 function makeState(overrides = {}) {
@@ -43,7 +44,7 @@ describe('カタログ', () => {
   });
 
   it('itemById で取得・未知IDは null', () => {
-    expect(itemById('ribbon').price).toBe(50);
+    expect(itemById('ribbon').price).toBe(25);
     expect(itemById('glasses').slot).toBe('face');
     expect(itemById('unknown')).toBeNull();
   });
@@ -65,11 +66,11 @@ describe('カタログ', () => {
 
 describe('canBuy', () => {
   it('コインが足りて未所持なら買える', () => {
-    expect(canBuy(makeState({ pet: { coins: 50 } }), 'ribbon')).toBe(true);
+    expect(canBuy(makeState({ pet: { coins: 25 } }), 'ribbon')).toBe(true);
   });
 
   it('コイン不足なら買えない', () => {
-    expect(canBuy(makeState({ pet: { coins: 49 } }), 'ribbon')).toBe(false);
+    expect(canBuy(makeState({ pet: { coins: 24 } }), 'ribbon')).toBe(false);
   });
 
   it('所持済みは買えない', () => {
@@ -132,7 +133,7 @@ describe('解放ゲートと後方互換（affinity 低下時の所持品保持�
 describe('buyItem', () => {
   it('コインを引いてインベントリに追加する', () => {
     const next = buyItem(makeState({ pet: { coins: 100 } }), 'hat');
-    expect(next.pet.coins).toBe(20);
+    expect(next.pet.coins).toBe(60);
     expect(next.inventory).toEqual(['hat']);
   });
 
@@ -147,6 +148,19 @@ describe('buyItem', () => {
     buyItem(state, 'ribbon');
     expect(state.pet.coins).toBe(100);
     expect(state.inventory).toEqual([]);
+  });
+});
+
+// #250: 値下げ時に既存ユーザーへ差額が自動返金される（recomputeState の spent が縮む）という
+// 設計判断は、spentCoins が「支払額」ではなく「現行価格の合計」であることに乗っている。
+describe('spentCoins', () => {
+  it('インベントリを現行価格で合計する', () => {
+    expect(spentCoins(makeState({ inventory: ['ribbon', 'hat'] }))).toBe(25 + 40);
+  });
+
+  it('未所持・未知IDは 0 として扱う', () => {
+    expect(spentCoins(makeState())).toBe(0);
+    expect(spentCoins(makeState({ inventory: ['unknown'] }))).toBe(0);
   });
 });
 

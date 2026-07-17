@@ -3,10 +3,11 @@
 // えさをあげると「なかよし度(affinity)」が増える。コインの消費総額は
 // pet.foodSpent に積み上げ、記録の編集・削除時の全再計算（recomputeState）で
 // 所持コインが復活しないようにする（装備の spentCoins と同じ役割）。
+// 価格は #250 で SHOP_ITEMS と揃えて半額化（ミルクの 7.5 は 7 に切り下げ、fish5<milk7<treat15）。
 export const FOODS = [
-  { id: 'fish',  name: 'おさかな', price: 10, icon: '🐟', affinity: 1 },
-  { id: 'milk',  name: 'ミルク',   price: 15, icon: '🥛', affinity: 1 },
-  { id: 'treat', name: 'ケーキ', price: 30, icon: '🍰', affinity: 3 },
+  { id: 'fish',  name: 'おさかな', price: 5, icon: '🐟', affinity: 1 },
+  { id: 'milk',  name: 'ミルク',   price: 7, icon: '🥛', affinity: 1 },
+  { id: 'treat', name: 'ケーキ', price: 15, icon: '🍰', affinity: 3 },
 ];
 
 export function foodById(id) {

@@ -36,9 +36,9 @@ test.describe('ショップ', () => {
     // ショップ表示・所持コイン200
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
 
-    // 赤いリボン（50コイン）を買う → 残150
+    // 赤いリボン（25コイン）を買う → 残175
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
-    await expect(page.locator('#shopCoins')).toHaveText('150');
+    await expect(page.locator('#shopCoins')).toHaveText('175');
 
     // 装備する → 「みにつけてる」バッジが出る
     await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');
@@ -56,9 +56,9 @@ test.describe('ショップ', () => {
     await page.goto('/#/shop');
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
 
-    // けいとだま（80コイン・前面）を買う → 残120
+    // けいとだま（40コイン・前面）を買う → 残160
     await page.click('.shop-btn[data-action="buy"][data-id="yarnBall"]');
-    await expect(page.locator('#shopCoins')).toHaveText('120');
+    await expect(page.locator('#shopCoins')).toHaveText('160');
 
     // 「おく」（配置トグル）→ 「おうちに あるよ」バッジ
     await page.click('.shop-btn[data-action="place"][data-id="yarnBall"]');
@@ -118,9 +118,9 @@ test.describe('ショップ', () => {
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
     await expect(page.locator('#feedAffinity')).toHaveText('0');
 
-    // おさかな（10コイン・なかよし+1）をあげる → 残190・なかよし1
+    // おさかな（5コイン・なかよし+1）をあげる → 残195・なかよし1
     await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    await expect(page.locator('#shopCoins')).toHaveText('190');
+    await expect(page.locator('#shopCoins')).toHaveText('195');
     await expect(page.locator('#feedAffinity')).toHaveText('1');
 
     // ホームの「なかよし」表示にも反映される
@@ -157,12 +157,13 @@ test.describe('ショップ', () => {
   });
 
   test('コイン不足のアイテムは購入ボタンが無効', async ({ page }) => {
-    // 王冠は unlockLevel 8（#126・#216）。解放はクリアしコイン不足だけを検証するため affinity を盛る
+    // 王冠は unlockLevel 8（#126・#216）。解放はクリアしコイン不足だけを検証するため affinity を盛る。
+    // 値下げ後（#250）の王冠は150コインなので、既定シードの200では足りてしまう→100で始める
     await page.addInitScript(() => {
       localStorage.setItem(
         'piano-pet',
         JSON.stringify({
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 50, foodSpent: 0 },
+          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 100, equippedItems: [], affinity: 50, foodSpent: 0 },
           inventory: [],
           streak: { current: 0, best: 0, lastPracticeDate: null },
           badges: [],
@@ -171,9 +172,9 @@ test.describe('ショップ', () => {
       );
     });
     await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+    await expect(page.locator('#shopCoins')).toHaveText('100', { timeout: 10000 });
 
-    // 王冠は300コインなので200では買えない
+    // 王冠は150コインなので100では買えない
     const crownBtn = page.locator('.shop-card', { hasText: '王冠' }).locator('.shop-btn');
     await expect(crownBtn).toBeDisabled();
     await expect(crownBtn).toHaveText('コインが たりない');

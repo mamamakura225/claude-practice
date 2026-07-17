@@ -69,7 +69,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `name` | string | `'きーちゃん'` | 猫の名前 |
 | `level` | number | `1` | XPから算出される現在レベル |
 | `xp` | number | `0` | 累計経験値 |
-| `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費）。記録の編集・削除時の全再計算（`recomputeState`）では `Math.max(0, 獲得総額 − spent)` で再導出する。`spent` ＝ 装備購入総額（`spentCoins`＝インベントリ価格合計）＋ `foodSpent` の合算で、[app.js](../js/app.js) が算出して渡す（→ 購入・えさ消費分が再計算で復活しない） |
+| `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費）。記録の編集・削除時の全再計算（`recomputeState`）では `Math.max(0, 獲得総額 − spent)` で再導出する。`spent` ＝ 装備購入総額（`spentCoins`＝インベントリ価格合計）＋ `foodSpent` の合算で、[app.js](../js/app.js) が算出して渡す（→ 購入・えさ消費分が再計算で復活しない）。**`spentCoins` は過去の支払額ではなく現行価格から毎回導出する**ため、価格改定（#250 の半額化）を行うと次の全再計算で差額が既存ユーザーへ自動返金される（値下げ方向はコインが増えるだけなので許容し、購入価格の記録フィールドは持たない → [features.md](./features.md) の設計判断）|
 | `equippedItems` | string[] | `[]` | 装備中アイテムID（スロットごとに1つ） |
 | `placedItems` | string[] | `[]` | 配置中の置物・小物系アイテムID（シーン配置型・#226）。装備（`equippedItems`・slot排他）とは**別配列で排他なし複数配置**。`shop.js` `togglePlace`/`placeItem`/`unplaceItem` が管理し、装備ロジック（`equipItem`/`spentCoins`）には触れない。描画は `.cat` 正方枠の前後2層（[cat-image.js](../js/cat-image.js) `SCENE_BOX` の `layer`）。配置外しは `cleanItemLayout` が座標を掃除 |
 | `itemLayout` | object | `{}` | 衣装**と置物**の自由配置 `{ itemId: {x_pct, y_pct, scale?} }`（#168/#205/#226・.cat正方枠%）。`scale` は絶対値(0.3〜3.0・#205ピンチ)。スナップで定位置に戻した衣装はサイズだけ変えていれば座標を持たず `{scale}` のみ保持。未登録は既定位置（装着＝アンカー / 置物＝`SCENE_DEFAULT_PCT`）・基準スケールで描画。装備・配置外しは `cleanItemLayout` が掃除（置物IDは装着IDと重複しないため両系統を1つの layout で共用）|
