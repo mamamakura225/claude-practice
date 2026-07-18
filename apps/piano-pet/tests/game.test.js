@@ -12,6 +12,9 @@ import {
   rollDailyBonus,
   BONUS_CHANCE,
   BONUS_COINS,
+  clampDailyGoal,
+  GOAL_BONUS_THRESHOLD,
+  DAILY_GOAL,
 } from '../js/game.js';
 
 function baseState(overrides = {}) {
@@ -382,5 +385,34 @@ describe('recomputeState', () => {
     expect(live.badges).toContain('first_practice');
     const after = recomputeState({ ...live, sessions: [] }, 0);
     expect(after.badges).not.toContain('first_practice');
+  });
+});
+
+describe('clampDailyGoal（1日の目標回数・#238）', () => {
+  it('5〜20 の範囲はそのまま（整数化）', () => {
+    expect(clampDailyGoal(5)).toBe(5);
+    expect(clampDailyGoal(10)).toBe(10);
+    expect(clampDailyGoal(20)).toBe(20);
+    expect(clampDailyGoal(12.4)).toBe(12);
+  });
+
+  it('範囲外は 5〜20 にクランプ', () => {
+    expect(clampDailyGoal(1)).toBe(5);
+    expect(clampDailyGoal(0)).toBe(5);
+    expect(clampDailyGoal(100)).toBe(20);
+  });
+
+  it('不正値は既定(DAILY_GOAL=10)に落とす', () => {
+    expect(clampDailyGoal(undefined)).toBe(DAILY_GOAL);
+    expect(clampDailyGoal(null)).toBe(DAILY_GOAL);
+    expect(clampDailyGoal('abc')).toBe(DAILY_GOAL);
+    expect(clampDailyGoal(NaN)).toBe(DAILY_GOAL);
+  });
+
+  it('達成ボーナス閾値は固定10で、可変目標とは分離（過去コイン不変・#238）', () => {
+    // 目標を下げても上げても calcRewards のボーナスは totalCount>=10 で判定される。
+    expect(GOAL_BONUS_THRESHOLD).toBe(10);
+    expect(calcRewards(9, 1).coins).toBe(9);        // 9回はボーナス無し
+    expect(calcRewards(10, 1).coins).toBe(10 + 5);  // 10回で+5（目標設定に依らず）
   });
 });

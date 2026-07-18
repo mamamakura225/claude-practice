@@ -49,10 +49,15 @@ const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 // 設計判断: issue #139 の実装例は半音上昇(2^(i/12))だが、それでは「ドレミの音程感覚を
 // 養う」狙いが満たせないため、ダイアトニック（メジャー音階）を採用。目標マスは headline
 // 通り高いドへ解決させる（レ→ド の終止感を優先し、厳密な単調増加は要件としない）。
+// #238: 目標回数が可変（5〜20）になったため、途中マスは C メジャー音階を「1オクターブ内」に
+// 再配分して上る。旧実装は 12*floor(i/7) でオクターブを無制限に積み上げ、goal=20 では +31 半音
+// (甲高い)まで上がっていた。分母 (goal-1) で 0..6 のダイアトニック度へ正規化し +12 を超えさせない。
 export function stampSemitone(index, goal = 10) {
+  const g = Math.max(1, Math.floor(goal) || 1);
   const i = Math.max(0, Math.floor(index) || 0);
-  if (goal > 0 && i >= goal - 1) return 12; // 目標マスは高いド（オクターブ）
-  return MAJOR_SCALE[i % MAJOR_SCALE.length] + 12 * Math.floor(i / MAJOR_SCALE.length);
+  if (i >= g - 1) return 12; // 目標マス（最後の1マス）は高いド＝オクターブ解決
+  const degree = Math.floor((i / (g - 1)) * MAJOR_SCALE.length); // 0..6（i<g-1 なので度数<=6）
+  return MAJOR_SCALE[Math.min(degree, MAJOR_SCALE.length - 1)];
 }
 
 // index のスタンプの周波数(Hz)。ド=C4 基準の平均律（pure）。

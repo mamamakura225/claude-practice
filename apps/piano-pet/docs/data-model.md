@@ -75,6 +75,7 @@ State 本体（`piano-pet`）とは別に、端末固有の一時フラグを独
 | `itemLayout` | object | `{}` | 衣装**と置物**の自由配置 `{ itemId: {x_pct, y_pct, scale?} }`（#168/#205/#226・.cat正方枠%）。`scale` は絶対値(0.3〜3.0・#205ピンチ)。スナップで定位置に戻した衣装はサイズだけ変えていれば座標を持たず `{scale}` のみ保持。未登録は既定位置（装着＝アンカー / 置物＝`SCENE_DEFAULT_PCT`）・基準スケールで描画。装備・配置外しは `cleanItemLayout` が掃除（置物IDは装着IDと重複しないため両系統を1つの layout で共用）|
 | `affinity` | number | `0` | なかよし度（えさやりで上昇）。3段階tier（low/mid/high）に集約され猫画像の表情・ポーズに反映（#167） |
 | `foodSpent` | number | `0` | えさに使ったコイン総額（全再計算で消費分を復活させないため） |
+| `dailyGoal` | number | `10` | 1日の練習目標回数（#238）。親が **5〜20** で調整（`clampDailyGoal`）。ホームの進捗メーター・記録画面のスタンプのマス数/分母/音程にのみ反映。**達成ボーナス閾値（`GOAL_BONUS_THRESHOLD=10`）とは分離**＝可変にしても `recomputeState` が過去の記録のコインを動かさない。pet 配下なので既存の cloud 同期にそのまま乗り、未設定の旧データは `normalizeState` が 10 で補完 |
 | `catStyle` | string | `'tora'` | 猫スタイル（#66）。`'tora'` / `'shiro'` / `'russianblue'`。未知値は表示側（`normalizeStyle`）が tora にフォールバック。realtime 同期は pet ごと cloud-wins、初回マージはローカル優先（name と同じ扱い） |
 | `childName` | string | `''` | こども本人の名前（#121）。ヘッダ隅のアバターに表示。前後空白を落とし12文字に丸める（`normalizeChildName`）。**PII規約**：analytics には送らない。空なら名前ラベルは非表示 |
 | `childAvatar` | string | `'chick'` | こどものアイコン絵文字ID（#121・[child-profile.js](../js/child-profile.js) `CHILD_AVATARS`）。**顔写真は使わない**（認証なしの共有 Firestore に置くためプライバシー配慮）。未知・未設定は表示側（`normalizeChildAvatar`）が `chick`🐥 にフォールバック。同期は pet ごと cloud-wins（catStyle と同じ） |

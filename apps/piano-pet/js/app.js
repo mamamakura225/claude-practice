@@ -1,7 +1,7 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, activeStorageKey } from './storage.js';
 import { getAccounts, getActiveAccountId, setActiveAccount } from './account.js';
-import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, rollDailyBonus } from './game.js';
+import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle } from './cat-image.js';
 import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
@@ -194,15 +194,25 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
-// 今日の目標（○/10回）の進捗表示
+// 親が設定した1日の目標回数（#238）。未設定の旧データは既定10（normalizeState 補完済み）。
+function currentGoal() {
+  return clampDailyGoal(state.pet?.dailyGoal ?? DAILY_GOAL);
+}
+
+// 今日の目標（○/目標回）の進捗表示
 function renderDailyGoal() {
-  const goal = dailyProgress(state.sessions, todayStr());
+  const target = currentGoal();
+  const goal = dailyProgress(state.sessions, todayStr(), target);
   setText('statGoalCount', goal.count);
+  setText('statGoalTarget', target);              // 分母（○/N かい）を可変目標に追従
 
   const fillEl = document.getElementById('statGoalFill');
   if (fillEl) fillEl.style.width = `${Math.round(goal.ratio * 100)}%`;
   const barEl = document.getElementById('statGoalbar');
-  if (barEl) barEl.setAttribute('aria-valuenow', String(Math.min(goal.count, goal.goal)));
+  if (barEl) {
+    barEl.setAttribute('aria-valuemax', String(target));
+    barEl.setAttribute('aria-valuenow', String(Math.min(goal.count, goal.goal)));
+  }
 
   setText('statGoalMsg', goal.achieved ? 'もくひょう たっせい！🎉' : `あと ${goal.remaining} かい！`);
   document.getElementById('goalBlock')?.classList.toggle('goal-block--done', goal.achieved);
@@ -621,22 +631,24 @@ function stampCellStyle(c) {
   return `background:${c.tint};border-color:${c.fill}`;
 }
 
-// スタンプカードを描画。最低10マス、超過時は常に1マス余分に出して押し続けられるようにする。
+// スタンプカードを描画。最低「目標マス」ぶん、超過時は常に1マス余分に出して押し続けられるようにする。
 function renderStampCard() {
   if (!stampCardEl) return;
+  const goal = currentGoal();                 // 目標回数（#238・可変）に追従
   const colors = formSongColors();
   const filled = stamps.length;
-  const cells = Math.max(DAILY_GOAL, filled + 1);
+  const cells = Math.max(goal, filled + 1);
   let html = '';
   for (let i = 0; i < cells; i += 1) {
     const isFilled = i < filled;
-    const isGoal = i === DAILY_GOAL - 1;
+    const isGoal = i === goal - 1;
     // 押したマスは、その押下時に選ばれていた曲の色で塗る（曲ごとに色が変わる・#122）
     const style = isFilled ? ` style="${stampCellStyle(colors.get(stamps[i]) ?? songColor(stamps[i]))}"` : '';
     html += `<span class="stamp-cell${isFilled ? ' is-filled' : ''}${isGoal ? ' is-goal' : ''}"${style} aria-hidden="true">${isFilled ? '🐾' : ''}</span>`;
   }
   stampCardEl.innerHTML = html;
-  stampCardEl.classList.toggle('is-complete', filled >= DAILY_GOAL);
+  stampCardEl.classList.toggle('is-complete', filled >= goal);
+  setText('recordGoalTarget', goal);            // 記録画面の分母（○/目標こ）も追従
   updateProgress();
 }
 
@@ -650,12 +662,13 @@ function addStamp() {
     if (stampHintEl) stampHintEl.hidden = false;
     return;
   }
-  const reachedGoal = stamps.length + 1 === DAILY_GOAL;
+  const goal = currentGoal();
+  const reachedGoal = stamps.length + 1 === goal;
   stamps.push(selectedSong);
   saveStampDraft();
   renderStampCard();
-  // 押したマスのindexでドレミ…と音程が上がり、目標マスは高いドに解決する(#139)
-  playStamp(stamps.length - 1, state, DAILY_GOAL);
+  // 押したマスのindexでドレミ…と音程が上がり、目標マスは高いドに解決する(#139・目標可変#238)
+  playStamp(stamps.length - 1, state, goal);
   if (reachedGoal) playSound('levelup', state);
 }
 
@@ -1283,6 +1296,25 @@ document.getElementById('themeSwitch')?.addEventListener('click', (e) => {
 });
 try { applyTheme(localStorage.getItem(THEME_KEY) || 'auto'); } catch (_) { applyTheme('auto'); }
 
+// ===== せってい：1日の目標回数（#238） =====
+// 5〜20 に丸めて pet.dailyGoal に保存→クラウド即送信。ホームの進捗・記録画面のスタンプへ即反映。
+// 報酬（コイン）には影響しない（達成ボーナス閾値は固定10）。
+function setDailyGoal(value) {
+  const goal = clampDailyGoal(value);
+  if (goal === currentGoal() && state.pet.dailyGoal === goal) return;
+  state.pet = { ...state.pet, dailyGoal: goal };
+  saveState(state);
+  if (cloud) cloud.pushCloudDebounced(cloudFields(state));
+  const goalInput = document.getElementById('goalTargetInput');
+  if (goalInput) goalInput.value = String(goal);   // クランプ結果を入力欄に反映
+  renderHome();
+  renderStampCard();                               // 記録画面が開いていればマス数も更新
+}
+
+document.getElementById('goalTargetInput')?.addEventListener('change', (e) => setDailyGoal(e.target.value));
+document.getElementById('goalMinusBtn')?.addEventListener('click', () => setDailyGoal(currentGoal() - 1));
+document.getElementById('goalPlusBtn')?.addEventListener('click', () => setDailyGoal(currentGoal() + 1));
+
 // ===== せってい：データのバックアップ/復元（#140） =====
 const settingsOverlayEl = document.getElementById('settingsOverlay');
 const settingsGateEl = document.getElementById('settingsGate');
@@ -1320,6 +1352,8 @@ function submitGate() {
     if (settingsMenuEl) settingsMenuEl.hidden = false;
     loadHwInputs();                       // 宿題の現在値をフォームに反映（#143）
     renderAccountList();                   // アカウント切替の現在値を反映（#182）
+    const goalInput = document.getElementById('goalTargetInput');
+    if (goalInput) goalInput.value = String(currentGoal());  // 目標回数の現在値を反映（#238）
   } else if (gateErrorEl) {
     gateErrorEl.hidden = false;
     if (gateAnswerEl) gateAnswerEl.value = '';
