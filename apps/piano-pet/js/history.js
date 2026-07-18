@@ -82,6 +82,59 @@ export function reviewShareText({ petName, count, songCount, dayCount, streak } 
   return lines.join('\n');
 }
 
+// ===== 月間カレンダー（草式ヒートマップ・#236） =====
+// sessions からの導出のみ（保存フィールドなし）。曜日は日曜起点。
+
+// 日付ごとの合計回数を Map(date -> count) にまとめる（同日複数レコードは合算）。
+export function dailyCountMap(sessions) {
+  const m = new Map();
+  for (const s of sessions ?? []) {
+    if (!s || s.date == null) continue;
+    m.set(s.date, (m.get(s.date) || 0) + (Number(s.totalCount) || 0));
+  }
+  return m;
+}
+
+// その日の回数を4段階の濃淡レベル(0〜3)に写す（#236）。
+// 0＝なし / 1＝目標の半分未満 / 2＝半分以上目標未満 / 3＝目標達成。閾値は可変目標に追従（#238）。
+export function heatLevel(count, goal = 10) {
+  const n = Number(count) || 0;
+  const g = Math.max(1, Number(goal) || 1);
+  if (n <= 0) return 0;
+  if (n >= g) return 3;
+  return n < g / 2 ? 1 : 2;
+}
+
+// year/month(1-12) を delta か月ずらして {year, month} を返す。
+export function shiftMonth(year, month, delta) {
+  const idx = year * 12 + (month - 1) + delta;
+  return { year: Math.floor(idx / 12), month: (idx % 12) + 1 };
+}
+
+// "YYYY年M月" ラベル。
+export function monthLabel(year, month) {
+  return `${year}年${month}月`;
+}
+
+// 月間カレンダーの週配列を返す（日曜起点・前後は null 埋め）。各セルは
+// { date:'YYYY-MM-DD', day, count, level, isToday, isFuture }。sessions 導出のみ。
+export function monthGrid(year, month, sessions, { today = todayStr(), goal = 10 } = {}) {
+  const counts = dailyCountMap(sessions);
+  const startPad = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // 0=日
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const cells = [];
+  for (let i = 0; i < startPad; i += 1) cells.push(null);
+  for (let d = 1; d <= daysInMonth; d += 1) {
+    const date = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const count = counts.get(date) || 0;
+    cells.push({ date, day: d, count, level: heatLevel(count, goal), isToday: date === today, isFuture: date > today });
+  }
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  return weeks;
+}
+
 // 記録リスト用に "M月D日（曜）" 形式へ整形する
 export function formatDateJa(dateStr) {
   const d = new Date(dateStr + 'T00:00:00Z');

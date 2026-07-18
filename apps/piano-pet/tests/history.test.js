@@ -8,6 +8,11 @@ import {
   reviewShareText,
   weekLabel,
   formatDateJa,
+  dailyCountMap,
+  heatLevel,
+  shiftMonth,
+  monthLabel,
+  monthGrid,
 } from '../js/history.js';
 
 describe('weekStart', () => {
@@ -156,5 +161,66 @@ describe('reviewShareText', () => {
 
   it('名前が空でも既定名で作る', () => {
     expect(reviewShareText({ count: 0, songCount: 0, dayCount: 0, streak: 0 })).toContain('ねこ');
+  });
+});
+
+describe('練習カレンダー（#236）', () => {
+  it('dailyCountMap は同日を合算する', () => {
+    const m = dailyCountMap([
+      { date: '2026-05-01', totalCount: 3 },
+      { date: '2026-05-01', totalCount: 4 },
+      { date: '2026-05-02', totalCount: 5 },
+    ]);
+    expect(m.get('2026-05-01')).toBe(7);
+    expect(m.get('2026-05-02')).toBe(5);
+  });
+
+  it('heatLevel は 0/半分未満/半分以上/目標達成 の4段階（目標10）', () => {
+    expect(heatLevel(0, 10)).toBe(0);
+    expect(heatLevel(4, 10)).toBe(1);
+    expect(heatLevel(5, 10)).toBe(2);
+    expect(heatLevel(9, 10)).toBe(2);
+    expect(heatLevel(10, 10)).toBe(3);
+    expect(heatLevel(99, 10)).toBe(3);
+  });
+
+  it('heatLevel は可変目標に追従（#238連動）', () => {
+    expect(heatLevel(5, 5)).toBe(3);   // 目標5なら5回で達成
+    expect(heatLevel(2, 5)).toBe(1);
+    expect(heatLevel(3, 5)).toBe(2);
+    expect(heatLevel(10, 20)).toBe(2); // 目標20なら10回はまだ2
+    expect(heatLevel(20, 20)).toBe(3);
+  });
+
+  it('shiftMonth は年跨ぎを正しく処理する', () => {
+    expect(shiftMonth(2026, 1, -1)).toEqual({ year: 2025, month: 12 });
+    expect(shiftMonth(2026, 12, 1)).toEqual({ year: 2027, month: 1 });
+    expect(shiftMonth(2026, 5, 0)).toEqual({ year: 2026, month: 5 });
+  });
+
+  it('monthLabel は YYYY年M月', () => {
+    expect(monthLabel(2026, 5)).toBe('2026年5月');
+  });
+
+  it('monthGrid は日曜起点で前後を null 埋めし、7列の週配列を返す', () => {
+    // 2026-05-01 は金曜（日曜起点で先頭5マスが null）。5月は31日。
+    const weeks = monthGrid(2026, 5, [{ date: '2026-05-01', totalCount: 10 }], { today: '2026-05-15', goal: 10 });
+    for (const w of weeks) expect(w).toHaveLength(7);
+    expect(weeks[0].slice(0, 5).every((c) => c === null)).toBe(true);
+    const may1 = weeks[0][5];
+    expect(may1.date).toBe('2026-05-01');
+    expect(may1.day).toBe(1);
+    expect(may1.level).toBe(3);        // 10回=達成
+    // 全日数（31）ぶんのセルが存在する
+    const dayCells = weeks.flat().filter((c) => c);
+    expect(dayCells).toHaveLength(31);
+  });
+
+  it('monthGrid は今日/未来フラグを立てる', () => {
+    const weeks = monthGrid(2026, 5, [], { today: '2026-05-15', goal: 10 });
+    const cells = weeks.flat().filter((c) => c);
+    expect(cells.find((c) => c.date === '2026-05-15').isToday).toBe(true);
+    expect(cells.find((c) => c.date === '2026-05-20').isFuture).toBe(true);
+    expect(cells.find((c) => c.date === '2026-05-10').isFuture).toBe(false);
   });
 });

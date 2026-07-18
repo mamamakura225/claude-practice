@@ -14,6 +14,9 @@ import {
   weeklySummary,
   reviewShareText,
   formatDateJa,
+  monthGrid,
+  monthLabel,
+  shiftMonth,
 } from './history.js';
 import {
   SHOP_ITEMS,
@@ -351,6 +354,41 @@ function songCollectionMarkup(totals) {
     .join('');
 }
 
+// 表示中の月（練習カレンダー・#236）。初期値は今月。前月/翌月ボタンで移動する。
+let calYear = null;
+let calMonth = null;
+
+function ensureCalMonth() {
+  if (calYear == null || calMonth == null) {
+    const [y, m] = todayStr().split('-');
+    calYear = Number(y);
+    calMonth = Number(m);
+  }
+}
+
+// 月間カレンダー（草式ヒートマップ・#236）。sessions 導出のみ・目標(#238)に濃淡が追従。
+function renderCalendar() {
+  const grid = document.getElementById('calGrid');
+  if (!grid) return;
+  ensureCalMonth();
+  setText('calTitle', monthLabel(calYear, calMonth));
+  const weeks = monthGrid(calYear, calMonth, state.sessions, { today: todayStr(), goal: currentGoal() });
+  grid.innerHTML = weeks.map((week) => week.map((cell) => {
+    if (!cell) return '<span class="cal-cell cal-cell--pad" aria-hidden="true"></span>';
+    const cls = `cal-cell${cell.isToday ? ' cal-cell--today' : ''}${cell.isFuture ? ' cal-cell--future' : ''}`;
+    const title = `${calMonth}/${cell.day}：${cell.count}かい`;
+    return `<span class="${cls}" data-level="${cell.level}" title="${title}"><span class="cal-cell__day">${cell.day}</span></span>`;
+  }).join('')).join('');
+}
+
+function moveCalendar(delta) {
+  ensureCalMonth();
+  const next = shiftMonth(calYear, calMonth, delta);
+  calYear = next.year;
+  calMonth = next.month;
+  renderCalendar();
+}
+
 function renderSongCollection() {
   const el = document.getElementById('songCollection');
   if (!el) return;
@@ -376,6 +414,7 @@ export function renderHistory() {
 
   renderChildAvatar();
   renderReviewCard();
+  renderCalendar();
   renderSongCollection();
 
   const chartEl = document.getElementById('weeklyChart');
@@ -532,6 +571,8 @@ navButtons.forEach((btn) => {
 
 document.getElementById('goRecordBtn')?.addEventListener('click', () => router.go('record'));
 document.getElementById('recordBackBtn')?.addEventListener('click', () => router.go('home'));
+document.getElementById('calPrevBtn')?.addEventListener('click', () => moveCalendar(-1));  // 練習カレンダー 前月（#236）
+document.getElementById('calNextBtn')?.addEventListener('click', () => moveCalendar(1));   // 練習カレンダー 翌月
 
 // ===== 記録フォーム（スタンプカード方式） =====
 const recordDateEl = document.getElementById('recordDate');
