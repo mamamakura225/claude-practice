@@ -175,4 +175,30 @@ test.describe('練習記録', () => {
     await expect(page.locator('#view-home')).toBeHidden();
     await expect(page.locator('#recordForm')).toBeVisible();
   });
+
+  // 曲チップは最近ひいた順（#252）。昔たくさん弾いた曲より、直近に弾いた曲が上位に出る。
+  test('最近記録した曲が曲チップの先頭に出る（累計回数が少なくても・#252）', async ({ page }) => {
+    // ふるいきょく＝古い日に累計20回、ゆうしゃ＝直近に累計2回。旧仕様（回数順）なら
+    // ふるいきょくが先頭に来て、ゆうしゃが埋もれる（本 issue の再現構成）。
+    await page.addInitScript(() => {
+      localStorage.setItem('piano-pet', JSON.stringify({
+        pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [] },
+        inventory: [],
+        streak: { current: 0, best: 0, lastPracticeDate: null },
+        badges: [],
+        sessions: [
+          { date: '2026-07-15', songs: [{ name: 'ゆうしゃのぼうけん', count: 2 }] },
+          { date: '2026-01-05', songs: [{ name: 'ふるいきょく', count: 20 }] },
+        ],
+      }));
+    });
+
+    await page.goto('/index.html#/record');
+    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
+
+    // 直近に弾いた「ゆうしゃのぼうけん」がチップに出て、かつ先頭（ふるいきょくより前）。
+    const chips = page.locator('#songChips .song-chip');
+    await expect(chips.first()).toHaveAttribute('data-song', 'ゆうしゃのぼうけん');
+    await expect(page.locator('#songChips .song-chip[data-song="ゆうしゃのぼうけん"]')).toBeVisible();
+  });
 });
