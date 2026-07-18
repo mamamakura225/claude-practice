@@ -67,7 +67,8 @@ export function songsToStamps(songs) {
 }
 
 // 全セッションを曲ごとに集計し「累計回数の多い順→新しさ」で返す（#122 曲別コレクション）。
-// 返り値: [{ name, count }]。回数は合計、空名は無視。pastSongNames と同じ並び基準。
+// 返り値: [{ name, count }]。回数は合計、空名は無視。達成量の陳列なので累計回数順を保つ
+// （記録チップの pastSongNames は #252 で最近ひいた順に分離＝並び基準は別物）。
 export function songTotals(sessions) {
   const counts = new Map();
   const lastSeen = new Map();
@@ -121,23 +122,23 @@ export function normalizeTempo(value) {
   return TEMPO_STAMPS.some((s) => s.id === value) ? value : null;
 }
 
-// 過去のセッションから曲名候補を「よく弾く順（合計回数）→新しさ」で返す。
-// 曲選択チップのサジェストに使う。limit 件まで。
+// 曲選択チップの候補を「最近ひいた順（最終練習日）→累計回数」で limit 件返す（#252・features.md）。
+// 配列順でなく session.date（'YYYY-MM-DD' 固定幅＝文字列比較で時系列）で並べ、練習中の曲を上位に。
 export function pastSongNames(sessions, limit = 8) {
   const counts = new Map();
-  const lastSeen = new Map();
-  let order = 0;
+  const lastPlayed = new Map();
   for (const session of sessions ?? []) {
-    order += 1;
+    const date = String(session?.date ?? '');
     for (const song of session?.songs ?? []) {
       const name = String(song?.name ?? '').trim();
       if (!name) continue;
       const count = Math.floor(Number(song?.count)) || 0;
       counts.set(name, (counts.get(name) ?? 0) + Math.max(count, 1));
-      lastSeen.set(name, order);
+      if (date > (lastPlayed.get(name) ?? '')) lastPlayed.set(name, date);
     }
   }
   return [...counts.keys()]
-    .sort((a, b) => (counts.get(b) - counts.get(a)) || (lastSeen.get(b) - lastSeen.get(a)))
+    .sort((a, b) => (lastPlayed.get(a) ?? '') < (lastPlayed.get(b) ?? '') ? 1
+      : (lastPlayed.get(a) ?? '') > (lastPlayed.get(b) ?? '') ? -1 : counts.get(b) - counts.get(a))
     .slice(0, limit);
 }

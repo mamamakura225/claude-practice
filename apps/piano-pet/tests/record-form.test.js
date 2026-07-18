@@ -152,31 +152,44 @@ describe('combineSongs', () => {
 });
 
 describe('pastSongNames', () => {
-  it('合計回数の多い順に返す', () => {
+  it('最終練習日の新しい順に返す（累計回数は問わない・#252）', () => {
+    // A は累計6回だが最後に弾いたのは古い。B は累計1回でも直近に弾いた → B が先頭。
     const sessions = [
-      { songs: [{ name: 'A', count: 1 }, { name: 'B', count: 5 }] },
-      { songs: [{ name: 'A', count: 1 }] },
+      { date: '2026-07-10', songs: [{ name: 'B', count: 1 }] },
+      { date: '2026-07-01', songs: [{ name: 'A', count: 5 }] },
+      { date: '2026-06-20', songs: [{ name: 'A', count: 1 }] },
     ];
     expect(pastSongNames(sessions)).toEqual(['B', 'A']);
   });
 
-  it('同数なら新しく弾いた曲を優先する', () => {
+  it('最終練習日が同じなら累計回数の多い順（#252 タイブレーク）', () => {
     const sessions = [
-      { songs: [{ name: 'A', count: 1 }] },
-      { songs: [{ name: 'B', count: 1 }] },
+      { date: '2026-07-10', songs: [{ name: 'A', count: 2 }, { name: 'B', count: 5 }] },
     ];
     expect(pastSongNames(sessions)).toEqual(['B', 'A']);
+  });
+
+  it('曲の最終練習日は全セッション横断で最新を採る（配列順に依存しない）', () => {
+    // 配列は古い順で来ても、A の最終日 07-15 が B の 07-10 より新しいので A が先頭。
+    const sessions = [
+      { date: '2026-07-01', songs: [{ name: 'A', count: 1 }] },
+      { date: '2026-07-10', songs: [{ name: 'B', count: 1 }] },
+      { date: '2026-07-15', songs: [{ name: 'A', count: 1 }] },
+    ];
+    expect(pastSongNames(sessions)).toEqual(['A', 'B']);
   });
 
   it('重複曲名は1件にまとめる', () => {
-    const sessions = [{ songs: [{ name: 'A', count: 1 }, { name: 'A', count: 1 }] }];
+    const sessions = [{ date: '2026-07-10', songs: [{ name: 'A', count: 1 }, { name: 'A', count: 1 }] }];
     expect(pastSongNames(sessions)).toEqual(['A']);
   });
 
-  it('limit 件で打ち切る', () => {
-    const sessions = [{ songs: [
-      { name: 'A', count: 5 }, { name: 'B', count: 4 }, { name: 'C', count: 3 },
-    ] }];
+  it('limit 件で打ち切る（新しい順に）', () => {
+    const sessions = [
+      { date: '2026-07-12', songs: [{ name: 'A', count: 1 }] },
+      { date: '2026-07-11', songs: [{ name: 'B', count: 1 }] },
+      { date: '2026-07-10', songs: [{ name: 'C', count: 1 }] },
+    ];
     expect(pastSongNames(sessions, 2)).toEqual(['A', 'B']);
   });
 
@@ -186,10 +199,14 @@ describe('pastSongNames', () => {
   });
 
   it('limit=Infinity で全曲を返す（datalist補完用）', () => {
-    const songs = Array.from({ length: 12 }, (_, i) => ({ name: `曲${i}`, count: 12 - i }));
-    const all = pastSongNames([{ songs }], Infinity);
+    // 12曲を別々の日に弾く。曲0 が最新日なので先頭。
+    const sessions = Array.from({ length: 12 }, (_, i) => ({
+      date: `2026-07-${String(12 - i).padStart(2, '0')}`,
+      songs: [{ name: `曲${i}`, count: 1 }],
+    }));
+    const all = pastSongNames(sessions, Infinity);
     expect(all).toHaveLength(12);
-    expect(all[0]).toBe('曲0'); // count 最大が先頭
+    expect(all[0]).toBe('曲0'); // 最終練習日が最新の曲が先頭
   });
 });
 
