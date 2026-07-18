@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=38824ab7">
-  <link rel="stylesheet" href="css/cat.css?v=38824ab7">
+  <link rel="stylesheet" href="css/style.css?v=1c037f3e">
+  <link rel="stylesheet" href="css/cat.css?v=1c037f3e">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -216,6 +216,29 @@
           <h2 class="history-heading">しゅうごとの れんしゅう</h2>
           <div class="weekly-chart" id="weeklyChart" role="img"
                aria-label="しゅうごとの れんしゅうかいすう ぼうグラフ"></div>
+        </section>
+
+        <section class="history-section">
+          <h2 class="history-heading">れんしゅう カレンダー</h2>
+          <div class="calendar" id="practiceCalendar">
+            <div class="calendar__head">
+              <button type="button" class="calendar__nav" id="calPrevBtn" aria-label="まえの つき">‹</button>
+              <span class="calendar__title" id="calTitle" aria-live="polite">—</span>
+              <button type="button" class="calendar__nav" id="calNextBtn" aria-label="つぎの つき">›</button>
+            </div>
+            <div class="calendar__weekdays" aria-hidden="true">
+              <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
+            </div>
+            <div class="calendar__grid" id="calGrid" role="img" aria-label="つきごとの れんしゅうりょう ヒートマップ"></div>
+            <div class="calendar__legend" aria-hidden="true">
+              <span class="calendar__legend-label">すくない</span>
+              <span class="cal-cell" data-level="0"></span>
+              <span class="cal-cell" data-level="1"></span>
+              <span class="cal-cell" data-level="2"></span>
+              <span class="cal-cell" data-level="3"></span>
+              <span class="calendar__legend-label">おおい</span>
+            </div>
+          </div>
         </section>
 
         <section class="history-section">
@@ -484,6 +507,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=38824ab7"></script>
+  <script type="module" src="js/app.js?v=1c037f3e"></script>
 </body>
 </html>
