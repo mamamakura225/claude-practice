@@ -75,11 +75,13 @@ describe('stampSemitone / stampFrequency (#139)', () => {
     expect(stampFrequency(0, 10)).toBeCloseTo(STAMP_BASE_FREQ, 5);
   });
 
-  it('ドレミファソラシ＝メジャー音階で上がる', () => {
+  it('ちょうど8マス目標なら ド レ ミ ファ ソ ラ シ ＝メジャー音階で上がる', () => {
+    // goal=8 は途中7マスが1オクターブのダイアトニックに一致する基準ケース（#238）。
     const expected = [0, 2, 4, 5, 7, 9, 11]; // ド レ ミ ファ ソ ラ シ
     expected.forEach((semi, i) => {
-      expect(stampSemitone(i, 10)).toBe(semi);
+      expect(stampSemitone(i, 8)).toBe(semi);
     });
+    expect(stampSemitone(7, 8)).toBe(12);      // 目標マス＝高いド
   });
 
   it('目標マス（最後の1マス）は高いド＝オクターブ(+12)に解決する', () => {
@@ -87,15 +89,33 @@ describe('stampSemitone / stampFrequency (#139)', () => {
     expect(stampFrequency(9, 10)).toBeCloseTo(STAMP_BASE_FREQ * 2, 5);
   });
 
-  it('オクターブ上がると周波数は2倍（平均律）', () => {
-    // ド↑（index7 = MAJOR[0] + 12）はちょうど基準の2倍
-    expect(stampSemitone(7, 10)).toBe(12);
-    expect(stampFrequency(7, 10)).toBeCloseTo(STAMP_BASE_FREQ * 2, 5);
+  it('オクターブ上がると周波数は2倍（平均律）＝目標マスは基準の2倍', () => {
+    expect(stampSemitone(7, 8)).toBe(12);
+    expect(stampFrequency(7, 8)).toBeCloseTo(STAMP_BASE_FREQ * 2, 5);
   });
 
   it('goal が変わっても最後のマスがオクターブで締まる', () => {
     expect(stampSemitone(4, 5)).toBe(12);
     expect(stampSemitone(0, 5)).toBe(0);
+    expect(stampSemitone(19, 20)).toBe(12);
+    expect(stampSemitone(0, 20)).toBe(0);
+  });
+
+  it('目標が大きくても途中マスは1オクターブ内(<=11)に収まり甲高くならない（#238）', () => {
+    for (let i = 0; i < 19; i += 1) {
+      expect(stampSemitone(i, 20)).toBeLessThanOrEqual(11);
+    }
+  });
+
+  it('途中マスは単調に上がる（ド→シ・#238）', () => {
+    for (const goal of [5, 10, 20]) {
+      let prev = -1;
+      for (let i = 0; i < goal - 1; i += 1) {
+        const s = stampSemitone(i, goal);
+        expect(s).toBeGreaterThanOrEqual(prev);
+        prev = s;
+      }
+    }
   });
 
   it('不正な index は0扱い（ガード）', () => {

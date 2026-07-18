@@ -1766,6 +1766,28 @@ body {
   line-height: 1.6;
 }
 
+/* きょうの もくひょう 回数のステッパー（#238） */
+.settings-goal__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.settings-goal__input {
+  width: 4.5rem;
+  text-align: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.goal-step {
+  min-width: 2.75rem;
+  font-size: 1.4rem;
+  line-height: 1;
+  padding: 8px 0;
+}
+
 .settings-menu__note {
   font-size: 0.9rem;
   color: #4a9a5a;

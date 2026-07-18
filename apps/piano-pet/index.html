@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=099f2b26">
-  <link rel="stylesheet" href="css/cat.css?v=099f2b26">
+  <link rel="stylesheet" href="css/style.css?v=38824ab7">
+  <link rel="stylesheet" href="css/cat.css?v=38824ab7">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -62,7 +62,7 @@
           <div class="goal-block" id="goalBlock">
             <div class="goal-line">
               <span class="goal-label">きょうの もくひょう</span>
-              <span class="goal-count"><span id="statGoalCount">0</span> / 10 かい</span>
+              <span class="goal-count"><span id="statGoalCount">0</span> / <span id="statGoalTarget">10</span> かい</span>
             </div>
             <div class="goalbar" id="statGoalbar" role="progressbar"
                  aria-label="きょうの もくひょう" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">
@@ -157,7 +157,7 @@
               <button type="button" id="stampCard" class="stamp-card" aria-label="ハンコを おす"></button>
               <p id="stampHint" class="stamp-hint" role="status" hidden>きょくを えらんでね</p>
               <div class="stamp-progress" aria-live="polite">
-                <span id="recordTotal">0</span> こ / もくひょう 10こ
+                <span id="recordTotal">0</span> こ / もくひょう <span id="recordGoalTarget">10</span>こ
               </div>
               <button type="button" id="undoStampBtn" class="btn-undo-stamp">↩ ひとつ もどす</button>
             </div>
@@ -419,6 +419,19 @@
 
         <hr class="settings-divider">
 
+        <!-- きょうの もくひょう 回数（#238） -->
+        <section class="settings-goal">
+          <h2 class="settings-panel__title">きょうの もくひょう かいすう</h2>
+          <p class="settings-menu__desc">1日の れんしゅう もくひょうを 5〜20かいで きめられます。ホームの メーターと スタンプカードの マスすうに はんえいします。（ごほうびコインは これまでどおり 10かいで もらえます）</p>
+          <div class="settings-goal__row">
+            <button type="button" class="settings-btn settings-btn--ghost goal-step" id="goalMinusBtn" aria-label="もくひょうを へらす">−</button>
+            <input type="number" id="goalTargetInput" class="field-input settings-goal__input" inputmode="numeric" min="5" max="20" step="1" value="10" aria-label="もくひょう かいすう">
+            <button type="button" class="settings-btn settings-btn--ghost goal-step" id="goalPlusBtn" aria-label="もくひょうを ふやす">＋</button>
+          </div>
+        </section>
+
+        <hr class="settings-divider">
+
         <!-- がめんの あかるさ（ダークモード・夜配慮・#151） -->
         <section class="settings-theme">
           <h2 class="settings-panel__title">がめんの あかるさ</h2>
@@ -471,6 +484,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=099f2b26"></script>
+  <script type="module" src="js/app.js?v=38824ab7"></script>
 </body>
 </html>

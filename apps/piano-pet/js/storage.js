@@ -27,6 +27,10 @@ const DEFAULTS = {
     itemLayout: {},
     affinity: 0,
     foodSpent: 0,
+    // 1日の練習目標回数（#238）。親が 5〜20 で調整。既定10。進捗表示・スタンプのマス数/音程にのみ
+    // 反映し、達成ボーナス閾値（game.js GOAL_BONUS_THRESHOLD=10・固定）とは分離する（過去コイン不変）。
+    // pet 配下なので既存の cloud 同期にそのまま乗り、未設定の旧データは normalizeState が10で補完する。
+    dailyGoal: 10,
     // 猫スタイル（#66）。'tora' | 'shiro' | 'russianblue'。未知値は表示側が tora にフォールバック。
     catStyle: 'tora',
     // こども本人のプロフィール（#121）。ヘッダ隅のアバターに使う。クラウド同期で別端末にも反映。

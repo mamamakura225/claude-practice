@@ -36,8 +36,29 @@ export function xpProgress(totalXp) {
 
 // ----- 今日の目標 -----
 
-// 1日の練習目標（回数）
+// 1日の練習目標（回数）の既定値。親が調整しないときの初期値（#238）。
 export const DAILY_GOAL = 10;
+
+// 親が調整できる目標回数の範囲（#238）。
+export const MIN_DAILY_GOAL = 5;
+export const MAX_DAILY_GOAL = 20;
+
+// 目標達成ボーナスの閾値（#238で意図的に「固定10」に据え置き）。
+// 可変目標（pet.dailyGoal）とは分離する。recomputeState は全履歴に calcRewards を
+// 再適用するため、報酬閾値を可変目標に連動させると過去の記録のコインまで遡って
+// 増減してしまう（下げれば水増し・上げれば娘のコインが減る）。表示上の目標だけを可変にし、
+// 報酬計算はこの固定閾値で安定させる。
+export const GOAL_BONUS_THRESHOLD = 10;
+
+// 親が入力した目標回数を有効範囲（5〜20の整数）に丸める（#238）。
+// 未設定（null/undefined/空文字）や数値化できない値は既定 DAILY_GOAL に落とす
+// （Number(null)===0 の JS 仕様で「未設定」が最小値に化けるのを防ぐ）。
+export function clampDailyGoal(value) {
+  if (value === null || value === undefined || value === '') return DAILY_GOAL;
+  const n = Math.round(Number(value));
+  if (!Number.isFinite(n)) return DAILY_GOAL;
+  return Math.min(MAX_DAILY_GOAL, Math.max(MIN_DAILY_GOAL, n));
+}
 
 // その日の合計回数と目標への進捗を返す
 export function dailyProgress(sessions, date, goal = DAILY_GOAL) {
@@ -99,8 +120,9 @@ export function calcRewards(totalCount, streakCurrent) {
   let coins = totalCount;
   let xp = totalCount;
 
-  // 目標達成ボーナス（10回以上）
-  if (totalCount >= 10) {
+  // 目標達成ボーナス（GOAL_BONUS_THRESHOLD=10 回以上・固定）。
+  // 可変目標（pet.dailyGoal）とは分離＝過去の記録を再計算しても金額が動かない（#238）。
+  if (totalCount >= GOAL_BONUS_THRESHOLD) {
     coins += 5;
     xp += 3;
   }
