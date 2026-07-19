@@ -4,7 +4,6 @@ import {
   ONBOARD_STEPS,
   isOnboarded,
   setOnboarded,
-  clearOnboarded,
   isLastStep,
   nextStepIndex,
 } from '../js/onboarding.js';
@@ -68,12 +67,6 @@ describe('isOnboarded / setOnboarded', () => {
     setOnboarded();
     expect(localStorage.getItem(ONBOARD_KEY)).toBe('1');
     expect(isOnboarded()).toBe(true);
-  });
-
-  it('clearOnboarded でまた未完了に戻る', () => {
-    setOnboarded();
-    clearOnboarded();
-    expect(isOnboarded()).toBe(false);
   });
 
   it('localStorage 不在でも例外を投げず「完了扱い」で案内を抑止する', () => {

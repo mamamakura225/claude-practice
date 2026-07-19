@@ -17,11 +17,6 @@ export function weekStart(dateStr) {
   return shiftDays(dateStr, -offset);
 }
 
-// 記録を日付の新しい順に並べる（同日内は元の順序を保つ）
-export function sortByDateDesc(sessions) {
-  return [...sessions].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-}
-
 // 直近 weeks 週ぶんの合計回数を古い順に返す。記録のない週も 0 で埋める。
 export function weeklyTotals(sessions, { weeks = 8, today = todayStr() } = {}) {
   const currentWeek = weekStart(today);
@@ -69,17 +64,6 @@ export function weeklySummary(sessions, today = todayStr()) {
     }
   }
   return { weekStart: current, count, songCount: songs.size, dayCount: days.size };
-}
-
-// ふりかえりカードの共有テキスト（#144）。Web Share / クリップボードで送る本文。
-// 曲名は載せない（送信は最小限）。共有はユーザーの明示操作だが、内容は簡潔に保つ。
-export function reviewShareText({ petName, count, songCount, dayCount, streak } = {}) {
-  const lines = [
-    `🎹 ${petName || 'ねこ'}と ピアノれんしゅう ふりかえり`,
-    `今週は ${count}かい・${songCount}きょく・${dayCount}日 れんしゅうしたよ！`,
-  ];
-  if (streak > 0) lines.push(`れんぞく ${streak}日 つづいてるよ 🔥`);
-  return lines.join('\n');
 }
 
 // ===== 月間カレンダー（草式ヒートマップ・#236） =====

@@ -42,13 +42,6 @@ export function setOnboarded() {
   } catch { /* 保存不可でも致命的でない */ }
 }
 
-// テスト・デバッグ用にフラグを消す（次回起動でまた案内が出る）。
-export function clearOnboarded() {
-  try {
-    localStorage.removeItem(ONBOARD_KEY);
-  } catch { /* 無視 */ }
-}
-
 // 与えたステップ番号が最後の画面か（「つぎへ」を「はじめる！」に切り替える判定に使う）。
 export function isLastStep(index) {
   return index >= ONBOARD_STEPS.length - 1;

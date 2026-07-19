@@ -10,12 +10,10 @@ import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
-import { primaryItem, assignmentProgress, makeAssignment } from './assignment.js';
 import {
   weeklyTotals,
   weeklyChartModel,
   weeklySummary,
-  reviewShareText,
   formatDateJa,
   monthGrid,
   monthLabel,
@@ -120,7 +118,6 @@ export function renderHome() {
 
   renderChildAvatar();
   renderStats();
-  renderAssignment();
   renderSoundToggle();
 }
 
@@ -153,38 +150,6 @@ function buildSongColors(extraNames = []) {
 // 1つのマップを共有し、チップとスタンプで同じ曲が同じ色になるようにする。
 function formSongColors() {
   return buildSongColors(chipNames);
-}
-
-// きょうの きょく（しゅくだい・#143）。宿題があればカードを表示し進捗を描く。
-// 先生連携（しゅくだい）は当面閉塞・#192。設定エントリを隠したため、既存データの
-// カードが操作不能で残らないよう表示を抑止する。集計ロジック・保存データは温存（再開はこれを true）。
-const HW_ENABLED = false;
-function renderAssignment() {
-  const card = document.getElementById('assignmentCard');
-  if (!card) return;
-  const prog = HW_ENABLED ? assignmentProgress(state.sessions, state.assignment, todayStr()) : null;
-  if (!prog) {
-    card.hidden = true;
-    return;
-  }
-  card.hidden = false;
-
-  const color = buildSongColors().get(prog.name) ?? songColor(prog.name);
-  card.style.setProperty('--hw-accent', color.tint);
-  setText('assignmentBadge', prog.period === 'week' ? '🎀 こんしゅうの きょく' : '🎀 きょうの きょく');
-  setText('assignmentName', prog.name);
-  const swatch = document.getElementById('assignmentSwatch');
-  if (swatch) swatch.style.background = color.fill;
-
-  const fillEl = document.getElementById('assignmentFill');
-  if (fillEl) fillEl.style.width = `${Math.round(prog.ratio * 100)}%`;
-  const barEl = document.getElementById('assignmentBar');
-  if (barEl) barEl.setAttribute('aria-valuenow', String(Math.round(prog.ratio * 100)));
-
-  setText('assignmentMsg', prog.achieved
-    ? 'やったね！しゅくだい たっせい！🎉'
-    : `${prog.count} / ${prog.target} かい（あと ${prog.remaining}）`);
-  card.classList.toggle('assignment-card--done', prog.achieved);
 }
 
 // サウンドON/OFFトグルの表示を state に同期
@@ -294,28 +259,24 @@ function weeklyChartSvg(bars) {
     `</linearGradient></defs>${parts.join('')}</svg>`;
 }
 
-// はなまるスタンプ行（#145）：選択中のものを強調。タップで付与／同じものを再タップで解除。
-function praiseRowMarkup(session, index) {
-  const current = normalizePraise(session.praise);
-  const buttons = PRAISE_STAMPS.map((p) => {
+// 記録カードのワンタップ・スタンプ行（はなまる #145 / 練習の質メモ #239）。
+// 同型（Session の単一フィールドに id を1つ・再タップで解除）なので設定駆動で共通化する。
+const SESSION_MARKS = {
+  praise: { stamps: PRAISE_STAMPS, normalize: normalizePraise, cls: 'praise-stamp', row: 'praise-row', label: 'はなまるスタンプ' },
+  tempo: { stamps: TEMPO_STAMPS, normalize: normalizeTempo, cls: 'tempo-stamp', row: 'tempo-row', label: 'れんしゅうの ようす' },
+};
+
+// スタンプ行のマークアップ：選択中のものを強調。タップで付与／同じものを再タップで解除。
+function markRowMarkup(kind, session, index) {
+  const m = SESSION_MARKS[kind];
+  const current = m.normalize(session[kind]);
+  const buttons = m.stamps.map((p) => {
     const on = p.id === current;
-    return `<button type="button" class="praise-stamp${on ? ' praise-stamp--on' : ''}"` +
-      ` data-action="set-praise" data-index="${index}" data-praise="${p.id}"` +
+    return `<button type="button" class="${m.cls}${on ? ` ${m.cls}--on` : ''}"` +
+      ` data-action="set-mark" data-mark="${kind}" data-index="${index}" data-id="${p.id}"` +
       ` aria-pressed="${on}" title="${p.label}" aria-label="${p.label}">${p.emoji}</button>`;
   }).join('');
-  return `<div class="praise-row" role="group" aria-label="はなまるスタンプ">${buttons}</div>`;
-}
-
-// 練習の質メモ行（#239）：🐢/🎵/🚀 のワンタップ。praise と同型（付与／同じものを再タップで解除）。
-function tempoRowMarkup(session, index) {
-  const current = normalizeTempo(session.tempo);
-  const buttons = TEMPO_STAMPS.map((t) => {
-    const on = t.id === current;
-    return `<button type="button" class="tempo-stamp${on ? ' tempo-stamp--on' : ''}"` +
-      ` data-action="set-tempo" data-index="${index}" data-tempo="${t.id}"` +
-      ` aria-pressed="${on}" title="${t.label}" aria-label="${t.label}">${t.emoji}</button>`;
-  }).join('');
-  return `<div class="tempo-row" role="group" aria-label="れんしゅうの ようす">${buttons}</div>`;
+  return `<div class="${m.row}" role="group" aria-label="${m.label}">${buttons}</div>`;
 }
 
 function historyCardMarkup(session, index) {
@@ -330,8 +291,8 @@ function historyCardMarkup(session, index) {
       <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
     </div>
     <ul class="history-songs">${songs}</ul>
-    ${praiseRowMarkup(session, index)}
-    ${tempoRowMarkup(session, index)}
+    ${markRowMarkup('praise', session, index)}
+    ${markRowMarkup('tempo', session, index)}
     <div class="history-card__actions">
       <button type="button" class="history-action" data-action="edit-session" data-index="${index}" aria-label="この きろくを なおす">✏️ なおす</button>
       <button type="button" class="history-action history-action--del" data-action="delete-session" data-index="${index}" aria-label="この きろくを けす">🗑️ けす</button>
@@ -408,8 +369,6 @@ function renderReviewCard() {
   setText('reviewCount', sum.count);
   setText('reviewSongs', sum.songCount);
   setText('reviewDays', sum.dayCount);
-  const note = document.getElementById('reviewShareNote');
-  if (note) note.hidden = true;            // 再表示のたびに前回の案内を消す
 }
 
 export function renderHistory() {
@@ -882,25 +841,14 @@ function deleteSession(index) {
   renderHistory();
 }
 
-// はなまるスタンプを付与／解除（#145）。報酬に影響しないので再計算は不要。
+// スタンプ（praise #145 / tempo #239）を付与／解除。報酬に影響しないので再計算は不要。
 // 同じスタンプを再タップしたら解除（null）。保存してクラウドへ即送信。
-function setPraise(index, praiseId) {
-  const session = state.sessions[index];
+function setSessionMark(kind, index, id) {
+  const m = SESSION_MARKS[kind];
+  const session = m && state.sessions[index];
   if (!session) return;
-  const next = normalizePraise(session.praise) === praiseId ? null : normalizePraise(praiseId);
-  state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, praise: next } : s));
-  saveState(state);
-  if (cloud) cloud.pushCloudDebounced(cloudFields(state));
-  renderHistory();
-}
-
-// 練習の質メモ（#239）を付与／解除。praise と同じく報酬非依存なので再計算不要。
-// 同じスタンプ再タップで解除（null）。保存してクラウドへ即送信。
-function setTempo(index, tempoId) {
-  const session = state.sessions[index];
-  if (!session) return;
-  const next = normalizeTempo(session.tempo) === tempoId ? null : normalizeTempo(tempoId);
-  state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, tempo: next } : s));
+  const next = m.normalize(session[kind]) === id ? null : m.normalize(id);
+  state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, [kind]: next } : s));
   saveState(state);
   if (cloud) cloud.pushCloudDebounced(cloudFields(state));
   renderHistory();
@@ -911,21 +859,37 @@ const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
 // 記録直後の猫の演出を出し分ける。節目（レベルアップ／新バッジ／連続日数の節目）は
 // 特別演出 playCelebrate、それ以外の通常記録は日常のお祝い playHappy（ランダム）。
-function celebrateRecord({ leveled, badgeCount, streakCurrent, assignmentAchieved }) {
+function celebrateRecord({ leveled, badgeCount, streakCurrent }) {
   const catEl = document.querySelector('#catStage .cat');
-  const milestone = leveled || badgeCount > 0 || STREAK_CELEBRATIONS.has(streakCurrent) || assignmentAchieved;
+  const milestone = leveled || badgeCount > 0 || STREAK_CELEBRATIONS.has(streakCurrent);
   if (milestone) playCelebrate(catEl);
   else playHappy(catEl);
 }
 
-// 宿題が「未達成→達成」に切り替わったか（記録適用前後の進捗を比較・#143）。
-// sessions を唯一の正とする派生判定なので、追加のフラグを持たずに再演出を防げる
-// （達成済みの日に追記しても prev が既に達成なので false）。
-function assignmentJustAchieved(prevSessions, nextState, today) {
-  if (!HW_ENABLED) return null;                 // 閉塞中は達成演出も止める・#192
-  const before = assignmentProgress(prevSessions, state.assignment, today)?.achieved ?? false;
-  const after = assignmentProgress(nextState.sessions, nextState.assignment, today);
-  return !before && !!after?.achieved ? after.name : null;
+// ポップアップ共通の単発表示。duration 後にフェードアウトし、transitionend で hidden に戻す。
+// 素朴に once リスナーを張ると、連続表示（えさやり連打等）のときに前回のリスナーが残り、
+// 表示アニメの transitionend で新しいポップアップを途中で hidden にしてしまう（#261 バグ修正）。
+// 要素ごとに前回のタイマー・リスナーを張り替えて競合を断つ。onHidden は完全に消えた後に呼ぶ。
+const popupCycles = new WeakMap();
+function showPopup(popup, duration, onHidden) {
+  const prev = popupCycles.get(popup);
+  if (prev) {
+    clearTimeout(prev.timer);
+    popup.removeEventListener('transitionend', prev.onEnd);
+  }
+  popup.hidden = false;
+  void popup.getBoundingClientRect();   // リフローを挟んでアニメーションを確実に再生
+  popup.classList.add('coin-popup--show');
+  const onEnd = () => {
+    popup.removeEventListener('transitionend', onEnd);
+    popup.hidden = true;
+    onHidden?.();
+  };
+  const timer = setTimeout(() => {
+    popup.classList.remove('coin-popup--show');
+    popup.addEventListener('transitionend', onEnd);
+  }, duration);
+  popupCycles.set(popup, { timer, onEnd });
 }
 
 function showCoinPopup({ coins, leveled, newLevel }) {
@@ -938,15 +902,7 @@ function showCoinPopup({ coins, leveled, newLevel }) {
     levelUpEl.hidden = !leveled;
     levelUpEl.textContent = leveled ? `レベル ${newLevel} に アップ！🎉` : '';
   }
-  popup.hidden = false;
-  // リフローを挟んでアニメーションを確実に再生
-  void popup.getBoundingClientRect();
-  popup.classList.add('coin-popup--show');
-  clearTimeout(showCoinPopup._t);
-  showCoinPopup._t = setTimeout(() => {
-    popup.classList.remove('coin-popup--show');
-    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
-  }, 2000);
+  showPopup(popup, 2000);
 }
 
 // えさやりのポップアップ（もぐもぐ＋なかよし上昇）
@@ -955,17 +911,10 @@ function showFeedPopup(food) {
   if (!popup) return;
   setText('feedPopupIcon', food.icon);
   setText('feedPopupGain', `+${food.affinity}`);
-  popup.hidden = false;
-  void popup.getBoundingClientRect();
-  popup.classList.add('coin-popup--show');
-  clearTimeout(showFeedPopup._t);
-  showFeedPopup._t = setTimeout(() => {
-    popup.classList.remove('coin-popup--show');
-    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
-  }, 1800);
+  showPopup(popup, 1800);
 }
 
-// バッジ獲得ポップアップ（複数取得時も順番に表示）
+// バッジ獲得ポップアップ（複数取得時は前のフェードアウト完了を待って順番に表示）
 function showBadgePopup(badges) {
   const popup = document.getElementById('badgePopup');
   if (!popup || !badges.length) return;
@@ -975,36 +924,10 @@ function showBadgePopup(badges) {
     const b = badges[i++];
     document.getElementById('badgePopupIcon').textContent = b.icon;
     document.getElementById('badgePopupName').textContent = b.name;
-    popup.hidden = false;
-    void popup.getBoundingClientRect();
-    popup.classList.add('coin-popup--show');
     playSound('levelup', state);
-    setTimeout(() => {
-      popup.classList.remove('coin-popup--show');
-      popup.addEventListener('transitionend', function done() {
-        popup.removeEventListener('transitionend', done);
-        popup.hidden = true;
-        showNext();           // 次のバッジへ
-      }, { once: true });
-    }, 2200);
+    showPopup(popup, 2200, showNext);
   };
   showNext();
-}
-
-// きょうの きょく（しゅくだい）達成のポップアップ・#143
-function showAssignmentPopup(songName) {
-  const popup = document.getElementById('assignmentPopup');
-  if (!popup) return;
-  setText('assignmentPopupSong', songName);
-  popup.hidden = false;
-  void popup.getBoundingClientRect();
-  popup.classList.add('coin-popup--show');
-  playSound('levelup', state);
-  clearTimeout(showAssignmentPopup._t);
-  showAssignmentPopup._t = setTimeout(() => {
-    popup.classList.remove('coin-popup--show');
-    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
-  }, 2400);
 }
 
 // きょうのおまけ（#148）：練習した日だけ低確率でもらえるプチ報酬のポップアップ
@@ -1012,34 +935,21 @@ function showBonusPopup(amount) {
   const popup = document.getElementById('bonusPopup');
   if (!popup) return;
   setText('bonusPopupAmount', `+${amount}`);
-  popup.hidden = false;
-  void popup.getBoundingClientRect();
-  popup.classList.add('coin-popup--show');
   playSound('coin', state);
-  clearTimeout(showBonusPopup._t);
-  showBonusPopup._t = setTimeout(() => {
-    popup.classList.remove('coin-popup--show');
-    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
-  }, 2200);
+  showPopup(popup, 2200);
 }
 
 // お休み券で連続を守ったときのポップアップ
 function showFreezePopup() {
   const popup = document.getElementById('freezePopup');
   if (!popup) return;
-  popup.hidden = false;
-  void popup.getBoundingClientRect();
-  popup.classList.add('coin-popup--show');
   playSound('coin', state);
-  setTimeout(() => {
-    popup.classList.remove('coin-popup--show');
-    popup.addEventListener('transitionend', () => { popup.hidden = true; }, { once: true });
-  }, 2200);
+  showPopup(popup, 2200);
 }
 
 // 変更後 sessions を全再計算して確定する共通経路（同日統合 #186・過去日挿入 #260）。
-// applySession と違い報酬情報が返らないため、前後の diff から演出（コイン・レベル・バッジ・宿題）を出す。
-function commitRecordedSessions(sessions, totalCount, prevSessions, today) {
+// applySession と違い報酬情報が返らないため、前後の diff から演出（コイン・レベル・バッジ）を出す。
+function commitRecordedSessions(sessions, totalCount) {
   const prevCoins = state.pet.coins;
   const prevLevel = state.pet.level;
   const prevBadges = state.badges;
@@ -1050,14 +960,11 @@ function commitRecordedSessions(sessions, totalCount, prevSessions, today) {
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');
   const leveled = newState.pet.level > prevLevel;
-  const hwSong = assignmentJustAchieved(prevSessions, newState, today);
-  celebrateRecord({ leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, assignmentAchieved: !!hwSong });
+  celebrateRecord({ leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
   showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled, newLevel: newState.pet.level });
   playSound('record', state);
   if (leveled) playSound('levelup', state);
-  let nextDelay = 2200;
-  if (gainedBadges.length) { setTimeout(() => showBadgePopup(gainedBadges), nextDelay); nextDelay += 2200; }
-  if (hwSong) setTimeout(() => showAssignmentPopup(hwSong), nextDelay);
+  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 2200);
   resetRecordForm();
 }
 
@@ -1075,9 +982,6 @@ function submitRecord(event) {
     if (recordErrorEl) recordErrorEl.hidden = false;
     return;
   }
-
-  // 宿題の達成遷移を判定するため、記録適用前の sessions を控える（#143）
-  const prevSessions = state.sessions;
 
   // 編集モード：該当セッションを置き換えて全再計算（報酬演出はしない）
   // 日付変更による同日衝突も mergeSameDaySessions で統合する
@@ -1102,7 +1006,7 @@ function submitRecord(event) {
     const mergedCount = isToday ? totalCount : existing.totalCount + totalCount;
     const sessions = state.sessions.map((s, i) =>
       i === existingIndex ? { ...s, songs: mergedSongs, totalCount: mergedCount } : s);
-    commitRecordedSessions(sessions, mergedCount, prevSessions, today);
+    commitRecordedSessions(sessions, mergedCount);
     return;
   }
 
@@ -1111,7 +1015,7 @@ function submitRecord(event) {
   // 過去日へ戻ってしまう。挿入して全再計算（日付昇順の再生）で整合させる。
   // きょうのおまけ（#148）は「その日の記録時の抽選」なので後追い入力では抽選しない。
   if (state.streak.lastPracticeDate && date < state.streak.lastPracticeDate) {
-    commitRecordedSessions([{ date, songs, totalCount, bonusCoins: 0 }, ...state.sessions], totalCount, prevSessions, today);
+    commitRecordedSessions([{ date, songs, totalCount, bonusCoins: 0 }, ...state.sessions], totalCount);
     return;
   }
 
@@ -1124,22 +1028,20 @@ function submitRecord(event) {
   cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');              // ホームへ遷移
-  // 節目（レベルアップ／新バッジ／連続日数の節目／宿題達成）は特別演出、通常はランダムなお祝い（#81/#143）
-  const hwSong = assignmentJustAchieved(prevSessions, newState, today);
-  celebrateRecord({ leveled: rewards.leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, assignmentAchieved: !!hwSong });
+  // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）
+  celebrateRecord({ leveled: rewards.leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
   showCoinPopup(rewards);         // 獲得コインのポップアップ
   // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
   playSound('record', state);
   if (rewards.leveled) playSound('levelup', state);
-  // コインポップアップの後に、お休み券→新規バッジ→宿題達成の順で表示
+  // コインポップアップの後に、おまけ→お休み券→新規バッジの順で表示
   let nextDelay = 2200;
   if (rewards.bonus > 0) { setTimeout(() => showBonusPopup(rewards.bonus), nextDelay); nextDelay += 2200; }
   if (rewards.frozeDays > 0) {
     setTimeout(showFreezePopup, nextDelay);
     nextDelay += 2200;
   }
-  if (gainedBadges.length) { setTimeout(() => showBadgePopup(gainedBadges), nextDelay); nextDelay += 2200; }
-  if (hwSong) setTimeout(() => showAssignmentPopup(hwSong), nextDelay);
+  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), nextDelay);
   resetRecordForm();
 }
 
@@ -1182,44 +1084,6 @@ batchRowsEl?.addEventListener('click', (e) => {
 });
 batchRowsEl?.addEventListener('input', updateBatchTotal);
 
-// ===== 今週のふりかえりカードの共有（#144） =====
-// Web Share API でワンタップ送信。非対応はクリップボードコピー→スクショ案内にフォールバック。
-function showReviewNote(msg) {
-  const note = document.getElementById('reviewShareNote');
-  if (!note) return;
-  note.textContent = msg;
-  note.hidden = false;
-}
-
-async function shareReview() {
-  const sum = weeklySummary(state.sessions, todayStr());
-  const text = reviewShareText({
-    petName: state.pet.name,
-    count: sum.count,
-    songCount: sum.songCount,
-    dayCount: sum.dayCount,
-    streak: state.streak.current,
-  });
-  const title = 'ピアノれんしゅう ふりかえり';
-  if (navigator.share) {
-    try {
-      await navigator.share({ title, text });
-      track('review_shared', {});       // 共有した操作のみ記録（内容は送らない）
-    } catch { /* ユーザーのキャンセルは無視 */ }
-    return;
-  }
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      showReviewNote('コピーしたよ！はりつけて おくってね 📋');
-      track('review_shared', {});
-      return;
-    } catch { /* コピー失敗時はスクショ案内へ */ }
-  }
-  showReviewNote('スクショして せんせいに おくってね 📸');
-}
-document.getElementById('reviewShareBtn')?.addEventListener('click', shareReview);
-
 // ===== 記録履歴の編集・削除 =====
 document.getElementById('historyList')?.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
@@ -1227,8 +1091,7 @@ document.getElementById('historyList')?.addEventListener('click', (e) => {
   const index = Number(btn.dataset.index);
   if (btn.dataset.action === 'edit-session') startEditSession(index);
   else if (btn.dataset.action === 'delete-session') deleteSession(index);
-  else if (btn.dataset.action === 'set-praise') setPraise(index, btn.dataset.praise);
-  else if (btn.dataset.action === 'set-tempo') setTempo(index, btn.dataset.tempo);
+  else if (btn.dataset.action === 'set-mark') setSessionMark(btn.dataset.mark, index, btn.dataset.id);
 });
 
 // ===== ショップの購入・装備操作 =====
@@ -1417,7 +1280,6 @@ function submitGate() {
   if (Number(gateAnswerEl?.value) === gateExpected) {
     if (settingsGateEl) settingsGateEl.hidden = true;
     if (settingsMenuEl) settingsMenuEl.hidden = false;
-    loadHwInputs();                       // 宿題の現在値をフォームに反映（#143）
     renderAccountList();                   // アカウント切替の現在値を反映（#182）
     const goalInput = document.getElementById('goalTargetInput');
     if (goalInput) goalInput.value = String(currentGoal());  // 目標回数の現在値を反映（#238）
@@ -1644,62 +1506,6 @@ document.getElementById('accountList')?.addEventListener('click', (e) => {
   if (!btn) return;
   if (setActiveAccount(btn.dataset.account)) window.location.reload();
 });
-
-// ===== せってい：きょうの きょく（しゅくだい）設定・#143 =====
-const hwNameEl = document.getElementById('hwName');
-const hwTargetEl = document.getElementById('hwTarget');
-const hwStatusEl = document.getElementById('hwStatus');
-const hwPeriodDayBtn = document.getElementById('hwPeriodDay');
-const hwPeriodWeekBtn = document.getElementById('hwPeriodWeek');
-let hwPeriod = 'day';
-
-// 期間トグル（きょう / こんしゅう）の見た目と状態を切り替える。
-function setHwPeriod(period) {
-  hwPeriod = period === 'week' ? 'week' : 'day';
-  const isWeek = hwPeriod === 'week';
-  hwPeriodDayBtn?.classList.toggle('is-active', !isWeek);
-  hwPeriodWeekBtn?.classList.toggle('is-active', isWeek);
-  hwPeriodDayBtn?.setAttribute('aria-pressed', String(!isWeek));
-  hwPeriodWeekBtn?.setAttribute('aria-pressed', String(isWeek));
-}
-
-// 現在の state.assignment をフォームへ反映（ゲート通過時に呼ぶ）。
-function loadHwInputs() {
-  const item = primaryItem(state.assignment);
-  if (hwNameEl) hwNameEl.value = item ? item.name : '';
-  if (hwTargetEl) hwTargetEl.value = item ? String(item.target) : '5';
-  setHwPeriod(state.assignment?.period ?? 'day');
-  if (hwStatusEl) hwStatusEl.hidden = true;
-}
-
-function showHwStatus(msg) {
-  if (!hwStatusEl) return;
-  hwStatusEl.textContent = msg;
-  hwStatusEl.hidden = false;
-}
-
-// 宿題を保存。曲名が空なら保存しない（クリアは「けす」ボタン）。
-function saveHomework() {
-  const name = String(hwNameEl?.value ?? '').trim();
-  if (!name) { showHwStatus('きょくめいを いれてね'); return; }
-  const assignment = makeAssignment({ name, target: hwTargetEl?.value, period: hwPeriod });
-  commitState({ ...state, assignment });
-  cloud?.flushCloud();
-  showHwStatus('きめたよ！ホームに でるよ 🎀');
-}
-
-// 宿題をクリア（items:[] のトゥームストーンで他端末へも伝播）。
-function clearHomework() {
-  commitState({ ...state, assignment: makeAssignment({ name: '', period: hwPeriod }) });
-  cloud?.flushCloud();
-  if (hwNameEl) hwNameEl.value = '';
-  showHwStatus('しゅくだいを けしたよ');
-}
-
-hwPeriodDayBtn?.addEventListener('click', () => setHwPeriod('day'));
-hwPeriodWeekBtn?.addEventListener('click', () => setHwPeriod('week'));
-document.getElementById('hwSaveBtn')?.addEventListener('click', saveHomework);
-document.getElementById('hwClearBtn')?.addEventListener('click', clearHomework);
 
 document.getElementById('settingsToggle')?.addEventListener('click', openSettings);
 settingsOverlayEl?.addEventListener('click', (e) => {
