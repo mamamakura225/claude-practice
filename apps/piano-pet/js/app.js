@@ -822,7 +822,10 @@ function resetRecordForm() {
   editingIndex = null;
   setRecordMode(false);
   recordMode = 'stamp';
-  if (recordDateEl) recordDateEl.value = todayStr();
+  if (recordDateEl) {
+    recordDateEl.value = todayStr();
+    recordDateEl.max = todayStr();   // 未来日はピッカーで選ばせない（時系列破壊防止・#260）
+  }
   // 当日のスタンプを引き継ぐ。記録確定後は当日セッションが正なのでそこから復元し、
   // 続きを押せるようにする（#186）。未確定（初回記録前）はホーム往復用の下書きから復元（#164）。
   const todaySession = state.sessions.find((s) => s.date === todayStr());
@@ -1034,9 +1037,36 @@ function showFreezePopup() {
   }, 2200);
 }
 
+// 変更後 sessions を全再計算して確定する共通経路（同日統合 #186・過去日挿入 #260）。
+// applySession と違い報酬情報が返らないため、前後の diff から演出（コイン・レベル・バッジ・宿題）を出す。
+function commitRecordedSessions(sessions, totalCount, prevSessions, today) {
+  const prevCoins = state.pet.coins;
+  const prevLevel = state.pet.level;
+  const prevBadges = state.badges;
+  const newState = recomputeState({ ...state, sessions }, spentTotal(state));
+  const gainedBadges = newlyEarned(prevBadges, newState.badges);
+  commitState(newState);
+  cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
+  track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
+  router.go('home');
+  const leveled = newState.pet.level > prevLevel;
+  const hwSong = assignmentJustAchieved(prevSessions, newState, today);
+  celebrateRecord({ leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, assignmentAchieved: !!hwSong });
+  showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled, newLevel: newState.pet.level });
+  playSound('record', state);
+  if (leveled) playSound('levelup', state);
+  let nextDelay = 2200;
+  if (gainedBadges.length) { setTimeout(() => showBadgePopup(gainedBadges), nextDelay); nextDelay += 2200; }
+  if (hwSong) setTimeout(() => showAssignmentPopup(hwSong), nextDelay);
+  resetRecordForm();
+}
+
 function submitRecord(event) {
   event.preventDefault();
-  const date = recordDateEl?.value || todayStr();
+  const today = todayStr();
+  // 未来日は入力欄の max で防ぎつつ、手入力等で入ってきても今日に丸める（時系列破壊防止・#260）
+  const inputDate = recordDateEl?.value || today;
+  const date = inputDate > today ? today : inputDate;
   const { songs, totalCount } = recordMode === 'batch'
     ? collectSongs(readBatchRows())
     : stampsToSongs(stamps);
@@ -1048,7 +1078,6 @@ function submitRecord(event) {
 
   // 宿題の達成遷移を判定するため、記録適用前の sessions を控える（#143）
   const prevSessions = state.sessions;
-  const today = todayStr();
 
   // 編集モード：該当セッションを置き換えて全再計算（報酬演出はしない）
   // 日付変更による同日衝突も mergeSameDaySessions で統合する
@@ -1073,24 +1102,16 @@ function submitRecord(event) {
     const mergedCount = isToday ? totalCount : existing.totalCount + totalCount;
     const sessions = state.sessions.map((s, i) =>
       i === existingIndex ? { ...s, songs: mergedSongs, totalCount: mergedCount } : s);
-    const prevCoins = state.pet.coins;
-    const prevLevel = state.pet.level;
-    const prevBadges = state.badges;
-    const newState = recomputeState({ ...state, sessions }, spentTotal(state));
-    const gainedBadges = newlyEarned(prevBadges, newState.badges);
-    commitState(newState);
-    cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
-    track('practice_recorded', { totalCount: mergedCount }); // 回数のみ・曲名は送らない
-    router.go('home');
-    const hwSong = assignmentJustAchieved(prevSessions, newState, today);
-    celebrateRecord({ leveled: newState.pet.level > prevLevel, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, assignmentAchieved: !!hwSong });
-    showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled: newState.pet.level > prevLevel, newLevel: newState.pet.level });
-    playSound('record', state);
-    if (newState.pet.level > prevLevel) playSound('levelup', state);
-    let nextDelay = 2200;
-    if (gainedBadges.length) { setTimeout(() => showBadgePopup(gainedBadges), nextDelay); nextDelay += 2200; }
-    if (hwSong) setTimeout(() => showAssignmentPopup(hwSong), nextDelay);
-    resetRecordForm();
+    commitRecordedSessions(sessions, mergedCount, prevSessions, today);
+    return;
+  }
+
+  // 過去日（最終練習日より前）の新規記録（#260）：applySession は「日付が時系列順で届く」
+  // 前提の逐次更新なので、そのまま適用するとストリークが1に巻き戻り lastPracticeDate も
+  // 過去日へ戻ってしまう。挿入して全再計算（日付昇順の再生）で整合させる。
+  // きょうのおまけ（#148）は「その日の記録時の抽選」なので後追い入力では抽選しない。
+  if (state.streak.lastPracticeDate && date < state.streak.lastPracticeDate) {
+    commitRecordedSessions([{ date, songs, totalCount, bonusCoins: 0 }, ...state.sessions], totalCount, prevSessions, today);
     return;
   }
 
