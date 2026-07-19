@@ -176,6 +176,57 @@ test.describe('練習記録', () => {
     await expect(page.locator('#recordForm')).toBeVisible();
   });
 
+  // 過去日の後追い入力（#260）。applySession の逐次更新に過去日を流すとストリークが
+  // 1 に巻き戻る退行があった。全再計算経路で処理され、既存の連続が維持されることを確認する。
+  test('過去日の新規記録でストリークがリセットされない（#260）', async ({ page }) => {
+    await page.addInitScript(() => {
+      // 実行日基準の相対日付でシードする（ストリークは todayStr() 依存のため固定日は使えない）
+      const day = (offset) => {
+        const d = new Date();
+        d.setDate(d.getDate() + offset);
+        const p = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      };
+      localStorage.setItem('piano-pet', JSON.stringify({
+        pet: { name: 'きーちゃん', level: 1, xp: 4, coins: 4, equippedItems: [] },
+        inventory: [],
+        streak: { current: 2, best: 2, lastPracticeDate: day(-1), freezes: 0 },
+        badges: ['first_practice'],
+        sessions: [
+          { date: day(-1), songs: [{ name: 'きらきらぼし', count: 2 }], totalCount: 2, coinsEarned: 2, xpEarned: 2 },
+          { date: day(-2), songs: [{ name: 'きらきらぼし', count: 2 }], totalCount: 2, coinsEarned: 2, xpEarned: 2 },
+        ],
+      }));
+    });
+
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#statStreak')).toHaveText('2');
+
+    // 7日前（既存セッションの無い日）に1回ぶんを後追い記録する
+    await page.click('#goRecordBtn');
+    const past = await page.evaluate(() => {
+      const d = new Date();
+      d.setDate(d.getDate() - 7);
+      const p = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    });
+    await page.fill('#recordDate', past);
+    await page.fill('#newSongInput', 'ちょうちょ');
+    await page.click('#addSongBtn');
+    await page.click('#stampCard');
+    await expect(page.locator('#recordTotal')).toHaveText('1');
+    await page.click('#recordSubmitBtn');
+
+    // ストリーク（きのうまでの連続2日）は過去日の追記で壊れない
+    await expect(page.locator('#view-home')).toBeVisible();
+    await expect(page.locator('#statStreak')).toHaveText('2');
+
+    // きろく一覧にも過去日の記録が入っている
+    await page.click('.nav-btn[data-nav="history"]');
+    await expect(page.locator('.history-card')).toHaveCount(3);
+  });
+
   // 曲チップは最近ひいた順（#252）。昔たくさん弾いた曲より、直近に弾いた曲が上位に出る。
   test('最近記録した曲が曲チップの先頭に出る（累計回数が少なくても・#252）', async ({ page }) => {
     // ふるいきょく＝古い日に累計20回、ゆうしゃ＝直近に累計2回。旧仕様（回数順）なら
