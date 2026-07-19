@@ -1873,6 +1873,18 @@ body {
   padding: 8px 0;
 }
 
+/* がぞくコード（クラウド保存先・#233） */
+.cloud-code {
+  display: block;
+  word-break: break-all;
+  font-size: 0.85rem;
+  background: var(--surface-soft);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
 .settings-menu__note {
   font-size: 0.9rem;
   color: #4a9a5a;

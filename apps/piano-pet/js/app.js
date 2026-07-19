@@ -1,6 +1,9 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, activeStorageKey } from './storage.js';
-import { getAccounts, getActiveAccountId, setActiveAccount } from './account.js';
+import {
+  getAccounts, getActiveAccountId, setActiveAccount,
+  getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
+} from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle } from './cat-image.js';
 import { enableDressup } from './dressup.js';
@@ -1397,6 +1400,7 @@ function submitGate() {
     renderAccountList();                   // アカウント切替の現在値を反映（#182）
     const goalInput = document.getElementById('goalTargetInput');
     if (goalInput) goalInput.value = String(currentGoal());  // 目標回数の現在値を反映（#238）
+    renderCloudSection();                  // クラウド保存先（がぞくコード）の現在値を反映（#233）
   } else if (gateErrorEl) {
     gateErrorEl.hidden = false;
     if (gateAnswerEl) gateAnswerEl.value = '';
@@ -1454,7 +1458,8 @@ async function shareCatPhoto() {
 
 // 現行 state を JSON 化して a[download] でローカル保存（無害なので確認不要）。
 function downloadBackup() {
-  const json = exportState(state);
+  // がぞくコード（#233）を同梱＝別端末で復元すると同じクラウド保存先に合流できる。
+  const json = exportState(state, new Date(), getCloudDocId(getActiveAccountId()));
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -1484,6 +1489,74 @@ async function applyImportedState(imported) {
     try { await cloud.pushCloud(cloudFields(state)); } catch { /* push 失敗時もローカルは取り込み済み */ }
   }
   window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
+}
+
+// ===== クラウド保存先の推測不能化（がぞくコード・#233 段階1） =====
+// 旧 doc ID は固定・推測可能だったため、ランダムな doc ID（がぞくコード）へ移す。
+// 自動移行にすると端末ごとに別コードが生まれて家族の同期が割れるので、**親が明示操作**で行い、
+// 他端末はコード入力（またはバックアップJSON取り込み）で同じ保存先に合流する。
+
+const MIGRATE_BACKUP_KEY = 'piano-pet-backup-before-migrate';
+
+function showCloudStatus(msg, isError) {
+  const el = document.getElementById('cloudStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = false;
+  el.classList.toggle('settings-menu__note--error', !!isError);
+}
+
+// 親ゲート内のクラウド保存先セクションの表示を現在値に合わせる。
+function renderCloudSection() {
+  const code = getCloudDocId(getActiveAccountId());
+  const notEl = document.getElementById('cloudNotMigrated');
+  const yesEl = document.getElementById('cloudMigrated');
+  if (notEl) notEl.hidden = !!code;
+  if (yesEl) yesEl.hidden = !code;
+  setText('cloudCodeValue', code ?? '—');
+  const status = document.getElementById('cloudStatus');
+  if (status) status.hidden = true;
+}
+
+// 移行：①ローカルへ退避 ②コード生成 ③新 doc へ現行データをコピー ④コード保存 ⑤リロード。
+// 旧 doc の中身はこの時点では消さない（他端末がまだ旧 doc を見ている可能性があるため、
+// 空にするのは全端末の合流後に親が明示操作で行う）。
+async function migrateCloudDoc() {
+  if (!cloud) { showCloudStatus('オフラインの ときは うつせません。', true); return; }
+  const accountId = getActiveAccountId();
+  if (getCloudDocId(accountId)) return;
+  try {
+    const cur = localStorage.getItem(activeStorageKey());
+    if (cur) localStorage.setItem(MIGRATE_BACKUP_KEY, cur);   // 移行前の自動退避
+  } catch { /* 退避失敗は致命的でないので無視 */ }
+
+  const newId = generateCloudDocId();
+  const ok = await cloud.pushCloudDoc(newId, cloudFields(state));   // 新 doc へコピー
+  if (!ok) { showCloudStatus('うつせませんでした。つうしんを かくにんしてね。', true); return; }
+  if (!setCloudDocId(accountId, newId)) { showCloudStatus('コードを ほぞんできませんでした。', true); return; }
+  window.location.reload();   // cloud.js の購読 doc を貼り直す
+}
+
+// 他端末で発行されたコードに合流する。ローカルデータは消さず、次回同期で union マージされる。
+function joinCloudDoc() {
+  const input = document.getElementById('cloudCodeInput');
+  const code = String(input?.value ?? '').trim();
+  if (!isValidCloudDocId(code)) { showCloudStatus('コードの かたちが ちがうみたい。', true); return; }
+  if (!setCloudDocId(getActiveAccountId(), code)) { showCloudStatus('コードを ほぞんできませんでした。', true); return; }
+  window.location.reload();
+}
+
+// 旧（推測可能な）doc を空にする。全端末が合流済みであることが前提なので確認を挟む。
+async function clearLegacyCloudDoc() {
+  if (!cloud) { showCloudStatus('オフラインの ときは できません。', true); return; }
+  const ok = window.confirm(
+    'ふるい ばしょ（あてられる ID）の なかみを からに します。\n'
+    + 'ほかの たんまつが まだ コードを いれていない ばあい、その たんまつは データを よみこめなく なります。\n'
+    + 'すすめますか？',
+  );
+  if (!ok) return;
+  const done = await cloud.pushCloudDoc(legacyCloudDocIdFor(getActiveAccountId()), {});
+  showCloudStatus(done ? 'ふるい ばしょを からに しました。' : 'できませんでした。', !done);
 }
 
 // データ初期化（#183）：購入履歴・猫の状態・練習記録をすべて消して新品に戻す。
@@ -1517,6 +1590,8 @@ function handleImportFile(file) {
       return;
     }
     if (!window.confirm('いまの データは きえて、ファイルの データに なります。よろしいですか？')) return;
+    // バックアップに がぞくコード（#233）が入っていれば、同じクラウド保存先へ合流させる。
+    if (res.cloudDocId) setCloudDocId(getActiveAccountId(), res.cloudDocId);
     applyImportedState(res.state);
   };
   reader.onerror = () => showImportStatus(importErrorMessage('parse'), true);
@@ -1668,6 +1743,21 @@ gateAnswerEl?.addEventListener('keydown', (e) => {
   submitGate();
 });
 document.getElementById('exportBtn')?.addEventListener('click', downloadBackup);
+// クラウド保存先（がぞくコード・#233）
+document.getElementById('cloudMigrateBtn')?.addEventListener('click', migrateCloudDoc);
+document.getElementById('cloudJoinBtn')?.addEventListener('click', joinCloudDoc);
+document.getElementById('cloudClearLegacyBtn')?.addEventListener('click', clearLegacyCloudDoc);
+document.getElementById('cloudCopyBtn')?.addEventListener('click', async () => {
+  const code = getCloudDocId(getActiveAccountId());
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    showCloudStatus('コードを コピーしたよ！', false);
+  } catch {
+    showCloudStatus('コピーできませんでした。てで うつしてね。', true);
+  }
+});
+
 document.getElementById('importBtn')?.addEventListener('click', () => importFileEl?.click());
 document.getElementById('resetBtn')?.addEventListener('click', resetData);
 importFileEl?.addEventListener('change', (e) => {

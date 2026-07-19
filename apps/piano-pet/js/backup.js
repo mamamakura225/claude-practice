@@ -12,12 +12,15 @@ const APP_MARKER = 'piano-pet';
 export const RESTORE_BACKUP_KEY = 'piano-pet-backup-before-restore';
 
 // 現在の state を、アプリ識別マーカー＋スキーマ版＋書き出し日時でラップした pretty JSON にする。
-export function exportState(state, now = new Date()) {
+// cloudDocId（がぞくコード・#233）を渡すと同梱し、別端末での復元時にそのまま同じクラウド保存先へ
+// つなげられる（コードの手入力なしで合流できる導線）。未移行なら省略。
+export function exportState(state, now = new Date(), cloudDocId = null) {
   return JSON.stringify(
     {
       app: APP_MARKER,
       schemaVersion: SCHEMA_VERSION,
       exportedAt: now.toISOString(),
+      ...(cloudDocId ? { cloudDocId } : {}),
       state,
     },
     null,
@@ -59,7 +62,11 @@ export function parseBackup(text) {
   if (Number.isInteger(sv) && sv > SCHEMA_VERSION) {
     return { ok: false, reason: 'future' };
   }
-  return { ok: true, state: normalizeState(migrate(inner)) };
+  // がぞくコード（#233）は任意。妥当な形式のときだけ返し、呼び出し側が保存先の合流に使う。
+  const code = typeof obj.cloudDocId === 'string' && /^[A-Za-z0-9_-]{8,120}$/.test(obj.cloudDocId)
+    ? obj.cloudDocId
+    : null;
+  return { ok: true, state: normalizeState(migrate(inner)), cloudDocId: code };
 }
 
 // 復元失敗理由を 5歳児＋親向けのひらがなメッセージにする。

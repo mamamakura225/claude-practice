@@ -20,9 +20,23 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 | `assignment` | Assignment \| null | ✓ | きょうの きょく（宿題・#143）。親が設定する単一値。未設定は `null` |
 | `settings` | Settings | − | 端末ローカル設定（音など）。クラウド非同期 |
 
-クラウド (Firestore `pianopet/<アカウントID>`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions, assignment`）のみ。
-既定（娘）は `pianopet/data`、テスト用は `pianopet/test`（doc ID は [account.js](../js/account.js) `cloudDocIdFor`・[cloud.js](../js/cloud.js)）。
+クラウド (Firestore `pianopet/<doc ID>`) に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions, assignment`）のみ。
+doc ID は [account.js](../js/account.js) `cloudDocIdFor`（[cloud.js](../js/cloud.js) が import 時に束縛）で導出する。
 `settings` と `version` は端末ローカルに留まる。
+
+#### doc ID の推測不能化（がぞくコード・#233 段階1）
+旧仕様は doc ID が固定・推測可能（既定=`pianopet/data`／テスト用=`pianopet/test`）だった。Firebase config はクライアント埋め込みの公開情報なので、**認証なしの現構成では第三者が到達できる構造的リスク**がある。段階1として doc ID を初回生成のランダム値（**がぞくコード** `pp-<uuid>`）に置き換える。
+
+| 項目 | 内容 |
+|---|---|
+| 保存 | 端末ローカル `piano-pet:cloud-ids`（`{ [アカウントID]: コード }`）。**クラウドには載せない** |
+| 未移行時 | `cloudDocIdFor` は旧固定IDへフォールバック＝**移行するまで挙動は変わらない**（後方互換） |
+| 移行 | 親ゲート内の明示操作。①ローカルへ自動退避（`piano-pet-backup-before-migrate`）②コード生成 ③新 doc へ現行データをコピー ④コード保存 ⑤リロード |
+| 複数端末 | 他端末は**コード入力**、またはコードを同梱したバックアップJSON（#140）の取り込みで同じ doc に合流。合流後の初回同期は union マージ（`mergeCloudInitial`）なのでローカルデータは消えない |
+| 旧 doc | 移行しても自動では消さない。全端末の合流後に親が明示操作で空にする（`ふるい ばしょを からにする`） |
+| アカウント分離 | コードはアカウント単位なので #182 の分離は維持 |
+
+> **設計判断（#233 段階1）**: **自動移行にしない**。端末ごとに別コードが生成されると家族の共有 doc が割れて同期が壊れるため、移行は親の明示操作にし、他端末はコード共有で合流させる。また旧 doc に「新しい doc への転送先」を書き置く案は、旧 ID を知る第三者がそこから新 ID へ到達できてしまい受け入れ基準（推測しても到達できない）を満たさないため不採用＝コードは**帯域外（コード表示／バックアップJSON）で共有**する。**本命の匿名認証＋セキュリティルールは段階2**（別Issue）。匿名認証は端末ごとに UID が異なるため「自分の UID 配下のみ許可」ルールにすると複数端末共有が壊れる＝クレデンシャル引き継ぎか実アカウント認証（Google等）の設計が別途必要。なおセキュリティルール自体は間借り元 `dtask-d08b6` の Firebase コンソール管理（リポジトリ外・dtask にも影響）。
 
 ### State 以外の localStorage キー（端末ローカル・クラウド非同期）
 
