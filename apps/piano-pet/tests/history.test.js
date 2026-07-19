@@ -1,11 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   weekStart,
-  sortByDateDesc,
   weeklyTotals,
   weeklyChartModel,
   weeklySummary,
-  reviewShareText,
   weekLabel,
   formatDateJa,
   dailyCountMap,
@@ -26,31 +24,6 @@ describe('weekStart', () => {
 
   it('日曜は前の月曜を返す', () => {
     expect(weekStart('2026-05-24')).toBe('2026-05-18'); // 日曜
-  });
-});
-
-describe('sortByDateDesc', () => {
-  it('日付の新しい順に並べる', () => {
-    const sorted = sortByDateDesc([
-      { date: '2026-05-10' },
-      { date: '2026-05-20' },
-      { date: '2026-05-15' },
-    ]);
-    expect(sorted.map((s) => s.date)).toEqual(['2026-05-20', '2026-05-15', '2026-05-10']);
-  });
-
-  it('同日内は元の順序を保つ', () => {
-    const sorted = sortByDateDesc([
-      { date: '2026-05-20', id: 'a' },
-      { date: '2026-05-20', id: 'b' },
-    ]);
-    expect(sorted.map((s) => s.id)).toEqual(['a', 'b']);
-  });
-
-  it('元の配列を破壊しない', () => {
-    const input = [{ date: '2026-05-10' }, { date: '2026-05-20' }];
-    sortByDateDesc(input);
-    expect(input.map((s) => s.date)).toEqual(['2026-05-10', '2026-05-20']);
   });
 });
 
@@ -142,25 +115,6 @@ describe('weeklySummary', () => {
 
   it('記録なしでもゼロを返す', () => {
     expect(weeklySummary([], today)).toMatchObject({ count: 0, songCount: 0, dayCount: 0 });
-  });
-});
-
-describe('reviewShareText', () => {
-  it('回数・きょく数・日数を含む本文を作る', () => {
-    const text = reviewShareText({ petName: 'みけ', count: 9, songCount: 2, dayCount: 2, streak: 3 });
-    expect(text).toContain('みけ');
-    expect(text).toContain('9かい');
-    expect(text).toContain('2きょく');
-    expect(text).toContain('れんぞく 3日');
-  });
-
-  it('streak が 0 のときは連続行を出さない', () => {
-    const text = reviewShareText({ petName: 'みけ', count: 1, songCount: 1, dayCount: 1, streak: 0 });
-    expect(text).not.toContain('れんぞく');
-  });
-
-  it('名前が空でも既定名で作る', () => {
-    expect(reviewShareText({ count: 0, songCount: 0, dayCount: 0, streak: 0 })).toContain('ねこ');
   });
 });
 

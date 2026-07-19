@@ -47,10 +47,6 @@ const DEFAULTS = {
   },
   badges: [],
   sessions: [],
-  // 宿題（きょうの きょく・#143）。親が設定する単一値。未設定は null。
-  // 形: { items: [{ name, target }], period: 'day'|'week', setAt: ISO文字列 }。
-  // sessions から導出されないため LWW（setAt 比較）で同期する。
-  assignment: null,
   settings: {
     soundOn: true,
   },
@@ -81,8 +77,10 @@ export function migrate(saved) {
 }
 
 // クラウド(Firestore)へ保存するフィールド。settings は端末ローカル設定なので含めない。
-// assignment は親が別端末で設定→子端末で見たいので同期する（マージは LWW・#143）。
-export const CLOUD_FIELDS = ['pet', 'inventory', 'streak', 'badges', 'sessions', 'assignment'];
+// 旧 'assignment'（しゅくだい・#143）は機能削除（#261）に伴い同期対象から外した。
+// 既存データに残る assignment フィールドは normalizeState の未知キー引き継ぎで無害に残り、
+// クラウド doc からは次回 push（setDoc 置換）で自然に消える。
+export const CLOUD_FIELDS = ['pet', 'inventory', 'streak', 'badges', 'sessions'];
 
 // 保存値に DEFAULTS を補完してアプリが前提とする形に整える。
 // localStorage の読み込みとクラウドデータの取り込みの両方で使う。
@@ -104,34 +102,15 @@ export function cloudFields(state) {
   return out;
 }
 
-// assignment の setAt をミリ秒に直す（無効・未設定は 0）。
-function assignmentTime(a) {
-  const t = Date.parse(a?.setAt);
-  return Number.isFinite(t) ? t : 0;
-}
-
-// 宿題(assignment)の Last-Write-Wins マージ。sessions の keep-larger とは別ロジックで、
-// 親が直近に設定した単一値が正となるよう setAt の新しい方を採る（#143）。
-// 片方が null/未設定なら非 null 側を採る。setAt 同値はローカル(a)優先。
-// クリアは items:[] のトゥームストーン（setAt 付き）で表すため、これも LWW で伝播する。
-export function pickNewerAssignment(a, b) {
-  if (!a) return b ?? null;
-  if (!b) return a;
-  return assignmentTime(b) > assignmentTime(a) ? b : a;
-}
-
 // ローカル state にクラウドのデータフィールドを重ねる（realtime onSnapshot 経路: cloud-wins）。
 // settings 等の端末ローカル値は cloud に無いので保持される。
 // 初回 fetchCloud の取り込みは clobber を避けるため mergeCloudInitial を使う（#142）。
 export function mergeCloud(local, cloud) {
   const picked = {};
   for (const k of CLOUD_FIELDS) {
-    if (k === 'assignment') continue;                        // assignment は LWW で別処理
     if (cloud && cloud[k] !== undefined) picked[k] = cloud[k];
   }
-  const merged = normalizeState({ ...local, ...picked });
-  merged.assignment = pickNewerAssignment(local?.assignment, cloud?.assignment);
-  return merged;
+  return normalizeState({ ...local, ...picked });
 }
 
 // sessions を date をキーに 1 日 1 件へ解決する（keep-larger）。
@@ -183,7 +162,6 @@ export function mergeCloudInitial(local, cloud) {
     ...l,
     inventory,
     sessions: mergeSessionsKeepLarger(l.sessions, c.sessions),
-    assignment: pickNewerAssignment(l.assignment, c.assignment),   // 宿題は LWW（#143）
     pet: {
       ...l.pet,
       equippedItems,
@@ -210,8 +188,4 @@ export function loadState() {
 
 export function saveState(state) {
   localStorage.setItem(activeStorageKey(), JSON.stringify(state));
-}
-
-export function clearState() {
-  localStorage.removeItem(activeStorageKey());
 }
