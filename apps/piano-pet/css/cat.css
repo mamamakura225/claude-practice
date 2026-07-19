@@ -64,8 +64,17 @@
   50%      { outline-color: #ff7a93; }
 }
 
-.btn-dressup {
+/* ホームの猫アクション（きせかえ／しゃしん・#237） */
+.cat-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
   margin-top: 4px;
+}
+
+.btn-dressup,
+.btn-photo {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.95rem;
   color: #fff;
@@ -76,10 +85,13 @@
   box-shadow: 0 2px 0 #e0607c;
   cursor: pointer;
 }
+.btn-dressup { margin-top: 4px; }
+.cat-actions .btn-dressup { margin-top: 0; }
 .btn-dressup[aria-pressed="true"] {
   background: #6cc24a;
   box-shadow: 0 2px 0 #4e9a35;
 }
+.btn-photo[disabled] { opacity: 0.5; cursor: default; }
 
 /* ----- 猫スタイル切り替え（#66・きせかえ編集モード中のみ表示） ----- */
 .style-picker {
