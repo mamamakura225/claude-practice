@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=ce857021">
-  <link rel="stylesheet" href="css/cat.css?v=ce857021">
+  <link rel="stylesheet" href="css/style.css?v=b0eb56f9">
+  <link rel="stylesheet" href="css/cat.css?v=b0eb56f9">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -471,6 +471,32 @@
 
         <hr class="settings-divider">
 
+        <!-- クラウド保存先の推測不能化（がぞくコード・#233 段階1） -->
+        <section class="settings-cloud">
+          <h2 class="settings-panel__title">クラウドの ばしょ（がぞくコード）</h2>
+          <p class="settings-menu__desc" id="cloudCodeDesc">クラウドの ほぞんばしょを、あてられない ランダムな コードに うつして まもります。うつしたあと、ほかの たんまつでは この コードを いれると おなじ データを つかえます。</p>
+
+          <div id="cloudNotMigrated">
+            <button type="button" class="settings-btn settings-btn--block" id="cloudMigrateBtn">🔒 あんぜんな ばしょに うつす</button>
+          </div>
+
+          <div id="cloudMigrated" hidden>
+            <p class="settings-menu__desc">いまの がぞくコード（ほかの たんまつで いれてね）</p>
+            <code class="cloud-code" id="cloudCodeValue">—</code>
+            <button type="button" class="settings-btn settings-btn--block settings-btn--ghost" id="cloudCopyBtn">📋 コードを コピー</button>
+            <button type="button" class="settings-btn settings-btn--block settings-btn--ghost" id="cloudClearLegacyBtn">🧹 ふるい ばしょを からにする</button>
+          </div>
+
+          <label class="field">
+            <span class="field-label">ほかの たんまつの コードを いれる</span>
+            <input type="text" id="cloudCodeInput" class="field-input" placeholder="pp-xxxxxxxx…" autocomplete="off" spellcheck="false">
+          </label>
+          <button type="button" class="settings-btn settings-btn--block settings-btn--ghost" id="cloudJoinBtn">🔗 この コードに つなぐ</button>
+          <p class="settings-menu__note" id="cloudStatus" role="status" aria-live="polite" hidden></p>
+        </section>
+
+        <hr class="settings-divider">
+
         <h2 class="settings-panel__title">データの ほぞん・よみこみ</h2>
         <p class="settings-menu__desc">きしゅへんこうや データさくじょに そなえて、データを ファイルに ほぞんできます。</p>
         <button type="button" class="settings-btn settings-btn--block" id="exportBtn">📥 データを ほぞん</button>
@@ -510,6 +536,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=ce857021"></script>
+  <script type="module" src="js/app.js?v=b0eb56f9"></script>
 </body>
 </html>

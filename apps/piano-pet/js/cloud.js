@@ -65,6 +65,23 @@ export function flushCloud() {
   return pushCloud(data);
 }
 
+// ===== 保存先の移行（#233 段階1：固定doc → がぞくコード） =====
+// 移行は「別の doc」への読み書きが要るが、DATA_DOC は import 時点の有効アカウントで固定なので
+// doc ID を受け取る専用ヘルパを用意する（移行後はページをリロードして全体を貼り直す）。
+
+// 任意の doc へ書く（移行先へのコピー・移行元の空化に使う）。成功したら true。
+// 移行元の中身を読み直す必要はない：移行時点の state は既にローカル（＝購読で最新）にあるため、
+// それを cloudFields で射影して書けばよい。
+export async function pushCloudDoc(docId, data) {
+  try {
+    await setDoc(doc(db, 'pianopet', docId), data);
+    return true;
+  } catch (err) {
+    console.warn('pianopet pushCloudDoc failed', err);
+    return false;
+  }
+}
+
 // 他端末の変更をリアルタイム反映。onRemote(data) を呼ぶ。
 export function subscribeCloud(onRemote) {
   return onSnapshot(

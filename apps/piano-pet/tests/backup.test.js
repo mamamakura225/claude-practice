@@ -25,6 +25,13 @@ describe('exportState', () => {
     expect(json).toContain('\n');
     expect(json).toContain('  ');
   });
+
+  it('がぞくコードを渡すと同梱し、未移行(null)なら含めない（#233）', () => {
+    const withCode = JSON.parse(exportState(normalizeState(), new Date(), 'pp-abcdef0123456789'));
+    expect(withCode.cloudDocId).toBe('pp-abcdef0123456789');
+    const without = JSON.parse(exportState(normalizeState(), new Date()));
+    expect('cloudDocId' in without).toBe(false);
+  });
 });
 
 describe('backupFilename', () => {
@@ -44,6 +51,15 @@ describe('parseBackup', () => {
     expect(res.state.sessions).toHaveLength(1);
     expect(res.state.settings.soundOn).toBe(true); // normalize で補完
     expect(res.state.version).toBe(SCHEMA_VERSION);
+  });
+
+  it('がぞくコードを取り出す。不正な形式・未同梱は null（#233）', () => {
+    const good = parseBackup(exportState(normalizeState(), new Date(), 'pp-abcdef0123456789'));
+    expect(good.cloudDocId).toBe('pp-abcdef0123456789');
+    expect(parseBackup(validJson()).cloudDocId).toBeNull();          // 未同梱
+    const bad = JSON.parse(validJson());
+    bad.cloudDocId = 'bad id';
+    expect(parseBackup(JSON.stringify(bad)).cloudDocId).toBeNull();  // 不正形式は無視
   });
 
   it('JSON が壊れていれば reason=parse', () => {
