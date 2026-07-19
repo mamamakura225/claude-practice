@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=1c037f3e">
-  <link rel="stylesheet" href="css/cat.css?v=1c037f3e">
+  <link rel="stylesheet" href="css/style.css?v=ce857021">
+  <link rel="stylesheet" href="css/cat.css?v=ce857021">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -39,7 +39,10 @@
       <div class="view-body view-body--home">
         <div id="catStage" class="cat-stage" aria-live="polite"></div>
         <p id="petName" class="pet-name">きーちゃん</p>
-        <button class="btn-dressup" id="dressupToggle" type="button" aria-pressed="false">👗 きせかえ</button>
+        <div class="cat-actions">
+          <button class="btn-dressup" id="dressupToggle" type="button" aria-pressed="false">👗 きせかえ</button>
+          <button class="btn-photo" id="photoBtn" type="button" aria-label="ねこの しゃしんを ほぞん・きょうゆう">📷 しゃしん</button>
+        </div>
         <div id="stylePicker" class="style-picker" role="group" aria-label="ねこを えらぶ" hidden></div>
 
         <div class="stats">
@@ -507,6 +510,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=1c037f3e"></script>
+  <script type="module" src="js/app.js?v=ce857021"></script>
 </body>
 </html>

@@ -18,6 +18,7 @@ import {
   monthLabel,
   shiftMonth,
 } from './history.js';
+import { renderCatCanvas, canvasToBlob } from './cat-snapshot.js';
 import {
   SHOP_ITEMS,
   isOwned,
@@ -573,6 +574,7 @@ document.getElementById('goRecordBtn')?.addEventListener('click', () => router.g
 document.getElementById('recordBackBtn')?.addEventListener('click', () => router.go('home'));
 document.getElementById('calPrevBtn')?.addEventListener('click', () => moveCalendar(-1));  // 練習カレンダー 前月（#236）
 document.getElementById('calNextBtn')?.addEventListener('click', () => moveCalendar(1));   // 練習カレンダー 翌月
+document.getElementById('photoBtn')?.addEventListener('click', shareCatPhoto);             // 写真モード（#237）
 
 // ===== 記録フォーム（スタンプカード方式） =====
 const recordDateEl = document.getElementById('recordDate');
@@ -1407,6 +1409,47 @@ function showImportStatus(msg, isError) {
   importStatusEl.textContent = msg;
   importStatusEl.hidden = false;
   importStatusEl.classList.toggle('settings-menu__note--error', !!isError);
+}
+
+// 写真モード（#237）：飾った猫を1枚の画像にして共有／保存する。端末内完結・PII非送信。
+// Web Share（ファイル対応）があれば共有シート、無ければダウンロードにフォールバック。
+let photoBusy = false;
+async function shareCatPhoto() {
+  if (photoBusy) return;                       // 連打で多重生成しない
+  const catEl = document.querySelector('#catStage .cat');
+  if (!catEl) return;
+  photoBusy = true;
+  const btn = document.getElementById('photoBtn');
+  btn?.setAttribute('disabled', '');
+  try {
+    const canvas = await renderCatCanvas(catEl, 600);
+    const blob = await canvasToBlob(canvas, 'image/png');
+    if (!blob) return;
+    // ファイル名・タイトルに曲名・こども名は入れない（PII規約）。
+    const file = new File([blob], 'pianopet.png', { type: 'image/png' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'ピアノペット' });
+        track('cat_photo_shared', {});         // 操作フラグのみ（画像・内容は送らない）
+      } catch { /* ユーザーのキャンセルは無視（フォールバック保存はしない） */ }
+      return;
+    }
+    // フォールバック：ダウンロード（Web Share 非対応環境）
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'pianopet.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+    track('cat_photo_saved', {});
+  } catch (err) {
+    console.warn('cat photo failed', err);
+  } finally {
+    btn?.removeAttribute('disabled');
+    photoBusy = false;
+  }
 }
 
 // 現行 state を JSON 化して a[download] でローカル保存（無害なので確認不要）。
