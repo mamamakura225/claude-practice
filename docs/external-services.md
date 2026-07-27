@@ -21,8 +21,10 @@
 
 ### Firestore のデータ構造
 - dtask: collection `dtask` / doc `data`
-- piano-pet: collection `pianopet` / doc `data`（同一プロジェクトを共有）
-- 認証なし。アクセス制御は Firestore セキュリティルールで実施。
+- piano-pet: collection `pianopet` / doc は「がぞくコード」（`pp-<uuid>`・#233 段階1）。未移行の端末は旧固定ID（`data` / `test`）のまま動くため、当面は双方が存在する（同一プロジェクトを共有）
+- 認証なし。アクセス制御は Firestore セキュリティルールで実施（`list` / `delete` を拒否し、doc ID を知らない第三者の到達と全消しを防ぐ）。
+- **ルールの正本は [`firestore.rules`](../firestore.rules)（版管理）**。反映は `firebase deploy --only firestore:rules`（プロジェクト既定は `.firebaserc`）。コンソールで手編集した場合は必ず本ファイルへ反映し、本番と一致させる。
+- 現状の機密性は「がぞくコードを知っているか」に依存する（capability 方式）。認証によるアクセス制御は段階2（#258）で対応。
 
 ---
 
