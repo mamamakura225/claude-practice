@@ -1,0 +1,45 @@
+rules_version = '2';
+
+// ===== Firestore セキュリティルール（Firebase プロジェクト dtask-d08b6） =====
+// dtask と piano-pet が同一プロジェクトを共有（piano-pet が間借り）。両アプリとも認証なしで
+// 単一 doc を get / write する設計で、コレクションクエリ（list）は一切使わない。
+//
+// 【このファイルの位置づけ】
+// ルールは従来 Firebase コンソールでのみ管理されており、リポジトリ側に正本が無かった（#258 の
+// 「設計上の要注意点2」）。その状態を解消し、ルールを版管理下に置くのが本ファイルの目的。
+//
+// 【現在地：段階1 完了（#233 → #257）】
+// piano-pet の保存先 doc ID は固定・推測可能な旧ID（pianopet/data・pianopet/test）から、
+// 推測不能な「がぞくコード」（pp-<uuid> 形式）へ移せるようになった。ただし移行は親の明示操作で、
+// 未移行の端末は旧IDのまま動く（後方互換）。そのため旧ID・新ID の双方を許可する必要がある。
+//
+// 【このルールが与える保護】
+// - list 拒否：doc ID を知らない第三者はコレクションを列挙できず、doc へ到達できない。
+// - delete 拒否：万一 doc ID が漏れても、記録を丸ごと消される事故を防ぐ（旧 doc の「空にする」
+//   操作は空オブジェクトの write で行うため delete 権限は不要）。
+// - 裏を返すと、機密性は「がぞくコードを知っているか」にのみ依存する（capability 方式）。
+//   コードが漏れた場合は読み書きされうる。これを塞ぐのが段階2（#258・認証＋UIDベースのルール）。
+//
+// 【反映方法】
+// このファイルが正本。編集したら必ずデプロイして本番と一致させること。
+//   firebase deploy --only firestore:rules
+// （コンソールの「ルール」へ貼り付けても可。ただし次回デプロイで上書きされる点に注意）
+// デプロイは dtask 側にも影響するプロジェクト横断の操作。両アプリのパスを確認してから行う。
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // dtask: 単一 doc（dtask/data）を認証なしで get / write。列挙・削除は拒否。
+    match /dtask/{docId} {
+      allow get, create, update: if true;
+      allow list, delete: if false;
+    }
+
+    // piano-pet: 旧ID（data / test）と「がぞくコード」（pp-<uuid>）の双方を許可する。
+    // 段階2（#258）で認証を導入したら、ここを UID ベースの条件へ差し替え、旧ID の許可を撤去する。
+    match /pianopet/{docId} {
+      allow get, create, update: if true;
+      allow list, delete: if false;
+    }
+  }
+}
