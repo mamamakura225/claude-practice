@@ -46,8 +46,10 @@
 /* 編集中は本体PNGを pointer 透過にする（#240）。背面置物(cushion=scene--back z1)は不透明な
    本体img(z2)の下にあり、img が矩形全体で pointerdown を奪うため onDown の closest('.cat__item')
    が null になり掴めない。編集中だけ本体を透過させ、下の背面 .cat__item まで pointer を通す。
-   なで（本体タップ）は非編集時のみなので影響しない。前面置物(z5)・装着(z3)は元々本体より上で無影響。 */
-.cat-stage--editing .cat__body { pointer-events: none; }
+   なで（本体タップ）は非編集時のみなので影響しない。前面置物(z5)・装着(z3)は元々本体より上で無影響。
+   さらに編集中は本体を半透明にする（#270）。うしろへ送ったアイテムは不透明な本体に完全に隠れて
+   「見えない＝掴めない」ため、編集中だけ透かして位置・大きさを調整できるようにする。 */
+.cat-stage--editing .cat__body { pointer-events: none; opacity: 0.55; }
 .cat-stage--editing .cat__item { pointer-events: auto; cursor: grab; }
 .cat-stage--editing .cat__item--grabbing { cursor: grabbing; }
 
@@ -125,6 +127,46 @@
 .style-picker__btn[aria-pressed="true"] {
   border-color: var(--pink-deep, #ff7a93);
   background: var(--surface-soft, #fff0f3);
+}
+
+/* ----- まえ／うしろパネル（#270）：編集中だけ出るアイテムの前後切り替え ----- */
+.layer-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+.layer-panel[hidden] { display: none; }   /* display:flex が hidden 属性を上書きするのを防ぐ */
+.layer-panel__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+/* ラベルは必ず単独行にする。チップと同じ行に置くと、折り返した2行目にラベルが無くなり
+   「どちらの段のアイテムか」が読めなくなる（幼児が前後を取り違える）。 */
+.layer-panel__label { width: 100%; text-align: center; }
+.layer-panel__label,
+.layer-panel__empty {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.8rem;
+  color: var(--pink-deep, #ff7a93);
+}
+.layer-panel__empty { color: var(--text-muted, #b0a3a3); }
+.layer-panel__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  min-height: 44px;   /* 指のサイズ（ヒット矩形 MIN_HIT_UNITS と同じ考え方）。誤タップ＝意図しない前後反転を防ぐ */
+  background: var(--surface, #fff);
+  border: 3px solid var(--pink-soft, #ffd0d9);
+  border-radius: 14px;
+  cursor: pointer;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.75rem;
+  color: var(--pink-deep, #ff7a93);
 }
 
 .pet-name {

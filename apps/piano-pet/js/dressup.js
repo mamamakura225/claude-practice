@@ -133,7 +133,10 @@ export function enableDressup(stageEl, getLayout, onCommit) {
       const atBase = Math.abs(sc - drag.baseScale) < 0.001;
       const layout = { ...getLayout() };
       const xy = { x_pct: drag.pos.x_pct, y_pct: drag.pos.y_pct };
-      layout[drag.id] = atBase ? xy : { ...xy, scale: round3(sc) };
+      // エントリは作り直す（基準サイズに戻したら scale を残さない）が、前後レイヤー（#270）は
+      // 位置の確定で失われないよう明示的に引き継ぐ。
+      const keep = layout[drag.id]?.layer ? { layer: layout[drag.id].layer } : {};
+      layout[drag.id] = atBase ? { ...keep, ...xy } : { ...keep, ...xy, scale: round3(sc) };
       onCommit(layout);
     }
     drag = null;
