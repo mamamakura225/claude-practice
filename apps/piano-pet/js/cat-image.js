@@ -2,7 +2,8 @@
 // 猫本体を「なつき度3段階(tier) × 表情4種(mood) = 12枚」の透過PNGで差し替え表示する。
 // 演出（ハート・きらきら・Zzz・なかよしエンブレム）と衣装は猫本体に依存しない
 // オーバーレイSVG（viewBox 0 0 200 236）として画像の上に重ねる（#168きせかえの土台）。
-// 衣装は全種を本体の前面（cat__front）に重ねる（#211：cape を含め背面描画は廃止）。
+// 衣装の既定は全種が本体の前面（cat__front・#211）。#270 以降はユーザーが
+// アイテムごとに「まえ／うしろ」を選べ、うしろにしたものは背面レイヤーへ回る。
 import { affinityLevel } from './feed.js';
 
 // ----- 画像セレクタ -----
@@ -149,6 +150,11 @@ const ITEM_ANCHOR_TYPE = {
 
 export const ITEM_IDS = Object.keys(ITEMS);
 
+// 描画の重なり順は「cape（back アンカー）が最下層 → アクセサリがその上」。前面・背面（#270）の
+// 両方でこの2グループ順に描く。アンカー種別を足すときは必ずどちらかに入れる（列挙漏れ＝無言で消える）。
+const CAPE_TYPES = ['back'];
+const ACCESSORY_TYPES = ['neck', 'head', 'face'];
+
 // ----- 置物・小物系アイテム（シーン配置型・#226） -----
 // 装着系（猫アンカー基準）と異なり、ステージ(.cat正方枠)の自由座標に置く新カテゴリ。
 // 排他なし複数配置で、装備とは別配列 pet.placedItems で管理する（slot排他ロジックを汚さない）。
@@ -170,6 +176,19 @@ export function isSceneItem(id) {
   return Object.hasOwn(SCENE_BOX, id);
 }
 
+// ----- 前後レイヤー（#270） -----
+// 既定は装着＝前面（#211）／置物＝SCENE_BOX[id].layer。ユーザーが「まえ／うしろ」を
+// 選ぶと itemLayout[id].layer に 'front'|'back' が入り、そちらが優先される。
+// 未設定・未知値は既定に落ちるので、既存ユーザーの見た目は変わらない。
+export function defaultItemLayer(id) {
+  return isSceneItem(id) ? SCENE_BOX[id].layer : 'front';
+}
+
+export function itemLayer(id, layout = {}) {
+  const v = layout?.[id]?.layer;
+  return (v === 'front' || v === 'back') ? v : defaultItemLayer(id);
+}
+
 function sceneImage(id) {
   const b = SCENE_BOX[id];
   return `<image href="img/cat/scene/${id}.webp" x="${b.x}" y="${b.y}" `+
@@ -180,7 +199,7 @@ function sceneImage(id) {
 // 各 <g> は装着系と同じ .cat__item クラスなので dressup.js が無改修で掴める。
 function sceneSvg(placedItems, layer, layout = {}) {
   return (placedItems ?? [])
-    .filter((id) => SCENE_BOX[id] && SCENE_BOX[id].layer === layer)
+    .filter((id) => SCENE_BOX[id] && itemLayer(id, layout) === layer)
     .map((id) => {
       const pos = layout[id];
       const hasPos = pos && pos.x_pct != null;
@@ -192,14 +211,14 @@ function sceneSvg(placedItems, layer, layout = {}) {
     }).join('');
 }
 
-// 衣装を anchor 種別でフィルタして配置する（#211 以降は cape も含め全種を前面に重ねる）。
+// 衣装を anchor 種別＋実効レイヤー（#270）でフィルタして配置する。既定は全種が前面（#211）。
 // layout に座標があればその %（→viewBox 200系）で、無ければ既定アンカーで配置する（#168）。
 // scale は絶対値（#205）：layout に scale があればその値、無ければアンカー基準 a.s。
 // スナップ時は座標を持たず scale のみ残す形があるため、位置の有無は x_pct で判定する。
 // 各 <g> は data-item / data-scale を持ち、きせかえドラッグ／ピンチ（dressup.js）が掴んで動かす。
-function itemsSvg(equippedItems, anchorTypes, layout = {}, style = 'tora') {
+function itemsSvg(equippedItems, anchorTypes, layout = {}, style = 'tora', layer = 'front') {
   const parts = (equippedItems ?? [])
-    .filter((id) => ITEMS[id] && anchorTypes.includes(ITEM_ANCHOR_TYPE[id]))
+    .filter((id) => ITEMS[id] && anchorTypes.includes(ITEM_ANCHOR_TYPE[id]) && itemLayer(id, layout) === layer)
     .map((id) => {
       const a = anchorFor(style, ITEM_ANCHOR_TYPE[id]);
       const pos = layout[id];
@@ -294,13 +313,19 @@ export function catMarkup({ mood = 'idle', equippedItems = [], placedItems = [],
   const s = normalizeStyle(style);
   const tier = tierFromBond(bond);
   const m = IMG_MOODS.includes(mood) ? mood : 'idle';
-  // cape(back アンカー)も本体の前面に描画する（#211）。背面だと不透明な本体PNGに隠れて見えず掴めないため。
-  // 前面内では cape を最初に描き、neck/head/face のアクセサリがその上に重なる順序にする。
-  const capeLayer = itemsSvg(equippedItems, ['back'], itemLayout, s);
-  const front = itemsSvg(equippedItems, ['neck', 'head', 'face'], itemLayout, s);
+  // cape(back アンカー)も既定では本体の前面に描画する（#211）。前面内では cape を最初に描き、
+  // neck/head/face のアクセサリがその上に重なる順序にする。
+  const capeLayer = itemsSvg(equippedItems, CAPE_TYPES, itemLayout, s, 'front');
+  const front = itemsSvg(equippedItems, ACCESSORY_TYPES, itemLayout, s, 'front');
   const fx = `${heartsGroup()}${sparklesGroup()}${zzzGroup()}${bondEmblemGroup(bond)}`;
   // 置物（#226）：背面(z1)は本体PNGの背後、前面(z5)は演出の手前に重ねる。座標は装着系と同じ itemLayout を共用。
-  const sceneBack = sceneSvg(placedItems, 'back', itemLayout);
+  // 「うしろ」にした装着アイテム（#270）も同じ背面SVGに入れる（層を増やさず z1 を共用。置物→装着の順に
+  // 描くので、背面同士では装着のほうが猫に近い側に来る）。写真合成（#237）は DOM の z 順を読むだけで追随する。
+  // 背面でも前面と同じ「cape が最下層 → アクセサリがその上」の順で描く。1回のフィルタで
+  // まとめると重なり順が equippedItems の並び（＝装備した順）に依存し、同じ装備でも見た目が変わる。
+  const wornBack = itemsSvg(equippedItems, CAPE_TYPES, itemLayout, s, 'back')
+    + itemsSvg(equippedItems, ACCESSORY_TYPES, itemLayout, s, 'back');
+  const sceneBack = `${sceneSvg(placedItems, 'back', itemLayout)}${wornBack}`;
   const sceneFront = sceneSvg(placedItems, 'front', itemLayout);
   // 演出クラスは .cat コンテナに付く。本体アニメは .cat__body、fx は内部要素に効く。
   return `<div class="cat cat--${m}" role="img" aria-label="${name}" data-mood="${m}" data-tier="${tier}" data-style="${s}">

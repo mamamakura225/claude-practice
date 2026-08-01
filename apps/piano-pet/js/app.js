@@ -5,7 +5,7 @@ import {
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle } from './cat-image.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
 import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
@@ -28,6 +28,7 @@ import {
   canBuy,
   isUnlocked,
   buyItem,
+  itemById,
   toggleEquip,
   togglePlace,
   spentCoins,
@@ -119,6 +120,7 @@ export function renderHome() {
   renderChildAvatar();
   renderStats();
   renderSoundToggle();
+  renderLayerPanel();   // きせかえ編集中だけ中身を描き直す（非表示なら即 return・#270）
 }
 
 // ヘッダ隅のこどもアバター（#121）。home/history の両ヘッダに同じ内容を反映する。
@@ -1155,6 +1157,7 @@ function toggleDressup() {
   const stage = document.getElementById('catStage');
   const btn = document.getElementById('dressupToggle');
   const picker = document.getElementById('stylePicker');
+  const layerPanel = document.getElementById('layerPanel');
   if (!stage) return;
   const editing = stage.classList.toggle('cat-stage--editing');
   if (editing) {
@@ -1165,11 +1168,13 @@ function toggleDressup() {
     );
     if (btn) { btn.textContent = '✅ できた！'; btn.setAttribute('aria-pressed', 'true'); }
     if (picker) { renderStylePicker(); picker.hidden = false; }   // 猫スタイル選択（#66）
+    if (layerPanel) { layerPanel.hidden = false; renderLayerPanel(); }   // まえ／うしろ（#270）
   } else {
     dressupDisable?.();
     dressupDisable = null;
     if (btn) { btn.textContent = '👗 きせかえ'; btn.setAttribute('aria-pressed', 'false'); }
     if (picker) picker.hidden = true;
+    if (layerPanel) layerPanel.hidden = true;
   }
 }
 document.getElementById('dressupToggle')?.addEventListener('click', toggleDressup);
@@ -1195,6 +1200,43 @@ document.getElementById('stylePicker')?.addEventListener('click', (e) => {
   if (style === normalizeStyle(state.pet.catStyle)) return;
   commitState({ ...state, pet: { ...state.pet, catStyle: style } });  // renderHome が猫を差し替え＆新スタイルを先読み
   renderStylePicker();                                                // 選択状態の更新
+});
+
+// ===== きせかえ：まえ／うしろパネル（#270） =====
+// きせかえ編集モード中だけ表示。装着中＋配置中のアイテムを「まえ」「うしろ」の2段に並べ、
+// チップをタップすると反対の段へ移動して猫の描画も即座に入れ替わる。
+// ジェスチャ（ダブルタップ等）にしないのは、ドラッグ／ピンチと競合せず、
+// 「うしろに送って見えなくなったアイテム」が一覧から必ず戻せるようにするため。
+const LAYER_ROWS = [['front', 'まえ'], ['back', 'うしろ']];
+const LAYER_LABEL = Object.fromEntries(LAYER_ROWS);
+
+function renderLayerPanel() {
+  const el = document.getElementById('layerPanel');
+  if (!el || el.hidden) return;
+  const layout = state.pet.itemLayout ?? {};
+  const ids = [...(state.pet.equippedItems ?? []), ...(state.pet.placedItems ?? [])];
+  el.innerHTML = LAYER_ROWS.map(([layer, label]) => {
+    const chips = ids.filter((id) => itemLayer(id, layout) === layer).map((id) => {
+      const item = itemById(id);
+      const to = LAYER_LABEL[layer === 'back' ? 'front' : 'back'];
+      return `<button type="button" class="layer-panel__chip" data-item="${id}" data-layer="${layer}"
+        aria-label="${item?.name ?? id} を ${to} に する">`+
+        `<span aria-hidden="true">${item?.icon ?? '❔'}</span><span>${item?.name ?? id}</span></button>`;
+    }).join('');
+    return `<div class="layer-panel__row"><span class="layer-panel__label">${label}</span>`+
+      `${chips || '<span class="layer-panel__empty">なし</span>'}</div>`;
+  }).join('');
+}
+
+document.getElementById('layerPanel')?.addEventListener('click', (e) => {
+  const chip = e.target.closest('.layer-panel__chip');
+  if (!chip) return;
+  const id = chip.dataset.item;
+  const layer = chip.dataset.layer === 'back' ? 'front' : 'back';
+  const layout = { ...(state.pet.itemLayout ?? {}) };
+  layout[id] = { ...(layout[id] ?? {}), layer };     // 座標・スケールは保ったままレイヤーだけ差し替える
+  commitState({ ...state, pet: { ...state.pet, itemLayout: layout } });   // renderHome がパネルも描き直す
+  playSound('purchase', state);   // うしろへ送ると猫の陰に完全に隠れることがあるため、効いた合図を音でも返す
 });
 
 // ===== サウンドON/OFFトグル =====

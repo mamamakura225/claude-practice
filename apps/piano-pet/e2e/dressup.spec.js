@@ -77,6 +77,52 @@ test.describe('きせかえ 自由配置', () => {
     expect(layout.ribbon.x_pct).toBeLessThan(60);
   });
 
+  // まえ／うしろパネル（#270）：チップのタップで描画レイヤーが入れ替わり、保存・ドラッグ後も残る。
+  test('パネルでアイテムをうしろへ送ると背面レイヤーに移り、ドラッグ後も layer が残る', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+    await page.click('#dressupToggle');
+
+    const chip = page.locator('#layerPanel .layer-panel__chip[data-item="ribbon"]');
+    await expect(chip).toHaveAttribute('data-layer', 'front');
+    // 編集中は本体が半透明＝うしろへ送ったアイテムが透けて見える（#270・#211 の再来防止）
+    await expect(page.locator('#catStage .cat__body')).toHaveCSS('opacity', '0.55');
+    await expect(page.locator('#catStage .cat__front .cat__item[data-item="ribbon"]')).toHaveCount(1);
+
+    await chip.click();
+    await expect(page.locator('#catStage .cat__scene--back .cat__item[data-item="ribbon"]')).toHaveCount(1);
+    await expect(page.locator('#catStage .cat__front .cat__item[data-item="ribbon"]')).toHaveCount(0);
+    expect((await itemLayout(page)).ribbon.layer).toBe('back');
+
+    // 背面のまま編集中にドラッグしても layer は失われない（#270 dressup の引き継ぎ）
+    // チップのクリックでページがスクロールしうるので、猫を画面内に戻してから座標を取る。
+    await page.locator('#catStage .cat').scrollIntoViewIfNeeded();
+    const stage = await page.locator('#catStage .cat').boundingBox();
+    await dragItemTo(page, stage.x + stage.width * 0.3, stage.y + stage.height * 0.3);
+    const moved = (await itemLayout(page)).ribbon;
+    expect(moved.layer).toBe('back');
+    expect(moved.x_pct).toBeLessThan(45);
+
+    // 編集を抜けるとパネルは隠れ、本体は不透明に戻る
+    await page.click('#dressupToggle');
+    await expect(page.locator('#layerPanel')).toBeHidden();
+    await expect(page.locator('#catStage .cat__body')).toHaveCSS('opacity', '1');
+  });
+
+  // 保存済みの layer が起動時の描画に効くこと（上の beforeEach は毎ナビゲーションで seed を
+  // 書き戻すため、リロードではなく「layer 付きの state で開く」形で検証する）。
+  test('保存済みの layer:back は起動時から背面レイヤーに描かれる', async ({ page }) => {
+    await page.addInitScript(() => {
+      const s = JSON.parse(localStorage.getItem('piano-pet'));
+      s.pet.itemLayout = { ribbon: { x_pct: 40, y_pct: 45, layer: 'back' } };
+      localStorage.setItem('piano-pet', JSON.stringify(s));
+    });
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#catStage .cat__scene--back .cat__item[data-item="ribbon"]')).toHaveCount(1);
+    await expect(page.locator('#catStage .cat__front .cat__item[data-item="ribbon"]')).toHaveCount(0);
+  });
+
   test('編集モード中は猫タップでなで演出（喜び/しっぽふり）が出ない', async ({ page }) => {
     await page.addInitScript(() => { Math.random = () => 0.99; });  // hiss回避
     await page.goto('/');

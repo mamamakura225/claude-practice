@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS } from '../js/cat-image.js';
+import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, itemLayer, defaultItemLayer } from '../js/cat-image.js';
 
 // 日常のお祝い演出のバリエーション選択（#81）。
 // 描画・アニメ自体は CSS / DOM 依存なので、ここでは純粋な選択ロジックだけ検証する。
@@ -214,5 +214,82 @@ describe('置物アイテム（#226）', () => {
   it('置物も .cat__item クラスで dressup が掴める', () => {
     const html = catMarkup({ placedItems: ['yarnBall'] });
     expect(html).toContain('class="cat__item" data-item="yarnBall"');
+  });
+});
+
+// 前後レイヤーの切り替え（#270）：アイテムごとに「まえ／うしろ」を選べる。
+const backSvg = (html) => html.match(/cat__scene--back[^]*?<\/svg>/)[0];
+const frontSvg = (html) => html.match(/cat__scene--front[^]*?<\/svg>/)[0];
+const wornSvg = (html) => html.match(/cat__front[^]*?<\/svg>/)[0];
+
+describe('itemLayer / defaultItemLayer（#270）', () => {
+  it('既定は装着＝前面（#211）・置物＝SCENE_BOX の layer', () => {
+    expect(defaultItemLayer('cape')).toBe('front');
+    expect(defaultItemLayer('crown')).toBe('front');
+    expect(defaultItemLayer('cushion')).toBe('back');
+    expect(defaultItemLayer('yarnBall')).toBe('front');
+  });
+
+  it('itemLayout の layer が既定より優先される', () => {
+    expect(itemLayer('cape', { cape: { layer: 'back' } })).toBe('back');
+    expect(itemLayer('cushion', { cushion: { layer: 'front' } })).toBe('front');
+  });
+
+  it('未設定・未知値は既定に落ちる（既存ユーザー後方互換）', () => {
+    expect(itemLayer('crown')).toBe('front');
+    expect(itemLayer('crown', {})).toBe('front');
+    expect(itemLayer('crown', { crown: { x_pct: 10, y_pct: 20 } })).toBe('front');
+    expect(itemLayer('cushion', { cushion: { layer: 'bogus' } })).toBe('back');
+  });
+});
+
+describe('catMarkup の前後レイヤー（#270）', () => {
+  it('layer 未設定なら装着は前面のまま（既存ユーザーの見た目は不変）', () => {
+    const html = catMarkup({ equippedItems: ['wings', 'crown'] });
+    expect(wornSvg(html)).toContain('items/wings.webp');
+    expect(wornSvg(html)).toContain('items/crown.webp');
+    expect(backSvg(html)).not.toContain('items/');
+  });
+
+  it('うしろにした装着アイテムは背面SVGへ移り、前面からは消える', () => {
+    const html = catMarkup({ equippedItems: ['wings', 'crown'], itemLayout: { wings: { layer: 'back' } } });
+    expect(backSvg(html)).toContain('items/wings.webp');
+    expect(wornSvg(html)).not.toContain('items/wings.webp');
+    expect(wornSvg(html)).toContain('items/crown.webp');   // 指定していないものは前面のまま
+  });
+
+  it('置物も layer で前後を上書きできる（既定と逆にできる）', () => {
+    const html = catMarkup({
+      placedItems: ['cushion', 'yarnBall'],
+      itemLayout: { cushion: { layer: 'front' }, yarnBall: { layer: 'back' } },
+    });
+    expect(frontSvg(html)).toContain('scene/cushion.webp');
+    expect(backSvg(html)).toContain('scene/yarnBall.webp');
+    expect(backSvg(html)).not.toContain('scene/cushion.webp');
+    expect(frontSvg(html)).not.toContain('scene/yarnBall.webp');
+  });
+
+  it('背面でも「cape が最下層 → アクセサリ」の順で、装備した順序に左右されない', () => {
+    const layout = { cape: { layer: 'back' }, crown: { layer: 'back' } };
+    const order = (equippedItems) => {
+      const back = backSvg(catMarkup({ equippedItems, itemLayout: layout }));
+      return [back.indexOf('items/cape.webp'), back.indexOf('items/crown.webp')];
+    };
+    for (const equipped of [['cape', 'crown'], ['crown', 'cape']]) {
+      const [cape, crown] = order(equipped);
+      expect(cape).toBeGreaterThan(-1);
+      expect(cape).toBeLessThan(crown);   // 先に描く＝下に来る
+    }
+  });
+
+  it('背面へ送っても座標・スケール・ヒット矩形はそのまま（掴んで動かせる）', () => {
+    const html = catMarkup({
+      equippedItems: ['crown'],
+      itemLayout: { crown: { x_pct: 30, y_pct: 40, scale: 1.5, layer: 'back' } },
+    });
+    const back = backSvg(html);
+    expect(back).toContain('class="cat__item" data-item="crown"');
+    expect(back).toContain('translate(60 80) scale(1.5)');
+    expect(back).toContain('cat__item-hit');
   });
 });

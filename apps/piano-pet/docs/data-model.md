@@ -87,7 +87,7 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 | `coins` | number | `0` | 所持コイン（= 獲得総額 − 装備購入 − えさ消費）。`recomputeState` では `Math.max(0, 獲得総額 − spent)` で再導出する。`spent` ＝ `spentCoins`（インベントリ価格合計）＋ `foodSpent` で [app.js](../js/app.js) が算出して渡す（購入・えさ消費分が再計算で復活しない）。**`spentCoins` は過去の支払額ではなく現行価格から毎回導出する**ため、価格改定を行うと差額が自動返金される（→ [features.md](./features.md) の #250 設計判断） |
 | `equippedItems` | string[] | `[]` | 装備中アイテムID（スロットごとに1つ） |
 | `placedItems` | string[] | `[]` | 配置中の置物・小物系アイテムID（シーン配置型・#226）。装備（slot排他）とは**別配列で排他なし複数配置**（`togglePlace`/`placeItem`/`unplaceItem` が管理し装備ロジックには触れない） |
-| `itemLayout` | object | `{}` | 衣装**と置物**の自由配置 `{ itemId: {x_pct, y_pct, scale?} }`（#168/#205/#226・.cat正方枠%）。`scale` は絶対値。未登録は既定位置・基準スケールで描画。装備・配置外しは `cleanItemLayout` が掃除（置物IDは装着IDと重複しないため両系統で共用）。操作仕様は [features.md](./features.md) |
+| `itemLayout` | object | `{}` | 衣装**と置物**の自由配置 `{ itemId: {x_pct, y_pct, scale?, layer?} }`（#168/#205/#226/#270・.cat正方枠%）。`scale` は絶対値、`layer` は `'front'|'back'`（猫の前後・#270）。**未登録キーは既定にフォールバック**（位置＝アンカー／サイズ＝基準スケール／レイヤー＝装着は前面・置物は `SCENE_BOX[id].layer`）。装備・配置外しは `cleanItemLayout` が掃除（置物IDは装着IDと重複しないため両系統で共用）。操作仕様は [features.md](./features.md) |
 | `affinity` | number | `0` | なかよし度（えさやりで上昇）。3段階tier（low/mid/high）に集約され猫画像の表情・ポーズに反映（#167） |
 | `foodSpent` | number | `0` | えさに使ったコイン総額（全再計算で消費分を復活させないため） |
 | `dailyGoal` | number | `10` | 1日の練習目標回数（#238）。親が **5〜20** で調整（`clampDailyGoal`）。ホームの進捗メーター・スタンプのマス数/分母/音程にのみ反映。**達成ボーナス閾値（`GOAL_BONUS_THRESHOLD=10`）とは分離**＝可変にしても `recomputeState` が過去の記録のコインを動かさない。未設定の旧データは `normalizeState` が 10 で補完 |
