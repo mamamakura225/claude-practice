@@ -576,10 +576,11 @@ let chipNames = [];
 // アカウントごとに下書きを分離する（#182）。'data'（娘）は従来どおり 'piano-pet:stamp-draft'。
 const STAMP_DRAFT_KEY = `${activeStorageKey()}:stamp-draft`;
 
-// 現在の stamps を当日の下書きとして保存。編集中（既存セッションの修正）は
-// 当日の下書きを汚さないよう保存しない。
+// 現在の stamps を当日の下書きとして保存。編集中（既存セッションの修正）と、
+// 日付欄が今日以外を指しているとき（#273）は、当日の下書きを汚さないよう保存しない。
 function saveStampDraft() {
   if (editingIndex != null) return;
+  if (recordDateEl && formDate() !== todayStr()) return;
   try {
     localStorage.setItem(STAMP_DRAFT_KEY, JSON.stringify({ date: todayStr(), stamps }));
   } catch { /* 保存できなくても致命的でないため無視 */ }
@@ -779,6 +780,39 @@ function setRecordMode(isEdit) {
   if (submit) submit.textContent = isEdit ? 'なおす' : 'きろくする';
 }
 
+// 入力欄が指す記録日。未来日は今日に丸める（時系列破壊防止・#260）。
+function formDate() {
+  const today = todayStr();
+  const v = recordDateEl?.value || today;
+  return v > today ? today : v;
+}
+
+// 当日の入力内容の復元元。記録確定後は当日セッションが正（#186）、未確定は下書き（#164）。
+function todayStamps() {
+  const todaySession = state.sessions.find((s) => s.date === todayStr());
+  return todaySession ? songsToStamps(combineSongs(todaySession.songs)) : loadStampDraft();
+}
+
+// stamps に合わせて曲チップ・選択中の曲・カード・まとめ行を描き直す。
+function syncRecordInputs() {
+  const names = [...new Set(stamps)];
+  chipNames = [...names, ...pastSongNames(state.sessions).filter((n) => !names.includes(n))];
+  selectedSong = names[names.length - 1] ?? chipNames[0] ?? null;
+  renderChips();
+  renderStampCard();
+  renderBatchRows(stampsToSongs(stamps).songs);
+}
+
+// 日付が変わったら、その日付が本来始まるべき内容へフォームを戻す（→ features.md #273）。
+// 今日=当日セッション/下書きから復元、今日以外=空。持ち越すと当日ぶんが二重計上される。
+function onRecordDateChange() {
+  if (editingIndex != null) return;   // 編集中は対象セッションの内容が正
+  stamps = formDate() === todayStr() ? todayStamps() : [];
+  saveStampDraft();                   // 過去日は saveStampDraft 側のガードで no-op
+  if (stampHintEl) stampHintEl.hidden = true;
+  syncRecordInputs();
+}
+
 function resetRecordForm() {
   editingIndex = null;
   setRecordMode(false);
@@ -787,22 +821,12 @@ function resetRecordForm() {
     recordDateEl.value = todayStr();
     recordDateEl.max = todayStr();   // 未来日はピッカーで選ばせない（時系列破壊防止・#260）
   }
-  // 当日のスタンプを引き継ぐ。記録確定後は当日セッションが正なのでそこから復元し、
-  // 続きを押せるようにする（#186）。未確定（初回記録前）はホーム往復用の下書きから復元（#164）。
-  const todaySession = state.sessions.find((s) => s.date === todayStr());
-  stamps = todaySession
-    ? songsToStamps(combineSongs(todaySession.songs))
-    : loadStampDraft();
+  stamps = todayStamps();
   saveStampDraft();
-  const draftNames = [...new Set(stamps)];
-  chipNames = [...draftNames, ...pastSongNames(state.sessions).filter((n) => !draftNames.includes(n))];
-  selectedSong = draftNames[draftNames.length - 1] ?? chipNames[0] ?? null;
   if (newSongInputEl) newSongInputEl.value = '';
   if (stampHintEl) stampHintEl.hidden = true;
-  renderChips();
+  syncRecordInputs();
   renderSongSuggestions();
-  renderStampCard();
-  renderBatchRows([]);
   applyRecordModeUI();
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
@@ -973,9 +997,7 @@ function commitRecordedSessions(sessions, totalCount) {
 function submitRecord(event) {
   event.preventDefault();
   const today = todayStr();
-  // 未来日は入力欄の max で防ぎつつ、手入力等で入ってきても今日に丸める（時系列破壊防止・#260）
-  const inputDate = recordDateEl?.value || today;
-  const date = inputDate > today ? today : inputDate;
+  const date = formDate();   // 未来日は今日に丸め済み（#260）
   const { songs, totalCount } = recordMode === 'batch'
     ? collectSongs(readBatchRows())
     : stampsToSongs(stamps);
@@ -1061,6 +1083,8 @@ newSongInputEl?.addEventListener('keydown', (e) => {
 stampCardEl?.addEventListener('click', addStamp);
 document.getElementById('undoStampBtn')?.addEventListener('click', undoStamp);
 document.getElementById('recordForm')?.addEventListener('submit', submitRecord);
+// 日付を変えたら、その日付が本来始まるべき内容へフォームを戻す（当日ぶんの持ち越し防止・#273）
+recordDateEl?.addEventListener('change', onRecordDateChange);
 
 // ===== きろく方式の切替＋まとめモードの行操作（#123） =====
 document.querySelector('.record-mode')?.addEventListener('click', (e) => {
