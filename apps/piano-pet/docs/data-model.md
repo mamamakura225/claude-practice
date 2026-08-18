@@ -1,7 +1,7 @@
 # データモデル（設計書）
 
 > **スキーマ・マージ規則・永続化の正本**。要件は [requirements.md](./requirements.md)、画面と機能のふるまいは [features.md](./features.md)。
-> **更新ルール**: `apps/piano-pet/` のソースを変更したら関連docsへ必ず反映する（[CLAUDE.md](../../../CLAUDE.md)）。
+> **更新ルール**: `apps/piano-pet/` のソースを変更したら関連docsへ必ず反映（[CLAUDE.md](../../../CLAUDE.md)）。
 
 state は localStorage に JSON で保存する。保存キーは**有効アカウント**（#182）から導出し、既定（娘）は `piano-pet`、テスト用は `piano-pet:test`。読み込み・正規化・クラウド射影は [js/storage.js](../js/storage.js) に集約（キー導出は [js/account.js](../js/account.js) `storageKeyFor`）。
 
