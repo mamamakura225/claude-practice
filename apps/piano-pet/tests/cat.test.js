@@ -293,3 +293,23 @@ describe('catMarkup の前後レイヤー（#270）', () => {
     expect(back).toContain('cat__item-hit');
   });
 });
+
+// name は state 由来＝信頼できない入力（認証なしの Firestore doc・取り込んだバックアップ JSON から
+// 任意の値が入る）。innerHTML に載る唯一の外部由来テキストなので、属性を割られないことを固定する。
+describe('catMarkup の名前エスケープ（#274）', () => {
+  it('属性を割る文字列を渡しても aria-label の外へ出ない', () => {
+    const html = catMarkup({ name: 'x" onload="alert(1)' });
+    expect(html).not.toContain('onload="alert(1)"');
+    expect(html).toContain('aria-label="x&quot; onload=&quot;alert(1)"');
+  });
+
+  it('タグを閉じて別要素を注入できない', () => {
+    const html = catMarkup({ name: '"><img src=x onerror=alert(1)>' });
+    expect(html).not.toContain('<img src=x');
+    expect(html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+  });
+
+  it('通常の名前はそのまま表示される（既存の見た目は不変）', () => {
+    expect(catMarkup({ name: 'きーちゃん' })).toContain('aria-label="きーちゃん"');
+  });
+});
