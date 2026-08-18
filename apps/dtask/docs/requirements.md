@@ -1,6 +1,6 @@
 # dtask 要件定義書
 
-> **更新ルール**: `apps/dtask/` のソースを変更したら、本書と設計・機能ドキュメント（[architecture.md](./architecture.md) / [data-model.md](./data-model.md) / [features.md](./features.md) / [testing.md](./testing.md)）へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
+> **更新ルール**: `apps/dtask/` のソースを変更したら関連docsへ必ず反映（[CLAUDE.md](../../../CLAUDE.md)）。
 > 本書は「**何を・誰のために作るか（WHAT）**」を要件レベルで記述する。機能の具体仕様（HOW/詳細）は [features.md](./features.md)、構造・設計は [architecture.md](./architecture.md) / [data-model.md](./data-model.md) に委譲する。
 
 ## 1. 概要・目的

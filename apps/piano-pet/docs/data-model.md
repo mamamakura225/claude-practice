@@ -1,9 +1,9 @@
 # データモデル（設計書）
 
 > **スキーマ・マージ規則・永続化の正本**。要件は [requirements.md](./requirements.md)、画面と機能のふるまいは [features.md](./features.md)。
-> **更新ルール**: `apps/piano-pet/` のソースを変更したら関連docsへ必ず反映する（[CLAUDE.md](../../../CLAUDE.md)）。
+> **更新ルール**: `apps/piano-pet/` のソースを変更したら関連docsへ必ず反映（[CLAUDE.md](../../../CLAUDE.md)）。
 
-piano-pet の状態は localStorage に JSON オブジェクトとして保存される。保存キーは**有効アカウント**（マルチアカウント・#182）から導出され、既定（娘）は従来どおり `piano-pet`、テスト用は `piano-pet:test`。読み込み・正規化・クラウド射影はすべて [js/storage.js](../js/storage.js) に集約されている（キー導出は [js/account.js](../js/account.js) `storageKeyFor`）。
+state は localStorage に JSON で保存する。保存キーは**有効アカウント**（#182）から導出し、既定（娘）は `piano-pet`、テスト用は `piano-pet:test`。読み込み・正規化・クラウド射影は [js/storage.js](../js/storage.js) に集約（キー導出は [js/account.js](../js/account.js) `storageKeyFor`）。
 
 ## State スキーマ (v2)
 
@@ -19,11 +19,11 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 
 クラウド（Firestore `pianopet/<doc ID>`）に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions`）のみ。doc ID は [account.js](../js/account.js) `cloudDocIdFor`（[cloud.js](../js/cloud.js) が import 時に束縛）で導出する。`settings` と `version` は端末ローカルに留まる。
 
-旧 `assignment`（しゅくだい・#143）は機能削除（#261）で同期対象から外した。既存データに残る値は `normalizeState` の未知キー引き継ぎで無害に残り、クラウド doc からは次回 push（setDoc 置換）で自然に消える。旧 `Assignment` スキーマ・LWW マージ（`pickNewerAssignment`）・関連 UI はコードから消えている。
+旧 `assignment`（しゅくだい・#143）は機能削除（#261）で同期対象から外した。既存データに残る値は `normalizeState` の未知キー引き継ぎで無害に残り、クラウド doc からは次回 push（setDoc 置換）で消える。旧 `Assignment` スキーマ・LWW マージ（`pickNewerAssignment`）・関連 UI はコードから撤去済み。
 
 ### doc ID の推測不能化（がぞくコード・#233 段階1）
 
-旧仕様は doc ID が固定・推測可能（既定=`pianopet/data`／テスト用=`pianopet/test`）だった。Firebase config はクライアント埋め込みの公開情報なので、**認証なしの現構成では第三者が到達できる構造的リスク**がある。段階1として doc ID を初回生成のランダム値（**がぞくコード** `pp-<uuid>`）に置き換える。
+旧仕様は doc ID が固定・推測可能（既定=`pianopet/data`／テスト用=`pianopet/test`）。Firebase config はクライアント埋め込みの公開情報のため、**認証なしでは第三者が到達できる構造的リスク**があった。段階1として doc ID を初回生成のランダム値（**がぞくコード** `pp-<uuid>`）へ置き換える。
 
 | 項目 | 内容 |
 |---|---|
@@ -34,7 +34,11 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 | 旧 doc | 移行しても自動では消さない。全端末の合流後に親が明示操作で空にする（`ふるい ばしょを からにする`） |
 | アカウント分離 | コードはアカウント単位なので #182 の分離は維持 |
 
-> **設計判断（#233 段階1）**: **自動移行にしない**。端末ごとに別コードが生成されると家族の共有 doc が割れて同期が壊れるため、移行は親の明示操作にし、他端末はコード共有で合流させる。また旧 doc に「新しい doc への転送先」を書き置く案は、旧 ID を知る第三者がそこから新 ID へ到達できてしまい受け入れ基準（推測しても到達できない）を満たさないため不採用＝コードは**帯域外（コード表示／バックアップJSON）で共有**する。**本命の匿名認証＋セキュリティルールは段階2**（別Issue）：匿名認証は端末ごとに UID が異なるため「自分の UID 配下のみ許可」ルールにすると複数端末共有が壊れる＝クレデンシャル引き継ぎか実アカウント認証（Google等）の設計が別途必要。なおセキュリティルール自体は間借り元 `dtask-d08b6` の Firebase コンソール管理（リポジトリ外・dtask にも影響）。
+> **設計判断（#233 段階1）**
+> - **自動移行にしない**：端末ごとに別コードが生成されると家族の共有 doc が割れて同期が壊れる。移行は親の明示操作にし、他端末はコード共有で合流させる
+> - 旧 doc に「新しい doc への転送先」を書き置く案は不採用。旧 ID を知る第三者がそこから新 ID へ到達でき、受け入れ基準（推測しても到達できない）を満たさない＝コードは**帯域外（コード表示／バックアップJSON）で共有**する
+> - **本命の匿名認証＋セキュリティルールは段階2**（#258）：匿名認証は端末ごとに UID が異なるため「自分の UID 配下のみ許可」ルールだと複数端末共有が壊れる。クレデンシャル引き継ぎか実アカウント認証（Google等）の設計が別途必要
+> - セキュリティルール自体は間借り元 `dtask-d08b6` の Firebase コンソール管理（リポジトリ外・dtask にも影響）
 
 ### State 以外の localStorage キー（端末ローカル・クラウド非同期）
 
@@ -51,6 +55,8 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 
 1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。
 
+> ⚠️ ここが崩れると全部が崩れる。sessions を直接書き換える処理を足すときは必ず `recomputeState` を通すこと。
+
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `date` | `YYYY-MM-DD` | 練習したローカル暦日。同一日付は記録時に1件へ統合（`mergeSameDaySessions`） |
@@ -62,11 +68,11 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 | `praise` | string \| null | はなまるスタンプ（#145）。`PRAISE_STAMPS` の id（`hanamaru`/`jouzu`/`ganbatta`）か `null`。曲数からは導出されないが、全状態のスプレッド更新（`recomputeState`・各種マージ）で保持される。表示時に `normalizePraise` で検証 |
 | `tempo` | string \| null | 練習の質メモ（#239）。`TEMPO_STAMPS` の id（`slow`🐢/`normal`🎵/`fast`🚀）か `null`。praise と同型・同挙動（`normalizeTempo` で検証）。自由記述は持たない（PII規約準拠） |
 
-> **設計判断（きょうのおまけ #148 のコイン永続）**: コインは `sessions` から `recomputeState` で全再計算される派生値のため、乱数ボーナスをそのまま足すと再計算で消える。別アキュムレータではなく**記録への保存値（`bonusCoins`）**で解決した。抽選は app.js 側（`rollDailyBonus(Math.random())`）でその日の初回記録時のみ行い、結果を `applySession(state, session, bonusCoins)` に渡して記録へ焼き込む。`recomputeState` は `s.bonusCoins` を `earned` に再加算するため、編集・削除・クラウドマージ後も再抽選されず金額が保たれる。`game.js` は純粋なまま（乱数は注入）。
+> **設計判断（#148・おまけコインの永続）**: コインは `recomputeState` で全再計算される派生値なので、乱数ボーナスをそのまま足すと再計算で消える。別アキュムレータではなく**記録への保存値 `bonusCoins`** で解決した。抽選は app.js（`rollDailyBonus(Math.random())`）がその日の初回記録時だけ行い、`applySession(state, session, bonusCoins)` で記録へ焼き込む。`recomputeState` が `s.bonusCoins` を `earned` へ再加算するため、編集・削除・クラウドマージ後も再抽選されず金額が保たれる。`game.js` は純粋なまま（乱数は注入）。
 
 ### 派生データ（保存しない）
 
-保存フィールドを持たず `sessions` / `pet.affinity` から都度導出する。**解放済みフラグ類を持たない**のは、二重管理になり `recomputeState`（全再計算）との整合リスクが生じるため。
+保存フィールドを持たず `sessions` / `pet.affinity` から都度導出する。**解放済みフラグ類を持たない**のは、二重管理が `recomputeState`（全再計算）との整合リスクになるため。
 
 | 派生値 | 導出元 | 実装 |
 |---|---|---|
@@ -125,22 +131,22 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 | `pet` / `streak` / `settings` / `pet.itemLayout` | プレーンオブジェクトでなければ既定へ（配列も弾く） |
 | `saved` 自体 | プレーンオブジェクトでなければ `DEFAULTS` |
 
-> **設計判断（#272）**: state の入力元は localStorage だけではなく、**認証なしの Firestore doc（→ #258 段階2）と親が取り込むバックアップ JSON** も含まれる＝内容を信頼できない。`normalizeState` はその全経路が通る唯一の関門で、ここを型不正が通り抜けると [app.js](../js/app.js) のモジュールトップで実行される `mergeSameDaySessions(state.sessions)` が throw し、**ES モジュール全体が実行されず画面が真っ白**になる。壊れた値は localStorage に残るためリロードでも復旧しない（実質ブリック）。配列であることの確認だけでは足りず、`sessions` は要素まで見る（`null` 要素が `s.date` 参照で落ちるため）。
+> **設計判断（#272）**: state の入力元は localStorage だけでなく、**認証なしの Firestore doc（→ #258）と親が取り込むバックアップ JSON** も含まれる＝内容を信頼できない。`normalizeState` は全経路が通る唯一の関門で、型不正が通り抜けると [app.js](../js/app.js) のモジュールトップの `mergeSameDaySessions(state.sessions)` が throw し、**ES モジュール全体が実行されず画面が真っ白**になる。壊れた値は localStorage に残るためリロードでも復旧しない（実質ブリック）。配列であることの確認では足りず `sessions` は要素まで見る（`null` 要素が `s.date` 参照で落ちる）。
 >
-> **バックアップ側は「矯正」ではなく「拒否」**: `parseBackup`（[backup.js](../js/backup.js)）は配列であるべきフィールドが壊れたファイルを `reason: 'shape'` で弾く。`normalizeState` に任せると空配列へ黙って矯正され、**壊れた記録が消えたことに親が気づけない**ため、取り込み前にエラーを出す方に倒す。
+> **バックアップ側は矯正ではなく拒否**：`parseBackup`（[backup.js](../js/backup.js)）は壊れたファイルを `reason: 'shape'` で弾く。`normalizeState` に任せると空配列へ黙って矯正され**壊れた記録が消えたことに親が気づけない**ため、取り込み前にエラーを出す。
 
 ## マイグレーション戦略
 
-破壊的なスキーマ変更（フィールドの削除・改名、ネスト構造の変更、配列要素の形式変更など）に備え、state にバージョン番号を埋め込み、読み込み時に順次マイグレーションを適用する。
+破壊的なスキーマ変更（フィールドの削除・改名、ネスト構造の変更、配列要素の形式変更）に備え、state にバージョン番号を埋め込んで読み込み時に順次適用する。
 
-- `SCHEMA_VERSION`（storage.js）が現行バージョン。state の `version` に保存される。
-- `MIGRATIONS[n]` は **v(n) の state を v(n+1) の形に変換する純粋関数**。
-- `migrate(saved)` が保存データの `version` を現行まで順に引き上げる。`version` を持たない旧データは **v0** とみなし、現行より新しいデータ（ダウングレード時）は**バージョンを下げず**そのまま返す。
-- 読み込みフローは `loadState()` → `migrate()` → `normalizeState()`（移行で構造を整えた後にデフォルト補完）。
+- `SCHEMA_VERSION`（[storage.js](../js/storage.js)）が現行バージョンで、state の `version` に保存される
+- `MIGRATIONS[n]` は **v(n) を v(n+1) の形に変換する純粋関数**
+- `migrate(saved)` が `version` を現行まで順に引き上げる。`version` 無しの旧データは **v0** 扱い、現行より新しいデータ（ダウングレード時）は**バージョンを下げず**そのまま返す
+- 読み込みフローは `loadState()` → `migrate()` → `normalizeState()`（構造を整えてからデフォルト補完）
 
-**スキーマを変更する手順**：①`DEFAULTS` を更新 →②`SCHEMA_VERSION` を +1 →③`MIGRATIONS` 末尾に「直前バージョン → 新バージョン」の変換関数を追加（入力を破壊せず返す。`version` の付与は `migrate()` が行う）→④`tests/storage.test.js` に移行テストを追加 →⑤本書の表とバージョンを更新。
+**変更手順**：①`DEFAULTS` を更新 →②`SCHEMA_VERSION` を +1 →③`MIGRATIONS` 末尾に変換関数を追加（入力を破壊せず返す。`version` の付与は `migrate()` が行う）→④`tests/storage.test.js` に移行テストを追加 →⑤本書の表とバージョンを更新。
 
-現行の `MIGRATIONS`（[storage.js](../js/storage.js)）は、どちらのステップも**構造変換を伴わない**（`version` の付与だけ）。追加フィールドの既定値は `normalizeState` が補完するため、変換関数を書く必要が無いのが理由。
+現行の2ステップはどちらも**構造変換を伴わない**（`version` の付与だけ）。追加フィールドの既定値は `normalizeState` が補完するため変換関数が要らない。
 
 ```js
 export const SCHEMA_VERSION = 2;
@@ -161,7 +167,7 @@ const MIGRATIONS = [
 ];
 ```
 
-**クラウド側の制約**：Firestore のデータには `version` を含めていない（`CLOUD_FIELDS` 外）。各端末は読み込み時に自分のローカルコピーをマイグレーションする。現状の `mergeCloud(local, cloud)` はクラウドデータに `migrate()` を適用せず `normalizeState` の補完のみで取り込むため、**クラウド同期対象フィールド（`sessions` 等）の構造を破壊的に変更するマイグレーションを追加する場合**は `mergeCloud` 内でも取り込み前に移行処理を適用する必要がある。
+**クラウド側の制約**：Firestore のデータに `version` は含めない（`CLOUD_FIELDS` 外）。各端末は読み込み時に自分のローカルコピーを移行する。`mergeCloud(local, cloud)` はクラウドデータに `migrate()` を適用せず `normalizeState` の補完だけで取り込むため、**同期対象フィールド（`sessions` 等）の構造を破壊的に変えるときは `mergeCloud` 内でも取り込み前に移行処理を通すこと**。
 
 ## 起動シーケンスとクラウド同期（ローカルファースト・#142）
 
@@ -171,19 +177,21 @@ const MIGRATIONS = [
 
 ### 取り込み経路は3つあり、規則が同じではない
 
-クラウドのデータが state に入る経路は3つで、**平常時だけ cloud-wins、残り2つは union（ローカル優先）**という非対称な構成になっている。どの経路で何が起こりうるかを先に把握しておくこと。
+クラウドのデータが state に入る経路は3つ。**平常時だけ cloud-wins、残り2つは union（ローカル優先）**という非対称な構成なので、どの経路で何が起こりうるかを先に押さえること。
 
 | 経路 | 契機 | 規則 | 失われうるもの |
 |---|---|---|---|
 | 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別ローカル優先（union） | 同日衝突で回数の**少ない方**（keep-larger の既知トレードオフ） |
 | 復帰時 resync（#242） | `visibilitychange`→visible の `fetchCloud` | 同上（`reconcileInitialCloud`） | 同上。加えて union の副作用で**一方で外した装備・置物が復活**しうる |
-| realtime | `onSnapshot`（以降ずっと） | `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え） | **まだ push していないローカルの変更**。`pushCloudDebounced` の待ち時間（既定2秒）内に他端末のスナップショットが届くと、その2秒ぶんの操作が消える |
+| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。自分の書き込みのエコーは差分比較でスキップ） | **まだ push していないローカルの変更**。`pushCloudDebounced` の待ち時間（既定2秒）内に他端末のスナップショットが届くと、その2秒ぶんの操作が消える |
 
-> **設計判断**: realtime を cloud-wins のままにしているのは、平常時に union を使うと「一方の端末で外した装備が相手のスナップショットが届くたびに復活し続ける」ことになり、操作が確定しないため。取りこぼしうるのは debounce 待ちの数秒ぶんに限られ、記録確定時は `flushCloud()` で即送るので**記録そのものは落ちない**。フィールド別のタイムスタンプ／世代管理で本質的に解くのは #258（認証＋ルール）と合わせて別途。
+> **設計判断**: realtime を cloud-wins のままにしているのは、平常時に union を使うと「一方の端末で外した装備が相手のスナップショットのたびに復活し続ける」ことになり操作が確定しないため。取りこぼすのは debounce 待ちの数秒ぶんだけで、記録確定時は `flushCloud()` で即送るので**記録そのものは落ちない**。フィールド別のタイムスタンプ／世代管理で本質的に解くのは #258（認証＋ルール）と合わせて別途。
+>
+> 逆に**初回 `fetchCloud` で cloud-wins を使うと**、idle 同期完了前にローカルで記録した内容を上書き（clobber）してしまう。そのため初回・復帰時だけ union に倒す。
 
 ### 初回取り込みのマージ（`mergeCloudInitial` ＝ ローカル優先）
 
-realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **cloud-wins**（自分の書き込みのエコーは差分比較でスキップ）。一方、**初回 `fetchCloud` の取り込み**で cloud-wins を使うと、idle 同期完了前にローカルで記録した内容を上書き（clobber）してしまう。これを防ぐため初回のみ `mergeCloudInitial(local, cloud)` で**フィールドごとにローカル優先**で突き合わせ、`recomputeState` で導出値を再計算してから反映・push する。
+`mergeCloudInitial(local, cloud)` が**フィールドごとにローカル優先**で突き合わせ、`recomputeState` で導出値を再計算してから反映・push する。
 
 | フィールド | マージ規則 | 理由 |
 |---|---|---|
@@ -197,13 +205,17 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 
 マージ結果がクラウドと異なれば（ローカルだけが持つ記録があった等）`pushCloud` で確定する。
 
-> **設計判断**（Antigravity との設計レビュー topic_1780534255497 で合意）: 同日衝突の「合算 vs keep-larger」は、無損失（合算）よりも**経済水増しの回避（keep-larger）**を優先した。水増しは不可逆で気づきにくく、ゲーム経済（コイン/レベル/ストリーク）の整合を壊すため。朝スマホ・夜タブレットで別端末・同日記録という稀ケースでは小さい方を失うが、これは record ID 不在ゆえの既存の一般同期の曖昧さであり、合算するには ID か vector clock の導入（#142 スコープ外）が要る。
+> **設計判断（topic_1780534255497 で合意）**: 同日衝突は「合算」ではなく **keep-larger**。無損失（合算）より**経済水増しの回避**を優先した——水増しは不可逆で気づきにくく、ゲーム経済（コイン/レベル/ストリーク）の整合を壊す。朝スマホ・夜タブレットで別端末・同日記録という稀ケースでは小さい方を失うが、これは record ID 不在ゆえの曖昧さで、合算するには ID か vector clock の導入（#142 スコープ外）が要る。
 
-> **設計判断（#242・復帰時の丸ごと上書き対策）**: `pushCloud` は `setDoc`（merge無し＝doc丸ごと置換）、realtime の `mergeCloud` は `pet` をフィールドごと cloud-wins で差し替える。iOS PWA 等はサスペンド中 `onSnapshot` が届かないため、**復帰直後の古い in-memory state のまま操作すると、その古い `pet` が `placedItems`/`itemLayout` ごとクラウドを上書きし、他端末で配置した置物が消える**。対策として `visibilitychange`→visible で `fetchCloud`→**非破壊 union マージ**（`reconcileInitialCloud`＝`mergeCloudInitial` 経路）を挟み、最新の配置を取り込んでから操作・push を受ける（差分なしなら getDoc 1回で no-op）。本筋の field 別タイムスタンプ/世代管理は #233（匿名認証＋ルール）と合わせて別途。union の副作用（一方で外した装備の復活）は初回同期と同じ既知トレードオフ。
+> **設計判断（#242・復帰時の丸ごと上書き対策）**
+> - `pushCloud` は `setDoc`（merge無し＝doc丸ごと置換）、realtime の `mergeCloud` は `pet` をフィールドごと cloud-wins で差し替える
+> - iOS PWA 等はサスペンド中 `onSnapshot` が届かない。**復帰直後の古い in-memory state のまま操作すると、その古い `pet` が `placedItems`/`itemLayout` ごとクラウドを上書きし、他端末で配置した置物が消える**
+> - 対策：`visibilitychange`→visible で `fetchCloud` →**非破壊 union マージ**（`reconcileInitialCloud`＝`mergeCloudInitial` 経路）。最新の配置を取り込んでから操作・push を受ける（差分なしなら getDoc 1回で no-op）
+> - union の副作用（一方で外した装備の復活）は初回同期と同じ既知トレードオフ。本筋の field 別タイムスタンプ/世代管理は #258 と合わせて別途
 
 ### 書き込みの遅延バッチコミット（`pushCloudDebounced` / `flushCloud`・#146）
 
-通常の保存（`commitState`）はローカルへ即時保存したうえで、クラウドへは `pushCloudDebounced`（既定 2000ms）で送る。debounce 中に届いた最新データだけを保持し、スタンプ連打・購入・えさやりなどの連続操作を **1 回の Firestore 書き込みにまとめる**。確定が必要な境界では `flushCloud()` で保留分を即送信する：
+`commitState` はローカルへ即時保存し、クラウドへは `pushCloudDebounced`（既定 2000ms）で送る。debounce 中は最新データだけを保持し、スタンプ連打・購入・えさやりの連続操作を **1 回の Firestore 書き込みにまとめる**。確定が必要な境界では `flushCloud()` で即送信する：
 
 | 契機 | 動作 |
 |---|---|
@@ -214,9 +226,9 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 
 ## バックアップ/復元・初期化（[js/backup.js](../js/backup.js)・#140 / #183）
 
-認証なし・匿名クラウド同期のため、端末故障やブラウザデータ削除でデータが消えるリスクがある。親が state を JSON ファイルで手元に保存し、いつでも復元できる安全弁を置く（純粋関数中心）。UI の配置と文言は [features.md](./features.md)。
+認証なし・匿名同期のため、端末故障やブラウザデータ削除でデータが消えうる。親が state を JSON で手元に保存し、いつでも復元できる安全弁（純粋関数中心）。UI の配置と文言は [features.md](./features.md)。
 
-**バックアップファイル形式**：state そのものではなく識別マーカー付きでラップする。ファイル名は `piano-pet-backup-YYYY-MM-DD.json`。`exportState(state)` が文字列化を担い、Blob 化とダウンロードは [app.js](../js/app.js) 側。
+**ファイル形式**：state そのままではなく識別マーカー付きでラップする。ファイル名は `piano-pet-backup-YYYY-MM-DD.json`。`exportState(state)` が文字列化を担い、Blob 化とダウンロードは [app.js](../js/app.js) 側。
 
 ```json
 {
@@ -238,7 +250,7 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 
 検証を通った場合のみ `migrate()` → `normalizeState()` を適用して現行スキーマに整える。
 
-**復元フローとクラウド整合（重要）**：`importState` は明示的な上書き操作。realtime 購読中に取り込むと、push が Firestore に反映される前に**古いスナップショットが `onSnapshot` 経由で降ってきて取り込み結果を巻き戻す競合**が起きうる。これを断つため app.js は次の順で行う（設計レビュー topic_1780530736889 で合意）:
+**復元フローとクラウド整合（重要）**：`importState` は明示的な上書き操作。realtime 購読中に取り込むと、push が反映される前に**古いスナップショットが `onSnapshot` で降ってきて取り込み結果を巻き戻す**競合が起きうる。これを断つため app.js は次の順で行う（topic_1780530736889 で合意）:
 
 1. 復元直前の現行 localStorage を `piano-pet-backup-before-restore` へ自動退避（誤読込からの復旧用）。
 2. 保持しておいた cloud 購読解除ハンドル（`cloudUnsub`）を実行して **onSnapshot を一時解除**。
@@ -248,18 +260,18 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 
 > **設計判断**: 購読を解除せず差分比較だけに頼ると、import 直後の旧スナップショットが `mergeCloud` で取り込み結果を上書きしうる。`cloudUnsub` の保持＋push 完了待ち＋reload の三段で競合を物理的に排除する。オフライン時は `pushCloud` が早期 return するが、ローカルには取り込み済みが残り次回オンライン同期で送られる。
 
-**データ初期化（`resetData`・#183）**：復元フローと**同一の5段手順**を踏み、取り込み対象が import した state ではなく `normalizeState({})`（新品の `DEFAULTS`）になるだけ。直前データの退避も同様に行うため、誤って押しても復旧できる。`settings` 等の端末ローカル値も既定に戻る。
+**データ初期化（`resetData`・#183）**：復元と**同一の5段手順**で、取り込み対象が `normalizeState({})`（新品の `DEFAULTS`）になるだけ。直前データの退避も行うため誤って押しても復旧できる。`settings` 等の端末ローカル値も既定へ戻る。
 
-> **設計判断（#183）**: UI リセットと Firestore 直削除のどちらにするか未決だったが、親が端末側で完結できる UI を採用。復元と安全手順を共有することで実装は最小（クラウド競合対策・退避を再利用）に収め、専用ナビ画面も増やさず既存の親ゲート内に同居させた。
+> **設計判断（#183）**: UI リセットと Firestore 直削除で未決だったが、親が端末側で完結できる UI を採用。復元と安全手順を共有して実装を最小（クラウド競合対策・退避を再利用）に収め、専用ナビ画面も増やさず親ゲート内へ同居させた。
 
 ## マルチアカウント（アカウント分離・#182）
 
-検証用と実運用でデータを分けるための機能。認証（Firebase Auth）は導入せず、**読み書きする Firestore ドキュメントと localStorage キーをアカウント単位で名前空間化する**だけの最小構成。純粋ロジックは [js/account.js](../js/account.js)、UI は親ゲート内の「アカウント」セクション。
+検証用と実運用でデータを分ける。認証は導入せず、**読み書きする Firestore doc と localStorage キーをアカウント単位で名前空間化する**だけの最小構成。純粋ロジックは [js/account.js](../js/account.js)、UI は親ゲート内の「アカウント」セクション。
 
 - **既定アカウント**：娘（`id: 'data'`）／テスト用（`id: 'test'`）の2つ。`piano-pet:accounts` に有効アカウントと一覧を持つ（端末ローカル・クラウド非同期）。
 - **名前空間**：localStorage は `storageKeyFor(id)`、Firestore doc は `cloudDocIdFor(id)` で導出。`id: 'data'` は既存の保存先（localStorage `piano-pet`・doc `pianopet/data`）をそのまま指すため、**本機能導入で娘の既存データは一切移動しない**（後方互換）。
 - **切替**：親ゲートの裏で `setActiveAccount(id)` → `window.location.reload()`。リロード後に storage の参照キーと cloud の購読 doc が新アカウントで貼り直される（import/reset と同じリロード方式）。`cloud.js` は doc を import 時の有効アカウントで固定するが、切替が必ずリロードを伴うため整合する。
 
-> **設計判断**: Issue では Firebase 匿名/Google 認証で `users/{uid}` にネストする案も挙がったが、piano-pet は元々「認証なし・Firestore ルールでアクセス制御」の設計で、dtask プロジェクト（`dtask-d08b6`）を間借りしている。認証導入は共有プロジェクトとデータ構造への影響が大きいため、**家庭内ツール前提**で認証なしのドキュメント切替に倒し、実装と影響範囲を最小化した。誰でも全アカウントを見られるが、子の切替は親ゲートで防ぐ。
+> **設計判断（#182）**: Firebase 匿名/Google 認証で `users/{uid}` にネストする案もあったが、piano-pet は「認証なし・Firestore ルールでアクセス制御」で dtask プロジェクト（`dtask-d08b6`）を間借りしている。認証導入は共有プロジェクトとデータ構造への影響が大きいため、**家庭内ツール前提**でドキュメント切替に倒した。誰でも全アカウントを見られるが、子の切替は親ゲートで防ぐ。
 >
 > **前提（Firestore ルール）**: テスト用アカウントは `pianopet/test` を読み書きするため、ルールが `pianopet` コレクション全体（doc ワイルドカード）を許可している必要がある。`pianopet/data` 限定だとテスト用 doc への書き込みが拒否され、ローカルのみ動作になる（`pushCloud` は失敗を握りつぶす）。

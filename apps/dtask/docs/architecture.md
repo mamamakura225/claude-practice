@@ -1,6 +1,6 @@
 # アーキテクチャ（設計書）
 
-> **更新ルール**: `apps/dtask/` のソースを変更したら、本書と [requirements.md](./requirements.md) / [data-model.md](./data-model.md) / [features.md](./features.md) へ必ず反映する。詳細は [CLAUDE.md](../../../CLAUDE.md) の「ドキュメント更新ルール」を参照。
+> **更新ルール**: `apps/dtask/` のソースを変更したら関連docsへ必ず反映（[CLAUDE.md](../../../CLAUDE.md)）。
 
 ## 全体像
 
