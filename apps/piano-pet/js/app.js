@@ -1,4 +1,5 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
+import { escapeHtml } from './html.js';
 import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, activeStorageKey } from './storage.js';
 import {
   getAccounts, getActiveAccountId, setActiveAccount,
@@ -226,12 +227,6 @@ function renderStats() {
 }
 
 // ===== 記録履歴画面（Epic 6） =====
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (c) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  })[c]);
-}
-
 // 週ごとの合計回数を SVG の棒グラフにする
 function weeklyChartSvg(bars) {
   const N = bars.length;

@@ -5,6 +5,7 @@
 // 衣装の既定は全種が本体の前面（cat__front・#211）。#270 以降はユーザーが
 // アイテムごとに「まえ／うしろ」を選べ、うしろにしたものは背面レイヤーへ回る。
 import { affinityLevel } from './feed.js';
+import { escapeHtml } from './html.js';
 
 // ----- 画像セレクタ -----
 // スタイル＝猫種（#66）。未知値は 'tora'（茶トラ）にフォールバック＝既存ユーザー後方互換。
@@ -328,7 +329,8 @@ export function catMarkup({ mood = 'idle', equippedItems = [], placedItems = [],
   const sceneBack = `${sceneSvg(placedItems, 'back', itemLayout)}${wornBack}`;
   const sceneFront = sceneSvg(placedItems, 'front', itemLayout);
   // 演出クラスは .cat コンテナに付く。本体アニメは .cat__body、fx は内部要素に効く。
-  return `<div class="cat cat--${m}" role="img" aria-label="${name}" data-mood="${m}" data-tier="${tier}" data-style="${s}">
+  // name は state 由来＝信頼できない入力。属性を割られないよう必ずエスケープする（#274）。
+  return `<div class="cat cat--${m}" role="img" aria-label="${escapeHtml(name)}" data-mood="${m}" data-tier="${tier}" data-style="${s}">
     <svg class="cat__scene cat__scene--back" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${sceneBack}</svg>
     <img class="cat__body" src="${catImageSrc(s, tier, m)}" alt="" draggable="false" decoding="async">
     <svg class="cat__front" viewBox="0 0 200 200" aria-hidden="true" overflow="visible">${capeLayer}${front}</svg>
