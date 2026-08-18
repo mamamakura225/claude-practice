@@ -1,6 +1,6 @@
 # claude-practice
 
-自作アプリを集めたモノレポ。各アプリは `apps/<name>/` に置き、共有ツール（npm / テスト / CI / Vercel設定）はリポジトリルートに1セット置く。
+自作アプリを集めたモノレポ。アプリは `apps/<name>/`、共有ツール（npm / テスト / CI / Vercel設定）はリポジトリルートに1セット。
 
 🌐 **本番**: https://claude-practice-hazel.vercel.app/ （ルートがアプリ一覧）
 
@@ -44,7 +44,7 @@ npm test           # Vitest 単体テスト（apps/*/tests）
 npm run test:e2e   # Playwright E2E テスト（http-serverは自動起動）
 ```
 
-E2E は project ごとに配信元とデバイスが分かれる（[playwright.config.js](./playwright.config.js)）。特定のアプリだけ回すときは `--project` を指定する。
+E2E は project ごとに配信元とデバイスが分かれる（[playwright.config.js](./playwright.config.js)）。絞るときは `--project` を指定する。
 
 | project | 対象 | デバイス | 備考 |
 |---|---|---|---|
@@ -66,7 +66,7 @@ npx http-server ./apps/piano-pet -p 3001 -c-1   # ピアノペット
 
 ## デプロイ
 
-GitHub Actions（[.github/workflows/test.yml](./.github/workflows/test.yml)）でテスト通過後に Vercel CLI でデプロイ。
+GitHub Actions（[.github/workflows/test.yml](./.github/workflows/test.yml)）でテスト通過後に Vercel CLI でデプロイする。
 
 - `main` への push → 本番デプロイ
 - PR (mainターゲット) → プレビューデプロイ
@@ -74,12 +74,16 @@ GitHub Actions（[.github/workflows/test.yml](./.github/workflows/test.yml)）�
 
 ## 外部サービス / インフラ
 
-依存する外部サービス（Firebase / Vercel / GitHub / Sentry / PostHog）と、その設定・有効化手順・プライバシー方針は **[docs/external-services.md](./docs/external-services.md)** に集約。
+設定・有効化手順・プライバシー方針は **[docs/external-services.md](./docs/external-services.md)** に集約。
 
-ざっくり:
-- **データ**: Firebase Firestore（`dtask-d08b6`） — **ホスティング**: Vercel — **CI/ソース**: GitHub Actions
-- **エラー監視**: Sentry / **利用計測**: PostHog（どちらも鍵が未設定なら no-op で無効）
-- 接続情報・キーは `npm run gen-config` が環境変数から `*-config.js` を生成して注入（詳細は上記ドキュメント）
+| 用途 | サービス |
+|---|---|
+| データ | Firebase Firestore（`dtask-d08b6`） |
+| ホスティング | Vercel |
+| CI / ソース | GitHub Actions |
+| エラー監視 / 利用計測 | Sentry / PostHog（どちらも鍵が未設定なら no-op） |
+
+接続情報・キーは `npm run gen-config` が環境変数から `*-config.js` を生成して注入する。
 
 ## バックログ
 
