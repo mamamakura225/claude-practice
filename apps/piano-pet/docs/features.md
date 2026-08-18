@@ -393,6 +393,29 @@
 - ヘッダーのトグルでON/OFF（設定は端末ローカル `settings.soundOn`）。AudioContext はユーザー操作後に解錠（自動再生ポリシー対策）
 - **省電力・自動 suspend（#146）**：効果音が鳴り終わってアイドルが続いたら（`IDLE_SUSPEND_MS`）AudioContext を `suspend()` し、音声ハードウェアを起こしっぱなしにしない。タブ非アクティブ時も `suspendAudio()`、復帰時に `resumeAudio()`。次の再生で `getCtx()` が `resume()` するため状態は失わず体感遅延もない
 
+## テストの方針とカバレッジ（#277）
+
+| 層 | 対象 | 置き場所 |
+|---|---|---|
+| 単体（Vitest） | 純粋ロジック（`game` / `storage` / `shop` / `feed` / `record-form` / `history` / `song-color` / `sound` / `cat-image` / `account` / `backup` / `badges` / `child-profile` / `onboarding`） | `tests/*.test.js` |
+| E2E（Playwright・Pixel 5） | 画面をまたぐフローと DOM ↔ state の対応 | `e2e/*.spec.js` |
+| E2E（iPhone 13・`@compat` タグのみ） | iOS 実機で壊れやすい経路 | 同上のうちタグ付き |
+
+**`@compat` を付ける基準**：iOS Safari 固有の懸念がある経路に限る（全件を各ブラウザで回すと重いため）。現在は 記録（#117）／ショップの購入・装備（#124）／きせかえのドラッグ（#168・Pointer Events）／バックアップの書き出し（#140・ダウンロード）／復帰時 resync（#242・iOS PWA のサスペンド）の5件。
+
+### クラウド同期のテスト（`e2e/cloud-sync.spec.js`）
+
+他の spec は Firestore を `route.abort` で遮断しているため、`initCloudSync` / `reconcileInitialCloud` / `applyRemoteState` / `resyncFromCloud` は長らく**一度も実行されていなかった**（データ損失系という最高リスク領域が退行検知できない状態）。
+
+> **設計判断（#277）**: アプリ側に注入口（DI）を作らず、**`./js/cloud.js` へのリクエストを `page.route` で差し替えて偽モジュールを配る**方式にした。`app.js` が `await import('./cloud.js')` で動的読み込みしている（#142）ため、本番コードを1行も変えずに実経路を通せる。Firestore エミュレータを立てる案は、CI の起動コストと「検証したいのはマージ規則であって Firestore の挙動ではない」ことから採らなかった。偽モジュールが返す doc は `window.__cloudDoc`、realtime のコールバックは `window.__onRemote` に生やしてテストから撃つ。
+>
+> 追加した5件は**アプリ側の #142 / #242 の修正を取り消すと 3 件が落ちる**ことを実測して、実経路を射抜いていることを確認している。
+
+### まだ埋まっていない空白
+
+- **オフライン / SW の実行検証**：Playwright が全 project で `serviceWorkers: 'block'`（キャッシュ干渉を避けるため）なので、`sw.js` の install / activate / fetch は一度も走らない。担保は `gen-sw:check`（プリキャッシュ列挙の一致）のみ。
+- **`prefers-reduced-motion`**：CSS のみの実装で、E2E での検証は行っていない。
+
 ## アセット総量とパフォーマンス予算（#147 / #275）
 
 配信アセットの列挙は [scripts/piano-pet-assets.mjs](../../../scripts/piano-pet-assets.mjs) が唯一の正で、SW のプリキャッシュ生成（`gen-sw`）とサイズ計測（`perf-budget`）が**同じ集合**を見る。`perf-budget` は列挙のどれかがカテゴリに入らなければ失敗するので、ディレクトリ・拡張子が増えたときの計測漏れが起きない。

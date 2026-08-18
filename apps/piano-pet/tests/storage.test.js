@@ -110,6 +110,18 @@ describe('migrate', () => {
     expect(m.sessions).toHaveLength(1);
   });
 
+  it('現行バージョンは 2 で、v0→v1→v2 は構造を変えない（バージョン差の固定）', () => {
+    // SCHEMA_VERSION シンボルだけで書くと、将来 MIGRATIONS に実処理を足しても
+    // 既存テストは通ったまま素通りする。実際の番号と「何もしない」ことを固定しておく。
+    expect(SCHEMA_VERSION).toBe(2);
+    const legacy = { pet: { coins: 3 }, sessions: [{ date: '2026-01-01', totalCount: 1 }], inventory: ['ribbon'] };
+    const m = migrate(legacy);
+    expect(m).toEqual({ ...legacy, version: 2 });   // version 付与以外の差分が無い
+    // v1 のデータ（itemLayout 導入前）も構造は変えず版だけ上がる
+    const v1 = { version: 1, pet: { coins: 3 }, sessions: [] };
+    expect(migrate(v1)).toEqual({ ...v1, version: 2 });
+  });
+
   it('現行バージョンのデータはそのまま (冪等)', () => {
     const current = { version: SCHEMA_VERSION, pet: { coins: 7 } };
     const m = migrate(current);

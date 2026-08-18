@@ -30,7 +30,7 @@ test.describe('ショップ', () => {
     });
   });
 
-  test('購入して装備するとホームの猫にアイテムが乗る', async ({ page }) => {
+  test('購入して装備するとホームの猫にアイテムが乗る', { tag: '@compat' }, async ({ page }) => {
     await page.goto('/#/shop');
 
     // ショップ表示・所持コイン200

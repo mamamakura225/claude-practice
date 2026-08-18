@@ -39,7 +39,7 @@ test.describe('きせかえ 自由配置', () => {
   const itemLayout = (page) =>
     page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).pet.itemLayout || {});
 
-  test('編集モードで衣装を離れた位置へドラッグすると itemLayout に座標が記録される', async ({ page }) => {
+  test('編集モードで衣装を離れた位置へドラッグすると itemLayout に座標が記録される', { tag: '@compat' }, async ({ page }) => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
     await expect(page.locator('#catStage .cat__item[data-item="ribbon"]')).toBeVisible();
