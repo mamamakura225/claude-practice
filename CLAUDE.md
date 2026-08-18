@@ -13,8 +13,8 @@
 ## 2. 主要実行コマンド
 
 ```bash
-npm test              # Vitest単体テスト (apps/dtask/tests対象)
-npm run test:e2e      # Playwright E2E (自動サーバー起動)
+npm test              # Vitest単体テスト (apps/*/tests 対象)
+npm run test:e2e      # Playwright E2E (自動サーバー起動・project でアプリ/ブラウザを振り分け)
 npm run gen-sw        # piano-pet: SWキャッシュ・index.htmlの?v=を再生成
 npm run gen-config    # envからFirebase/Sentry等の各種configをマッピング生成
 ```

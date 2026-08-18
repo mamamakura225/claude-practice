@@ -22,8 +22,8 @@ claude-practice/
 │   ├── dtask/            # タスク管理アプリ + その tests/e2e/docs
 │   └── piano-pet/        # ピアノ練習アプリ + その docs
 ├── package.json          # 共有: npm スクリプト
-├── vitest.config.js      # 共有: 単体テスト（apps/dtask/tests を対象）
-├── playwright.config.js  # 共有: E2E（apps/dtask を配信してテスト）
+├── vitest.config.js      # 共有: 単体テスト（apps/*/tests を対象）
+├── playwright.config.js  # 共有: E2E（各アプリを別ポートで配信し project で振り分け）
 ├── vercel.json           # 共有: ルーティング（/dtask・/piano-pet）
 └── .github/workflows/    # 共有: テスト & デプロイ
 ```
@@ -40,8 +40,22 @@ npm install
 
 ### テスト
 ```bash
-npm test           # Vitest 単体テスト
+npm test           # Vitest 単体テスト（apps/*/tests）
 npm run test:e2e   # Playwright E2E テスト（http-serverは自動起動）
+```
+
+E2E は project ごとに配信元とデバイスが分かれる（[playwright.config.js](./playwright.config.js)）。特定のアプリだけ回すときは `--project` を指定する。
+
+| project | 対象 | デバイス | 備考 |
+|---|---|---|---|
+| `dtask` | `apps/dtask/e2e`（:3000） | Desktop Chrome | |
+| `piano-pet` | `apps/piano-pet/e2e`（:3100） | Pixel 5 | SW はキャッシュ干渉を避けて block |
+| `dtask-firefox` / `dtask-webkit` | 同上 | Desktop Firefox / Safari | `@compat` タグのみ |
+| `piano-pet-mobile-safari` | 同上 | iPhone 13 | `@compat` タグのみ |
+
+```bash
+npx playwright test --project=piano-pet            # piano-pet だけ
+npx playwright test --project=piano-pet --workers=4 # ローカルは並列数を明示すると安定する
 ```
 
 ### 各アプリのローカル起動

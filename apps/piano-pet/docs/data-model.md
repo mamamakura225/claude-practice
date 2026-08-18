@@ -5,11 +5,11 @@
 
 piano-pet の状態は localStorage に JSON オブジェクトとして保存される。保存キーは**有効アカウント**（マルチアカウント・#182）から導出され、既定（娘）は従来どおり `piano-pet`、テスト用は `piano-pet:test`。読み込み・正規化・クラウド射影はすべて [js/storage.js](../js/storage.js) に集約されている（キー導出は [js/account.js](../js/account.js) `storageKeyFor`）。
 
-## State スキーマ (v1)
+## State スキーマ (v2)
 
 | フィールド | 型 | クラウド同期 | 説明 |
 |---|---|:---:|---|
-| `version` | number | − | スキーマバージョン。現行 `1`。端末ローカルのみ |
+| `version` | number | − | スキーマバージョン。現行 `2`（v1→v2 は `pet.itemLayout` の導入・#168）。端末ローカルのみ |
 | `pet` | Pet | ✓ | ペット本体 |
 | `inventory` | string[] | ✓ | 購入済みショップアイテムID |
 | `streak` | Streak | ✓ | 連続練習記録 |
@@ -140,11 +140,23 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 
 **スキーマを変更する手順**：①`DEFAULTS` を更新 →②`SCHEMA_VERSION` を +1 →③`MIGRATIONS` 末尾に「直前バージョン → 新バージョン」の変換関数を追加（入力を破壊せず返す。`version` の付与は `migrate()` が行う）→④`tests/storage.test.js` に移行テストを追加 →⑤本書の表とバージョンを更新。
 
+現行の `MIGRATIONS`（[storage.js](../js/storage.js)）は、どちらのステップも**構造変換を伴わない**（`version` の付与だけ）。追加フィールドの既定値は `normalizeState` が補完するため、変換関数を書く必要が無いのが理由。
+
 ```js
-// v1 → v2: streak.freezes を廃止し maxFreezes に改名する場合
 export const SCHEMA_VERSION = 2;
 const MIGRATIONS = [
-  (s) => s,                                    // v0 → v1
+  (s) => s,   // v0（version 無しのレガシー）→ v1: 構造変更なし
+  (s) => s,   // v1 → v2: pet.itemLayout を導入（#168）。既定値は normalizeState が補完
+];
+```
+
+次に**破壊的**な変更を入れるときは、末尾に変換関数を足す（例: `streak.freezes` を `maxFreezes` へ改名する場合）:
+
+```js
+export const SCHEMA_VERSION = 3;
+const MIGRATIONS = [
+  (s) => s,
+  (s) => s,
   (s) => ({ ...s, streak: { ...s.streak, maxFreezes: s.streak?.freezes ?? 0 } }),
 ];
 ```
@@ -156,6 +168,18 @@ const MIGRATIONS = [
 1. `loadState()`（localStorage）→ `renderHome()` を**同期実行**（最初の描画はクラウドを待たない）。
 2. クラウド同期の起動（`initCloudSync`）は **`requestIdleCallback`**（非対応環境は `setTimeout`）で**アイドル時間まで遅延**。Firebase SDK の動的 import（CDN 取得）と初期化はこの時点で初めて走り、初回描画・操作と競合しない。
 3. オフライン等で SDK 取得に失敗してもローカル動作は妨げない（`online` 復帰で再試行）。
+
+### 取り込み経路は3つあり、規則が同じではない
+
+クラウドのデータが state に入る経路は3つで、**平常時だけ cloud-wins、残り2つは union（ローカル優先）**という非対称な構成になっている。どの経路で何が起こりうるかを先に把握しておくこと。
+
+| 経路 | 契機 | 規則 | 失われうるもの |
+|---|---|---|---|
+| 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別ローカル優先（union） | 同日衝突で回数の**少ない方**（keep-larger の既知トレードオフ） |
+| 復帰時 resync（#242） | `visibilitychange`→visible の `fetchCloud` | 同上（`reconcileInitialCloud`） | 同上。加えて union の副作用で**一方で外した装備・置物が復活**しうる |
+| realtime | `onSnapshot`（以降ずっと） | `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え） | **まだ push していないローカルの変更**。`pushCloudDebounced` の待ち時間（既定2秒）内に他端末のスナップショットが届くと、その2秒ぶんの操作が消える |
+
+> **設計判断**: realtime を cloud-wins のままにしているのは、平常時に union を使うと「一方の端末で外した装備が相手のスナップショットが届くたびに復活し続ける」ことになり、操作が確定しないため。取りこぼしうるのは debounce 待ちの数秒ぶんに限られ、記録確定時は `flushCloud()` で即送るので**記録そのものは落ちない**。フィールド別のタイムスタンプ／世代管理で本質的に解くのは #258（認証＋ルール）と合わせて別途。
 
 ### 初回取り込みのマージ（`mergeCloudInitial` ＝ ローカル優先）
 
@@ -197,7 +221,7 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 ```json
 {
   "app": "piano-pet",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "exportedAt": "2026-06-04T00:00:00.000Z",
   "state": { /* loadState() と同じ state オブジェクト（version 含む） */ }
 }
