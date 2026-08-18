@@ -80,7 +80,7 @@ test.describe('データのバックアップ/復元', () => {
     await expect(page.locator('#settingsMenu')).toBeVisible();
   });
 
-  test('ほぞん：app マーカー付き JSON がダウンロードされる', async ({ page }) => {
+  test('ほぞん：app マーカー付き JSON がダウンロードされる', { tag: '@compat' }, async ({ page }) => {
     await page.goto('/');
     await passGate(page);
 

@@ -27,7 +27,7 @@ test.describe('写真モード（#237）', () => {
     });
   });
 
-  test('Web Share 対応時は PNG ファイルを共有する（PII を含めない）', async ({ page }) => {
+  test('Web Share 対応時は PNG ファイルを共有する（PII を含めない）', { tag: '@compat' }, async ({ page }) => {
     await page.addInitScript(() => {
       window.__shared = null;
       // navigator.canShare / share をモック（ファイル共有対応を装う）。
