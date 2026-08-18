@@ -40,7 +40,7 @@ export function backupFilename(now = new Date()) {
 // 戻り値: { ok: true, state } | { ok: false, reason }
 //   reason: 'parse'  … JSON として壊れている
 //           'marker' … piano-pet のファイルではない（別アプリ・マーカー不一致）
-//           'shape'  … 必須データ構造（pet / streak）が欠落している
+//           'shape'  … 必須データ構造（pet / streak）が欠落／配列であるべき欄が壊れている(#272)
 //           'future' … 現行アプリより新しいスキーマ版（ダウングレード破損を防ぐため拒否）
 // マーカーと必須キーを通った場合のみ migrate()→normalizeState() で現行スキーマに整える。
 export function parseBackup(text) {
@@ -54,8 +54,13 @@ export function parseBackup(text) {
     return { ok: false, reason: 'marker' };
   }
   const inner = obj.state;
-  const isObj = (v) => typeof v === 'object' && v !== null;
+  const isObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
   if (!isObj(inner) || !isObj(inner.pet) || !isObj(inner.streak)) {
+    return { ok: false, reason: 'shape' };
+  }
+  // 配列であるべきフィールドが壊れたファイルは取り込まない（#272）。normalizeState 側でも
+  // 空配列へ矯正するが、それだと「壊れた記録が黙って消えた」ことに気づけないため入口で弾く。
+  if (['sessions', 'inventory', 'badges'].some((k) => inner[k] !== undefined && !Array.isArray(inner[k]))) {
     return { ok: false, reason: 'shape' };
   }
   const sv = Number(obj.schemaVersion);

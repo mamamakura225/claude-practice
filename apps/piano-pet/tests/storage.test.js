@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { mergeSameDaySessions, recomputeState } from '../js/game.js';
+import { spentCoins } from '../js/shop.js';
 import {
   normalizeState,
   cloudFields,
@@ -43,6 +45,59 @@ describe('normalizeState', () => {
     expect(normalizeState().pet.itemLayout).toEqual({});
     const s = normalizeState({ pet: { itemLayout: { crown: { x_pct: 50, y_pct: 20 } } } });
     expect(s.pet.itemLayout).toEqual({ crown: { x_pct: 50, y_pct: 20 } });
+  });
+});
+
+// クラウド doc（認証なし・#258）や取り込んだバックアップ JSON は信頼できない入力であり、
+// normalizeState がアプリ内で唯一の入口ガードになる。型不正がここを通ると app.js の
+// モジュールトップで throw して**アプリ全体が起動不能**になり、壊れた値は localStorage に
+// 残るためリロードでも復旧しない（#272）。
+describe('normalizeState の型矯正（#272）', () => {
+  it('配列であるべきフィールドが配列でなければ既定（空配列）へ倒す', () => {
+    const s = normalizeState({
+      sessions: { a: 1 },
+      inventory: 'ribbon',
+      badges: 42,
+      pet: { equippedItems: null, placedItems: 'cushion' },
+    });
+    expect(s.sessions).toEqual([]);
+    expect(s.inventory).toEqual([]);
+    expect(s.badges).toEqual([]);
+    expect(s.pet.equippedItems).toEqual([]);
+    expect(s.pet.placedItems).toEqual([]);
+  });
+
+  it('sessions の null / 非オブジェクト要素を落とす（配列であることだけでは足りない）', () => {
+    const s = normalizeState({ sessions: [null, 'x', 5, { date: '2026-01-01', totalCount: 3 }] });
+    expect(s.sessions).toEqual([{ date: '2026-01-01', totalCount: 3 }]);
+  });
+
+  it('pet / streak / settings / itemLayout が非オブジェクトでも既定へ倒す', () => {
+    const s = normalizeState({ pet: 'x', streak: [1, 2], settings: 7 });
+    expect(s.pet.coins).toBe(0);
+    expect(s.pet.itemLayout).toEqual({});
+    expect(s.streak.current).toBe(0);
+    expect(s.settings.soundOn).toBe(true);
+    expect(normalizeState({ pet: { itemLayout: null } }).pet.itemLayout).toEqual({});
+  });
+
+  it('state 自体が配列・プリミティブでも DEFAULTS を返す', () => {
+    expect(normalizeState([1, 2, 3]).sessions).toEqual([]);
+    expect(normalizeState('broken').pet.coins).toBe(0);
+  });
+
+  it('型不正な state を通しても起動経路（mergeSameDaySessions / recomputeState）が落ちない', () => {
+    const broken = normalizeState({ sessions: { a: 1 }, inventory: 'ribbon', pet: { coins: 'x' } });
+    expect(() => mergeSameDaySessions(broken.sessions)).not.toThrow();
+    expect(() => recomputeState(broken, spentCoins(broken))).not.toThrow();
+  });
+
+  it('クラウド由来の壊れたデータを取り込んでも state は健全なまま（mergeCloud 経路）', () => {
+    const local = normalizeState({ sessions: [{ date: '2026-01-01', totalCount: 3 }] });
+    const merged = mergeCloud(local, { sessions: 'wiped', inventory: { a: 1 } });
+    expect(merged.sessions).toEqual([]);
+    expect(merged.inventory).toEqual([]);
+    expect(() => mergeSameDaySessions(merged.sessions)).not.toThrow();
   });
 });
 

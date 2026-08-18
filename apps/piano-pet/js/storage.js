@@ -82,16 +82,44 @@ export function migrate(saved) {
 // クラウド doc からは次回 push（setDoc 置換）で自然に消える。
 export const CLOUD_FIELDS = ['pet', 'inventory', 'streak', 'badges', 'sessions'];
 
+// 配列であるべきフィールドを配列に矯正する（#272）。壊れた値は既定（空配列）へ倒す。
+function asArray(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+// スプレッドで展開してよいプレーンオブジェクトか（配列・null・プリミティブを弾く・#272）。
+function asObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
 // 保存値に DEFAULTS を補完してアプリが前提とする形に整える。
 // localStorage の読み込みとクラウドデータの取り込みの両方で使う。
+//
+// 不足キーの補完だけでなく**型の矯正**まで行う（#272）。この関数は
+// 「認証なし Firestore doc（#258 段階2 以前）／取り込んだバックアップ JSON」という
+// 信頼できない入力に対する唯一の入口ガードであり、ここを通り抜けた型不正は
+// app.js のモジュールトップ（mergeSameDaySessions）で throw して
+// **アプリ全体を起動不能にする**（壊れた値は localStorage に残るためリロードでも直らない）。
 export function normalizeState(saved) {
-  const s = saved ?? {};
+  const s = asObject(saved);
+  const pet = asObject(s.pet);
   return {
     ...structuredClone(DEFAULTS),
     ...s,
-    pet: { ...DEFAULTS.pet, ...(s.pet ?? {}) },
-    streak: { ...DEFAULTS.streak, ...(s.streak ?? {}) },
-    settings: { ...DEFAULTS.settings, ...(s.settings ?? {}) },
+    pet: {
+      ...DEFAULTS.pet,
+      ...pet,
+      equippedItems: asArray(pet.equippedItems),
+      placedItems: asArray(pet.placedItems),
+      itemLayout: asObject(pet.itemLayout),
+    },
+    streak: { ...DEFAULTS.streak, ...asObject(s.streak) },
+    settings: { ...DEFAULTS.settings, ...asObject(s.settings) },
+    inventory: asArray(s.inventory),
+    badges: asArray(s.badges),
+    // 要素も落とす：null/非オブジェクトが混ざると recomputeState / mergeSameDaySessions が
+    // `s.date` 参照で throw する（配列であることだけでは足りない）。
+    sessions: asArray(s.sessions).filter((v) => v !== null && typeof v === 'object' && !Array.isArray(v)),
   };
 }
 

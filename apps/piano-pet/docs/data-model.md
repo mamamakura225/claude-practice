@@ -114,6 +114,21 @@ piano-pet の状態は localStorage に JSON オブジェクトとして保存�
 
 正規化は `normalizeState(saved)` が担い、`pet`/`streak`/`settings` の不足キーを `DEFAULTS` で補完する（未知のトップレベルキーは spread でそのまま引き継がれる）。フィールド追加程度であれば正規化のデフォルト補完だけで済むため、スキーマバージョンを上げる必要はない。
 
+### 型の矯正（信頼できない入力に対する唯一の入口ガード・#272）
+
+`normalizeState` は不足キーの補完だけでなく**型の矯正**まで行う。
+
+| 対象 | 矯正 |
+|---|---|
+| `sessions` / `inventory` / `badges` / `pet.equippedItems` / `pet.placedItems` | 配列でなければ空配列へ |
+| `sessions` の各要素 | プレーンオブジェクトでない要素（`null`・文字列・数値）を除去 |
+| `pet` / `streak` / `settings` / `pet.itemLayout` | プレーンオブジェクトでなければ既定へ（配列も弾く） |
+| `saved` 自体 | プレーンオブジェクトでなければ `DEFAULTS` |
+
+> **設計判断（#272）**: state の入力元は localStorage だけではなく、**認証なしの Firestore doc（→ #258 段階2）と親が取り込むバックアップ JSON** も含まれる＝内容を信頼できない。`normalizeState` はその全経路が通る唯一の関門で、ここを型不正が通り抜けると [app.js](../js/app.js) のモジュールトップで実行される `mergeSameDaySessions(state.sessions)` が throw し、**ES モジュール全体が実行されず画面が真っ白**になる。壊れた値は localStorage に残るためリロードでも復旧しない（実質ブリック）。配列であることの確認だけでは足りず、`sessions` は要素まで見る（`null` 要素が `s.date` 参照で落ちるため）。
+>
+> **バックアップ側は「矯正」ではなく「拒否」**: `parseBackup`（[backup.js](../js/backup.js)）は配列であるべきフィールドが壊れたファイルを `reason: 'shape'` で弾く。`normalizeState` に任せると空配列へ黙って矯正され、**壊れた記録が消えたことに親が気づけない**ため、取り込み前にエラーを出す方に倒す。
+
 ## マイグレーション戦略
 
 破壊的なスキーマ変更（フィールドの削除・改名、ネスト構造の変更、配列要素の形式変更など）に備え、state にバージョン番号を埋め込み、読み込み時に順次マイグレーションを適用する。
@@ -194,7 +209,7 @@ realtime の `onSnapshot` 経路（`applyRemoteState` → `mergeCloud`）は **c
 |---|---|
 | `parse` | JSON として壊れている |
 | `marker` | `app !== 'piano-pet'`（別アプリ・マーカー無し） |
-| `shape` | 必須キー `state.pet` / `state.streak` が欠落（クラッシュ防止の最小スキーマ検証） |
+| `shape` | 必須キー `state.pet` / `state.streak` が欠落・配列（クラッシュ防止の最小スキーマ検証）／`sessions`・`inventory`・`badges` が配列でない（#272） |
 | `future` | `schemaVersion` が現行より大きい（ダウングレード破損防止） |
 
 検証を通った場合のみ `migrate()` → `normalizeState()` を適用して現行スキーマに整える。

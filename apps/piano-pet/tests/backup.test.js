@@ -77,6 +77,18 @@ describe('parseBackup', () => {
     expect(parseBackup(JSON.stringify({ app: 'piano-pet' })).reason).toBe('shape');
   });
 
+  it('配列であるべきフィールドが壊れていれば reason=shape で弾く（#272）', () => {
+    const withState = (state) => JSON.stringify({ app: 'piano-pet', schemaVersion: 1, state });
+    const base = { pet: {}, streak: {} };
+    expect(parseBackup(withState({ ...base, sessions: { a: 1 } })).reason).toBe('shape');
+    expect(parseBackup(withState({ ...base, inventory: 'ribbon' })).reason).toBe('shape');
+    expect(parseBackup(withState({ ...base, badges: 42 })).reason).toBe('shape');
+    // pet / streak が配列でも「オブジェクト」として通してはいけない
+    expect(parseBackup(withState({ pet: [], streak: {} })).reason).toBe('shape');
+    // 未指定は従来どおり許容（レガシー寛容・normalizeState が補完する）
+    expect(parseBackup(withState(base)).ok).toBe(true);
+  });
+
   it('現行より新しいスキーマ版は reason=future で拒否', () => {
     const future = JSON.stringify({
       app: 'piano-pet',
