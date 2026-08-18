@@ -66,9 +66,12 @@ export function songsToStamps(songs) {
   return stamps;
 }
 
-// 全セッションを曲ごとに集計し「累計回数の多い順→新しさ」で返す（#122 曲別コレクション）。
+// 全セッションを曲ごとに集計し「累計回数の多い順」で返す（#122 曲別コレクション）。
 // 返り値: [{ name, count }]。回数は合計、空名は無視。達成量の陳列なので累計回数順を保つ
 // （記録チップの pastSongNames は #252 で最近ひいた順に分離＝並び基準は別物）。
+// 同数の tie は sessions の**配列位置**で決めるだけ（日付では見ていない）。sessions は日付降順が
+// 基本なので実際には「古い方が先」に寄る。色割り当て（#165）の入力順を端末間で一致させることが
+// 目的で、tie の見た目の順序自体には意味を持たせていない。
 export function songTotals(sessions) {
   const counts = new Map();
   const lastSeen = new Map();
