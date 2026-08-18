@@ -6,24 +6,23 @@
 //   node scripts/perf-budget.mjs           レポート表示のみ（常に成功）
 //   node scripts/perf-budget.mjs --check    予算超過があれば非ゼロ終了（CI用）
 //
-// 計測対象は gen-sw と同じ列挙（index.html / css / js / manifest / icons / sounds）。
-// 予算は HTML/CSS/JS（コード・マークアップのアプリシェル）とその合計に対して gzip 後の
-// サイズで設ける。icons / sounds はバイナリで変更頻度が低く、配信時も再圧縮されない（mp3 等）
-// ため、レポートには出すが予算判定からは除外する。
+// 計測対象は gen-sw と同一の列挙（scripts/piano-pet-assets.mjs）＝ SW がプリキャッシュする
+// 配信アセット全部を仕分けたもの。予算は HTML/CSS/JS（コード・マークアップのアプリシェル）と
+// その合計に対して gzip 後のサイズで設ける。icons / img / sounds はバイナリで変更頻度が低く、
+// 配信時も再圧縮されない（mp3・webp 等）ため、レポートには出すが予算判定からは除外する。
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { APP_DIR, INDEX, listAssets } from './piano-pet-assets.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_DIR = path.resolve(__dirname, '..', 'apps', 'piano-pet');
 const CHECK = process.argv.includes('--check');
 
 // 予算（gzip 後の KiB）。現状値に十分な余裕（≈25%）を載せ、「肥大化の回帰」を捕まえる
 // ための上限であって、細かなサイズを縛る目的ではない。機能追加で超えたら、本当に必要か
 // 見直すか、根拠とともにこの値を引き上げる。
 const BUDGETS_KIB = {
+  // #275 で manifest.json を html カテゴリに算入（従来は列挙の説明にだけ載っていて計測漏れ）。
   html: 8,
   css: 12,
   // 2026-07 の機能追加ラッシュ（#239 質メモ / #238 目標調整 / #236 カレンダー / #237 写真モード /
@@ -35,29 +34,31 @@ const BUDGETS_KIB = {
 
 const KIB = 1024;
 
-// gen-sw と同じ規則でカテゴリ別にアセットを集める。
-function collect(dir, exts) {
-  let entries;
-  try {
-    entries = readdirSync(path.join(APP_DIR, dir));
-  } catch {
-    return [];
-  }
-  return entries
-    .sort()
-    .filter((name) => exts.includes(path.extname(name)))
-    .filter((name) => statSync(path.join(APP_DIR, dir, name)).isFile())
-    .map((name) => `${dir}/${name}`);
-}
+// 計測対象は gen-sw と**同一の列挙**（piano-pet-assets.mjs）を仕分けたもの。
+// 以前は同じ規則を各スクリプトに別々に書いており、#234 の PNG→WebP 移行で
+// perf-budget だけが取り残されて画像カテゴリが 0 件（実体 3.6 MiB）になっていた。
+const ASSETS = listAssets();
+const under = (prefix) => ASSETS.filter((rel) => rel.startsWith(prefix));
 
 const CATEGORIES = {
-  html: ['index.html'],
-  css: collect('css', ['.css']),
-  js: collect('js', ['.js']),
-  icons: collect('icons', ['.svg', '.png']),
-  img: collect('img/cat', ['.png']),
-  sounds: collect('sounds', ['.mp3', '.ogg', '.wav']),
+  html: [INDEX, 'manifest.json'],
+  css: under('css/'),
+  js: under('js/'),
+  icons: under('icons/'),
+  img: under('img/'),
+  sounds: under('sounds/'),
 };
+
+// 仕分け漏れの検知：配信アセットは必ずどれか1カテゴリに入る。分類規則とディレクトリ構成が
+// ズレたときに「黙って計測から消える」ことを防ぐ（0件チェックでは部分的な取りこぼしを拾えない）。
+const classified = new Set(Object.values(CATEGORIES).flat());
+const unclassified = ASSETS.filter((rel) => !classified.has(rel));
+if (unclassified.length) {
+  console.error('✗ どのカテゴリにも入らない配信アセットがあります:');
+  for (const rel of unclassified) console.error(`  - ${rel}`);
+  console.error('  scripts/perf-budget.mjs の CATEGORIES を実体に合わせて更新してください。');
+  process.exit(1);
+}
 
 // カテゴリの raw / gzip 合計バイトを求める。
 function measure(files) {

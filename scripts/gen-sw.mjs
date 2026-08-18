@@ -11,46 +11,12 @@
 // ハッシュは ?v=... を除去し EOL を正規化してから計算する（版文字列による循環や
 // CRLF/LF 差異での不一致を避けるため）。sw.js 自身はハッシュを含むので対象外。
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { APP_DIR, INDEX, SW, listAssets } from './piano-pet-assets.mjs';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const APP_DIR = path.resolve(__dirname, '..', 'apps', 'piano-pet');
 const CHECK = process.argv.includes('--check');
-
-const INDEX = 'index.html';
-const SW = 'sw.js';
-
-// プリキャッシュ対象アセット（アプリディレクトリ相対・POSIX 区切り）を決まった順で集める
-function listAssets() {
-  const assets = [INDEX];
-  collectDir('css', ['.css']);
-  collectDir('js', ['.js']);
-  assets.push('manifest.json');
-  collectDir('icons', ['.svg', '.png']);
-  collectDir('img/cat', ['.webp']);          // 猫本体・装着・置物は WebP（#234）
-  collectDir('img/cat/items', ['.webp']);
-  collectDir('img/cat/scene', ['.webp']);   // 置物・小物系（#226）
-  collectDir('sounds', ['.mp3', '.ogg', '.wav']);
-  return assets;
-
-  function collectDir(dir, exts) {
-    let entries;
-    try {
-      entries = readdirSync(path.join(APP_DIR, dir));
-    } catch {
-      return;
-    }
-    for (const name of entries.sort()) {
-      const full = path.join(APP_DIR, dir, name);
-      if (statSync(full).isFile() && exts.includes(path.extname(name))) {
-        assets.push(`${dir}/${name}`);
-      }
-    }
-  }
-}
 
 function read(rel) {
   return readFileSync(path.join(APP_DIR, rel), 'utf8');

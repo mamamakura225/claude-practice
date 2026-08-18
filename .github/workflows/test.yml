@@ -1,8 +1,12 @@
 name: テストとデプロイ
 
 on:
+  # push は main だけに絞る（＝本番デプロイ経路）。以前は "**" だったため、PR ブランチへの
+  # push で「push 起因の run」と「pull_request 起因の run」が二重に走り、Actions 時間を
+  # 倍消費したうえ、push 起因の run では deploy-preview が SKIPPED になって
+  # チェック一覧が紛らわしくなっていた。ブランチ上の検証は PR の run が担う。
   push:
-    branches: ["**"]
+    branches: [main]
   pull_request:
     branches: [main]
 
