@@ -10,6 +10,7 @@ import {
   affinityLevel,
   affinityRewards,
   bondCelebrateChance,
+  recordClipChance,
 } from '../js/feed.js';
 
 function makeState(overrides = {}) {
@@ -167,5 +168,35 @@ describe('bondCelebrateChance', () => {
     expect(bondCelebrateChance(6)).toBeGreaterThan(bondCelebrateChance(5));
     expect(bondCelebrateChance(7)).toBeGreaterThan(bondCelebrateChance(6));
     expect(bondCelebrateChance(8)).toBeGreaterThan(bondCelebrateChance(7));
+  });
+});
+
+describe('recordClipChance（#227）', () => {
+  it('Lv1 から 0 より大きい（始めたばかりの子も見られる）', () => {
+    expect(recordClipChance(1)).toBeGreaterThan(0);
+  });
+
+  it('レベルが上がると単調に増える（減らない）', () => {
+    const levels = [1, 2, 3, 4, 5, 6, 7, 8];
+    for (let i = 1; i < levels.length; i += 1) {
+      expect(recordClipChance(levels[i])).toBeGreaterThanOrEqual(recordClipChance(levels[i - 1]));
+    }
+  });
+
+  it('しきい値の境界（4 / 6 / 8 で上がる）', () => {
+    expect(recordClipChance(3)).toBe(0.12);
+    expect(recordClipChance(4)).toBe(0.20);
+    expect(recordClipChance(5)).toBe(0.20);
+    expect(recordClipChance(6)).toBe(0.30);
+    expect(recordClipChance(7)).toBe(0.30);
+    expect(recordClipChance(8)).toBe(0.40);
+  });
+
+  it('確率なので 0〜1 の範囲に収まる', () => {
+    for (let lv = 0; lv <= 10; lv += 1) {
+      const p = recordClipChance(lv);
+      expect(p).toBeGreaterThanOrEqual(0);
+      expect(p).toBeLessThanOrEqual(1);
+    }
   });
 });

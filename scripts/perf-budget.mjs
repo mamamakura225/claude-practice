@@ -29,13 +29,17 @@ const CHECK = process.argv.includes('--check');
 const BUDGETS_KIB = {
   // #275 で manifest.json を html カテゴリに算入（従来は列挙の説明にだけ載っていて計測漏れ）。
   html: 8,
-  css: 12,
+  // #227: 記録演出の動画オーバーレイ（.cat-stage-wrap / .cat-video / clip 再生中の調整）で
+  // 11.7→12.1 KiB。宣言のみの最小構成で、これ以上圧縮すると可読性を損なう（CLAUDE.md ④）ため 13 へ。
+  css: 13,
   // 2026-07 の機能追加ラッシュで js は 73→82 まで積み上がり、#284 時点で残り 1.4 KiB だった。
   // dressup / cat-snapshot / backup を動的 import へ移して初回ロードを 70.5 KiB まで下げ、
   // 上限をそこへ置き直した（cloud は #142 で先行して遅延化済み）。
   'js-entry': 74,
-  'js-lazy': 12,  // 遅延ぶんは起動をブロックしないので緩め。ただし青天井にはしない
-  total: 94,       // html + css + js-entry（＝起動をブロックするクリティカルパス）
+  // 遅延ぶんは起動をブロックしないので緩め。#227 の cat-video.js（+2.0 KiB gzip・動的 import）で
+  // 10.1→12.1 KiB になったため 13 へ。ただし青天井にはしない。
+  'js-lazy': 13,
+  total: 94,       // html + css + js-entry（＝起動をブロックするクリティカルパス）。実測 91 で余裕あり
 };
 
 const KIB = 1024;

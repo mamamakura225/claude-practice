@@ -13,6 +13,7 @@ import {
   BONUS_CHANCE,
   BONUS_COINS,
   clampDailyGoal,
+  crossedDailyGoal,
   GOAL_BONUS_THRESHOLD,
   DAILY_GOAL,
 } from '../js/game.js';
@@ -414,5 +415,37 @@ describe('clampDailyGoal（1日の目標回数・#238）', () => {
     expect(GOAL_BONUS_THRESHOLD).toBe(10);
     expect(calcRewards(9, 1).coins).toBe(9);        // 9回はボーナス無し
     expect(calcRewards(10, 1).coins).toBe(10 + 5);  // 10回で+5（目標設定に依らず）
+  });
+});
+
+describe('crossedDailyGoal（#227）', () => {
+  const TODAY = '2026-09-01';
+  const s = (date, totalCount) => ({ date, totalCount });
+
+  it('未達 → 達成 で true（この記録ではじめて届いた）', () => {
+    const prev = [s(TODAY, 7)];
+    const next = [s(TODAY, 10)];
+    expect(crossedDailyGoal(prev, next, TODAY, 10)).toBe(true);
+  });
+
+  it('達成済み → さらに追加 で false（同じ日に何度も出さない）', () => {
+    const prev = [s(TODAY, 10)];
+    const next = [s(TODAY, 13)];
+    expect(crossedDailyGoal(prev, next, TODAY, 10)).toBe(false);
+  });
+
+  it('未達 → 未達 で false', () => {
+    expect(crossedDailyGoal([s(TODAY, 3)], [s(TODAY, 6)], TODAY, 10)).toBe(false);
+  });
+
+  it('初回記録（今日のセッションが無い状態）から一気に達成でも true', () => {
+    expect(crossedDailyGoal([], [s(TODAY, 10)], TODAY, 10)).toBe(true);
+  });
+
+  it('過去日の記録では立たない（今日の合計が動かない）', () => {
+    const past = '2026-08-20';
+    const prev = [s(TODAY, 2)];
+    const next = [s(TODAY, 2), s(past, 10)];
+    expect(crossedDailyGoal(prev, next, TODAY, 10)).toBe(false);
   });
 });

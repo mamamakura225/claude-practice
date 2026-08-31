@@ -74,6 +74,14 @@ export function dailyProgress(sessions, date, goal = DAILY_GOAL) {
   };
 }
 
+// その記録で「今日の目標にはじめて届いた」かを判定する（#227）。達成したあとの追加記録では
+// false になり、同じ日に何度も動画が出ない。日付は常に todayStr() で測るので過去日の記録では
+// 立たない（今日の合計が動かないため）。
+export function crossedDailyGoal(prevSessions, nextSessions, date, goal) {
+  return !dailyProgress(prevSessions, date, goal).achieved
+      && dailyProgress(nextSessions, date, goal).achieved;
+}
+
 // ----- ストリーク -----
 
 // 同時に持てるお休み券の上限
