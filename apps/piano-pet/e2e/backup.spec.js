@@ -67,6 +67,7 @@ test.describe('データのバックアップ/復元', () => {
   test('親ゲート：誤答では開かず、正答でメニューが開く', async ({ page }) => {
     await page.goto('/');
     await page.click('#settingsToggle');
+    await expect(page.locator('#settingsGate')).toBeVisible();   // 出題は遅延読込のあとに入る（#284）
     const a = Number(await page.locator('#gateA').textContent());
     const b = Number(await page.locator('#gateB').textContent());
 

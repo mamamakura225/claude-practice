@@ -7,7 +7,6 @@ import {
 } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
-import { enableDressup } from './dressup.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
@@ -20,7 +19,6 @@ import {
   monthLabel,
   shiftMonth,
 } from './history.js';
-import { renderCatCanvas, canvasToBlob } from './cat-snapshot.js';
 import {
   SHOP_ITEMS,
   isOwned,
@@ -37,7 +35,6 @@ import {
 import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
 import { isSoundOn, toggleSound, playSound, playStamp, rollCatVoice, playCatVoice, unlockAudio, suspendAudio, resumeAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
-import { exportState, backupFilename, parseBackup, importErrorMessage, makeGateProblem, RESTORE_BACKUP_KEY } from './backup.js';
 import { initErrorMonitoring } from './sentry.js';
 import { initAnalytics, track } from './analytics.js';
 import { isOnboarded, setOnboarded, ONBOARD_STEPS, isLastStep, nextStepIndex } from './onboarding.js';
@@ -1172,14 +1169,19 @@ document.getElementById('catStage')?.addEventListener('click', petCat);
 // 「きせかえ」中はドラッグで衣装を動かせ、なでは無効。「できた！」で抜けて配置を保存。
 // commitState はドロップごとに走るので、トグル解除時に追加保存は不要。
 let dressupDisable = null;
-function toggleDressup() {
+// きせかえ編集は「きせかえ」を押したときだけ必要なので遅延読込（#284）。
+async function toggleDressup() {
   const stage = document.getElementById('catStage');
   const btn = document.getElementById('dressupToggle');
   const picker = document.getElementById('stylePicker');
   const layerPanel = document.getElementById('layerPanel');
   if (!stage) return;
-  const editing = stage.classList.toggle('cat-stage--editing');
-  if (editing) {
+  if (!stage.classList.contains('cat-stage--editing')) {
+    // 先にモジュールを読んでから編集モードに入る。cat-stage--editing が付いた時点で
+    // ドラッグが必ず効く＝クラスが「編集モードが使える」合図になる（遅延読込の競合回避）。
+    const { enableDressup } = await import('./dressup.js');
+    if (stage.classList.contains('cat-stage--editing')) return;    // 読み込み待ちの間に連打された
+    stage.classList.add('cat-stage--editing');
     dressupDisable = enableDressup(
       stage,
       () => state.pet.itemLayout ?? {},
@@ -1189,6 +1191,7 @@ function toggleDressup() {
     if (picker) { renderStylePicker(); picker.hidden = false; }   // 猫スタイル選択（#66）
     if (layerPanel) { layerPanel.hidden = false; renderLayerPanel(); }   // まえ／うしろ（#270）
   } else {
+    stage.classList.remove('cat-stage--editing');
     dressupDisable?.();
     dressupDisable = null;
     if (btn) { btn.textContent = '👗 きせかえ'; btn.setAttribute('aria-pressed', 'false'); }
@@ -1315,11 +1318,21 @@ const gateErrorEl = document.getElementById('gateError');
 const importFileEl = document.getElementById('importFile');
 const importStatusEl = document.getElementById('importStatus');
 
+// バックアップと親ゲートの出題は、設定オーバーレイを開くまで不要なので遅延読込（#284）。
+// import() の解決はブラウザがキャッシュするので、2回目以降は待ちなしで返る。
+let backupMod = null;
+const loadBackup = async () => (backupMod ??= await import('./backup.js'));
+
 // ゲートの正解（openSettings のたびに作り直す）。
 let gateExpected = null;
 
-function openSettings() {
-  const p = makeGateProblem();
+async function openSettings() {
+  const mod = await loadBackup().catch((err) => {   // 未キャッシュ＋回線断でだけ起きる
+    console.warn('せっていを ひらけません（バックアップ機能の よみこみに しっぱい）', err);
+    return null;
+  });
+  if (!mod) return;
+  const p = mod.makeGateProblem();
   gateExpected = p.answer;
   setText('gateA', p.a);
   setText('gateB', p.b);
@@ -1370,6 +1383,7 @@ async function shareCatPhoto() {
   const btn = document.getElementById('photoBtn');
   btn?.setAttribute('disabled', '');
   try {
+    const { renderCatCanvas, canvasToBlob } = await import('./cat-snapshot.js');
     const canvas = await renderCatCanvas(catEl, 600);
     const blob = await canvasToBlob(canvas, 'image/png');
     if (!blob) return;
@@ -1401,8 +1415,9 @@ async function shareCatPhoto() {
 }
 
 // 現行 state を JSON 化して a[download] でローカル保存（無害なので確認不要）。
-function downloadBackup() {
+async function downloadBackup() {
   // がぞくコード（#233）を同梱＝別端末で復元すると同じクラウド保存先に合流できる。
+  const { exportState, backupFilename } = await loadBackup();
   const json = exportState(state, new Date(), getCloudDocId(getActiveAccountId()));
   const blob = new Blob([json], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
@@ -1419,6 +1434,7 @@ function downloadBackup() {
 // 取り込み確定：①直前データを退避 ②クラウド購読を解除 ③ローカル保存
 // ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
 async function applyImportedState(imported) {
+  const { RESTORE_BACKUP_KEY } = await loadBackup();
   try {
     const cur = localStorage.getItem(activeStorageKey());
     if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤読込からの復旧用に退避
@@ -1508,6 +1524,7 @@ async function clearLegacyCloudDoc() {
 // 取り込み先が「新品の DEFAULTS」になるだけ。古いスナップショットの巻き戻しを断つ。
 async function resetData() {
   if (!window.confirm('ねこの じょうたい・アイテム・れんしゅうきろくが ぜんぶ きえて、さいしょから になります。よろしいですか？')) return;
+  const { RESTORE_BACKUP_KEY } = await loadBackup();
   try {
     const cur = localStorage.getItem(activeStorageKey());
     if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤操作からの復旧用に退避
@@ -1527,7 +1544,8 @@ async function resetData() {
 // 選択ファイルを読んで検証。OK なら確認のうえ復元、NG なら理由をひらがなで表示。
 function handleImportFile(file) {
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
+    const { parseBackup, importErrorMessage } = await loadBackup();
     const res = parseBackup(String(reader.result));
     if (!res.ok) {
       showImportStatus(importErrorMessage(res.reason), true);
@@ -1538,7 +1556,7 @@ function handleImportFile(file) {
     if (res.cloudDocId) setCloudDocId(getActiveAccountId(), res.cloudDocId);
     applyImportedState(res.state);
   };
-  reader.onerror = () => showImportStatus(importErrorMessage('parse'), true);
+  reader.onerror = async () => showImportStatus((await loadBackup()).importErrorMessage('parse'), true);
   reader.readAsText(file);
 }
 
