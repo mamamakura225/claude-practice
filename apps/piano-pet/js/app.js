@@ -5,7 +5,7 @@ import {
   getAccounts, getActiveAccountId, setActiveAccount,
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
-import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus } from './game.js';
+import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
@@ -32,7 +32,7 @@ import {
   togglePlace,
   spentCoins,
 } from './shop.js';
-import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance } from './feed.js';
+import { FOODS, foodById, canFeed, feedCat, foodSpent, affinity, affinityLevel, affinityRewards, bondCelebrateChance, recordClipChance } from './feed.js';
 import { isSoundOn, toggleSound, playSound, playStamp, rollCatVoice, playCatVoice, unlockAudio, suspendAudio, resumeAudio } from './sound.js';
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { initErrorMonitoring } from './sentry.js';
@@ -514,6 +514,7 @@ function render(view) {
 const router = createRouter({
   onChange(view) {
     render(view);
+    if (view === 'record') primeCatVideo();   // 記録演出の動画モジュール＋クリップを先読み（#227・#284）
     track('view_changed', { view });
     const target = hashFromView(view);
     if (window.location.hash !== target) {
@@ -875,13 +876,40 @@ function setSessionMark(kind, index, id) {
 // 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。
 const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
-// 記録直後の猫の演出を出し分ける。節目（レベルアップ／新バッジ／連続日数の節目）は
-// 特別演出 playCelebrate、それ以外の通常記録は日常のお祝い playHappy（ランダム）。
-function celebrateRecord({ leveled, badgeCount, streakCurrent }) {
-  const catEl = document.querySelector('#catStage .cat');
+// 記録演出の動画モジュール（./cat-video.js・#227）。記録ビューへ入ったとき idle で読み込み、
+// 現スタイルのクリップを prefetch する。押されるまで＝記録が確定するまで不要なので動的 import（#284）。
+// celebrateRecord は import 結果（or null）を待ってから再生判定するので、素早く記録しても取りこぼさない。
+let catVideoPromise = null;
+function primeCatVideo() {
+  if (catVideoPromise) { catVideoPromise.then((m) => m?.prime(state.pet.catStyle)).catch(() => {}); return; }
+  const load = () => import('./cat-video.js')
+    .then((m) => { m.prime(state.pet.catStyle); return m; })
+    .catch(() => null);   // オフライン等。読めなければ既存CSS演出のまま
+  catVideoPromise = new Promise((resolve) => {
+    const run = () => resolve(load());
+    if ('requestIdleCallback' in window) requestIdleCallback(run, { timeout: 2000 });
+    else setTimeout(run, 200);
+  });
+}
+
+// 記録直後の猫の演出を出し分ける。優先順位は 目標達成 > 節目 > 通常の確率。
+// 目標にはじめて届いた記録は必ず動画、それ以外の通常記録だけ確率で動画を差し込む（節目は
+// 既存の playCelebrate を温存）。動画が出せなければ既存のCSS演出にフォールバックする（#227）。
+function celebrateRecord({ leveled, badgeCount, streakCurrent, goalReached }) {
   const milestone = leveled || badgeCount > 0 || STREAK_CELEBRATIONS.has(streakCurrent);
-  if (milestone) playCelebrate(catEl);
-  else playHappy(catEl);
+  // catEl は fallback の中で取り直す。動画待ち（最大〜3秒）の間にクラウド onSnapshot →
+  // renderHome() が挟まると #catStage は作り直され、先に掴んだノードは detach 済みになる。
+  const fallback = () => {
+    const catEl = document.querySelector('#catStage .cat');
+    return milestone ? playCelebrate(catEl) : playHappy(catEl);
+  };
+  const level = affinityLevel(affinity(state)).level;
+  const wantVideo = goalReached || (!milestone && Math.random() < recordClipChance(level));
+  if (!wantVideo || !catVideoPromise) { fallback(); return; }
+  catVideoPromise.then((m) => {
+    if (!m) { fallback(); return; }
+    return m.tryPlay(state.pet.catStyle).then((ok) => { if (!ok) fallback(); });
+  }).catch(() => fallback());
 }
 
 // ポップアップ共通の単発表示。duration 後にフェードアウトし、transitionend で hidden に戻す。
@@ -971,6 +999,8 @@ function commitRecordedSessions(sessions, totalCount) {
   const prevCoins = state.pet.coins;
   const prevLevel = state.pet.level;
   const prevBadges = state.badges;
+  const prevSessions = state.sessions;         // 目標到達判定は commitState（state 書換）より前に取る（#227）
+  const goal = currentGoal();
   const newState = recomputeState({ ...state, sessions }, spentTotal(state));
   const gainedBadges = newlyEarned(prevBadges, newState.badges);
   commitState(newState);
@@ -978,7 +1008,8 @@ function commitRecordedSessions(sessions, totalCount) {
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');
   const leveled = newState.pet.level > prevLevel;
-  celebrateRecord({ leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
+  const goalReached = crossedDailyGoal(prevSessions, newState.sessions, todayStr(), goal);
+  celebrateRecord({ leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, goalReached });
   showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled, newLevel: newState.pet.level });
   playSound('record', state);
   if (leveled) playSound('levelup', state);
@@ -1036,6 +1067,8 @@ function submitRecord(event) {
   }
 
   const prevBadges = state.badges;
+  const prevSessions = state.sessions;         // 目標到達判定は commitState より前に取る（#227）
+  const goal = currentGoal();
   // きょうのおまけ（#148）：その日の初回記録（同日既存なし）でのみ低確率で抽選
   const bonus = rollDailyBonus(Math.random());
   const { state: newState, rewards } = applySession(state, { date, songs, totalCount }, bonus);
@@ -1044,8 +1077,10 @@ function submitRecord(event) {
   cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');              // ホームへ遷移
-  // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）
-  celebrateRecord({ leveled: rewards.leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current });
+  // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）。
+  // 今日の目標にはじめて届いた記録は動画演出を必ず（#227）。
+  const goalReached = crossedDailyGoal(prevSessions, newState.sessions, todayStr(), goal);
+  celebrateRecord({ leveled: rewards.leveled, badgeCount: gainedBadges.length, streakCurrent: newState.streak.current, goalReached });
   showCoinPopup(rewards);         // 獲得コインのポップアップ
   // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
   playSound('record', state);

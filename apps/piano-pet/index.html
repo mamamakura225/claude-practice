@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=6c0f2768">
-  <link rel="stylesheet" href="css/cat.css?v=6c0f2768">
+  <link rel="stylesheet" href="css/style.css?v=d1f9f0e6">
+  <link rel="stylesheet" href="css/cat.css?v=d1f9f0e6">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -37,7 +37,12 @@
         <button class="btn-settings" id="settingsToggle" type="button" aria-label="せってい（おうちのひとへ）">⚙️</button>
       </header>
       <div class="view-body view-body--home">
-        <div id="catStage" class="cat-stage" aria-live="polite"></div>
+        <div class="cat-stage-wrap">
+          <div id="catStage" class="cat-stage" aria-live="polite"></div>
+          <!-- 記録演出の短尺動画（#227）。#catStage は renderHome で innerHTML ごと差し替わるため
+               外に置く。中身の <video> は再生時に cat-video.js が作る（起動時に読み込ませない）。 -->
+          <div id="catVideo" class="cat-video" aria-hidden="true" hidden></div>
+        </div>
         <p id="petName" class="pet-name">きーちゃん</p>
         <div class="cat-actions">
           <button class="btn-dressup" id="dressupToggle" type="button" aria-pressed="false">👗 きせかえ</button>
@@ -481,6 +486,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=6c0f2768"></script>
+  <script type="module" src="js/app.js?v=d1f9f0e6"></script>
 </body>
 </html>

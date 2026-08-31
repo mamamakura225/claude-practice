@@ -11,14 +11,51 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* 記録演出の動画（#227）を猫に重ねる基準。#catStage は再描画で innerHTML ごと捨てられるので
+   動画は外に置く（→ features.md）。 */
+.cat-stage-wrap {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
 /* コンテナ：本体画像とオーバーレイ（衣装・演出）を重ねる基準 */
 .cat {
   position: relative;
+  display: block;
+}
+
+/* 猫本体と動画（#227）はサイズ指定を共有する（別々に書くとズレる）。.cat-stage の
+   align-items:flex-end + .cat-video の bottom:0 で猫とピクセル一致する。 */
+.cat,
+.cat-video {
   width: 80%;
   max-width: min(320px, 90vw);
   aspect-ratio: 1 / 1;
-  display: block;
 }
+
+.cat-video {
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px var(--shadow);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+.cat-video--show { opacity: 1; pointer-events: auto; }   /* タップでスキップを受け取る */
+.cat-video video { width: 100%; height: 100%; display: block; object-fit: cover; }
+
+/* クリップ再生中はコインポップアップ等（すべて .coin-popup・z-index:50・全画面暗幕）を
+   クリップの前に出さない（#227）。クリップが主役で、コイン総額はホームのカードに即反映される
+   ので被っても情報は失われない。wrap を stacking context に上げ、暗幕だけ透明化する。 */
+body.cat-clip-playing .cat-stage-wrap { position: relative; z-index: 55; }
+body.cat-clip-playing .coin-popup { background: transparent; }
 
 /* レイヤー共通：コンテナ全体に絶対配置で重ねる */
 .cat__body,
