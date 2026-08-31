@@ -14,22 +14,28 @@
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import path from 'node:path';
-import { APP_DIR, INDEX, listAssets } from './piano-pet-assets.mjs';
+import { APP_DIR, INDEX, classifyJs, listAssets } from './piano-pet-assets.mjs';
 
 const CHECK = process.argv.includes('--check');
 
-// 予算（gzip 後の KiB）。現状値に十分な余裕（≈25%）を載せ、「肥大化の回帰」を捕まえる
-// ための上限であって、細かなサイズを縛る目的ではない。機能追加で超えたら、本当に必要か
-// 見直すか、根拠とともにこの値を引き上げる。
+// 予算（gzip 後の KiB）。「肥大化の回帰」を捕まえるための上限であって、細かなサイズを縛る
+// 目的ではない。機能追加で超えたら、本当に必要な増加か見直すか、根拠とともに引き上げる。
+//
+// #284: js を **初回ロード（js-entry）と遅延読込（js-lazy）** に分けた。以前は js/ を丸ごと
+// 合計していたため、動的 import へ移しても数字が 1 バイトも動かず、「起動を軽くする」対応が
+// 予算の上でまったく報われなかった。厳しく縛るのは**起動をブロックするぶん**だけにする。
+// 注意: js-lazy には「操作するまで読まない」ものと「idle で必ず読む」もの（cloud.js）が
+// 混在する。後者は無操作でも通信が発生するが、起動はブロックしないので total には入れない。
 const BUDGETS_KIB = {
   // #275 で manifest.json を html カテゴリに算入（従来は列挙の説明にだけ載っていて計測漏れ）。
   html: 8,
   css: 12,
-  // 2026-07 の機能追加ラッシュ（#239 質メモ / #238 目標調整 / #236 カレンダー / #237 写真モード /
-  // #233 がぞくコード）で js は 73→82 に積み上がった。いずれも実機能ぶんの増加だが、
-  // 累積の伸びが大きいので、次に超えたら「引き上げ」ではなく**中身の見直し（分割・遅延読込）**を先に検討する。
-  js: 82,    // #226:70→72 / #252:72→73 / #238#239:73→75 / #236:75→77 / #237:77→79 / #233（クラウド保存先の移行UI）:79→82
-  total: 100, // html + css + js（#210:85→88 / #226:88→90 / #238#239:90→92 / #236:92→94 / #237:94→97 / #233:97→100）
+  // 2026-07 の機能追加ラッシュで js は 73→82 まで積み上がり、#284 時点で残り 1.4 KiB だった。
+  // dressup / cat-snapshot / backup を動的 import へ移して初回ロードを 70.5 KiB まで下げ、
+  // 上限をそこへ置き直した（cloud は #142 で先行して遅延化済み）。
+  'js-entry': 74,
+  'js-lazy': 12,  // 遅延ぶんは起動をブロックしないので緩め。ただし青天井にはしない
+  total: 94,       // html + css + js-entry（＝起動をブロックするクリティカルパス）
 };
 
 const KIB = 1024;
@@ -40,14 +46,27 @@ const KIB = 1024;
 const ASSETS = listAssets();
 const under = (prefix) => ASSETS.filter((rel) => rel.startsWith(prefix));
 
+// 初回ロード／遅延読込の切り分けはソースの import 文から導出する（piano-pet-assets.mjs）。
+const JS = classifyJs();
+
 const CATEGORIES = {
   html: [INDEX, 'manifest.json'],
   css: under('css/'),
-  js: under('js/'),
+  'js-entry': JS.entry,
+  'js-lazy': JS.lazy,
   icons: under('icons/'),
   img: under('img/'),
   sounds: under('sounds/'),
 };
+
+// 死んだ JS の検知：配信しているのに app.js からも import() からも到達できないファイル。
+// 予算に載らないまま SW プリキャッシュだけ太らせるので、消し忘れとして失敗させる。
+if (JS.orphan.length) {
+  console.error('✗ どこからも import されていない JS があります:');
+  for (const rel of JS.orphan) console.error(`  - ${rel}`);
+  console.error('  対応: 不要なら削除する。使うなら import して初回ロード/遅延読込のどちらかに載せる。');
+  process.exit(1);
+}
 
 // 仕分け漏れの検知：配信アセットは必ずどれか1カテゴリに入る。分類規則とディレクトリ構成が
 // ズレたときに「黙って計測から消える」ことを防ぐ（0件チェックでは部分的な取りこぼしを拾えない）。
@@ -78,8 +97,8 @@ const results = Object.fromEntries(
   Object.entries(CATEGORIES).map(([name, files]) => [name, measure(files)]),
 );
 
-// 予算対象（html+css+js）の合計。
-const totalGz = results.html.gz + results.css.gz + results.js.gz;
+// 起動をブロックする合計（遅延読込ぶんは含めない）。
+const totalGz = results.html.gz + results.css.gz + results['js-entry'].gz;
 
 // ---- レポート ----
 console.log('piano-pet アセットサイズ（raw / gzip）:');
@@ -87,17 +106,18 @@ for (const [name, r] of Object.entries(results)) {
   const budget = BUDGETS_KIB[name];
   const budgetNote = budget ? `  予算 ${budget} KiB` : '';
   console.log(
-    `  ${name.padEnd(7)} ${String(r.count).padStart(2)}件  ` +
+    `  ${name.padEnd(9)} ${String(r.count).padStart(2)}件  ` +
       `raw ${kib(r.raw).padStart(7)} KiB  gzip ${kib(r.gz).padStart(7)} KiB${budgetNote}`,
   );
 }
-console.log(`  ${'total'.padEnd(7)}       (html+css+js) gzip ${kib(totalGz)} KiB  予算 ${BUDGETS_KIB.total} KiB`);
+console.log(`  ${'total'.padEnd(9)}     (html+css+js-entry) gzip ${kib(totalGz)} KiB  予算 ${BUDGETS_KIB.total} KiB`);
 
 // ---- 予算判定 ----
 const checks = [
   ['html', results.html.gz],
   ['css', results.css.gz],
-  ['js', results.js.gz],
+  ['js-entry', results['js-entry'].gz],
+  ['js-lazy', results['js-lazy'].gz],
   ['total', totalGz],
 ];
 

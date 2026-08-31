@@ -83,6 +83,7 @@ test.describe('せってい（親ゲートの内側）', () => {
     await page.goto('/');
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
     await page.click('#settingsToggle');
+    await expect(page.locator('#settingsGate')).toBeVisible();   // 出題は遅延読込のあとに入る（#284）
     const a = Number(await page.locator('#gateA').textContent());
     const b = Number(await page.locator('#gateB').textContent());
     await page.fill('#gateAnswer', String(a * b + 1));

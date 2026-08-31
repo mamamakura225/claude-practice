@@ -41,7 +41,11 @@ test.describe('がぞくコード（#233）', () => {
 
     const code = 'pp-0123456789abcdef0123456789abcdef';
     await page.fill('#cloudCodeInput', code);
+    // リロードを待たずに次の操作へ進むと、破棄される直前のページを触ってしまう。
+    // 設定の開閉が非同期になった（#284 の遅延読込）ことで表面化したので、load を待つ。
+    const reloaded = page.waitForEvent('load');
     await page.click('#cloudJoinBtn');   // 保存してリロードする
+    await reloaded;
 
     // リロード後、親ゲートを通ると「移行済み」表示＋そのコードが出る
     await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
