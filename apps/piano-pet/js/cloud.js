@@ -56,10 +56,13 @@ export function pushCloudDebounced(data, delay = 2000) {
 
 // 保留中の書き込みがあれば即座に送る（記録確定・タブ非アクティブ/離脱時に呼ぶ）。
 // 何も保留していなければ no-op。debounce 待ちのデータを取りこぼさないための確定経路。
+// オフライン中は pushCloud が握りつぶすため、pendingData を消さずに保持し、
+// 次の flush（次の記録確定・再オンライン後の debounce 満了）で送り直せるようにする（#288）。
 export function flushCloud() {
   clearTimeout(saveTimer);
   saveTimer = null;
   if (pendingData == null) return undefined;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return undefined;
   const data = pendingData;
   pendingData = null;
   return pushCloud(data);

@@ -44,7 +44,7 @@ function setItemPos(el, x_pct, y_pct, scale) {
  * onCommit : (layout) => 確定した layout を渡す（app 側で state 保存＆再描画）
  */
 export function enableDressup(stageEl, getLayout, onCommit) {
-  let drag = null;                  // 掴み中の衣装。{ id, el, rect, pointerId, pos, baseScale, curScale, dirty, pinch }
+  let drag = null;                  // 掴み中の衣装。{ id, el, pointerId, pos, baseScale, curScale, dirty, pinch }
   const pointers = new Map();       // pointerId -> {x,y}（ステージ上で追跡中の全ポインタ）
 
   function onDown(e) {
@@ -63,7 +63,7 @@ export function enableDressup(stageEl, getLayout, onCommit) {
         : { ...(anchor ?? { x_pct: 50, y_pct: 50 }) };
       const baseScale = itemAnchorScale(id, style) ?? 1;
       drag = {
-        id, el: item, rect: stageEl.getBoundingClientRect(), pointerId: e.pointerId,
+        id, el: item, pointerId: e.pointerId,
         pos, baseScale, curScale: parseFloat(item.dataset.scale) || baseScale,
         dirty: false, pinch: null,
       };
@@ -109,7 +109,8 @@ export function enableDressup(stageEl, getLayout, onCommit) {
 
     // 1本指ドラッグ：掴んだ指の移動だけを位置に反映する。
     if (e.pointerId !== drag.pointerId) return;
-    drag.pos = eventToPct(e, drag.rect);
+    // ドラッグ中にページがスクロールすると掴み時の rect がズレるため、毎回取り直す（#288）。
+    drag.pos = eventToPct(e, stageEl.getBoundingClientRect());
     drag.dirty = true;
     setItemPos(drag.el, drag.pos.x_pct, drag.pos.y_pct, drag.curScale);
     e.preventDefault();

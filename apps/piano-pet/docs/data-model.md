@@ -223,6 +223,8 @@ const MIGRATIONS = [
 | タブ非アクティブ（`visibilitychange`→hidden）／離脱（`pagehide`） | `flushCloud()` で保留分を確定。バックグラウンド化・タブ閉じで未送信を取りこぼさない |
 
 > **設計判断**: ローカル保存は従来どおり即時（オフラインキャッシュ・損失なし）で、遅延させるのはクラウド送信のみ。debounce を延ばすほど書き込みは減るが反映が遅れるため、ライフサイクル境界での `flushCloud()` を必須経路にして「まとめつつ取りこぼさない」を両立する。
+>
+> **設計判断（#288）**: オフライン中は `pushCloud` が早期 return で握りつぶすため、`flushCloud()` は `navigator.onLine === false` のとき `pendingData` を消さずに保持する。次の記録確定または再オンライン後の debounce 満了で送り直せる（ローカルには保存済みなので、最悪でも次回起動の `reconcileInitialCloud` が差分を押し戻す）。
 
 ## バックアップ/復元・初期化（[js/backup.js](../js/backup.js)・#140 / #183）
 
