@@ -183,13 +183,13 @@ describe('recordClipChance（#227）', () => {
     }
   });
 
-  it('しきい値の境界（4 / 6 / 8 で上がる）', () => {
-    expect(recordClipChance(3)).toBe(0.12);
-    expect(recordClipChance(4)).toBe(0.20);
-    expect(recordClipChance(5)).toBe(0.20);
-    expect(recordClipChance(6)).toBe(0.30);
-    expect(recordClipChance(7)).toBe(0.30);
-    expect(recordClipChance(8)).toBe(0.40);
+  it('しきい値の境界（4 / 6 / 8 で上がる・#296 で引き上げ）', () => {
+    expect(recordClipChance(3)).toBe(0.25);
+    expect(recordClipChance(4)).toBe(0.40);
+    expect(recordClipChance(5)).toBe(0.40);
+    expect(recordClipChance(6)).toBe(0.55);
+    expect(recordClipChance(7)).toBe(0.55);
+    expect(recordClipChance(8)).toBe(0.70);
   });
 
   it('確率なので 0〜1 の範囲に収まる', () => {

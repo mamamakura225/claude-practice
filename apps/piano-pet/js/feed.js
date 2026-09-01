@@ -79,14 +79,15 @@ export function bondCelebrateChance(level) {
   return 0;
 }
 
-// 練習記録のあと、短尺動画クリップが出る確率（#227）。なかよしレベルが上がるほど出やすい。
+// 練習記録のあと、短尺動画クリップが出る確率（#227・#296で 12/20/30/40 → 25/40/55/70 に引き上げ。
+// 引き上げの理由は docs/features.md「記録の動画クリップ演出」の設計判断）。なかよしレベルが上がるほど出やすい。
 // なでなで（bondCelebrateChance）と違い Lv1 から出るのは、記録が1日数回しかなく、始めたばかりの
 // 子が一度も見られないまま終わるのを避けるため。目標達成の記録は確率を飛ばして必ず再生する（app.js）。
 export function recordClipChance(level) {
-  if (level >= 8) return 0.40;
-  if (level >= 6) return 0.30;
-  if (level >= 4) return 0.20;
-  return 0.12;
+  if (level >= 8) return 0.70;
+  if (level >= 6) return 0.55;
+  if (level >= 4) return 0.40;
+  return 0.25;
 }
 
 // これまでにえさへ使ったコイン総額（recomputeState の spent 計算に合算する）
