@@ -46,6 +46,7 @@ const overlay = () => document.getElementById('catVideo');
 // 破棄してしまう（世代トークンと二重で防ぐ）。
 function teardown(host) {
   clearTimeout(host._clipTimer);
+  clearTimeout(host._clipLoopTimer);
   clearTimeout(host._clipFadeTimer);
   if (host._clipSkip) host.removeEventListener('click', host._clipSkip);
   if (host._clipFade) host.removeEventListener('transitionend', host._clipFade);
@@ -115,8 +116,23 @@ export async function tryPlay(style) {
   document.body.classList.add('cat-clip-playing');   // 再生中はコインポップアップ等をクリップの前に出さない
   host._clipSkip = () => release(host, gen);          // タップで即スキップ
   host.addEventListener('click', host._clipSkip);
-  video.addEventListener('ended', () => release(host, gen), { once: true });
+  // #296: 1本が短くて見逃すので、2回ループしてから畳む。video.loop は使わない
+  // （ended が飛ばず終了検知・世代管理が崩れる）。明示的に1回だけ巻き戻す。
+  let looped = false;
+  const rewindOnce = () => {
+    if (looped || gen !== host._clipGen || host._clipSettled) return;
+    looped = true;
+    video.currentTime = 0;
+    Promise.resolve(video.play()).catch(() => release(host, gen));
+  };
+  video.addEventListener('ended', () => {
+    if (gen !== host._clipGen || host._clipSettled) return;
+    if (!looped) { rewindOnce(); return; }
+    release(host, gen);
+  });
   const dur = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 4;
-  host._clipTimer = setTimeout(() => release(host, gen), (dur + 1) * 1000);  // ended 不着の保険
+  // ended 不着の端末では最終フレームで固まるので、尺経過で明示的に巻き戻す（1周＋静止を避ける）
+  host._clipLoopTimer = setTimeout(rewindOnce, (dur + 0.4) * 1000);
+  host._clipTimer = setTimeout(() => release(host, gen), (dur * 2 + 1) * 1000);  // 2周ぶんの最終保険
   return true;
 }

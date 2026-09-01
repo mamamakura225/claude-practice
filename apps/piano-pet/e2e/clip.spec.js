@@ -67,6 +67,43 @@ test.describe('記録の動画クリップ演出（#227）', () => {
     await expect(page.locator('body')).not.toHaveClass(/cat-clip-playing/);
   });
 
+  test('クリップは2回ループしてから隠れる（1ループぶんの時間では消えない）(#296)', async ({ page }) => {
+    await page.addInitScript(() => { Math.random = () => 0.99; });   // 確率では外れ → 目標達成で必ず再生
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    await page.click('#goRecordBtn');
+    await addSong(page, 'きらきらぼし');
+    for (let i = 0; i < 10; i += 1) await page.click('#stampCard');   // 目標達成 → 必ず再生
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-home')).toBeVisible();
+
+    const clip = page.locator('#catVideo');
+    await expect(clip).toBeVisible();
+    await expect(clip).toHaveClass(/cat-video--show/);
+
+    // playing 済みなので duration は確定している（loadedmetadata は過ぎている）
+    const durMs = await clip.locator('video')
+      .evaluate((v) => (Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 4) * 1000);
+
+    // 1ループぶん + 余裕を過ぎても、まだ再生中（2ループするので消えない）
+    await page.waitForTimeout(durMs + 700);
+    await expect(clip).toHaveClass(/cat-video--show/);
+    await expect(page.locator('body')).toHaveClass(/cat-clip-playing/);
+
+    // 最終フレームで静止しているのではなく、本当に2周目を再生している（#296 の本質）
+    const st = await clip.locator('video')
+      .evaluate((v) => ({ ct: v.currentTime, ended: v.ended, paused: v.paused, loop: v.loop }));
+    expect(st.ended).toBe(false);
+    expect(st.paused).toBe(false);
+    expect(st.loop).toBe(false);                    // video.loop ではなく明示的な巻き戻し
+    expect(st.ct).toBeLessThan(durMs / 1000);       // 頭に巻き戻っている
+
+    // 2ループ + 保険タイマー（dur*2 + 1s）で最終的には隠れる
+    await expect(clip).toBeHidden({ timeout: durMs + 8000 });
+    await expect(page.locator('body')).not.toHaveClass(/cat-clip-playing/);
+  });
+
   test('動画中にもう一度記録すると、前のクリップを畳んで1本だけ張り替える', async ({ page }) => {
     await seedPracticed(page);
     await page.addInitScript(() => { Math.random = () => 0; });   // 毎回当たり
