@@ -1,24 +1,74 @@
 // 練習記録の短尺動画クリップ演出（#227）。記録ビューに入ったとき app.js から動的 import される
 // （#284 の js-lazy 側）。動画は SW の precache 対象外・初回再生時に取得（→ features.md）。
 
-// 差し替え時はファイル名を _v2 に（CLIPS がハッシュ対象の本ファイルにあるのでキャッシュがバストされる）。
-// 1スタイル1本なので bag shuffle は入れない（2本以上になった時点で pickClip に足す）。
+// 同名での上書き差し替えは禁止（末尾の版番号を上げる）。CLIPS がハッシュ対象の本ファイルにあるので
+// パスが変わればキャッシュはバストされる。_v1〜_v3 は差し替え履歴ではなく**動作のバリエーション**。
+// 動作は3スタイル共通（v1=ぴょんと跳ねてバンザイ／v2=くるっと回る／v3=大きくのび・#300）。
 export const CLIPS = {
-  tora:        [{ id: 'record_v1', src: './video/cat_tora_record_v1.mp4' }],
-  shiro:       [{ id: 'record_v1', src: './video/cat_shiro_record_v1.mp4' }],
-  russianblue: [{ id: 'record_v1', src: './video/cat_russianblue_record_v1.mp4' }],
+  tora: [
+    { id: 'record_v1', src: './video/cat_tora_record_v1.mp4' },
+    { id: 'record_v2', src: './video/cat_tora_record_v2.mp4' },
+    { id: 'record_v3', src: './video/cat_tora_record_v3.mp4' },
+  ],
+  shiro: [
+    { id: 'record_v1', src: './video/cat_shiro_record_v1.mp4' },
+    { id: 'record_v2', src: './video/cat_shiro_record_v2.mp4' },
+    { id: 'record_v3', src: './video/cat_shiro_record_v3.mp4' },
+  ],
+  russianblue: [
+    { id: 'record_v1', src: './video/cat_russianblue_record_v1.mp4' },
+    { id: 'record_v2', src: './video/cat_russianblue_record_v2.mp4' },
+    { id: 'record_v3', src: './video/cat_russianblue_record_v3.mp4' },
+  ],
 };
 
 // 再生できないと判定するまでの上限。prefetch 済みなら数十msで playing が来る。詰めすぎると
 // 目標達成の「必ず再生」を低速回線で取りこぼす。
 const PLAY_TIMEOUT_MS = 1000;
 
-const clipsFor = (style) => CLIPS[style] ?? CLIPS.tora;
+// キーは解決後のスタイル。未知スタイルに別バッグを持たせると prime の先読みと実再生がズレる。
+const styleKey = (style) => (CLIPS[style] ? style : 'tora');
 
-/** そのスタイルのクリップを1本選ぶ。未知スタイルは tora にフォールバック（rng 注入でテスト可能）。 */
+const bags = new Map();        // styleKey -> 残りクリップ（先頭が次に出る1本）
+const lastServed = new Map();  // styleKey -> 直前に返したクリップ
+
+// 連続が漏れるのはバッグの境目だけなので、先頭が直前と同じなら末尾と入れ替える（→ features.md）。
+function refill(key, rng) {
+  const bag = [...CLIPS[key]];
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
+  if (bag.length > 1 && bag[0] === lastServed.get(key)) {
+    [bag[0], bag[bag.length - 1]] = [bag[bag.length - 1], bag[0]];
+  }
+  return bag;
+}
+
+/** 次に出るクリップを消費せずに覗く（prime の先読み対象）。 */
+export function peekClip(style, rng = Math.random) {
+  const key = styleKey(style);
+  let bag = bags.get(key);
+  if (!bag || bag.length === 0) bags.set(key, (bag = refill(key, rng)));
+  return bag[0];
+}
+
+/**
+ * そのスタイルのクリップを1本選ぶ。未知スタイルは tora にフォールバック（rng 注入でテスト可能）。
+ * バッグを消費するので直前と同じものは返らない。再生失敗でも巻き戻さない（→ features.md #300）。
+ */
 export function pickClip(style, rng = Math.random) {
-  const pool = clipsFor(style);
-  return pool[Math.floor(rng() * pool.length)];
+  const key = styleKey(style);
+  const clip = peekClip(key, rng);
+  bags.get(key).shift();
+  lastServed.set(key, clip);
+  return clip;
+}
+
+/** テスト用。バッグはモジュールレベルの状態なのでテスト間で畳む。 */
+export function resetClipBags() {
+  bags.clear();
+  lastServed.clear();
 }
 
 const reducedMotion = () =>
@@ -26,17 +76,16 @@ const reducedMotion = () =>
 
 const prefetched = new Set();
 
-/** 現在の猫スタイルのクリップを idle 先読みする（記録フォーム入力の間に取得を終わらせる）。 */
+/** 次に出る1本だけを idle 先読みする（全9本＝1.4MB を先に食わないため・→ features.md）。 */
 export function prime(style) {
   if (reducedMotion()) return;
-  for (const { src } of clipsFor(style)) {
-    if (prefetched.has(src)) continue;
-    prefetched.add(src);
-    const v = document.createElement('video');
-    v.preload = 'auto';
-    v.muted = true;
-    v.src = src;
-  }
+  const { src } = peekClip(style);
+  if (prefetched.has(src)) return;
+  prefetched.add(src);
+  const v = document.createElement('video');
+  v.preload = 'auto';
+  v.muted = true;
+  v.src = src;
 }
 
 const overlay = () => document.getElementById('catVideo');
