@@ -10,10 +10,18 @@ import {
 import { checkBadges } from '../js/game.js';
 
 describe('カタログ', () => {
-  it('5種類のバッジを持ち id が checkBadges と一致する', () => {
-    expect(BADGES).toHaveLength(5);
+  it('13種類のバッジを持ち id が checkBadges と一致する', () => {
+    expect(BADGES).toHaveLength(13);
     const ids = BADGES.map((b) => b.id).sort();
-    expect(ids).toEqual(['challenge_100', 'first_practice', 'month_30', 'streak_3', 'streak_7']);
+    expect(ids).toEqual([
+      'big_day', 'challenge_100', 'challenge_1000', 'challenge_500', 'days_100',
+      'first_practice', 'month_30', 'songs_10', 'songs_5', 'streak_14',
+      'streak_3', 'streak_30', 'streak_7',
+    ]);
+  });
+
+  it('id が重複しない', () => {
+    expect(new Set(BADGES.map((b) => b.id)).size).toBe(BADGES.length);
   });
 
   it('badgeById は未知IDで null', () => {
@@ -39,7 +47,7 @@ describe('isEarned / earnedCount', () => {
 describe('badgesWithStatus', () => {
   it('カタログ順で earned フラグを付ける', () => {
     const result = badgesWithStatus({ badges: ['streak_3'] });
-    expect(result).toHaveLength(5);
+    expect(result).toHaveLength(BADGES.length);
     expect(result.map((b) => b.id)).toEqual(BADGES.map((b) => b.id));
     expect(result.find((b) => b.id === 'streak_3').earned).toBe(true);
     expect(result.find((b) => b.id === 'first_practice').earned).toBe(false);

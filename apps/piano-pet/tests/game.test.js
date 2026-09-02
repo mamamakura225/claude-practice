@@ -14,6 +14,7 @@ import {
   BONUS_COINS,
   clampDailyGoal,
   crossedDailyGoal,
+  checkBadges,
   GOAL_BONUS_THRESHOLD,
   DAILY_GOAL,
 } from '../js/game.js';
@@ -447,5 +448,86 @@ describe('crossedDailyGoal（#227）', () => {
     const prev = [s(TODAY, 2)];
     const next = [s(TODAY, 2), s(past, 10)];
     expect(crossedDailyGoal(prev, next, TODAY, 10)).toBe(false);
+  });
+});
+
+describe('checkBadges（中〜長期バッジ・#298）', () => {
+  // checkBadges は date を「その日を表す一意キー」としてしか使わない（パースしない）
+  const day = (i) => `2026-01-${i}`;
+  const stateOf = ({ sessions = [], current = 0, best = 0 } = {}) =>
+    ({ badges: [], sessions, streak: { current, best } });
+  const days = (n, totalCount = 1) =>
+    Array.from({ length: n }, (_, i) => ({ date: day(i + 1), totalCount }));
+  const withSongNames = (names) => stateOf({
+    sessions: names.map((name, i) => ({ date: day(i + 1), totalCount: 1, songs: [{ name, count: 1 }] })),
+  });
+  const songNames = (n) => Array.from({ length: n }, (_, i) => `きょく${i + 1}`);
+
+  it('連続日数で streak_14 / streak_30 が取れる', () => {
+    expect(checkBadges(stateOf({ current: 13, best: 13 }))).not.toContain('streak_14');
+    expect(checkBadges(stateOf({ current: 14, best: 14 }))).toContain('streak_14');
+    expect(checkBadges(stateOf({ current: 29, best: 29 }))).not.toContain('streak_30');
+    // 途切れたあとでも best 側で残る（既存 streak_3/7 と同じ扱い）
+    expect(checkBadges(stateOf({ current: 1, best: 30 }))).toContain('streak_30');
+  });
+
+  it('累計回数で challenge_500 / challenge_1000 が取れる', () => {
+    const at = (total) => checkBadges(stateOf({ sessions: [{ date: day(1), totalCount: total }] }));
+    expect(at(499)).not.toContain('challenge_500');
+    expect(at(500)).toContain('challenge_500');
+    expect(at(999)).not.toContain('challenge_1000');
+    expect(at(1000)).toContain('challenge_1000');
+  });
+
+  it('記録した日数で days_100 が取れる', () => {
+    expect(checkBadges(stateOf({ sessions: days(99) }))).not.toContain('days_100');
+    expect(checkBadges(stateOf({ sessions: days(100) }))).toContain('days_100');
+  });
+
+  it('big_day は累計ではなく1日ぶんの回数で判定する', () => {
+    // 合計 98 回だがどの日も 50 未満なので取れない
+    const spread = [{ date: day(1), totalCount: 49 }, { date: day(2), totalCount: 49 }];
+    expect(checkBadges(stateOf({ sessions: spread }))).not.toContain('big_day');
+    expect(checkBadges(stateOf({ sessions: [{ date: day(1), totalCount: 50 }] }))).toContain('big_day');
+  });
+
+  it('曲名の種類数で songs_5 / songs_10 が取れる', () => {
+    expect(checkBadges(withSongNames(songNames(4)))).not.toContain('songs_5');
+    expect(checkBadges(withSongNames(songNames(5)))).toContain('songs_5');
+    expect(checkBadges(withSongNames(songNames(9)))).not.toContain('songs_10');
+    expect(checkBadges(withSongNames(songNames(10)))).toContain('songs_10');
+  });
+
+  it('前後の空白ちがいは同じ曲として数え、空名は数えない', () => {
+    const sessions = [
+      { date: day(1), totalCount: 4, songs: [
+        { name: 'ちょうちょう', count: 1 },
+        { name: ' ちょうちょう ', count: 1 },
+        { name: '   ', count: 1 },
+        { name: 'かえるのうた', count: 1 },
+      ] },
+      { date: day(2), totalCount: 2, songs: [
+        { name: 'きらきらぼし', count: 1 },
+        { name: 'ぶんぶんぶん', count: 1 },
+      ] },
+    ];
+    // 実質4種類。素朴に数えると6種になり songs_5 を誤って取ってしまう
+    expect(checkBadges(stateOf({ sessions }))).not.toContain('songs_5');
+  });
+
+  it('songs を持たない記録が混ざっても落ちない', () => {
+    expect(() => checkBadges(stateOf({ sessions: [{ date: day(1), totalCount: 5 }] }))).not.toThrow();
+  });
+
+  it('recomputeState 経由でも取得し、資格を失えば剥がれる', () => {
+    const songs = songNames(5).map((name) => ({ name, count: 12 }));
+    const sessions = [{ date: '2026-05-01', songs, totalCount: 60 }];
+    const live = recomputeState({ ...baseState(), sessions }, 0);
+    expect(live.badges).toEqual(expect.arrayContaining(['big_day', 'songs_5']));
+
+    const shrunk = [{ date: '2026-05-01', songs: [{ name: 'ちょうちょう', count: 3 }], totalCount: 3 }];
+    const after = recomputeState({ ...live, sessions: shrunk }, 0);
+    expect(after.badges).not.toContain('big_day');
+    expect(after.badges).not.toContain('songs_5');
   });
 });

@@ -151,6 +151,6 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     }
     await page.click('.nav-btn[data-nav="badges"]');
     await expect(page.locator('#badgeGrid .badge-card').first()).toHaveClass(/badge-card--locked/);
-    await expect(page.locator('#badgesCount')).toHaveText('0 / 5 こ ゲット！');
+    await expect(page.locator('#badgesCount')).toHaveText('0 / 13 こ ゲット！');
   });
 });
