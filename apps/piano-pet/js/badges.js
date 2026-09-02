@@ -7,9 +7,17 @@
 export const BADGES = [
   { id: 'first_practice', name: 'はじめての れんしゅう', desc: 'はじめて きろくした', icon: '🌱' },
   { id: 'streak_3', name: 'れんぞく 3にち', desc: '3にち つづけて れんしゅう', icon: '🔥' },
+  { id: 'songs_5', name: 'いろいろな きょく', desc: '5きょく れんしゅうした', icon: '🎵' },
   { id: 'streak_7', name: 'れんぞく 7にち', desc: '7にち つづけて れんしゅう', icon: '⭐' },
   { id: 'challenge_100', name: '100かい チャレンジ', desc: 'ぜんぶで 100かい ひいた', icon: '💯' },
+  { id: 'streak_14', name: 'れんぞく 14にち', desc: '14にち つづけて れんしゅう', icon: '🌈' },
+  { id: 'songs_10', name: 'きょく 10きょく', desc: '10きょく れんしゅうした', icon: '🎼' },
+  { id: 'big_day', name: 'がんばりや', desc: '1にちで 50かい ひいた', icon: '💪' },
   { id: 'month_30', name: '1かげつ がんばった', desc: '30にち きろくした', icon: '🏆' },
+  { id: 'streak_30', name: 'れんぞく 30にち', desc: '30にち つづけて れんしゅう', icon: '👑' },
+  { id: 'challenge_500', name: '500かい チャレンジ', desc: 'ぜんぶで 500かい ひいた', icon: '🚀' },
+  { id: 'days_100', name: '100にち きろく', desc: '100にち きろくした', icon: '🎂' },
+  { id: 'challenge_1000', name: '1000かい チャレンジ', desc: 'ぜんぶで 1000かい ひいた', icon: '🌟' },
 ];
 
 export function badgeById(id) {

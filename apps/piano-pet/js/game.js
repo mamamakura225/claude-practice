@@ -163,13 +163,32 @@ export function checkBadges(state) {
 
   const totalCount = sessions.reduce((s, r) => s + r.totalCount, 0);
   if (totalCount >= 100) earned.add('challenge_100');
+  if (totalCount >= 500) earned.add('challenge_500');
+  if (totalCount >= 1000) earned.add('challenge_1000');
 
   const bestStreak = Math.max(streak.current, streak.best);
   if (bestStreak >= 3) earned.add('streak_3');
   if (bestStreak >= 7) earned.add('streak_7');
+  if (bestStreak >= 14) earned.add('streak_14');
+  if (bestStreak >= 30) earned.add('streak_30');
 
   const uniqueDays = new Set(sessions.map((r) => r.date)).size;
   if (uniqueDays >= 30) earned.add('month_30');
+  if (uniqueDays >= 100) earned.add('days_100');
+
+  // sessions は同日を1件にまとめてあるので totalCount はその日の合計そのもの
+  if (sessions.some((r) => (Number(r.totalCount) || 0) >= 50)) earned.add('big_day');
+
+  // 曲名は trim だけして比べる（song-color.js の songHue と同じ扱い＝別の色がつく曲は別の曲）
+  const songNames = new Set();
+  for (const r of sessions) {
+    for (const song of r.songs ?? []) {
+      const name = String(song?.name ?? '').trim();
+      if (name) songNames.add(name);
+    }
+  }
+  if (songNames.size >= 5) earned.add('songs_5');
+  if (songNames.size >= 10) earned.add('songs_10');
 
   return [...earned];
 }
