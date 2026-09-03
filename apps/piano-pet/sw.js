@@ -118,14 +118,38 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// 記録クリップ（#227/#300）は同名で上書きしない規約なので、URL が同じなら中身も同じ。
+// network-first のままだと再生のたびに全量（106〜172KB）を取り直し、cat-video.js の prime も
+// 効かない（キャッシュを読むのがオフライン時だけのため）。1秒の再生タイムアウトに間に合わず
+// 演出が出ないので cache-first にする（#303）。JS/HTML/CSS は import に版が付かず古い版が残る
+// ため network-first を維持する。
+const isClip = (pathname) => /\/video\/[^/]+\.mp4$/.test(pathname);
+
 // 同一オリジン: network-first（オンラインは常に最新、失敗時のみキャッシュ）。
 // 取得成功時にキャッシュを更新するので、オフラインでも直近の内容で動く。
-// 外部オリジン（フォント等）: cache-first。
+// クリップのみ cache-first（上記）。外部オリジン（フォント等）: cache-first。
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+
+  if (url.origin === self.location.origin && isClip(url.pathname)) {
+    // <video> は Range 付きで要求してくる。キーを URL 文字列にして Range の有無で
+    // キャッシュを取りこぼさないようにする（保存できるのは 200 だけ）。
+    event.respondWith(
+      caches.open(CACHE).then((cache) =>
+        cache.match(url.href).then((cached) => {
+          if (cached) return cached;
+          return fetch(url.href).then((response) => {
+            if (response.ok) cache.put(url.href, response.clone());
+            return response;
+          });
+        })
+      )
+    );
+    return;
+  }
 
   if (url.origin === self.location.origin) {
     // cache:'reload' でブラウザのHTTPキャッシュをバイパスし常に最新を取得。
