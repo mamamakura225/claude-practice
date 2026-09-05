@@ -5,7 +5,7 @@ import {
   getAccounts, getActiveAccountId, setActiveAccount,
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
-import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus } from './game.js';
+import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
@@ -1176,8 +1176,14 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
     : toggleEquip(state, id);
   if (next === state) return;       // 変化なし（買えない等）
   if (action === 'buy') playSound('purchase', state);  // 購入音
-  commitState(next);                // 保存 + ホームの猫へ即反映
+  // first_outfit（#309）は inventory（購入）から判定するため、購入直後だけ再判定する
+  // （device/place/equip は inventory を変えないので対象外）。次の記録まで待たせない。
+  const prevBadges = state.badges;
+  const withBadges = action === 'buy' ? { ...next, badges: checkBadges(next) } : next;
+  const gainedBadges = action === 'buy' ? newlyEarned(prevBadges, withBadges.badges) : [];
+  commitState(withBadges);          // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
+  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 300);
 });
 
 // ===== えさやり（#80・コインの使い道） =====
@@ -1188,10 +1194,16 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
   const id = btn.dataset.id;
   const next = feedCat(state, id);
   if (next === state) return;        // 買えない（コイン不足等）
-  commitState(next);                 // 保存 + ホーム再描画（なかよし反映）
+  // affinity_max（#309）は pet.affinity から判定するため、えさやり直後に再判定する
+  // （なかよしMAXの瞬間を次の記録まで待たせない）。
+  const prevBadges = state.badges;
+  const withBadges = { ...next, badges: checkBadges(next) };
+  const gainedBadges = newlyEarned(prevBadges, withBadges.badges);
+  commitState(withBadges);           // 保存 + ホーム再描画（なかよし反映）
   renderShop();                      // ショップのコイン・なかよし・ボタン更新
   playSound('record', state);        // もぐもぐ（やわらかいチャイム）
   showFeedPopup(foodById(id));
+  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 1800);
 });
 
 // ===== 猫とのインタラクション（#79） =====
