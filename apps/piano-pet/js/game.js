@@ -1,6 +1,8 @@
 // ===== ゲームロジック（純粋関数群） =====
 
-import { combineSongs } from './record-form.js';
+import { combineSongs, songTotals, isSongMaster, TEMPO_STAMPS, PRAISE_STAMPS } from './record-form.js';
+import { affinityLevel } from './feed.js';
+import { itemById } from './shop.js';
 
 // ----- レベル・XP -----
 
@@ -155,11 +157,37 @@ export function rollDailyBonus(roll) {
 
 // ----- バッジ判定 -----
 
+// 3日以上のブランク（カレンダー上の素の日付間隔。お休み券の救済は考慮しない）のあと、
+// 3日以上連続で記録できた実績があるか（#309・comeback）。streak.current/best は
+// お休み券で救済された連続も等しく含むため、既存の streak_* とは別に「本当に途切れた
+// あとの立て直し」だけをここで検出する。
+function hadComeback(sessions) {
+  const dates = [...new Set(sessions.map((s) => s.date))].sort();
+  let run = 1;
+  let sawGap = false;
+  for (let i = 1; i < dates.length; i += 1) {
+    const missed = dayDiff(dates[i - 1], dates[i]) - 1;
+    if (missed >= 3) {
+      sawGap = true;
+      run = 1;
+    } else if (missed === 0) {
+      run += 1;
+    } else {
+      run = 1;
+    }
+    if (sawGap && run >= 3) return true;
+  }
+  return false;
+}
+
 export function checkBadges(state) {
   const earned = new Set(state.badges);
-  const { sessions, streak } = state;
+  const { sessions, streak, pet } = state;
 
   if (sessions.length >= 1) earned.add('first_practice');
+
+  const uniqueDays = new Set(sessions.map((r) => r.date)).size;
+  if (uniqueDays >= 2) earned.add('practice_again');
 
   const totalCount = sessions.reduce((s, r) => s + r.totalCount, 0);
   if (totalCount >= 100) earned.add('challenge_100');
@@ -172,23 +200,51 @@ export function checkBadges(state) {
   if (bestStreak >= 14) earned.add('streak_14');
   if (bestStreak >= 30) earned.add('streak_30');
 
-  const uniqueDays = new Set(sessions.map((r) => r.date)).size;
   if (uniqueDays >= 30) earned.add('month_30');
+  if (uniqueDays >= 50) earned.add('days_50');
   if (uniqueDays >= 100) earned.add('days_100');
 
   // sessions は同日を1件にまとめてあるので totalCount はその日の合計そのもの
   if (sessions.some((r) => (Number(r.totalCount) || 0) >= 50)) earned.add('big_day');
 
+  // 可変 pet.dailyGoal ではなく固定閾値を使う（#238と同じ理由＝目標変更で過去の資格が動かない）
+  const goalDays = sessions.filter((r) => (Number(r.totalCount) || 0) >= GOAL_BONUS_THRESHOLD).length;
+  if (goalDays >= 5) earned.add('goal_hit_5');
+
   // 曲名は trim だけして比べる（song-color.js の songHue と同じ扱い＝別の色がつく曲は別の曲）
   const songNames = new Set();
+  let maxDaySongs = 0;
   for (const r of sessions) {
+    const dayNames = new Set();
     for (const song of r.songs ?? []) {
       const name = String(song?.name ?? '').trim();
-      if (name) songNames.add(name);
+      if (name) {
+        songNames.add(name);
+        dayNames.add(name);
+      }
     }
+    maxDaySongs = Math.max(maxDaySongs, dayNames.size);
   }
   if (songNames.size >= 5) earned.add('songs_5');
   if (songNames.size >= 10) earned.add('songs_10');
+  if (songNames.size >= 20) earned.add('songs_20');
+  if (maxDaySongs >= 5) earned.add('repertoire_day_5');
+
+  if (songTotals(sessions).some((s) => isSongMaster(s.count))) earned.add('song_master_first');
+
+  const tempos = new Set(sessions.map((r) => r.tempo).filter(Boolean));
+  if (TEMPO_STAMPS.every((t) => tempos.has(t.id))) earned.add('tempo_all3');
+
+  const praises = new Set(sessions.map((r) => r.praise).filter(Boolean));
+  if (PRAISE_STAMPS.every((p) => praises.has(p.id))) earned.add('praise_all3');
+
+  // equippedItems（装備中）は外すと減る可逆トグルなので使わない。inventory（所持）は
+  // 購入を取り消す手段が無く単調増加＝一度取ったバッジが着せ替えで剥がれない（#309レビュー）。
+  const hasWearable = (state.inventory ?? []).some((id) => itemById(id)?.slot !== 'scene');
+  if (hasWearable) earned.add('first_outfit');
+  if (affinityLevel(pet?.affinity ?? 0).isMax) earned.add('affinity_max');
+
+  if (hadComeback(sessions)) earned.add('comeback');
 
   return [...earned];
 }

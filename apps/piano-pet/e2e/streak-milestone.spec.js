@@ -18,7 +18,9 @@ test.describe('連続日数の節目とクリップ（#305）', () => {
   });
 
   // 昨日・一昨日に練習済み＝今日の初回記録で連続3日目（節目）に到達する状態。
-  // 節目バッジ（streak_3）は取得済みにして badgeCount 由来の節目と混ざらないようにする。
+  // 節目バッジ（streak_3）と practice_again（#309・記録2日目で取得）は取得済みにして、
+  // badgeCount 由来の節目と混ざらないようにする（sessions と badges の不整合はここで
+  // 新規バッジを誤って newlyEarned させ、このテストが検証している節目判定を汚染する）。
   async function seedStreak2(page) {
     await page.addInitScript(() => {
       const p = (n) => String(n).padStart(2, '0');
@@ -30,7 +32,7 @@ test.describe('連続日数の節目とクリップ（#305）', () => {
         pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], catStyle: 'shiro' },
         inventory: [],
         streak: { current: 2, best: 2, lastPracticeDate: day(1), freezes: 0 },
-        badges: ['first_practice', 'streak_3'],
+        badges: ['first_practice', 'practice_again', 'streak_3'],
         sessions: [
           { date: day(1), songs: [{ name: 'きらきらぼし', count: 3 }], totalCount: 3 },
           { date: day(2), songs: [{ name: 'きらきらぼし', count: 3 }], totalCount: 3 },
@@ -89,7 +91,7 @@ test.describe('連続日数の節目とクリップ（#305）', () => {
         pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], catStyle: 'shiro' },
         inventory: [],
         streak: { current: 4, best: 4, lastPracticeDate: day(1), freezes: 0 },
-        badges: ['first_practice', 'streak_3'],
+        badges: ['first_practice', 'practice_again', 'streak_3'],
         sessions: [
           { date: day(1), songs: [{ name: 'きらきらぼし', count: 3 }], totalCount: 3 },
           { date: day(2), songs: [{ name: 'きらきらぼし', count: 3 }], totalCount: 3 },

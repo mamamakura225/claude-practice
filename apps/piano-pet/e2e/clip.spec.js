@@ -25,19 +25,29 @@ test.describe('記録の動画クリップ演出（#227）', () => {
     await page.click('#addSongBtn');
   }
 
-  // 初回記録は「はじめての れんしゅう」バッジ＝節目になり通常確率の経路に入らない。
-  // 「目標未達の通常記録」を検証するテストは、練習履歴のある状態から始める。
+  // 初回記録は「はじめての れんしゅう」バッジ、2回目の記録は「また れんしゅうしたね」
+  // バッジ（#309）＝どちらも節目になり通常確率の経路に入らない。「目標未達の通常記録」を
+  // 検証するテストは、新しいバッジもストリーク節目（3日）も踏まない練習履歴から始める
+  // （2日ぶんの履歴を1日空けて置き、streak.current を 1 のまま・uniqueDays を 2 のままにする）。
   async function seedPracticed(page) {
     await page.addInitScript(() => {
-      const d = new Date(); d.setDate(d.getDate() - 1);
-      const p = (n) => String(n).padStart(2, '0');
-      const y = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      const fmt = (d) => {
+        const p = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+      };
+      const today = new Date();
+      const dayBefore = (n) => { const d = new Date(today); d.setDate(d.getDate() - n); return fmt(d); };
+      const older = dayBefore(3); // yesterday と1日空ける＝ストリークは繋がらない
+      const yesterday = dayBefore(1);
       localStorage.setItem('piano-pet', JSON.stringify({
-        pet: { name: 'きーちゃん', level: 1, xp: 4, coins: 4, equippedItems: [] },
+        pet: { name: 'きーちゃん', level: 1, xp: 8, coins: 8, equippedItems: [] },
         inventory: [],
-        streak: { current: 1, best: 1, lastPracticeDate: y, freezes: 0 },
-        badges: ['first_practice'],
-        sessions: [{ date: y, songs: [{ name: 'きらきらぼし', count: 4 }], totalCount: 4 }],
+        streak: { current: 1, best: 1, lastPracticeDate: yesterday, freezes: 0 },
+        badges: ['first_practice', 'practice_again'],
+        sessions: [
+          { date: older, songs: [{ name: 'きらきらぼし', count: 4 }], totalCount: 4 },
+          { date: yesterday, songs: [{ name: 'きらきらぼし', count: 4 }], totalCount: 4 },
+        ],
       }));
     });
   }

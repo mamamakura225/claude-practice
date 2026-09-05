@@ -531,3 +531,130 @@ describe('checkBadges（中〜長期バッジ・#298）', () => {
     expect(after.badges).not.toContain('songs_5');
   });
 });
+
+describe('checkBadges（#309・11種追加）', () => {
+  const day = (i) => `2026-02-${String(i).padStart(2, '0')}`;
+  const stateOf = ({ sessions = [], current = 0, best = 0, pet = {}, inventory = [] } = {}) =>
+    ({ badges: [], sessions, streak: { current, best }, pet, inventory });
+  const days = (n) => Array.from({ length: n }, (_, i) => ({ date: day(i + 1), totalCount: 1 }));
+  const withSongs = (names) =>
+    names.map((name, i) => ({ date: day(i + 1), totalCount: 1, songs: [{ name, count: 1 }] }));
+
+  it('記録日数2日以上で practice_again が取れる（連続でなくてよい）', () => {
+    expect(checkBadges(stateOf({ sessions: [{ date: day(1), totalCount: 1 }] })))
+      .not.toContain('practice_again');
+    const gapped = [{ date: day(1), totalCount: 1 }, { date: '2026-02-20', totalCount: 1 }];
+    expect(checkBadges(stateOf({ sessions: gapped }))).toContain('practice_again');
+  });
+
+  it('tempo が3種そろうと tempo_all3 が取れる', () => {
+    const two = [
+      { date: day(1), totalCount: 1, tempo: 'slow' },
+      { date: day(2), totalCount: 1, tempo: 'fast' },
+    ];
+    expect(checkBadges(stateOf({ sessions: two }))).not.toContain('tempo_all3');
+    const three = [...two, { date: day(3), totalCount: 1, tempo: 'normal' }];
+    expect(checkBadges(stateOf({ sessions: three }))).toContain('tempo_all3');
+  });
+
+  it('praise が3種そろうと praise_all3 が取れる', () => {
+    const two = [
+      { date: day(1), totalCount: 1, praise: 'hanamaru' },
+      { date: day(2), totalCount: 1, praise: 'jouzu' },
+    ];
+    expect(checkBadges(stateOf({ sessions: two }))).not.toContain('praise_all3');
+    const three = [...two, { date: day(3), totalCount: 1, praise: 'ganbatta' }];
+    expect(checkBadges(stateOf({ sessions: three }))).toContain('praise_all3');
+  });
+
+  it('1日10回以上の日が5日で goal_hit_5 が取れる（可変 dailyGoal ではなく固定閾値）', () => {
+    const four = Array.from({ length: 4 }, (_, i) => ({ date: day(i + 1), totalCount: 10 }));
+    expect(checkBadges(stateOf({ sessions: four }))).not.toContain('goal_hit_5');
+    const five = [...four, { date: day(5), totalCount: 10 }];
+    expect(checkBadges(stateOf({ sessions: five }))).toContain('goal_hit_5');
+    // pet.dailyGoal を引き上げても閾値（GOAL_BONUS_THRESHOLD=10）は動かない
+    expect(checkBadges(stateOf({ sessions: five, pet: { dailyGoal: 20 } }))).toContain('goal_hit_5');
+  });
+
+  it('衣装を買うと first_outfit が取れる（置物だけでは取れない）', () => {
+    expect(checkBadges(stateOf({ inventory: [] }))).not.toContain('first_outfit');
+    expect(checkBadges(stateOf({ inventory: ['yarnBall'] }))).not.toContain('first_outfit'); // 置物(slot:'scene')
+    expect(checkBadges(stateOf({ inventory: ['ribbon'] }))).toContain('first_outfit');
+  });
+
+  it('装備を外しても所持していれば first_outfit は剥がれない（非単調にしない）', () => {
+    // equippedItems は着せ替えで増減する可逆トグルなので判定に使わない。
+    // inventory（購入履歴）は取り消せないので、外しても資格は残る。
+    const owned = stateOf({ inventory: ['ribbon'], pet: { equippedItems: [] } });
+    expect(checkBadges(owned)).toContain('first_outfit');
+  });
+
+  it('1日で5曲だと repertoire_day_5 が取れる（累積の songs_5 とは別軸）', () => {
+    const songs4 = Array.from({ length: 4 }, (_, i) => ({ name: `きょく${i + 1}`, count: 1 }));
+    expect(checkBadges(stateOf({ sessions: [{ date: day(1), totalCount: 4, songs: songs4 }] })))
+      .not.toContain('repertoire_day_5');
+    const songs5 = [...songs4, { name: 'きょく5', count: 1 }];
+    expect(checkBadges(stateOf({ sessions: [{ date: day(1), totalCount: 5, songs: songs5 }] })))
+      .toContain('repertoire_day_5');
+    // 5日に分けて弾けば songs_5（累積）は届くが、1日あたりは1曲なので repertoire_day_5 は付かない
+    const spread = withSongs(['きょく1', 'きょく2', 'きょく3', 'きょく4', 'きょく5']);
+    const spreadState = checkBadges(stateOf({ sessions: spread }));
+    expect(spreadState).toContain('songs_5');
+    expect(spreadState).not.toContain('repertoire_day_5');
+  });
+
+  it('1曲50回以上で song_master_first が取れる', () => {
+    const under = [{ date: day(1), totalCount: 49, songs: [{ name: 'ちょうちょう', count: 49 }] }];
+    expect(checkBadges(stateOf({ sessions: under }))).not.toContain('song_master_first');
+    const over = [{ date: day(1), totalCount: 50, songs: [{ name: 'ちょうちょう', count: 50 }] }];
+    expect(checkBadges(stateOf({ sessions: over }))).toContain('song_master_first');
+  });
+
+  it('記録した日数で days_50 が、曲の種類数で songs_20 が取れる', () => {
+    expect(checkBadges(stateOf({ sessions: days(49) }))).not.toContain('days_50');
+    expect(checkBadges(stateOf({ sessions: days(50) }))).toContain('days_50');
+
+    const names19 = Array.from({ length: 19 }, (_, i) => `きょく${i + 1}`);
+    expect(checkBadges(stateOf({ sessions: withSongs(names19) }))).not.toContain('songs_20');
+    expect(checkBadges(stateOf({ sessions: withSongs([...names19, 'きょく20']) }))).toContain('songs_20');
+  });
+
+  it('なかよしレベルが最高になると affinity_max が取れる', () => {
+    expect(checkBadges(stateOf({ pet: { affinity: 41 } }))).not.toContain('affinity_max');
+    expect(checkBadges(stateOf({ pet: { affinity: 42 } }))).toContain('affinity_max');
+  });
+
+  describe('comeback（3日以上のブランクの後、3日以上連続で復帰）', () => {
+    it('ブランクが無ければ何日連続でも取れない', () => {
+      const straight = Array.from({ length: 10 }, (_, i) => ({ date: day(i + 1), totalCount: 1 }));
+      expect(checkBadges(stateOf({ sessions: straight }))).not.toContain('comeback');
+    });
+
+    it('ブランクが2日以下（missed=2）では取れない', () => {
+      const sessions = ['2026-02-01', '2026-02-02', '2026-02-05', '2026-02-06', '2026-02-07']
+        .map((date) => ({ date, totalCount: 1 }));
+      expect(checkBadges(stateOf({ sessions }))).not.toContain('comeback');
+    });
+
+    it('ブランクの直後2日だけでは取れない（3日目でようやく成立）', () => {
+      const sessions = ['2026-02-01', '2026-02-05', '2026-02-06'].map((date) => ({ date, totalCount: 1 }));
+      expect(checkBadges(stateOf({ sessions }))).not.toContain('comeback');
+    });
+
+    it('3日以上のブランク（missed=3）のあと3日連続で戻ると取れる', () => {
+      const sessions = ['2026-02-01', '2026-02-05', '2026-02-06', '2026-02-07']
+        .map((date) => ({ date, totalCount: 1 }));
+      expect(checkBadges(stateOf({ sessions }))).toContain('comeback');
+    });
+  });
+
+  it('recomputeState 経由でも取得し、資格を失えば剥がれる', () => {
+    const sessions = ['2026-02-01', '2026-02-05', '2026-02-06', '2026-02-07']
+      .map((date) => ({ date, totalCount: 10, tempo: 'fast' }));
+    const live = recomputeState({ ...baseState(), sessions }, 0);
+    expect(live.badges).toContain('comeback');
+
+    const after = recomputeState({ ...live, sessions: sessions.slice(0, 2) }, 0);
+    expect(after.badges).not.toContain('comeback');
+  });
+});

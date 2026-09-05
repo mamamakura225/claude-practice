@@ -191,7 +191,7 @@ test.describe('練習記録', () => {
         pet: { name: 'きーちゃん', level: 1, xp: 4, coins: 4, equippedItems: [] },
         inventory: [],
         streak: { current: 2, best: 2, lastPracticeDate: day(-1), freezes: 0 },
-        badges: ['first_practice'],
+        badges: ['first_practice', 'practice_again'],
         sessions: [
           { date: day(-1), songs: [{ name: 'きらきらぼし', count: 2 }], totalCount: 2, coinsEarned: 2, xpEarned: 2 },
           { date: day(-2), songs: [{ name: 'きらきらぼし', count: 2 }], totalCount: 2, coinsEarned: 2, xpEarned: 2 },

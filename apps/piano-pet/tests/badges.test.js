@@ -10,13 +10,15 @@ import {
 import { checkBadges } from '../js/game.js';
 
 describe('カタログ', () => {
-  it('13種類のバッジを持ち id が checkBadges と一致する', () => {
-    expect(BADGES).toHaveLength(13);
+  it('24種類のバッジを持ち id が checkBadges と一致する', () => {
+    expect(BADGES).toHaveLength(24);
     const ids = BADGES.map((b) => b.id).sort();
     expect(ids).toEqual([
-      'big_day', 'challenge_100', 'challenge_1000', 'challenge_500', 'days_100',
-      'first_practice', 'month_30', 'songs_10', 'songs_5', 'streak_14',
-      'streak_3', 'streak_30', 'streak_7',
+      'affinity_max', 'big_day', 'challenge_100', 'challenge_1000', 'challenge_500',
+      'comeback', 'days_100', 'days_50', 'first_outfit', 'first_practice',
+      'goal_hit_5', 'month_30', 'practice_again', 'praise_all3', 'repertoire_day_5',
+      'song_master_first', 'songs_10', 'songs_20', 'songs_5', 'streak_14',
+      'streak_3', 'streak_30', 'streak_7', 'tempo_all3',
     ]);
   });
 
