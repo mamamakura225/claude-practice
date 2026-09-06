@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, itemLayer, defaultItemLayer } from '../js/cat-image.js';
+import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, itemLayer, defaultItemLayer, tierToPrefetch } from '../js/cat-image.js';
+import { FOODS } from '../js/feed.js';
 
 // 日常のお祝い演出のバリエーション選択（#81）。
 // 描画・アニメ自体は CSS / DOM 依存なので、ここでは純粋な選択ロジックだけ検証する。
@@ -311,5 +312,30 @@ describe('catMarkup の名前エスケープ（#274）', () => {
 
   it('通常の名前はそのまま表示される（既存の見た目は不変）', () => {
     expect(catMarkup({ name: 'きーちゃん' })).toContain('aria-label="きーちゃん"');
+  });
+});
+
+// #326: 先読み窓が狭いと、餌の最大増分 +3（ケーキ）で境界を飛び越して一度も先読みされない。
+describe('tierToPrefetch（先読み窓・#326）', () => {
+  it('境界7の手前3pt以内は mid、境界42の手前3pt以内は high、それ以外は null', () => {
+    expect([3, 4, 5, 6, 7].map(tierToPrefetch)).toEqual([null, 'mid', 'mid', 'mid', null]);
+    expect([38, 39, 40, 41, 42].map(tierToPrefetch)).toEqual([null, 'high', 'high', 'high', null]);
+    expect(tierToPrefetch(0)).toBeNull();
+    expect(tierToPrefetch(20)).toBeNull();
+  });
+
+  it('どの餌（増分 +1/+1/+3）でも境界を越える前に必ず1回は窓に入る', () => {
+    const steps = [...new Set(FOODS.map((f) => f.affinity))];   // 1 と 3
+    for (const step of steps) {
+      for (const [lo, boundary, want] of [[0, 7, 'mid'], [30, 42, 'high']]) {
+        let v = lo;
+        let hit = false;
+        while (v < boundary) {
+          if (tierToPrefetch(v) === want) hit = true;
+          v += step;
+        }
+        expect(hit, `step=${step} boundary=${boundary}`).toBe(true);
+      }
+    }
   });
 });

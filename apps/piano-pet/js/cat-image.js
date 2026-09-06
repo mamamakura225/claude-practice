@@ -360,13 +360,21 @@ const idle = (cb) =>
     ? requestIdleCallback(cb)
     : setTimeout(cb, 200);
 
-// affinity 値が次 tier 境界の手前（2pt以内）に来たら、次 tier の4枚を
-// バックグラウンドで先読みして mood/tier 切替時のガタつきを防ぐ。
+// 次に先読みすべき tier（境界の手前3pt以内＝餌の最大増分ぶん）。窓を +3（ケーキ）より
+// 狭くすると affinity 4→7 のように窓を丸ごと飛び越して一度も先読みが走らない（#326）。
 // 境界: low→mid は なかよしLv3 (affinity 7)、mid→high は Lv8 (affinity 42)（#216）。
-export function prefetchNextTier(style, affinityValue) {
+export function tierToPrefetch(affinityValue) {
   const v = Number(affinityValue) || 0;
-  if (v >= 5 && v < 7) idle(() => preloadTier(style, 'mid'));
-  else if (v >= 40 && v < 42) idle(() => preloadTier(style, 'high'));
+  if (v >= 4 && v < 7) return 'mid';
+  if (v >= 39 && v < 42) return 'high';
+  return null;
+}
+
+// affinity が次 tier 境界の手前に来たら、次 tier の4枚をバックグラウンドで先読みして
+// mood/tier 切替時のガタつきを防ぐ。
+export function prefetchNextTier(style, affinityValue) {
+  const tier = tierToPrefetch(affinityValue);
+  if (tier) idle(() => preloadTier(style, tier));
 }
 
 // ----- 演出（単発再生） -----
