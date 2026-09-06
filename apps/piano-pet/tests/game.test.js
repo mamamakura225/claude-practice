@@ -417,6 +417,34 @@ describe('recomputeState', () => {
     const after = recomputeState({ ...live, sessions: [] }, 0);
     expect(after.badges).not.toContain('first_practice');
   });
+
+  // #316: 運ばれてきた同日重複を清算してしまう（素点＋連続ボーナス＋お休み券が二重）。
+  it('同日重複が運ばれてきても二重清算しない（統合済みと同じ結果になる）', () => {
+    const base = [
+      { date: '2026-09-01', songs: [], totalCount: 8 },
+      { date: '2026-09-02', songs: [], totalCount: 8 },
+    ];
+    const dup = { ...baseState(), sessions: [...base,
+      { date: '2026-09-03', songs: [], totalCount: 8 },
+      { date: '2026-09-03', songs: [], totalCount: 8 }] };
+    const preMerged = { ...baseState(), sessions: [...base,
+      { date: '2026-09-03', songs: [], totalCount: 16 }] };
+
+    const dupR = recomputeState(dup, 0);
+    const mergedR = recomputeState(preMerged, 0);
+
+    expect(dupR.pet.coins).toBe(mergedR.pet.coins);       // 旧実装は連続ボーナス+お休み券を二重清算
+    expect(dupR.pet.xp).toBe(mergedR.pet.xp);
+    expect(dupR.streak.freezes).toBe(mergedR.streak.freezes);
+    expect(dupR.sessions).toHaveLength(3);
+  });
+
+  it('重複が無ければ既存の再計算結果は変わらない（mergeSameDaySessions は同一参照を返す）', () => {
+    const live = buildHistory(['2026-05-20', '2026-05-21', '2026-05-22'], [5, 5, 12]);
+    const r = recomputeState(live, 0);
+    expect(r.pet.coins).toBe(live.pet.coins);
+    expect(r.sessions).toHaveLength(3);
+  });
 });
 
 describe('clampDailyGoal（1日の目標回数・#238）', () => {
