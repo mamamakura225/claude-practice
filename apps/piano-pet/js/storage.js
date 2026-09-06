@@ -170,19 +170,21 @@ export function mergeCloud(local, cloud) {
 // 合算すると部分同期後の共有ベースを二重計上してコイン/XP が水増しされるため
 // （record ID/vector clock が無い前提での安全側。設計合意 topic_1780534255497 / #142）。
 // 並びはアプリ慣習に合わせ date 降順（新しい順）。tie（同回数）はローカル優先。
-// 例外: bonusCoins（きょうのおまけ #148）は totalCount から導出されない当選値なので、
-// 衝突時は双方の max を採用してどちらかの端末で当たったおまけを消さない（affinity/foodSpent と同じ哲学）。
+// 付与値（bonusCoins #148 / praise #145 / tempo #239）は衝突時も非nullを勝たせて救済する
+// （失うと復元不能。coinsEarned/xpEarned は再計算できるので不問・#315。設計判断は docs）。
 export function mergeSessionsKeepLarger(localSessions, cloudSessions) {
   const byDate = new Map();
   const consider = (s) => {
     if (!s || s.date == null) return;
     const prev = byDate.get(s.date);
     if (!prev) { byDate.set(s.date, { ...s }); return; }
-    // 練習量の多い方を基本採用しつつ、きょうのおまけ(#148)はどちらかの当選を救済（max）。
-    // bonusCoins は totalCount から導出されない当選フラグなので keep-larger で消さない。
     const chosen = (Number(s.totalCount) || 0) > (Number(prev.totalCount) || 0) ? s : prev;
-    const bonusCoins = Math.max(Number(prev.bonusCoins) || 0, Number(s.bonusCoins) || 0);
-    byDate.set(s.date, { ...chosen, bonusCoins });
+    byDate.set(s.date, {
+      ...chosen,
+      bonusCoins: Math.max(Number(prev.bonusCoins) || 0, Number(s.bonusCoins) || 0),
+      praise: prev.praise ?? s.praise ?? null,
+      tempo: prev.tempo ?? s.tempo ?? null,
+    });
   };
   for (const s of localSessions ?? []) consider(s);   // local を先に（tie でローカルが残る）
   for (const s of cloudSessions ?? []) consider(s);

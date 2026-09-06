@@ -345,6 +345,35 @@ describe('mergeSameDaySessions', () => {
     expect(fixed.pet.coins).toBe(25);
     expect(fixed.pet.xp).toBe(23); // 20 + 3
   });
+
+  // #315: 統合は「先に現れた側」のフィールドだけを残していた＝当たったおまけ・
+  // 親が付けたスタンプが無言で消える（bonusCoins はコイン実減）。
+  it('付与値 bonusCoins / praise / tempo は非nullが残る（先勝ちで消さない）', () => {
+    const sessions = [
+      { date: '2026-09-01', songs: [], totalCount: 3, bonusCoins: 0, praise: null, tempo: null },
+      { date: '2026-09-01', songs: [], totalCount: 5, bonusCoins: 3, praise: 'hanamaru', tempo: 'slow' },
+    ];
+    const [day] = mergeSameDaySessions(sessions);
+    expect(day.totalCount).toBe(8);
+    expect(day.bonusCoins).toBe(3);
+    expect(day.praise).toBe('hanamaru');
+    expect(day.tempo).toBe('slow');
+  });
+
+  it('bonusCoins が救済されるので統合後の所持コインが減らない（#315）', () => {
+    const withBonus = {
+      ...baseState(),
+      sessions: [
+        { date: '2026-09-02', songs: [], totalCount: 4, bonusCoins: 0 },
+        { date: '2026-09-01', songs: [], totalCount: 4, bonusCoins: 3 },
+      ],
+    };
+    const before = recomputeState(withBonus, 0).pet.coins;
+    // 9/02 の日付を 9/01 に直す＝配列 index 0（bonusCoins:0）が prev になる
+    const edited = withBonus.sessions.map((s, i) => (i === 0 ? { ...s, date: '2026-09-01' } : s));
+    const after = recomputeState({ ...withBonus, sessions: mergeSameDaySessions(edited) }, 0);
+    expect(after.pet.coins).toBe(before);   // 旧実装は bonusCoins 消失で 3 減る
+  });
 });
 
 describe('recomputeState', () => {

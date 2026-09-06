@@ -173,7 +173,9 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 > **設計判断（#236）**: 曲別コレクション（#122）と同じく専用データを持たず `sessions` から都度導出＝同期・マイグレ不要でズレが原理的に起きない。描画は SVG ではなく CSS grid（セルが多くグリッドの方が軽量・レスポンシブ）。日タップで該当日へスクロールは、俯瞰が主目的のため MVP では見送り。
 
-> **設計判断（#239）**: praise をテンプレ流用（Session への1フィールド追加・merge/recompute はスプレッドで自動保持）し CSS も共通ルール化。実装は `setSessionMark`/`markRowMarkup` に統合（#261）。付与／解除→保存→クラウド即送信→`renderHistory` 再描画。報酬非依存で再計算不要。自由記述は持たず analytics へも絵文字種別以外を送らない（#145 と同方針）。
+> **設計判断（#239）**: praise をテンプレ流用（Session への1フィールド追加）し CSS も共通ルール化。実装は `setSessionMark`/`markRowMarkup` に統合（#261）。付与／解除→保存→クラウド即送信→`renderHistory` 再描画。報酬非依存で再計算不要。自由記述は持たず analytics へも絵文字種別以外を送らない（#145 と同方針）。
+>
+> **同日統合・端末間マージでは非nullが残る（#315）**: `praise`/`tempo`/`bonusCoins` は totalCount から導出されない付与値なので、`mergeSameDaySessions`（日付を直して同日衝突）・`mergeSessionsKeepLarger`（端末間で回数差）のどちらでも「どちらかに付いていれば残す」で救済する（当初の「スプレッドで自動保持」は誤りで、先に現れた側／回数の多い側のフィールドで上書きされていた）。両側に別値なら先勝ち。
 
 **編集・削除**
 

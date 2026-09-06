@@ -391,6 +391,11 @@ export function mergeSameDaySessions(sessions) {
         // 同日同曲は1行に合算する（#186）
         songs: combineSongs([...prev.songs, ...(s.songs ?? [])]),
         totalCount: prev.totalCount + (Number(s.totalCount) || 0),
+        // 付与値は非nullを勝たせる（#315・設計判断は docs/data-model.md）。...prev だけだと
+        // 先勝ち側の値で上書きされ、当たったおまけ・親のスタンプが無言で消える。
+        bonusCoins: Math.max(Number(prev.bonusCoins) || 0, Number(s.bonusCoins) || 0),
+        praise: prev.praise ?? s.praise ?? null,
+        tempo: prev.tempo ?? s.tempo ?? null,
       };
     }
   }
