@@ -1,5 +1,7 @@
+import { readdirSync } from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { classifyJs, importSpecs, JS_ENTRY } from '../../../scripts/piano-pet-assets.mjs';
+import { APP_DIR, classifyJs, importSpecs, JS_ENTRY, listAssets, listHashOnlyAssets } from '../../../scripts/piano-pet-assets.mjs';
 
 // 初回ロード JS / 遅延読込 JS の判定（#284）。perf-budget の予算はこの分類の上に乗るので、
 // 遅延読込を静的 import に戻す変更（＝起動が重くなる変更）が入ったらここで落ちる。
@@ -29,6 +31,29 @@ describe('classifyJs', () => {
 
   it('どこからも import されない js/ は無い', () => {
     expect(orphan).toEqual([]);
+  });
+});
+
+// video/*.mp4 は precache・予算のどちらにも入れず、gen-sw のハッシュにだけ載せる（#318）。
+// リストではなく実体（readdirSync）を正にして突き合わせる——リストを正にすると、
+// クリップを追加したのに列挙し忘れた事故が構造的に見えなくなる。
+describe('listHashOnlyAssets（#318）', () => {
+  it('video/*.mp4 を実体と1件も過不足なく列挙する', () => {
+    const actual = readdirSync(path.join(APP_DIR, 'video'))
+      .filter((f) => f.endsWith('.mp4'))
+      .sort()
+      .map((f) => `video/${f}`);
+    // 実体側もリストも0件で一致すると空振りになる（例: 将来 webm フォールバックだけが
+    // 追加され、この行の拡張子フィルタが両方とも取りこぼす場合）。0件一致を弾く。
+    expect(actual.length).toBeGreaterThan(0);
+    expect(listHashOnlyAssets()).toEqual(actual);
+  });
+
+  it('listAssets()（precache・予算対象）とは重ならない', () => {
+    const assets = new Set(listAssets());
+    for (const rel of listHashOnlyAssets()) {
+      expect(assets.has(rel)).toBe(false);
+    }
   });
 });
 

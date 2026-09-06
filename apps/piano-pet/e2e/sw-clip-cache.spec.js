@@ -4,7 +4,8 @@ import { test, expect } from '@playwright/test';
 // SW の同一オリジン処理は network-first（`cache: 'reload'`）で、キャッシュはオフライン時の
 // フォールバックにしか使われない。そのため cat-video.js の prime（先読み）がオンラインで効かず、
 // 再生のたびにクリップ全量（106〜172KB）を取り直していた。PLAY_TIMEOUT_MS=1秒に間に合わないと
-// 抽選に当たっても動画が出ない。クリップは同名で上書きしない規約（#300）なので cache-first にする。
+// 抽選に当たっても動画が出ない。cache-first にしても、差し替え時は gen-sw のハッシュ入力に
+// video/*.mp4 が入っている（#318）ので CACHE 名が必ず動き古い版が残る心配はない。
 test.use({ serviceWorkers: 'allow' });
 
 const CLIP = './video/cat_shiro_record_v1.mp4';

@@ -1,14 +1,14 @@
 // ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
-const CACHE = 'piano-pet-278103fc';
+const CACHE = 'piano-pet-4bfe539d';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=278103fc',
-  './css/style.css?v=278103fc',
+  './css/cat.css?v=4bfe539d',
+  './css/style.css?v=4bfe539d',
   './js/account.js',
   './js/analytics.js',
-  './js/app.js?v=278103fc',
+  './js/app.js?v=4bfe539d',
   './js/backup.js',
   './js/badges.js',
   './js/cat-image.js',
@@ -119,7 +119,8 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// 記録クリップ（#227/#300）は同名で上書きしない規約なので、URL が同じなら中身も同じ。
+// 記録クリップ（#227/#300）は gen-sw のハッシュ入力に入っている（#318）ので、内容が変われば
+// CACHE 名が変わり旧キャッシュは activate で破棄される＝ cache-first でも古い版は返らない。
 // network-first のままだと再生のたびに全量（106〜172KB）を取り直し、cat-video.js の prime も
 // 効かない（キャッシュを読むのがオフライン時だけのため）。1秒の再生タイムアウトに間に合わず
 // 演出が出ないので cache-first にする（#303）。JS/HTML/CSS は import に版が付かず古い版が残る

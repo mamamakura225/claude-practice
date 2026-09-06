@@ -15,34 +15,45 @@ export const APP_DIR = path.resolve(__dirname, '..', 'apps', 'piano-pet');
 export const INDEX = 'index.html';
 export const SW = 'sw.js';
 
+// dir 配下の対象拡張子ファイルを名前順で out に積む（listAssets / listHashOnlyAssets 共通の心臓部）。
+function collectInto(out, dir, exts) {
+  let entries;
+  try {
+    entries = readdirSync(path.join(APP_DIR, dir));
+  } catch {
+    return;
+  }
+  for (const name of entries.sort()) {
+    const full = path.join(APP_DIR, dir, name);
+    if (statSync(full).isFile() && exts.includes(path.extname(name))) {
+      out.push(`${dir}/${name}`);
+    }
+  }
+}
+
 // 配信アセット（アプリディレクトリ相対・POSIX 区切り）を決まった順で集める。
 // sw.js 自身は生成物なので含めない。
 export function listAssets() {
   const assets = [INDEX];
-  collectDir('css', ['.css']);
-  collectDir('js', ['.js']);
+  collectInto(assets, 'css', ['.css']);
+  collectInto(assets, 'js', ['.js']);
   assets.push('manifest.json');
-  collectDir('icons', ['.svg', '.png']);
-  collectDir('img/cat', ['.webp']);         // 猫本体は WebP（#234）
-  collectDir('img/cat/items', ['.webp']);   // 装着アイテム
-  collectDir('img/cat/scene', ['.webp']);   // 置物・小物系（#226）
-  collectDir('sounds', ['.mp3', '.ogg', '.wav']);
+  collectInto(assets, 'icons', ['.svg', '.png']);
+  collectInto(assets, 'img/cat', ['.webp']);         // 猫本体は WebP（#234）
+  collectInto(assets, 'img/cat/items', ['.webp']);   // 装着アイテム
+  collectInto(assets, 'img/cat/scene', ['.webp']);   // 置物・小物系（#226）
+  collectInto(assets, 'sounds', ['.mp3', '.ogg', '.wav']);
   return assets;
+}
 
-  function collectDir(dir, exts) {
-    let entries;
-    try {
-      entries = readdirSync(path.join(APP_DIR, dir));
-    } catch {
-      return;
-    }
-    for (const name of entries.sort()) {
-      const full = path.join(APP_DIR, dir, name);
-      if (statSync(full).isFile() && exts.includes(path.extname(name))) {
-        assets.push(`${dir}/${name}`);
-      }
-    }
-  }
+// SW の precache（APP_SHELL）にも perf-budget のカテゴリにも入れないが、差し替えでキャッシュ名が
+// 変わるようハッシュにだけ載せるアセット（#318）。precache に入れない理由は #227（1.37 MiB を
+// install 時に全部落とすと初回起動が重い）、予算に入れない理由も同じ（判定対象は起動をブロック
+// するテキスト資産）。perf-budget.mjs の orphan 検知（js/ だけが対象）には混ぜないこと。
+export function listHashOnlyAssets() {
+  const out = [];
+  collectInto(out, 'video', ['.mp4']);
+  return out;
 }
 
 // ===== 初回ロード JS と遅延読込 JS の判定（#284） =====
