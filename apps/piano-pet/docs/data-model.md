@@ -188,7 +188,7 @@ const MIGRATIONS = [
 |---|---|---|---|
 | 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別ローカル優先（union） | 同日衝突で回数の**少ない方**（keep-larger の既知トレードオフ） |
 | 復帰時 resync（#242） | `visibilitychange`→visible の `fetchCloud` | 同上（`reconcileInitialCloud`） | 同上。加えて union の副作用で**一方で外した装備・置物が復活**しうる |
-| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。自分の書き込みのエコーは差分比較でスキップ） | **まだ push していないローカルの変更**。`pushCloudDebounced` の待ち時間（既定2秒）内に他端末のスナップショットが届くと、その2秒ぶんの操作が消える |
+| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。自分の書き込みのエコーは差分比較でスキップ） | **まだ push していないローカルの変更**（`pushCloudDebounced` の待ち時間ぶん・既定2秒）。ただし保留データは thunk で持ち送信時点の state を読むため（#313）、待ち時間中に届いた**他端末の確定済み記録は次の flush で送り直され巻き戻らない** |
 
 > **設計判断**: realtime を cloud-wins のままにしているのは、平常時に union を使うと「一方の端末で外した装備が相手のスナップショットのたびに復活し続ける」ことになり操作が確定しないため。取りこぼすのは debounce 待ちの数秒ぶんだけで、記録確定時は `flushCloud()` で即送るので**記録そのものは落ちない**。フィールド別のタイムスタンプ／世代管理で本質的に解くのは #258（認証＋ルール）と合わせて別途。
 >
@@ -222,6 +222,8 @@ const MIGRATIONS = [
 
 `commitState` はローカルへ即時保存し、クラウドへは `pushCloudDebounced`（既定 2000ms）で送る。debounce 中は最新データだけを保持し、スタンプ連打・購入・えさやりの連続操作を **1 回の Firestore 書き込みにまとめる**。確定が必要な境界では `flushCloud()` で即送信する：
 
+キューの実体は firebase 非依存の [cloud-queue.js](../js/cloud-queue.js)（`createCloudQueue(pushCloud)`）に切り出してある。`cloud.js` は firebase CDN を静的 import するため単体テスト不可だが、キュー部分は `tests/cloud-queue.test.js` で直接検証する。
+
 | 契機 | 動作 |
 |---|---|
 | 記録の確定（`submitRecord`） | `commitState` 直後に `flushCloud()`。記録はバッチ境界なので debounce を待たず確実に送る |
@@ -229,7 +231,11 @@ const MIGRATIONS = [
 
 > **設計判断**: ローカル保存は従来どおり即時（オフラインキャッシュ・損失なし）で、遅延させるのはクラウド送信のみ。debounce を延ばすほど書き込みは減るが反映が遅れるため、ライフサイクル境界での `flushCloud()` を必須経路にして「まとめつつ取りこぼさない」を両立する。
 >
-> **設計判断（#288）**: オフライン中は `pushCloud` が早期 return で握りつぶすため、`flushCloud()` は `navigator.onLine === false` のとき `pendingData` を消さずに保持する。次の記録確定または再オンライン後の debounce 満了で送り直せる（ローカルには保存済みなので、最悪でも次回起動の `reconcileInitialCloud` が差分を押し戻す）。
+> **設計判断（#288）**: オフライン中は `pushCloud` が早期 return で握りつぶすため、`flushCloud()` は `navigator.onLine === false` のとき保留データを消さずに保持する。次の記録確定または再オンライン後の debounce 満了で送り直せる（ローカルには保存済みなので、最悪でも次回起動の `reconcileInitialCloud` が差分を押し戻す）。
+>
+> **設計判断（#313）**: 保留データは「呼び出し時点の state のスナップショット（値）」ではなく **thunk（`() => cloudFields(state)`）** で持つ。値で焼き付けると、保留中に `applyRemoteState` 等で state が差し替わっても古い内容を `setDoc` 全置換で送ってしまい、**他端末が確定済みの記録を巻き戻す**。破棄方式（保留中に state が変わったら捨てる）ではなく thunk を選ぶのは、state 変更経路が増えるたびに無効化を足し忘れるため。送信時点で最新を読めば `visibilitychange` / `pagehide` の flush が古い state を送る問題も同時に消える。
+>
+> **設計判断（#313）**: `initCloudSync` の `fetchCloud`（最大5秒）待ちの間に `online` が発火してもマージ前のローカル state を push しない。`cloudSynced`（import 成功で立つ）とは別に `initialSyncDone`（初回 reconcile 完了）を設け、`online` ハンドラの push はこれでガードする。
 
 ## バックアップ/復元・初期化（[js/backup.js](../js/backup.js)・#140 / #183）
 
