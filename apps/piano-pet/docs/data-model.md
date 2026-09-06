@@ -56,6 +56,8 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。
 
 > ⚠️ ここが崩れると全部が崩れる。sessions を直接書き換える処理を足すときは必ず `recomputeState` を通すこと。
+>
+> **同日1件は `recomputeState` が入口で自ら保証する（#316）**: `applyRemoteState`（realtime cloud-wins）は `mergeSameDaySessions` を通さずクラウドの `sessions` をそのまま入れるため、旧版・手編集・破損 doc 由来の同日重複が運ばれてくる。その状態で記録を1件でも編集・削除すると `recomputeState` が重複を replay して素点＋連続ボーナス＋お休み券を二重清算し、永続化する。取り込み経路（realtime / 初回 reconcile / resync / バックアップ復元）は今後も増えるので、`applyRemoteState` 側に dedup を足すのではなく**それに依存する計算の入口で不変条件を保証する**。起動時マイグレーション（app.js の `migrate` 後 recompute）は「保存データの是正」という別目的なので残す。
 
 | フィールド | 型 | 説明 |
 |---|---|---|

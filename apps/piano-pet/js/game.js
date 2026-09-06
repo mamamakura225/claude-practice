@@ -304,7 +304,8 @@ export function applySession(state, { date, songs, totalCount }, bonusCoins = 0)
 // ゼロから再計算する。記録を日付昇順で再生し applySession と同じ規則を辿る。
 // spent は購入済みアイテムに使ったコイン総額（所持コイン = 獲得総額 - spent）。
 export function recomputeState(state, spent = 0) {
-  const sessions = state.sessions ?? [];
+  // 同日1件を入口で保証（運ばれてきた重複の二重清算を防ぐ・#316。重複なしなら元配列参照が返る）
+  const sessions = mergeSameDaySessions(state.sessions ?? []);
 
   // 元の並びは保ちつつ、再生は日付昇順で行う（同日の相対順は安定ソートで保持）
   const order = sessions.map((_, i) => i)
