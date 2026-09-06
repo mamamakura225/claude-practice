@@ -874,9 +874,15 @@ function setSessionMark(kind, index, id) {
   if (!session) return;
   const next = m.normalize(session[kind]) === id ? null : m.normalize(id);
   state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, [kind]: next } : s));
+  // スタンプで praise_all3 / tempo_all3 が成立しうる。購入・えさやりと同じくその場で
+  // 再判定する（#320・設計判断は docs/features.md）。外す操作では剥がれない（checkBadges は state.badges 引継ぎ）。
+  const prevBadges = state.badges;
+  state = { ...state, badges: checkBadges(state) };
+  const gained = newlyEarned(prevBadges, state.badges);
   saveState(state);
   if (cloud) cloud.pushCloudDebounced(() => cloudFields(state));
   renderHistory();
+  if (gained.length) setTimeout(() => showBadgePopup(gained), 300);
 }
 
 // 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。

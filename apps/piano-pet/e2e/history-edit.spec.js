@@ -136,6 +136,50 @@ test.describe('きろくの編集・削除・スタンプ', () => {
       .toHaveAttribute('aria-pressed', 'true');
   });
 
+  // #320: スタンプで praise_all3 / tempo_all3 の条件が成立したら、その場でバッジが付く
+  // （購入・えさやりと同じ）。旧実装は次の練習記録まで🔒のままだった。
+  test('スタンプで tempo_all3 が成立したその場でバッジが付く（#320）', async ({ page }) => {
+    await openHistory(page);
+    const cards = page.locator('#historyList .history-card');
+    await cards.nth(0).locator('.tempo-stamp').nth(0).click();   // 🐢 ゆっくり
+    await cards.nth(1).locator('.tempo-stamp').nth(1).click();   // 🎵 ふつう
+    // 2種の時点では tempo_all3 は付いていない（バッジ画面は🔒）
+    await page.click('.nav-btn[data-nav="badges"]');
+    await expect(page.locator('#badgeGrid .badge-card').filter({ hasText: 'さんしょく テンポ' }))
+      .toHaveClass(/badge-card--locked/);
+    await page.click('.nav-btn[data-nav="history"]');
+
+    await cards.nth(2).locator('.tempo-stamp').nth(2).click();   // 🚀 はやく → 3種そろう
+    // その場でポップアップが出て、バッジ画面が解錠される（旧実装は次の練習記録まで🔒）
+    await expect(page.locator('#badgePopup')).toBeVisible();
+    await expect(page.locator('#badgePopup')).toContainText('さんしょく テンポ');
+    expect((await readLocal(page)).badges).toContain('tempo_all3');
+
+    await page.click('.nav-btn[data-nav="badges"]');
+    await expect(page.locator('#badgeGrid .badge-card').filter({ hasText: 'さんしょく テンポ' }))
+      .not.toHaveClass(/badge-card--locked/);
+  });
+
+  test('スタンプで praise_all3 も その場で付く（#320）', async ({ page }) => {
+    await openHistory(page);
+    const cards = page.locator('#historyList .history-card');
+    await cards.nth(0).locator('.praise-stamp').nth(0).click();   // 💮
+    await cards.nth(1).locator('.praise-stamp').nth(1).click();   // 🌟
+    await cards.nth(2).locator('.praise-stamp').nth(2).click();   // 👍
+    expect((await readLocal(page)).badges).toContain('praise_all3');
+  });
+
+  test('スタンプを外してもバッジは剥がれない（checkBadges は state.badges を引き継ぐ・#320）', async ({ page }) => {
+    await openHistory(page);
+    const cards = page.locator('#historyList .history-card');
+    await cards.nth(0).locator('.tempo-stamp').nth(0).click();
+    await cards.nth(1).locator('.tempo-stamp').nth(1).click();
+    await cards.nth(2).locator('.tempo-stamp').nth(2).click();
+    expect((await readLocal(page)).badges).toContain('tempo_all3');
+    await cards.nth(2).locator('.tempo-stamp').nth(2).click();     // 🚀 を外す
+    expect((await readLocal(page)).badges).toContain('tempo_all3'); // 剥がれない
+  });
+
   test('編集・削除で失った資格のバッジは剥がれる', async ({ page }) => {
     await openHistory(page);
     // 3日ぶんあるので first_practice は取得済み
