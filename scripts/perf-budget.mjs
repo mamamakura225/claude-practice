@@ -6,8 +6,10 @@
 //   node scripts/perf-budget.mjs           レポート表示のみ（常に成功）
 //   node scripts/perf-budget.mjs --check    予算超過があれば非ゼロ終了（CI用）
 //
-// 計測対象は gen-sw と同一の列挙（scripts/piano-pet-assets.mjs）＝ SW がプリキャッシュする
-// 配信アセット全部を仕分けたもの。予算は HTML/CSS/JS（コード・マークアップのアプリシェル）と
+// 計測対象は gen-sw の precache と同一の列挙（scripts/piano-pet-assets.mjs の listAssets()）
+// ＝ SW がプリキャッシュする配信アセット全部を仕分けたもの。gen-sw のキャッシュハッシュは
+// これに加えて listHashOnlyAssets()（video/*.mp4・#318）も見るが、そちらは判定対象外（下記）。
+// 予算は HTML/CSS/JS（コード・マークアップのアプリシェル）と
 // その合計に対して gzip 後のサイズで設ける。icons / img / sounds はバイナリで変更頻度が低く、
 // 配信時も再圧縮されない（mp3・webp 等）ため、レポートには出すが予算判定からは除外する。
 
@@ -64,8 +66,8 @@ const BUDGETS_KIB = {
 
 const KIB = 1024;
 
-// 計測対象は gen-sw と**同一の列挙**（piano-pet-assets.mjs）を仕分けたもの。
-// 以前は同じ規則を各スクリプトに別々に書いており、#234 の PNG→WebP 移行で
+// 計測対象は gen-sw の precache と**同一の列挙**（piano-pet-assets.mjs の listAssets()）を
+// 仕分けたもの。以前は同じ規則を各スクリプトに別々に書いており、#234 の PNG→WebP 移行で
 // perf-budget だけが取り残されて画像カテゴリが 0 件（実体 3.6 MiB）になっていた。
 const ASSETS = listAssets();
 const under = (prefix) => ASSETS.filter((rel) => rel.startsWith(prefix));

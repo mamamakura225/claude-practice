@@ -14,7 +14,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import { APP_DIR, INDEX, SW, listAssets } from './piano-pet-assets.mjs';
+import { APP_DIR, INDEX, SW, listAssets, listHashOnlyAssets } from './piano-pet-assets.mjs';
 
 const CHECK = process.argv.includes('--check');
 
@@ -77,7 +77,9 @@ function renderSw(sw, hash, shell) {
 
 // ---- 実行 ----
 const assets = listAssets();
-const hash = computeHash(assets);
+// video/*.mp4（#318）はハッシュにだけ載せる。precache（APP_SHELL）は assets のみで組む
+// （下の buildShell 呼び出し）ので、以下では動画は APP_SHELL に含まれない。
+const hash = computeHash([...assets, ...listHashOnlyAssets()]);
 const htmlRaw = read(INDEX);
 const swRaw = read(SW);
 
