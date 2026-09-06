@@ -158,8 +158,11 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request, { cache: 'reload' })
         .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE).then((cache) => cache.put(request, copy));
+          // 保存するのは ok なレスポンスだけ（5xx/404 を焼くとオフライン時だけ白画面になる・#317）
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(CACHE).then((cache) => cache.put(request, copy));
+          }
           return response;
         })
         .catch(() =>

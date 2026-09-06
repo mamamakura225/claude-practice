@@ -534,7 +534,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 | 対象 | 戦略 |
 |---|---|
-| 同一オリジン | **network-first**（`fetch(request, { cache: 'reload' })` で HTTP キャッシュもバイパス）。成功時にキャッシュを更新し、失敗時のみフォールバック。ナビゲーションのフォールバック先は `./index.html` |
+| 同一オリジン | **network-first**（`fetch(request, { cache: 'reload' })` で HTTP キャッシュもバイパス）。**`response.ok` のときだけ**キャッシュを更新し（5xx/404 を焼くとオフライン時だけ白画面になる・#317）、取得失敗時のみキャッシュへフォールバック。ナビゲーションのフォールバック先は `./index.html` |
 | 外部オリジン | `caches.match` → 無ければ `fetch`。**プリキャッシュにも fetch 後の保存にも載せていない**ため実質は素通し |
 
 > **設計判断**
@@ -565,7 +565,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 **まだ埋まっていない空白**
 
-- **オフライン / SW の実行検証**：全 project で `serviceWorkers: 'block'`（キャッシュ干渉を避けるため）なので install / activate / fetch が走らない。担保は `gen-sw:check`（列挙の一致）のみ
+- **オフライン / SW の実行検証**：ほとんどの project は `serviceWorkers: 'block'`（キャッシュ干渉を避けるため）なので install / activate / fetch が走らない。担保は `gen-sw:check`（列挙の一致）と、`sw-clip-cache.spec.js`（`test.use({ serviceWorkers: 'allow' })`）の限定的な fetch 経路検証（クリップの cache-first #303／失敗レスポンスを焼かない #317）のみ。install/activate や全面的なオフライン起動は未検証（#289）
 - **`prefers-reduced-motion`**：CSS のみの実装で E2E 検証なし
 
 ## アセット総量とパフォーマンス予算（#147 / #275）
