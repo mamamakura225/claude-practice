@@ -562,6 +562,14 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 **クラウド同期のテスト（`e2e/cloud-sync.spec.js`）**：他の spec は Firestore を `route.abort` で遮断しているため、`initCloudSync` / `reconcileInitialCloud` / `applyRemoteState` / `resyncFromCloud` は長らく**一度も実行されていなかった**（データ損失系という最高リスク領域が退行検知できない状態）。
 
+**報酬ポップアップ群のテスト（`e2e/reward-popup.spec.js`・#323）**：コイン以外の記録後ポップアップ（おまけ／お休み券／バッジ／レベルアップ）は単体・E2Eとも一度も実行されていなかった。この領域は #261 で使い回しオーバーレイの遅延cleanupが失敗直後の再演出で新しい要素を掴んで壊すバグを踏んでおり、退行を機械的に検知する必要がある。3本を追加（お休み券→バッジの直列表示・きょうのおまけ・レベルアップ）し、`shop.spec.js` にえさやり連打（#261の退行ガード）を1本追加した。
+
+> **設計判断（#323）**
+> - `showPopup` 冒頭の前サイクル解除（`clearTimeout`/`removeEventListener`）を削ると4本目が落ちる、`nextDelay += 2200` の直列化を外す・`rewards.frozeDays > 0` の分岐を消す・`showBadgePopup` の `showNext` チェーンを1件目で切ると1本目が落ちることを実測済み
+> - `.coin-popup { display: flex; ... }`（[css/style.css](../css/style.css)）に `[hidden]` のCSSガードが無く、author の `display:flex` が UA 既定の `[hidden]{display:none}` を上書きするため、`hidden` 属性を立てても要素は `position:fixed; inset:0` のまま画面全体に残る（`opacity:0`・`pointer-events:none` で見た目には影響しないため気づかれていなかった）。このため Playwright の `toBeVisible`/`toBeHidden` は常に「visible」と判定してしまい使えず、`.coin-popup--show` クラスの有無で判定する（`#coinPopupLevelUp` は素の `<span hidden>` でこの問題を継承しないため `toBeVisible` のまま使える）。CSS側の是正は別issue
+> - #261の退行ガードは、1回目の表示直後に2回目を連打しても再現しない（1回目の `transitionend` リスナーがまだ付いていないため）。再現には1回目の `duration` 経過でフェードアウトが始まった直後（旧リスナーが付いた窓・実測で約250ms）に2回目を重ねる必要がある。固定 `waitForTimeout` で窓を狙うとCI側の遅延で静かに空振りする（実測）ため、ページ内の `MutationObserver` で「class から `--show` が外れた瞬間」を直接観測して2回目を撃つ
+> - `Math.random = () => 1` は `Math.random()` の実際の値域 `[0,1)` の外にあり、`cat-video.js` の Fisher-Yates シャッフルが範囲外スワップでバッグを壊す（未定義の穴が入る）。テストのモックは `0.999` のように値域内に収める
+
 > **設計判断（#277）**
 > - DI を作らず、**`./js/cloud.js` へのリクエストを `page.route` で差し替えて偽モジュールを配る**方式。`app.js` が `await import('./cloud.js')` で動的読み込みしている（#142）ため、本番コードを1行も変えずに実経路を通せる
 > - Firestore エミュレータ案は不採用。CI の起動コストが高く、検証したいのは「マージ規則」であって Firestore の挙動ではない

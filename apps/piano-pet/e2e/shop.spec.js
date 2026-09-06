@@ -128,6 +128,50 @@ test.describe('ショップ', () => {
     await expect(page.locator('#statAffinity')).toHaveText('1');
   });
 
+  // #261 の退行ガード（#323）：showPopup は要素ごとにタイマー・transitionend リスナーを
+  // 張り替えて前回サイクルを解除する。これを削ると、1回目のフェードアウトで付いた
+  // transitionend リスナーが残ったまま2回目の表示（フェードイン）が終わった瞬間に発火し、
+  // 2回目のポップアップを即座に隠してしまう。再現には**1回目がフェードアウトを始めた直後**
+  // （リスナーは付いたがまだ発火していない窓）に2回目を重ねる必要がある——即座に連打すると
+  // 1回目のリスナーがまだ付いていないため再現しない（実測で確認済み）。
+  // 固定sleepで窓を狙うと、CI側の往復遅延が数十ms乗るだけで窓（実測約250ms）を外し
+  // 静かに緑化する（実測：wait=2010msで3回中1回だけ検出、2060ms以降は壊れていても常に緑）。
+  // ページ内で「class から --show が外れた瞬間」を直接観測して2回目を撃つことで、
+  // ハーネス側の遅延に依存しない待ち合わせにする。
+  // #feedPopup は `.coin-popup{display:flex}` に [hidden] のCSSガードが無く見た目では
+  // 判別できないため（別issue task_0e74a032）、JS側の `hidden` プロパティが変わるまでの
+  // 経過時間をページ内で直接測る。
+  test('えさやり連打の2回目も最後まで表示される（#261の退行ガード）', async ({ page }) => {
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+
+    const elapsedMs = await page.evaluate(() => new Promise((resolve, reject) => {
+      const el = document.getElementById('feedPopup');
+      // ショップは feed のたびに再描画されボタン要素が差し替わるので毎回引き直す
+      const feed = () => document.querySelector('.shop-btn[data-action="feed"][data-id="fish"]').click();
+      const timeout = setTimeout(() => reject(new Error('timeout: feedPopup not observed')), 8000);
+      new MutationObserver((_, classObserver) => {
+        if (el.classList.contains('coin-popup--show')) return;   // 1回目の表示は無視
+        classObserver.disconnect();                              // duration 経過＝フェードアウト開始
+        // 旧 transitionend リスナーが付いた直後（まだ発火していない窓）を狙って2回目を撃つ。
+        // 同一タスクで撃つと再現しない（正常実装でも壊れた実装でも約2050msで緑になる・実測）
+        // ので、setTimeout で1マクロタスク分ずらす。
+        setTimeout(() => {
+          feed();
+          const t0 = performance.now();
+          new MutationObserver(() => {
+            if (el.hidden) { clearTimeout(timeout); resolve(performance.now() - t0); }
+          }).observe(el, { attributes: true, attributeFilter: ['hidden'] });
+        }, 50);
+      }).observe(el, { attributes: true, attributeFilter: ['class'] });
+      feed();   // 1回目
+    }));
+
+    // duration=1800ms + フェード0.25s ≈ 2050ms。壊れた実装（前回サイクル解除を削る）だと
+    // 1回目の旧リスナーが2回目のフェードイン完了で誤発火し、約130〜230msで消える（実測）。
+    expect(elapsedMs).toBeGreaterThan(1200);
+  });
+
   test('なかよしレベルとご褒美の解放が表示される（#124）', async ({ page }) => {
     // affinity=7 を仕込む（なかよしレベル3「だいすき」相当・#216 8段階）
     await page.addInitScript(() => {
