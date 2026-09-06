@@ -6,7 +6,7 @@ import {
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
@@ -1300,14 +1300,17 @@ function renderLayerPanel() {
   const el = document.getElementById('layerPanel');
   if (!el || el.hidden) return;
   const layout = state.pet.itemLayout ?? {};
-  const ids = [...(state.pet.equippedItems ?? []), ...(state.pet.placedItems ?? [])];
+  // 未知IDは描画しない（allowlist・#312）。equippedItems/placedItems はクラウド doc 由来で
+  // 任意文字列が入りうるが、猫の描画側（cat-image.js）は allowlist で弾いている。ここも揃える。
+  const ids = [...(state.pet.equippedItems ?? []), ...(state.pet.placedItems ?? [])]
+    .filter((id) => itemById(id) || isSceneItem(id));
   el.innerHTML = LAYER_ROWS.map(([layer, label]) => {
     const chips = ids.filter((id) => itemLayer(id, layout) === layer).map((id) => {
       const item = itemById(id);
       const to = LAYER_LABEL[layer === 'back' ? 'front' : 'back'];
-      return `<button type="button" class="layer-panel__chip" data-item="${id}" data-layer="${layer}"
-        aria-label="${item?.name ?? id} を ${to} に する">`+
-        `<span aria-hidden="true">${item?.icon ?? '❔'}</span><span>${item?.name ?? id}</span></button>`;
+      return `<button type="button" class="layer-panel__chip" data-item="${escapeHtml(id)}" data-layer="${layer}"
+        aria-label="${escapeHtml(item?.name ?? id)} を ${to} に する">`+
+        `<span aria-hidden="true">${escapeHtml(item?.icon ?? '❔')}</span><span>${escapeHtml(item?.name ?? id)}</span></button>`;
     }).join('');
     return `<div class="layer-panel__row"><span class="layer-panel__label">${label}</span>`+
       `${chips || '<span class="layer-panel__empty">なし</span>'}</div>`;
@@ -1636,7 +1639,7 @@ function renderAccountList() {
     const isActive = a.id === activeId;
     const right = isActive
       ? '<span class="account-row__badge">いま これ ✓</span>'
-      : `<button type="button" class="settings-btn settings-btn--ghost account-switch" data-account="${a.id}">きりかえる</button>`;
+      : `<button type="button" class="settings-btn settings-btn--ghost account-switch" data-account="${escapeHtml(a.id)}">きりかえる</button>`;
     return `<div class="account-row${isActive ? ' account-row--active' : ''}">
       <span class="account-row__name">${escapeHtml(a.name)}</span>
       ${right}

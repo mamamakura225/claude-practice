@@ -347,6 +347,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 編集モード中だけ猫の下に**まえ／うしろパネル**（`#layerPanel`）が出る。装着中＋配置中のアイテムが2段に並び、チップをタップすると反対の段へ移り猫の描画も同時に入れ替わる。実装は [app.js](../js/app.js) `renderLayerPanel` ＋ [cat-image.js](../js/cat-image.js) `itemLayer`。
 
 - **データ**：`pet.itemLayout[id].layer`（`'front'|'back'`）。**未設定・未知値は既定へ**（装着＝前面 #211 ／ 置物＝`SCENE_BOX[id].layer`）＝既存ユーザーの見た目は不変・マイグレ不要
+- **未知IDは描画しない（allowlist・#312）**：`equippedItems`/`placedItems` はクラウド doc 由来で任意文字列が入りうる。パネルは `itemById(id) || isSceneItem(id)` を通ったものだけ並べ、チップの `data-item`・`aria-label`・アイコン・名前はすべて `escapeHtml` する（猫の描画側と同じ二段防御）
 - **描画**：`catMarkup` が実効レイヤーで振り分ける。うしろにしたものは装着・置物とも既存の背面SVG `cat__scene--back`(z1) へ（置物→装着の順＝背面同士では装着が猫寄り）、まえは装着 `cat__front`(z3) / 置物 `cat__scene--front`(z5)。**層は増やさない**
 - **編集中は本体を半透明**（`opacity:.55`）にして、うしろへ送ったアイテムを透かして見せる。#240 の pointer 透過と合わせ、背面のままドラッグ・ピンチで調整できる
 - **写真（#237）は無改修**で追随（DOM の z 順をそのまま読むため）

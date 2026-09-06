@@ -123,6 +123,31 @@ test.describe('きせかえ 自由配置', () => {
     await expect(page.locator('#catStage .cat__front .cat__item[data-item="ribbon"]')).toHaveCount(0);
   });
 
+  // #312：クラウド doc 由来の equippedItems に細工文字列が入っていても、レイヤーパネルが
+  // それを属性へ生で埋めない（属性注入で任意スクリプトが走らない）。
+  test('細工した equippedItems はレイヤーパネルに描画されず pageerror も起きない', async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(String(e)));
+    page.on('dialog', (d) => { errors.push(`dialog:${d.message()}`); d.dismiss().catch(() => {}); });
+
+    await page.addInitScript(() => {
+      const s = JSON.parse(localStorage.getItem('piano-pet'));
+      s.pet.equippedItems = ['ribbon', 'x" onmouseover="window.__pwned=1'];
+      localStorage.setItem('piano-pet', JSON.stringify(s));
+    });
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+    await page.click('#dressupToggle');
+
+    // 正規の ribbon だけが並び、細工IDのチップは作られない
+    await expect(page.locator('#layerPanel .layer-panel__chip')).toHaveCount(1);
+    await expect(page.locator('#layerPanel .layer-panel__chip[data-item="ribbon"]')).toHaveCount(1);
+    // 属性が実体化していないこと（onmouseover ハンドラが生成されていない）
+    expect(await page.locator('#layerPanel *[onmouseover]').count()).toBe(0);
+    expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
+    expect(errors).toEqual([]);
+  });
+
   test('編集モード中は猫タップでなで演出（喜び/しっぽふり）が出ない', async ({ page }) => {
     await page.addInitScript(() => { Math.random = () => 0.99; });  // hiss回避
     await page.goto('/');
