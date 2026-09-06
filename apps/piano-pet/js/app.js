@@ -572,7 +572,7 @@ const STAMP_DRAFT_KEY = `${activeStorageKey()}:stamp-draft`;
 // 現在の stamps を当日の下書きとして保存。編集中（既存セッションの修正）と、
 // 日付欄が今日以外を指しているとき（#273）は、当日の下書きを汚さないよう保存しない。
 function saveStampDraft() {
-  if (editingIndex != null) return;
+  if (editingDate != null) return;
   if (recordDateEl && formDate() !== todayStr()) return;
   try {
     localStorage.setItem(STAMP_DRAFT_KEY, JSON.stringify({ date: todayStr(), stamps }));
@@ -763,8 +763,11 @@ function applyRecordModeUI() {
   }
 }
 
-// 編集中の記録（state.sessions のインデックス）。新規記録時は null。
-let editingIndex = null;
+// 編集中の記録を**同一性（date）で**保持する。新規記録時は null（#314）。
+// 記録は「同日1件」が不変条件（mergeSameDaySessions が保証）なので date が主キーになる。
+// インデックスで持つと、編集フォームを開いたまま画面を離れて戻る間に mergeCloudInitial /
+// recomputeState / 過去日 prepend で並びが変わり、別の日の記録を破壊する。
+let editingDate = null;
 
 // 記録フォームの見出しとボタンを「新規」か「編集」かで切り替える
 function setRecordMode(isEdit) {
@@ -799,7 +802,7 @@ function syncRecordInputs() {
 // 日付が変わったら、その日付が本来始まるべき内容へフォームを戻す（→ features.md #273）。
 // 今日=当日セッション/下書きから復元、今日以外=空。持ち越すと当日ぶんが二重計上される。
 function onRecordDateChange() {
-  if (editingIndex != null) return;   // 編集中は対象セッションの内容が正
+  if (editingDate != null) return;   // 編集中は対象セッションの内容が正
   stamps = formDate() === todayStr() ? todayStamps() : [];
   saveStampDraft();                   // 過去日は saveStampDraft 側のガードで no-op
   if (stampHintEl) stampHintEl.hidden = true;
@@ -807,7 +810,7 @@ function onRecordDateChange() {
 }
 
 function resetRecordForm() {
-  editingIndex = null;
+  editingDate = null;
   setRecordMode(false);
   recordMode = 'stamp';
   if (recordDateEl) {
@@ -841,12 +844,13 @@ function fillRecordForm(session) {
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
 
-// 履歴から編集を開始：record 画面へ切り替えてからフォームを埋める
+// 履歴から編集を開始：record 画面へ切り替えてからフォームを埋める。
+// 一覧のチップは元配列 index を載せているが、ここで date に解決して持つ（#314）。
 function startEditSession(index) {
   const session = state.sessions[index];
   if (!session) return;
-  router.go('record');     // render() 内の resetRecordForm が editingIndex を一旦 null に戻す
-  editingIndex = index;
+  router.go('record');     // render() 内の resetRecordForm が editingDate を一旦 null に戻す
+  editingDate = session.date;
   fillRecordForm(session);
 }
 
@@ -1042,9 +1046,20 @@ function submitRecord(event) {
 
   // 編集モード：該当セッションを置き換えて全再計算（報酬演出はしない）
   // 日付変更による同日衝突も mergeSameDaySessions で統合する
-  if (editingIndex != null) {
+  if (editingDate != null) {
+    // 編集開始時の date で引き直す（並び替え・他端末の記録追加で index はズレる・#314）
+    const idx = state.sessions.findIndex((s) => s.date === editingDate);
+    if (idx < 0) {
+      // ほかの端末で消された／統合された。無言で別の記録を壊さず案内を出す。
+      if (recordErrorEl) {
+        recordErrorEl.textContent = 'この きろくは ほかの ところで けされたみたい';
+        recordErrorEl.hidden = false;
+      }
+      editingDate = null;
+      return;
+    }
     const sessions = state.sessions.map((s, i) =>
-      i === editingIndex ? { ...s, date, songs, totalCount } : s);
+      i === idx ? { ...s, date, songs, totalCount } : s);
     commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions) }, spentTotal(state)));
     resetRecordForm();
     router.go('history');
