@@ -70,6 +70,41 @@ test.describe('記録クリップの SW キャッシュ（#303）', () => {
     expect(hits.length, 'JS は毎回ネットワークを見に行く').toBeGreaterThan(afterFirst);
   });
 
+  // #317: 同一オリジンの失敗レスポンス（5xx/404）をキャッシュに焼くと、
+  // 以後オフラインになったときエラーページが返り「オフライン時だけ白画面」になる。
+  test('失敗レスポンス(503)はキャッシュに焼かず、オフラインでは正常版が返る（#317）', async ({ page, context }) => {
+    await page.goto('/');
+    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 20000 });
+
+    // 正常版を SW 経由で取ってキャッシュに入れる（query 無し URL のエントリを自分で作る）
+    const goodBody = await page.evaluate(() => fetch('./js/app.js').then((r) => r.text()));
+    expect(goodBody).toContain('import');
+    await expect.poll(() => page.evaluate(async () => {
+      for (const n of await caches.keys()) {
+        const keys = await (await caches.open(n)).keys();
+        if (keys.some((k) => k.url.endsWith('/js/app.js'))) return true;
+      }
+      return false;
+    }), { timeout: 10000 }).toBe(true);
+
+    // app.js に 503 を返させて SW に取りに行かせる（network-first の put 分岐）
+    let served503 = false;
+    await context.route('**/js/app.js', async (route) => {
+      served503 = true;
+      await route.fulfill({ status: 503, contentType: 'application/javascript', body: '/* PWNED-503 */' });
+    });
+    await page.evaluate(() => fetch('./js/app.js', { cache: 'reload' }).then((r) => r.text()).catch(() => null));
+    expect(served503).toBe(true);
+    await context.unroute('**/js/app.js');
+
+    // オフラインで取り直す → キャッシュ済みの正常版（503 本文で上書きされていない）
+    await context.setOffline(true);
+    const offlineBody = await page.evaluate(() => fetch('./js/app.js').then((r) => r.text()).catch(() => 'FETCH-ERR'));
+    await context.setOffline(false);
+    expect(offlineBody).not.toContain('PWNED-503');
+    expect(offlineBody).toContain('import');
+  });
+
   test('キャッシュ済みのクリップはオフラインでも再生できる', async ({ page, context }) => {
     await page.goto('/');
     await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 20000 });
