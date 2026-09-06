@@ -65,10 +65,12 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | `coinsEarned` | number | その記録で得た**基本**コイン（`calcRewards`。再計算で都度上書き。表示・参照用。おまけは含まない） |
 | `xpEarned` | number | その記録で得たXP（同上） |
 | `bonusCoins` | number | きょうのおまけ（#148）で得た乱数由来のコイン。**記録に保存して `recomputeState` で復元**（再抽選しない）。0=未当選 |
-| `praise` | string \| null | はなまるスタンプ（#145）。`PRAISE_STAMPS` の id（`hanamaru`/`jouzu`/`ganbatta`）か `null`。曲数からは導出されないが、全状態のスプレッド更新（`recomputeState`・各種マージ）で保持される。表示時に `normalizePraise` で検証 |
-| `tempo` | string \| null | 練習の質メモ（#239）。`TEMPO_STAMPS` の id（`slow`🐢/`normal`🎵/`fast`🚀）か `null`。praise と同型・同挙動（`normalizeTempo` で検証）。自由記述は持たない（PII規約準拠） |
+| `praise` | string \| null | はなまるスタンプ（#145）。`PRAISE_STAMPS` の id（`hanamaru`/`jouzu`/`ganbatta`）か `null`。曲数からは導出されない付与値。`recomputeState` はスプレッドで保持、同日統合・端末間マージは「非nullを勝たせる」で救済（#315）。表示時に `normalizePraise` で検証 |
+| `tempo` | string \| null | 練習の質メモ（#239）。`TEMPO_STAMPS` の id（`slow`🐢/`normal`🎵/`fast`🚀）か `null`。praise と同型・同挙動（`normalizeTempo` で検証・マージ救済も同じ #315）。自由記述は持たない（PII規約準拠） |
 
 > **設計判断（#148・おまけコインの永続）**: コインは `recomputeState` で全再計算される派生値なので、乱数ボーナスをそのまま足すと再計算で消える。別アキュムレータではなく**記録への保存値 `bonusCoins`** で解決した。抽選は app.js（`rollDailyBonus(Math.random())`）がその日の初回記録時だけ行い、`applySession(state, session, bonusCoins)` で記録へ焼き込む。`recomputeState` が `s.bonusCoins` を `earned` へ再加算するため、編集・削除・クラウドマージ後も再抽選されず金額が保たれる。`game.js` は純粋なまま（乱数は注入）。
+>
+> **設計判断（#315・セッションフィールドの2分類）**: セッションのフィールドは2種類に分かれる。**totalCount から導出できるもの**（`coinsEarned` / `xpEarned`）は `recomputeState` で復元できるので統合規則を気にしなくてよい。**当選・手動付与で決まるもの**（`bonusCoins` / `praise` / `tempo`）は失うと復元不能なので、同日統合（`mergeSameDaySessions`）・端末間マージ（`mergeSessionsKeepLarger`）のどちらでも「非nullを勝たせる」で救済する。将来セッションにフィールドを足すときは、この2分類のどちらかを決めてから足すこと。
 
 ### 派生データ（保存しない）
 
@@ -200,7 +202,7 @@ const MIGRATIONS = [
 
 | フィールド | マージ規則 | 理由 |
 |---|---|---|
-| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。ただし `bonusCoins`（#148）は衝突時に双方の **max** を救済 | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側。`bonusCoins` は totalCount から導出されない当選値なので keep-larger で消さず max で残す |
+| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。**付与値 `bonusCoins`/`praise`/`tempo` は「どちらかに付いていれば残す」で救済**（#148 / #315。praise/tempo は非nullが勝ち・両側に別値なら先勝ち） | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側 |
 | `inventory` | 重複 ID を除いた **union** | 所有は単調増加 |
 | `pet.equippedItems` | union のうち、マージ後 `inventory` に含まれるものだけ | 未所持の装備を残さない |
 | `pet.placedItems` | 同上（#226） | 未所持の置物の配置を残さない |

@@ -255,6 +255,22 @@ describe('mergeSessionsKeepLarger', () => {
     expect(m[0].bonusCoins).toBe(3);   // おまけは消さない
   });
 
+  it('衝突時 praise / tempo も非nullを勝たせる（回数の少ない側のスタンプを捨てない #315）', () => {
+    // ママ端末は 3回だが 💮🐢 を付けた。子タブレットは同日 9回でスタンプ無し。
+    const local = [{ date: '2026-01-01', totalCount: 3, praise: 'hanamaru', tempo: 'slow' }];
+    const cloud = [{ date: '2026-01-01', totalCount: 9 }];
+    const m = mergeSessionsKeepLarger(local, cloud);
+    expect(m[0].totalCount).toBe(9);        // keep-larger は維持
+    expect(m[0].praise).toBe('hanamaru');   // スタンプは両端末から消えない
+    expect(m[0].tempo).toBe('slow');
+  });
+
+  it('両側に別の praise が付いていたら先勝ち（ローカル）', () => {
+    const local = [{ date: '2026-01-01', totalCount: 5, praise: 'jouzu' }];
+    const cloud = [{ date: '2026-01-01', totalCount: 9, praise: 'ganbatta' }];
+    expect(mergeSessionsKeepLarger(local, cloud)[0].praise).toBe('jouzu');
+  });
+
   it('同回数の tie はローカルを残す（自分の書き込みのエコー等）', () => {
     const local = [{ date: '2026-01-01', totalCount: 5, songs: ['L'] }];
     const cloud = [{ date: '2026-01-01', totalCount: 5, songs: ['C'] }];
