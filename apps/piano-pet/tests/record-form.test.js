@@ -184,6 +184,11 @@ describe('pastSongNames', () => {
     expect(pastSongNames(sessions)).toEqual(['A']);
   });
 
+  it('count<=0 の曲は数えない（combineSongs / songTotals と揃える・#326）', () => {
+    const sessions = [{ date: '2026-07-10', songs: [{ name: 'ゆき', count: 0 }, { name: 'A', count: 2 }] }];
+    expect(pastSongNames(sessions)).toEqual(['A']);   // 旧実装は count:0 を 1 に持ち上げて 'ゆき' も出していた
+  });
+
   it('limit 件で打ち切る（新しい順に）', () => {
     const sessions = [
       { date: '2026-07-12', songs: [{ name: 'A', count: 1 }] },
@@ -222,12 +227,25 @@ describe('songTotals', () => {
     ]);
   });
 
-  it('同数なら新しく弾いた曲を優先する', () => {
+  it('同数の tie は最終練習日が新しい順、並びを変えても一致する（#326）', () => {
     const sessions = [
-      { songs: [{ name: 'A', count: 3 }] },
-      { songs: [{ name: 'B', count: 3 }] },
+      { date: '2026-07-10', songs: [{ name: 'A', count: 3 }] },
+      { date: '2026-07-12', songs: [{ name: 'B', count: 3 }] },
     ];
-    expect(songTotals(sessions).map((t) => t.name)).toEqual(['B', 'A']);
+    const asc = songTotals(sessions).map((t) => t.name);
+    const desc = songTotals([...sessions].reverse()).map((t) => t.name);
+    expect(asc).toEqual(['B', 'A']);   // B の方が最終練習日が新しい
+    expect(desc).toEqual(asc);          // sessions の並びを変えても結果は同じ（旧実装は配列位置依存で入れ替わる）
+  });
+
+  it('最終練習日も同じ tie は曲名のコードポイント昇順で決定的（#326）', () => {
+    const sessions = [
+      { date: '2026-07-10', songs: [{ name: 'ちょうちょ', count: 3 }] },
+      { date: '2026-07-10', songs: [{ name: 'きらきら', count: 3 }] },
+    ];
+    const a = songTotals(sessions).map((t) => t.name);
+    expect(songTotals([...sessions].reverse()).map((t) => t.name)).toEqual(a);
+    expect(a).toEqual(['きらきら', 'ちょうちょ']);   // き(U+304D) < ち(U+3061)
   });
 
   it('空名・回数なしは無視する', () => {

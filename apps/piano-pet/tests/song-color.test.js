@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { songHue, songColor, shiftHue, assignSongColors } from '../js/song-color.js';
+import { songTotals } from '../js/record-form.js';
 
 describe('songHue', () => {
   it('同じ曲名は常に同じ色相（決定的）', () => {
@@ -98,6 +99,21 @@ describe('assignSongColors（衝突回避つき一括割り当て・#165）', ()
   it('重複・空名は1つに畳み込み無視する', () => {
     const colors = assignSongColors(['ねこ', 'ねこ', '', '  ', 'いぬ']);
     expect([...colors.keys()]).toEqual(['ねこ', 'いぬ']);
+  });
+
+  // #326: 同じ sessions を別の並びで渡しても曲の色が一致する（songTotals の tie-break が
+  // 配列位置に依存しないので、resync で sessions が並べ替わっても色が入れ替わらない）。
+  it('同じ sessions を別の並びで渡しても曲の色が一致する（#326）', () => {
+    // 「きらきらぼし」3回(8/20) と「ちょうちょ」3回(9/03)＝累計同数の tie。
+    const sessions = [
+      { date: '2026-08-20', songs: [{ name: 'きらきらぼし', count: 3 }] },
+      { date: '2026-09-03', songs: [{ name: 'ちょうちょ', count: 3 }] },
+    ];
+    const colorsOf = (ss) => {
+      const map = assignSongColors(songTotals(ss).map((t) => t.name));
+      return [...map.entries()].map(([n, c]) => [n, c.hue]).sort();
+    };
+    expect(colorsOf([...sessions].reverse())).toEqual(colorsOf(sessions));
   });
 
   it('先頭の曲はハッシュどおりの色相（ずらさない）', () => {

@@ -652,6 +652,11 @@ describe('checkBadges（#309・11種追加）', () => {
     expect(checkBadges(stateOf({ inventory: ['ribbon'] }))).toContain('first_outfit');
   });
 
+  it('未知の inventory ID では first_outfit を無償付与しない（#326）', () => {
+    // itemById(id) が null → 旧実装は `?.slot !== 'scene'` が undefined!=='scene' で true になり付与していた
+    expect(checkBadges(stateOf({ inventory: ['__garbage__'] }))).not.toContain('first_outfit');
+  });
+
   it('装備を外しても所持していれば first_outfit は剥がれない（非単調にしない）', () => {
     // equippedItems は着せ替えで増減する可逆トグルなので判定に使わない。
     // inventory（購入履歴）は取り消せないので、外しても資格は残る。

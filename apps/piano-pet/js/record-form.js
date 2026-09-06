@@ -69,26 +69,29 @@ export function songsToStamps(songs) {
 // 全セッションを曲ごとに集計し「累計回数の多い順」で返す（#122 曲別コレクション）。
 // 返り値: [{ name, count }]。回数は合計、空名は無視。達成量の陳列なので累計回数順を保つ
 // （記録チップの pastSongNames は #252 で最近ひいた順に分離＝並び基準は別物）。
-// 同数の tie は sessions の**配列位置**で決めるだけ（日付では見ていない）。sessions は日付降順が
-// 基本なので実際には「古い方が先」に寄る。色割り当て（#165）の入力順を端末間で一致させることが
-// 目的で、tie の見た目の順序自体には意味を持たせていない。
+// 同数の tie は「最終練習日が新しい順 → 曲名のコードポイント昇順」で決める（#326）。
+// 配列位置で決めると sessions の並び（元順序 / date 降順 / 先頭 prepend）で結果が変わり、
+// 同期のたびに色が入れ替わる。date と曲名はどちらも sessions 内在の値なので、
+// 「sessions さえ同じなら端末間で色が一致する」という #122/#165 の主張が実際に成立する。
 export function songTotals(sessions) {
   const counts = new Map();
-  const lastSeen = new Map();
-  let order = 0;
+  const lastDate = new Map();
   for (const session of sessions ?? []) {
-    order += 1;
+    const date = String(session?.date ?? '');
     for (const song of session?.songs ?? []) {
       const name = String(song?.name ?? '').trim();
       const count = Math.floor(Number(song?.count)) || 0;
       if (!name || count <= 0) continue;
       counts.set(name, (counts.get(name) ?? 0) + count);
-      lastSeen.set(name, order);
+      if (date > (lastDate.get(name) ?? '')) lastDate.set(name, date);
     }
   }
+  const dateOf = (name) => lastDate.get(name) ?? '';
   return [...counts.keys()]
     .map((name) => ({ name, count: counts.get(name) }))
-    .sort((a, b) => (b.count - a.count) || (lastSeen.get(b.name) - lastSeen.get(a.name)));
+    .sort((a, b) => (b.count - a.count)
+      || (dateOf(b.name) < dateOf(a.name) ? -1 : dateOf(b.name) > dateOf(a.name) ? 1 : 0)
+      || (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
 }
 
 // 曲マスター（#149）：その曲の累計回数がこの回数に達したら「マスター」とみなす。
@@ -134,9 +137,9 @@ export function pastSongNames(sessions, limit = 8) {
     const date = String(session?.date ?? '');
     for (const song of session?.songs ?? []) {
       const name = String(song?.name ?? '').trim();
-      if (!name) continue;
       const count = Math.floor(Number(song?.count)) || 0;
-      counts.set(name, (counts.get(name) ?? 0) + Math.max(count, 1));
+      if (!name || count <= 0) continue;   // combineSongs / songTotals と数え方を揃える（#326）
+      counts.set(name, (counts.get(name) ?? 0) + count);
       if (date > (lastPlayed.get(name) ?? '')) lastPlayed.set(name, date);
     }
   }

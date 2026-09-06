@@ -240,7 +240,11 @@ export function checkBadges(state) {
 
   // equippedItems（装備中）は外すと減る可逆トグルなので使わない。inventory（所持）は
   // 購入を取り消す手段が無く単調増加＝一度取ったバッジが着せ替えで剥がれない（#309レビュー）。
-  const hasWearable = (state.inventory ?? []).some((id) => itemById(id)?.slot !== 'scene');
+  // 未知IDは無視する（`?.slot !== 'scene'` だと undefined で true になり無償付与・#326）。
+  const hasWearable = (state.inventory ?? []).some((id) => {
+    const it = itemById(id);
+    return it && it.slot !== 'scene';
+  });
   if (hasWearable) earned.add('first_outfit');
   if (affinityLevel(pet?.affinity ?? 0).isMax) earned.add('affinity_max');
 
