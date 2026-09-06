@@ -13,7 +13,7 @@ describe('classifyJs', () => {
   });
 
   it('import() の先にしか現れないモジュールは lazy', () => {
-    for (const rel of ['js/cloud.js', 'js/backup.js', 'js/dressup.js', 'js/cat-snapshot.js']) {
+    for (const rel of ['js/cloud.js', 'js/backup.js', 'js/dressup.js', 'js/cat-snapshot.js', 'js/history.js']) {
       expect(lazy).toContain(rel);
       expect(entry).not.toContain(rel);
     }

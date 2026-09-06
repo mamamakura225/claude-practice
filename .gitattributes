@@ -1,0 +1,9 @@
+# 作業ツリー・インデックスとも改行は LF に固定する。
+# core.autocrlf=true の Windows で作業ツリーが CRLF になると gzip が水増しされ、
+# perf-budget:check がローカルでだけ赤くなる（CI は LF なので緑）＝事前ゲートとして機能しない。
+* text=auto eol=lf
+
+*.webp binary
+*.mp4  binary
+*.png  binary
+*.mp3  binary

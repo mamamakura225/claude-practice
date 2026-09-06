@@ -11,15 +11,6 @@ import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSong
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import {
-  weeklyTotals,
-  weeklyChartModel,
-  weeklySummary,
-  formatDateJa,
-  monthGrid,
-  monthLabel,
-  shiftMonth,
-} from './history.js';
-import {
   SHOP_ITEMS,
   isOwned,
   isEquipped,
@@ -42,6 +33,11 @@ import { isOnboarded, setOnboarded, ONBOARD_STEPS, isLastStep, nextStepIndex } f
 // エラー監視・利用計測（任意・キー未設定なら no-op）。早期に起動する。
 initErrorMonitoring();
 initAnalytics();
+
+// 「きろく」ビュー専用モジュール（./history.js）。ホーム表示には不要なので初回ロードから外す
+// （#324・js-entry予算の残り確保）。「きろく」ビューへ入る／カレンダー操作／記録削除の入口でだけ待つ。
+let historyMod = null;
+const loadHistory = async () => (historyMod ??= await import('./history.js'));
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -281,7 +277,7 @@ function historyCardMarkup(session, index) {
     .join('');
   return `<div class="history-card">
     <div class="history-card__date">
-      <span class="history-card__day">${formatDateJa(session.date)}</span>
+      <span class="history-card__day">${historyMod.formatDateJa(session.date)}</span>
       <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
     </div>
     <ul class="history-songs">${songs}</ul>
@@ -330,8 +326,8 @@ function renderCalendar() {
   const grid = document.getElementById('calGrid');
   if (!grid) return;
   ensureCalMonth();
-  setText('calTitle', monthLabel(calYear, calMonth));
-  const weeks = monthGrid(calYear, calMonth, state.sessions, { today: todayStr(), goal: currentGoal() });
+  setText('calTitle', historyMod.monthLabel(calYear, calMonth));
+  const weeks = historyMod.monthGrid(calYear, calMonth, state.sessions, { today: todayStr(), goal: currentGoal() });
   grid.innerHTML = weeks.map((week) => week.map((cell) => {
     if (!cell) return '<span class="cal-cell cal-cell--pad" aria-hidden="true"></span>';
     const cls = `cal-cell${cell.isToday ? ' cal-cell--today' : ''}${cell.isFuture ? ' cal-cell--future' : ''}`;
@@ -340,9 +336,10 @@ function renderCalendar() {
   }).join('')).join('');
 }
 
-function moveCalendar(delta) {
+async function moveCalendar(delta) {
+  await loadHistory();
   ensureCalMonth();
-  const next = shiftMonth(calYear, calMonth, delta);
+  const next = historyMod.shiftMonth(calYear, calMonth, delta);
   calYear = next.year;
   calMonth = next.month;
   renderCalendar();
@@ -359,13 +356,14 @@ function renderSongCollection() {
 
 // 今週のふりかえりカード（#144）：今週の回数・きょく数・日数を集計して表示。
 function renderReviewCard() {
-  const sum = weeklySummary(state.sessions, todayStr());
+  const sum = historyMod.weeklySummary(state.sessions, todayStr());
   setText('reviewCount', sum.count);
   setText('reviewSongs', sum.songCount);
   setText('reviewDays', sum.dayCount);
 }
 
-export function renderHistory() {
+export async function renderHistory() {
+  await loadHistory();
   setText('historyStreakCurrent', state.streak.current);
   setText('historyStreakBest', state.streak.best);
 
@@ -376,7 +374,7 @@ export function renderHistory() {
 
   const chartEl = document.getElementById('weeklyChart');
   if (chartEl) {
-    chartEl.innerHTML = weeklyChartSvg(weeklyChartModel(weeklyTotals(state.sessions)));
+    chartEl.innerHTML = weeklyChartSvg(historyMod.weeklyChartModel(historyMod.weeklyTotals(state.sessions)));
   }
 
   const listEl = document.getElementById('historyList');
@@ -855,13 +853,15 @@ function startEditSession(index) {
 }
 
 // 履歴から削除：確認のうえ該当セッションを除き、全再計算して保存
-function deleteSession(index) {
+async function deleteSession(index) {
   const session = state.sessions[index];
   if (!session) return;
-  if (!window.confirm(`${formatDateJa(session.date)} の きろくを けしますか？`)) return;
-  const sessions = state.sessions.filter((_, i) => i !== index);
+  const date = session.date;   // await をまたぐ前に同一性へ解決（#314 と同じ理由・#324）
+  await loadHistory();
+  if (!window.confirm(`${historyMod.formatDateJa(date)} の きろくを けしますか？`)) return;
+  const sessions = state.sessions.filter((s) => s.date !== date);
   // 削除を墓標に残す（他端末の古いコピーから union マージで復活しない・#319）
-  const deletedDates = [...new Set([...(state.deletedDates ?? []), session.date])];
+  const deletedDates = [...new Set([...(state.deletedDates ?? []), date])];
   commitState(recomputeState({ ...state, sessions, deletedDates }, spentTotal(state)));
   renderHistory();
 }
