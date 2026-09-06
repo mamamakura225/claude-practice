@@ -20,8 +20,8 @@
 > 無料枠の数値は目安（各社規約で変動）。現状の利用規模ではいずれも無料の範囲。
 
 ### Firestore のデータ構造
-- dtask: collection `dtask` / doc `data`
-- piano-pet: collection `pianopet` / doc `data`（同一プロジェクトを共有）
+- dtask: collection `dtask` / doc `data`（固定）
+- piano-pet: collection `pianopet` / doc ID は**アカウント単位で可変**（既定 `data` / テスト用 `test` / がぞくコード移行後は `pp-<uuid>`・[account.js](../apps/piano-pet/js/account.js) `cloudDocIdFor`）。同一プロジェクトを dtask と共有。ルールは `pianopet/data` 固定ではなく `pianopet/{docId}` のワイルドカードが前提（理由は [data-model.md](../apps/piano-pet/docs/data-model.md) のマルチアカウント節を参照）
 - 認証なし。アクセス制御は Firestore セキュリティルールで実施。
 
 ---
