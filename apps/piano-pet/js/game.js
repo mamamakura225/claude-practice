@@ -189,7 +189,7 @@ export function checkBadges(state) {
   const uniqueDays = new Set(sessions.map((r) => r.date)).size;
   if (uniqueDays >= 2) earned.add('practice_again');
 
-  const totalCount = sessions.reduce((s, r) => s + r.totalCount, 0);
+  const totalCount = sessions.reduce((s, r) => s + (Number(r.totalCount) || 0), 0);
   if (totalCount >= 100) earned.add('challenge_100');
   if (totalCount >= 500) earned.add('challenge_500');
   if (totalCount >= 1000) earned.add('challenge_1000');

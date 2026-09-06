@@ -452,8 +452,8 @@ describe('crossedDailyGoal（#227）', () => {
 });
 
 describe('checkBadges（中〜長期バッジ・#298）', () => {
-  // checkBadges は date を「その日を表す一意キー」としてしか使わない（パースしない）
-  const day = (i) => `2026-01-${i}`;
+  // comeback（#309）の dayDiff は date をパースするので実在する日付を生成する
+  const day = (i) => new Date(Date.UTC(2026, 0, i)).toISOString().slice(0, 10);
   const stateOf = ({ sessions = [], current = 0, best = 0 } = {}) =>
     ({ badges: [], sessions, streak: { current, best } });
   const days = (n, totalCount = 1) =>

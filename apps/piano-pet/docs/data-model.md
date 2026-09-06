@@ -128,8 +128,13 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 |---|---|
 | `sessions` / `inventory` / `badges` / `pet.equippedItems` / `pet.placedItems` | 配列でなければ空配列へ |
 | `sessions` の各要素 | プレーンオブジェクトでない要素（`null`・文字列・数値）を除去 |
+| `sessions[].date`（#311） | `YYYY-MM-DD` 形式でなければ**要素ごと落とす**（落とした件数を `console.warn`）。復元不能な値を既定で埋めると連続日数・ヒートマップが嘘になるため |
+| `sessions[].totalCount`（#311） | `Number(v) \|\| 0` で数値へ矯正して残す（安全な既定値 0 がある） |
+| `sessions[].songs`（#311） | 配列でなければ空配列へ。各要素は `{ name: String, count: Number }` に矯正し、`name` が空（文字列 `'abc'` の展開 `['a','b','c']` を含む）の曲は除去 |
 | `pet` / `streak` / `settings` / `pet.itemLayout` | プレーンオブジェクトでなければ既定へ（配列も弾く） |
 | `saved` 自体 | プレーンオブジェクトでなければ `DEFAULTS` |
+
+> **設計判断（#311）**: session 要素は「落とす」と「矯正して残す」を値の性質で分ける。`date` は「いつの記録か」であり既定値で捏造できない（連続日数・ヒートマップが破綻する）ので形式不正なら要素ごと落とす。`totalCount` / `songs` は 0・空配列という安全な既定値があるので矯正して残す。多層防御として `game.js` の `checkBadges` 側でも `totalCount` を `Number()` ガードする（欠損セッション1件で `challenge_*` バッジが無言で永久に取れなくなるのを防ぐ）。
 
 > **設計判断（#272）**: state の入力元は localStorage だけでなく、**認証なしの Firestore doc（→ #258）と親が取り込むバックアップ JSON** も含まれる＝内容を信頼できない。`normalizeState` は全経路が通る唯一の関門で、型不正が通り抜けると [app.js](../js/app.js) のモジュールトップの `mergeSameDaySessions(state.sessions)` が throw し、**ES モジュール全体が実行されず画面が真っ白**になる。壊れた値は localStorage に残るためリロードでも復旧しない（実質ブリック）。配列であることの確認では足りず `sessions` は要素まで見る（`null` 要素が `s.date` 参照で落ちる）。
 >
