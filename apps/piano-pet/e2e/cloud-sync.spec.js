@@ -11,7 +11,11 @@ import { test, expect } from '@playwright/test';
 
 // 偽 cloud.js。クラウド doc は window.__cloudDoc に置き、push は同じ場所へ書き戻す。
 // subscribeCloud のコールバックは window.__onRemote に生やし、テストから realtime を撃てるようにする。
+// debounce キューは本物（cloud-queue.js は firebase 非依存）を使う＝#313 の thunk 化・
+// 保留中マージが実経路で通る。delay は 0 にして既存テストの即時性を保ちつつ、
+// window.__cloudDelay を入れた個別テストだけ本来の遅延で回す。
 const FAKE_CLOUD = `
+import { createCloudQueue } from './cloud-queue.js';
 export async function fetchCloud() {
   return window.__cloudDoc ?? null;
 }
@@ -20,8 +24,9 @@ export async function pushCloud(data) {
   window.__pushCount = (window.__pushCount ?? 0) + 1;
   window.__cloudDoc = JSON.parse(JSON.stringify(data));
 }
-export function pushCloudDebounced(data) { return pushCloud(data); }
-export function flushCloud() { return undefined; }
+const __queue = createCloudQueue(pushCloud, { defaultDelay: window.__cloudDelay ?? 0 });
+export const pushCloudDebounced = __queue.pushCloudDebounced;
+export const flushCloud = __queue.flushCloud;
 export async function pushCloudDoc(docId, data) { window.__pushedDoc = { docId, data }; return true; }
 export function subscribeCloud(onRemote) {
   window.__onRemote = onRemote;
@@ -30,16 +35,18 @@ export function subscribeCloud(onRemote) {
 `;
 
 // クラウド doc の初期値をページに仕込み、偽 cloud.js を配る。
-async function useFakeCloud(page, cloudDoc) {
+// delay を渡すと debounce キューの遅延をその値にする（既定 0＝既存テストは即時性を保つ）。
+async function useFakeCloud(page, cloudDoc, { delay = 0 } = {}) {
   await page.route('**/js/cloud.js', (route) => route.fulfill({
     status: 200,
     contentType: 'application/javascript; charset=utf-8',
     body: FAKE_CLOUD,
   }));
-  await page.addInitScript((doc) => {
+  await page.addInitScript(({ doc, d }) => {
     try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
     window.__cloudDoc = doc;
-  }, cloudDoc ?? null);
+    window.__cloudDelay = d;
+  }, { doc: cloudDoc ?? null, d: delay });
 }
 
 // localStorage に state を直接仕込む（起動前のローカルデータを作る）。
@@ -189,5 +196,38 @@ test.describe('クラウド同期の取り込み', () => {
     // 記録画面まで到達でき、操作を続けられる
     await page.click('#goRecordBtn');
     await expect(page.locator('#view-record')).toBeVisible();
+  });
+
+  test('debounce 保留中に入ったリモートの記録を、遅延 flush が巻き戻さない（#313）', async ({ page }) => {
+    await useFakeCloud(page, {
+      ...baseState(),
+      sessions: [{ date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }],
+    }, { delay: 1500 });
+    await seedLocal(page, baseState({
+      sessions: [{ date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }],
+    }));
+    await page.goto('/');
+    await waitForSync(page);
+
+    // 端末B：きろく一覧で はなまる をタップ → pushCloudDebounced（1.5秒保留）
+    await page.click('.nav-btn[data-nav="history"]');
+    await page.locator('#historyList .history-card .praise-stamp').first().click();
+
+    // 保留中に端末Aが 01-02 の記録をクラウドへ（realtime で取り込ませる）
+    await page.evaluate(() => window.__onRemote({
+      ...window.__cloudDoc,
+      sessions: [
+        { date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] },
+        { date: '2026-01-02', totalCount: 9, songs: [{ name: 'C', count: 9 }] },
+      ],
+    }));
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length))
+      .toBe(2);
+
+    // 1.5秒後の flush が送る内容に 01-02 が残る（呼び出し時点の古い state を焼き付けていない・#313）
+    await expect
+      .poll(() => page.evaluate(() => (window.__pushed?.sessions ?? []).map((s) => s.date)), { timeout: 5000 })
+      .toContain('2026-01-02');
   });
 });

@@ -84,7 +84,7 @@ function cleanItemLayout(pet) {
 export function commitState(newState) {
   state = { ...newState, pet: { ...newState.pet, itemLayout: cleanItemLayout(newState.pet) } };
   saveState(state);                 // ローカルキャッシュ（オフライン用）
-  if (cloud) cloud.pushCloudDebounced(cloudFields(state));  // クラウドへ反映（読み込み済みのときだけ）
+  if (cloud) cloud.pushCloudDebounced(() => cloudFields(state));  // クラウドへ反映（読み込み済みのときだけ）
   renderHome();
 }
 
@@ -869,7 +869,7 @@ function setSessionMark(kind, index, id) {
   const next = m.normalize(session[kind]) === id ? null : m.normalize(id);
   state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, [kind]: next } : s));
   saveState(state);
-  if (cloud) cloud.pushCloudDebounced(cloudFields(state));
+  if (cloud) cloud.pushCloudDebounced(() => cloudFields(state));
   renderHistory();
 }
 
@@ -1365,7 +1365,7 @@ function setDailyGoal(value) {
   if (goal === currentGoal() && state.pet.dailyGoal === goal) return;
   state.pet = { ...state.pet, dailyGoal: goal };
   saveState(state);
-  if (cloud) cloud.pushCloudDebounced(cloudFields(state));
+  if (cloud) cloud.pushCloudDebounced(() => cloudFields(state));
   const goalInput = document.getElementById('goalTargetInput');
   if (goalInput) goalInput.value = String(goal);   // クランプ結果を入力欄に反映
   renderHome();
@@ -1820,6 +1820,10 @@ function hasLocalData(s) {
 }
 
 let cloudSynced = false;
+// 初回の fetch → reconcile が完了したか（#313）。cloudSynced は import 成功で立つが、
+// その後の fetchCloud（最大5秒）を待つ間に 'online' が発火すると、マージ前のローカル state で
+// setDoc 全置換してしまう。この間の push は initialSyncDone で抑える。
+let initialSyncDone = false;
 async function initCloudSync() {
   if (cloudSynced) return;
   try {
@@ -1836,6 +1840,7 @@ async function initCloudSync() {
   } else if (hasLocalData(state)) {
     await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行
   }
+  initialSyncDone = true;
   cloudUnsub = cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映（ハンドルは復元時の解除用に保持）
 }
 
@@ -1874,8 +1879,10 @@ async function resyncFromCloud() {
 
 // オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。
 window.addEventListener('online', () => {
-  if (cloudSynced) cloud?.pushCloud(cloudFields(state));  // 復帰時に最新を一度送る
-  else initCloudSync();
+  if (!cloudSynced) { initCloudSync(); return; }
+  // 初回 reconcile 前は送らない（マージ前のローカル state で全置換すると他端末の記録を消す・#313）。
+  // 完了後は subscribe が最新を届けているので、復帰時に最新を一度送り直す。
+  if (initialSyncDone) cloud?.pushCloud(cloudFields(state));
 });
 
 // タブの表示状態に応じて省電力・取りこぼし防止を行う（#146）。

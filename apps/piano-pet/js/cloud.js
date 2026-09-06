@@ -8,6 +8,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/fireba
 import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 import { getActiveAccountId, cloudDocIdFor } from './account.js';
+import { createCloudQueue } from './cloud-queue.js';
 
 const fbApp = initializeApp(firebaseConfig);
 const db = getFirestore(fbApp);
@@ -42,31 +43,13 @@ export async function pushCloud(data) {
   }
 }
 
-// 連続する保存をまとめてから送る（遅延バッチコミット・#146）。
-// スタンプ連打や購入・えさやりの連続操作を 1 回の書き込みにまとめ、Firestore の
-// 書き込み回数（＝通信量・課金）を抑える。delay 中に届いた最新データだけを保持し、
-// タイマー満了か flushCloud() で送る。記録確定・タブ離脱時は flushCloud() で即送る。
-let saveTimer = null;
-let pendingData = null;
-export function pushCloudDebounced(data, delay = 2000) {
-  pendingData = data;
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(flushCloud, delay);
-}
-
-// 保留中の書き込みがあれば即座に送る（記録確定・タブ非アクティブ/離脱時に呼ぶ）。
-// 何も保留していなければ no-op。debounce 待ちのデータを取りこぼさないための確定経路。
-// オフライン中は pushCloud が握りつぶすため、pendingData を消さずに保持し、
-// 次の flush（次の記録確定・再オンライン後の debounce 満了）で送り直せるようにする（#288）。
-export function flushCloud() {
-  clearTimeout(saveTimer);
-  saveTimer = null;
-  if (pendingData == null) return undefined;
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return undefined;
-  const data = pendingData;
-  pendingData = null;
-  return pushCloud(data);
-}
+// 連続する保存をまとめてから送る（遅延バッチコミット・#146）。スタンプ連打や購入・えさやりの
+// 連続操作を 1 回の書き込みにまとめ、Firestore の書き込み回数（＝通信量・課金）を抑える。
+// キューの実体は firebase 非依存の cloud-queue.js（単体テスト可能）。呼び出し側は
+// pushCloudDebounced(() => cloudFields(state)) の形で thunk を渡す（#313）。
+const queue = createCloudQueue(pushCloud);
+export const pushCloudDebounced = queue.pushCloudDebounced;
+export const flushCloud = queue.flushCloud;
 
 // ===== 保存先の移行（#233 段階1：固定doc → がぞくコード） =====
 // 移行は「別の doc」への読み書きが要るが、DATA_DOC は import 時点の有効アカウントで固定なので
