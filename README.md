@@ -19,8 +19,10 @@
 claude-practice/
 ├── index.html            # ルートのランディング（アプリ一覧）
 ├── apps/
-│   ├── dtask/            # タスク管理アプリ + その tests/e2e/docs
-│   └── piano-pet/        # ピアノ練習アプリ + その docs
+│   ├── dtask/            # タスク管理アプリ（tests/・e2e/・docs/ 込み）
+│   └── piano-pet/        # ピアノ練習アプリ（tests/・e2e/・docs/ 込み）
+├── scripts/              # 共有: gen-sw / perf-budget / アセット列挙（piano-pet）と gen-firebase-config（両アプリ・CLAUDE.md が鉄則として参照）
+├── docs/                 # 共有: リポジトリ横断ドキュメント（external-services.md 等）
 ├── package.json          # 共有: npm スクリプト
 ├── vitest.config.js      # 共有: 単体テスト（apps/*/tests を対象）
 ├── playwright.config.js  # 共有: E2E（各アプリを別ポートで配信し project で振り分け）
@@ -31,7 +33,7 @@ claude-practice/
 ## 開発
 
 ### 必要環境
-- Node.js 18 以上 / npm
+- Node.js 20 以上 / npm（`vitest` の engines が `^20 || ^22 || >=24`。CI は 20（[.github/workflows/test.yml](./.github/workflows/test.yml):21 ほか各ジョブ）で固定）
 
 ### セットアップ
 ```bash

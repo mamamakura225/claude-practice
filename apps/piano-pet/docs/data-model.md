@@ -251,18 +251,19 @@ const MIGRATIONS = [
 
 認証なし・匿名同期のため、端末故障やブラウザデータ削除でデータが消えうる。親が state を JSON で手元に保存し、いつでも復元できる安全弁（純粋関数中心）。UI の配置と文言は [features.md](./features.md)。
 
-**ファイル形式**：state そのままではなく識別マーカー付きでラップする。ファイル名は `piano-pet-backup-YYYY-MM-DD.json`。`exportState(state)` が文字列化を担い、Blob 化とダウンロードは [app.js](../js/app.js) 側。
+**ファイル形式**：state そのままではなく識別マーカー付きでラップする。ファイル名は `piano-pet-backup-YYYY-MM-DD.json`。`exportState(state)` が文字列化を担い、Blob 化とダウンロードは [app.js](../js/app.js) 側。`cloudDocId`（がぞくコード・#233）を渡した場合は同梱され、別端末での復元時にそのまま同じクラウド保存先へつなげられる（未移行なら省略）。
 
 ```json
 {
   "app": "piano-pet",
   "schemaVersion": 2,
   "exportedAt": "2026-06-04T00:00:00.000Z",
+  "cloudDocId": "pp-xxxxxxxx", /* 任意。がぞくコード移行済みのときだけ入る */
   "state": { /* loadState() と同じ state オブジェクト（version 含む） */ }
 }
 ```
 
-**復元時の検証（`parseBackup(text)`）**：`{ok:true, state}` か `{ok:false, reason}` を返す。
+**復元時の検証（`parseBackup(text)`）**：`{ok:true, state, cloudDocId}` か `{ok:false, reason}` を返す（`cloudDocId` は妥当な形式のときだけ非 null）。
 
 | reason | 条件 |
 |---|---|
@@ -273,7 +274,7 @@ const MIGRATIONS = [
 
 検証を通った場合のみ `migrate()` → `normalizeState()` を適用して現行スキーマに整える。
 
-**復元フローとクラウド整合（重要）**：`importState` は明示的な上書き操作。realtime 購読中に取り込むと、push が反映される前に**古いスナップショットが `onSnapshot` で降ってきて取り込み結果を巻き戻す**競合が起きうる。これを断つため app.js は次の順で行う（topic_1780530736889 で合意）:
+**復元フローとクラウド整合（重要）**：`applyImportedState`（[app.js](../js/app.js)）は明示的な上書き操作。realtime 購読中に取り込むと、push が反映される前に**古いスナップショットが `onSnapshot` で降ってきて取り込み結果を巻き戻す**競合が起きうる。これを断つため app.js は次の順で行う（topic_1780530736889 で合意）:
 
 1. 復元直前の現行 localStorage を `piano-pet-backup-before-restore` へ自動退避（誤読込からの復旧用）。
 2. 保持しておいた cloud 購読解除ハンドル（`cloudUnsub`）を実行して **onSnapshot を一時解除**。
