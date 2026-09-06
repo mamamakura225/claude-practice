@@ -82,6 +82,24 @@ describe('dailyProgress', () => {
     expect(p.remaining).toBe(10);
     expect(p.achieved).toBe(false);
   });
+
+  // goal を変えたら achieved / remaining / ratio が追従する（#238 の配線・#322）
+  it('goal を渡すと achieved / remaining / ratio が追従する', () => {
+    const s = [{ date: '2026-05-22', totalCount: 5 }];
+    expect(dailyProgress(s, '2026-05-22', 5).achieved).toBe(true);
+    expect(dailyProgress(s, '2026-05-22', 5).remaining).toBe(0);
+    expect(dailyProgress(s, '2026-05-22', 5).ratio).toBe(1);   // Math.min(1, ...) の頭打ち
+    expect(dailyProgress(s, '2026-05-22', 20).achieved).toBe(false);
+    expect(dailyProgress(s, '2026-05-22', 20).remaining).toBe(15);
+    expect(dailyProgress(s, '2026-05-22', 20).goal).toBe(20);
+    expect(dailyProgress(s, '2026-05-22', 20).ratio).toBeCloseTo(0.25);
+  });
+
+  // clampDailyGoal を通る限りアプリ経路では goal<=0 にならないが、dailyProgress 自体は
+  // 防御的にゼロ除算を避けている。その分岐を直接検証する。
+  it('goal <= 0 のとき ratio は 0（ゼロ除算の分岐）', () => {
+    expect(dailyProgress([{ date: '2026-05-22', totalCount: 3 }], '2026-05-22', 0).ratio).toBe(0);
+  });
 });
 
 describe('calcRewards', () => {
@@ -518,6 +536,12 @@ describe('crossedDailyGoal（#227）', () => {
     const prev = [s(TODAY, 2)];
     const next = [s(TODAY, 2), s(past, 10)];
     expect(crossedDailyGoal(prev, next, TODAY, 10)).toBe(false);
+  });
+
+  // 同じ記録でも goal 次第で真偽が変わる（#238 の配線・#322）
+  it('目標5なら5回で立ち、目標20なら立たない', () => {
+    expect(crossedDailyGoal([s(TODAY, 4)], [s(TODAY, 5)], TODAY, 5)).toBe(true);
+    expect(crossedDailyGoal([s(TODAY, 4)], [s(TODAY, 5)], TODAY, 20)).toBe(false);
   });
 });
 
