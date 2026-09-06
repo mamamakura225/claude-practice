@@ -230,4 +230,74 @@ test.describe('クラウド同期の取り込み', () => {
       .poll(() => page.evaluate(() => (window.__pushed?.sessions ?? []).map((s) => s.date)), { timeout: 5000 })
       .toContain('2026-01-02');
   });
+
+  // #314: 記録編集の参照は配列 index でなく date（同一性）。編集フォームを開いたまま
+  // 同期で sessions が並び替わっても、別の日の記録を壊さない。
+  const editSeed = () => baseState({
+    sessions: [
+      { date: '2026-09-02', totalCount: 7, songs: [{ name: 'Z', count: 7 }] },
+      { date: '2026-09-03', totalCount: 5, songs: [{ name: 'Y', count: 5 }] },
+    ],
+  });
+
+  test('編集フォームを開いたまま sessions が並び替わっても、なおすが正しい記録に当たる（#314）', async ({ page }) => {
+    await useFakeCloud(page, { ...editSeed() });
+    await seedLocal(page, editSeed());
+    await page.goto('/');
+    await waitForSync(page);
+
+    await page.click('.nav-btn[data-nav="history"]');
+    await page.locator('#historyList .history-card').filter({ hasText: '9月2日' })
+      .locator('[data-action="edit-session"]').click();
+    await expect(page.locator('#recordDate')).toHaveValue('2026-09-02');
+
+    // 編集中に同期が入り sessions の並びが変わる（realtime は cloud の順をそのまま採る）
+    await page.evaluate(() => window.__onRemote({
+      ...window.__cloudDoc,
+      sessions: [
+        { date: '2026-08-20', totalCount: 3, songs: [{ name: 'X', count: 3 }] },
+        { date: '2026-09-03', totalCount: 5, songs: [{ name: 'Y', count: 5 }] },
+        { date: '2026-09-02', totalCount: 7, songs: [{ name: 'Z', count: 7 }] },
+      ],
+    }));
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(3);
+
+    await page.click('#stampCard');                       // 7 → 8 かい
+    await expect(page.locator('#recordTotal')).toHaveText('8');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-history')).toBeVisible();
+
+    const st = await readLocal(page);
+    const byDate = Object.fromEntries(st.sessions.map((s) => [s.date, s.totalCount]));
+    // 09-02 だけが 8 に。08-20 / 09-03 は無傷（旧実装は index 参照で 09-03 を壊し 09-02 を二重化）
+    expect(byDate).toEqual({ '2026-08-20': 3, '2026-09-03': 5, '2026-09-02': 8 });
+  });
+
+  test('編集中の記録がリモートで消えたら、別の記録を壊さず案内を出す（#314）', async ({ page }) => {
+    await useFakeCloud(page, { ...editSeed() });
+    await seedLocal(page, editSeed());
+    await page.goto('/');
+    await waitForSync(page);
+
+    await page.click('.nav-btn[data-nav="history"]');
+    await page.locator('#historyList .history-card').filter({ hasText: '9月2日' })
+      .locator('[data-action="edit-session"]').click();
+    await expect(page.locator('#recordDate')).toHaveValue('2026-09-02');
+
+    await page.evaluate(() => window.__onRemote({
+      ...window.__cloudDoc,
+      sessions: [{ date: '2026-09-03', totalCount: 5, songs: [{ name: 'Y', count: 5 }] }],
+    }));
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(1);
+
+    await page.click('#stampCard');
+    await page.click('#recordSubmitBtn');
+
+    await expect(page.locator('#recordError')).toBeVisible();
+    const st = await readLocal(page);
+    expect(st.sessions.map((s) => s.date)).toEqual(['2026-09-03']);
+    expect(st.sessions[0].totalCount).toBe(5);            // 残った記録は無傷
+  });
 });
