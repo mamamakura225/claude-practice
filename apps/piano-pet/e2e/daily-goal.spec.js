@@ -63,4 +63,53 @@ test.describe('目標回数の調整（#238）', () => {
     await page.click('#settingsMenu [data-action="close-settings"]');
     await expect(page.locator('#statGoalTarget')).toHaveText('20');
   });
+
+  // #322: goal 配線が単体・E2E とも既定値10でしか通っていなかった穴を埋める。
+  // 目標を5に下げてから5回だけ記録し、DOM（#statGoalMsg / goal-block--done）まで
+  // 一貫反映されることを検証する。
+  test('目標を5に下げると5回でたっせい表示になる（#322）', async ({ page }) => {
+    // きょうのおまけ（20%当選）と確率クリップ（最大70%）を外す。rng=1 は cat-video.js の
+    // Fisher-Yates で範囲外スワップを起こしバッグを壊すため使わない（既存 clip.spec.js に揃える）。
+    await page.addInitScript(() => { Math.random = () => 0.99; });
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    // 目標を5に変更
+    await passGate(page);
+    await page.fill('#goalTargetInput', '5');
+    await page.locator('#goalTargetInput').blur();
+    await page.click('#settingsMenu [data-action="close-settings"]');
+    await expect(page.locator('#statGoalTarget')).toHaveText('5');
+
+    // 記録前は未達
+    await expect(page.locator('#goalBlock')).not.toHaveClass(/goal-block--done/);
+
+    // 5回だけ記録（目標到達で必ずクリップが出る・#296。DOM反映は overlay の可視性に
+    // 依存しないので待たない）
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#view-record')).toBeVisible();
+    await page.fill('#newSongInput', 'きらきらぼし');
+    await page.click('#addSongBtn');
+    for (let i = 0; i < 5; i += 1) await page.click('#stampCard');
+    await expect(page.locator('#recordTotal')).toHaveText('5');
+    await page.click('#recordSubmitBtn');
+
+    await expect(page.locator('#view-home')).toBeVisible();
+    await expect(page.locator('#statGoalCount')).toHaveText('5');
+    await expect(page.locator('#statGoalTarget')).toHaveText('5');
+    await expect(page.locator('#statGoalMsg')).toHaveText('もくひょう たっせい！🎉');
+    await expect(page.locator('#goalBlock')).toHaveClass(/goal-block--done/);
+    await expect(page.locator('#statGoalbar')).toHaveAttribute('aria-valuenow', '5');
+    await expect(page.locator('#statGoalbar')).toHaveAttribute('aria-valuemax', '5');
+    await expect(page.locator('#statGoalFill')).toHaveAttribute('style', /width:\s*100%/);
+
+    // 目標到達で必ずクリップ（#296）が出ることは、crossedDailyGoal への goal 配線
+    // （app.js の submitRecord 側）もあわせて担保する。初記録の first_practice バッジは
+    // milestone 扱いだが、目標達成は milestone より優先されるので通常どおりクリップが出る。
+    await expect(page.locator('#catVideo')).toHaveClass(/cat-video--show/);
+
+    // 達成ボーナス（GOAL_BONUS_THRESHOLD=10・固定）は目標を下げても入らない：
+    // 5回=5コインのみ（+5ボーナスも+3おまけも無い）
+    await expect(page.locator('#statCoins')).toHaveText('5');
+  });
 });
