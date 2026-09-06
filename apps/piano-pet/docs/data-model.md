@@ -15,9 +15,10 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | `streak` | Streak | ✓ | 連続練習記録 |
 | `badges` | string[] | ✓ | 獲得バッジID |
 | `sessions` | Session[] | ✓ | 練習セッション履歴（XP/レベル等の計算元） |
+| `deletedDates` | `string[]` | ✓ | 削除した記録の日付（`YYYY-MM-DD`）の墓標（#319）。union マージで「消したはずの記録が他端末から復活する」のを防ぐ。同じ日に再記録すると外れる。剪定なし（1日1エントリ＝1年で約3.6 KiB） |
 | `settings` | Settings | − | 端末ローカル設定（音など）。クラウド非同期 |
 
-クラウド（Firestore `pianopet/<doc ID>`）に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions`）のみ。doc ID は [account.js](../js/account.js) `cloudDocIdFor`（[cloud.js](../js/cloud.js) が import 時に束縛）で導出する。`settings` と `version` は端末ローカルに留まる。
+クラウド（Firestore `pianopet/<doc ID>`）に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions, deletedDates`）のみ。doc ID は [account.js](../js/account.js) `cloudDocIdFor`（[cloud.js](../js/cloud.js) が import 時に束縛）で導出する。`settings` と `version` は端末ローカルに留まる。
 
 旧 `assignment`（しゅくだい・#143）は機能削除（#261）で同期対象から外した。既存データに残る値は `normalizeState` の未知キー引き継ぎで無害に残り、クラウド doc からは次回 push（setDoc 置換）で消える。旧 `Assignment` スキーマ・LWW マージ（`pickNewerAssignment`）・関連 UI はコードから撤去済み。
 
@@ -191,8 +192,8 @@ const MIGRATIONS = [
 | 経路 | 契機 | 規則 | 失われうるもの |
 |---|---|---|---|
 | 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別ローカル優先（union） | 同日衝突で回数の**少ない方**（keep-larger の既知トレードオフ） |
-| 復帰時 resync（#242） | `visibilitychange`→visible の `fetchCloud` | 同上（`reconcileInitialCloud`） | 同上。加えて union の副作用で**一方で外した装備・置物が復活**しうる |
-| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。自分の書き込みのエコーは差分比較でスキップ） | **まだ push していないローカルの変更**（`pushCloudDebounced` の待ち時間ぶん・既定2秒）。ただし保留データは thunk で持ち送信時点の state を読むため（#313）、待ち時間中に届いた**他端末の確定済み記録は次の flush で送り直され巻き戻らない** |
+| 復帰時 resync（#242） | `visibilitychange`→visible の `fetchCloud` | 同上（`reconcileInitialCloud`） | 同上。加えて union の副作用で**一方で外した装備・置物が復活**しうる（記録の削除は `deletedDates` 墓標で復活しない・#319） |
+| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。自分の書き込みのエコーは差分比較でスキップ。ただし `deletedDates` は union し墓標の日付の記録は取り込まない・#319） | **まだ push していないローカルの変更**（`pushCloudDebounced` の待ち時間ぶん・既定2秒）。ただし保留データは thunk で持ち送信時点の state を読むため（#313）、待ち時間中に届いた**他端末の確定済み記録は次の flush で送り直され巻き戻らない** |
 
 > **設計判断**: realtime を cloud-wins のままにしているのは、平常時に union を使うと「一方の端末で外した装備が相手のスナップショットのたびに復活し続ける」ことになり操作が確定しないため。取りこぼすのは debounce 待ちの数秒ぶんだけで、記録確定時は `flushCloud()` で即送るので**記録そのものは落ちない**。フィールド別のタイムスタンプ／世代管理で本質的に解くのは #258（認証＋ルール）と合わせて別途。
 >
@@ -204,7 +205,8 @@ const MIGRATIONS = [
 
 | フィールド | マージ規則 | 理由 |
 |---|---|---|
-| `sessions` | `mergeSessionsKeepLarger`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。**付与値 `bonusCoins`/`praise`/`tempo` は「どちらかに付いていれば残す」で救済**（#148 / #315。praise/tempo は非nullが勝ち・両側に別値なら先勝ち） | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側 |
+| `sessions` | `mergeSessionsKeepLarger(l, c, deletedDates)`: date をキーに 1 日 1 件へ解決。両側にあれば `totalCount` の**大きい方**を採用（**合算しない**）。並びは date 降順、同回数の tie はローカル優先。**付与値 `bonusCoins`/`praise`/`tempo` は「どちらかに付いていれば残す」で救済**（#148 / #315）。**`deletedDates` にある日付は両側に残っていても除外**（#319） | sessions は date 一意。合算すると部分同期後の共有ベースを二重計上し、コイン/XP が恒久的に水増しされる。record ID/vector clock が無い前提での安全側 |
+| `deletedDates` | 両側の **union**（#319） | 片方で消したものは消えたまま。同じ日に再記録すると `applySession`/`recomputeState` が墓標を外す |
 | `inventory` | 重複 ID を除いた **union** | 所有は単調増加 |
 | `pet.equippedItems` | union のうち、マージ後 `inventory` に含まれるものだけ | 未所持の装備を残さない |
 | `pet.placedItems` | 同上（#226） | 未所持の置物の配置を残さない |
@@ -221,6 +223,10 @@ const MIGRATIONS = [
 > - iOS PWA 等はサスペンド中 `onSnapshot` が届かない。**復帰直後の古い in-memory state のまま操作すると、その古い `pet` が `placedItems`/`itemLayout` ごとクラウドを上書きし、他端末で配置した置物が消える**
 > - 対策：`visibilitychange`→visible で `fetchCloud` →**非破壊 union マージ**（`reconcileInitialCloud`＝`mergeCloudInitial` 経路）。最新の配置を取り込んでから操作・push を受ける（差分なしなら getDoc 1回で no-op）
 > - union の副作用（一方で外した装備の復活）は初回同期と同じ既知トレードオフ。本筋の field 別タイムスタンプ/世代管理は #258 と合わせて別途
+
+> **設計判断（#319・削除の tombstone）**: `sessions` のマージは両側 date の union なので、端末Aで削除しても、削除を受けていない端末Bの古いコピーから復活してしまう（B起動→resync→union→B に残った記録が生き残る→push で両端末に復活）。削除した日付を `deletedDates`（state・`CLOUD_FIELDS`）に持ち、マージで除外する。記録ID / vector clock を入れる案は採らない——#142 の設計合意（record ID / vector clock が無い前提で安全側に倒す）を1機能のために覆すと merge 規則全体を書き直すことになる。**同日1件という既存の不変条件を主キーとして使う**のが最小。同じ日に再記録すれば `applySession`/`recomputeState` が墓標を外すので、通常運用で墓標が邪魔をすることはない。墓標は無限に増えるが 1日1エントリ＝1年で約 3.6 KiB なので剪定は不要（必要になったら「最古の記録より前の墓標を落とす」で足りる）。
+>
+> **`SCHEMA_VERSION` は上げない**: 既存 state に `deletedDates` が無いだけなら `normalizeState` の既定値 `[]` で足りる（構造変換不要）。フィールド追加は正規化のデフォルト補完で済むためバージョンを上げない（本節「マイグレーション戦略」の方針どおり）。
 
 ### 書き込みの遅延バッチコミット（`pushCloudDebounced` / `flushCloud`・#146）
 

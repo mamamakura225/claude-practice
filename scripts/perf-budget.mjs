@@ -48,11 +48,12 @@ const BUDGETS_KIB = {
   // 変化していない。ただし青天井にはしない。#313: debounce キューを firebase 非依存の
   // cloud-queue.js（テスト可能）へ切り出して +1.0 KiB（LF 実測 13.3→14.3）のため 15 へ。
   'js-lazy': 15,
-  // #311〜#314 の P1 修正群（壊れ state の入口ガード・属性注入の allowlist+escape・
-  // クラウド debounce の thunk 化・編集参照の同一性化）はデータ健全性のためのガードで、
-  // 圧縮で削ると可読性を損なう（CLAUDE.md ④）。LF 実測 93.55→94.1 のため 95 へ。
+  // #311〜#320 のデータ健全性修正群（壊れ state の入口ガード・属性注入の allowlist+escape・
+  // クラウド debounce の thunk 化・編集参照の同一性化・付与値のマージ救済・同日重複の
+  // 二重清算防止・削除の tombstone）はいずれも圧縮で削ると可読性を損なう（CLAUDE.md ④）。
+  // コメントは docs へ逃がしたうえで LF 実測 93.55→95.5 のため 96 へ。
   // 余裕の戻し方（.gitattributes で CRLF 偽陽性を消す等）は #324 で扱う。
-  total: 95,       // html + css + js-entry（＝起動をブロックするクリティカルパス）
+  total: 96,       // html + css + js-entry（＝起動をブロックするクリティカルパス）
 };
 
 const KIB = 1024;

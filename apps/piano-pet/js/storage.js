@@ -47,6 +47,8 @@ const DEFAULTS = {
   },
   badges: [],
   sessions: [],
+  // 削除した記録の日付（tombstone・#319。設計判断は docs/data-model.md）
+  deletedDates: [],
   settings: {
     soundOn: true,
   },
@@ -80,7 +82,7 @@ export function migrate(saved) {
 // 旧 'assignment'（しゅくだい・#143）は機能削除（#261）に伴い同期対象から外した。
 // 既存データに残る assignment フィールドは normalizeState の未知キー引き継ぎで無害に残り、
 // クラウド doc からは次回 push（setDoc 置換）で自然に消える。
-export const CLOUD_FIELDS = ['pet', 'inventory', 'streak', 'badges', 'sessions'];
+export const CLOUD_FIELDS = ['pet', 'inventory', 'streak', 'badges', 'sessions', 'deletedDates'];
 
 // 配列であるべきフィールドを配列に矯正する（#272）。壊れた値は既定（空配列）へ倒す。
 function asArray(value) {
@@ -144,6 +146,8 @@ export function normalizeState(saved) {
     // 要素の中身まで矯正する（#311）。怠ると recomputeState で coins/xp が NaN 化、
     // mergeSameDaySessions が `[...s.songs]` で throw してアプリが起動不能になる。
     sessions: normalizeSessions(s.sessions),
+    // 削除記録の墓標（#319）。日付形式のものだけ残す。
+    deletedDates: [...new Set(asArray(s.deletedDates).filter((v) => typeof v === 'string' && DATE_RE.test(v)))],
   };
 }
 
@@ -162,7 +166,12 @@ export function mergeCloud(local, cloud) {
   for (const k of CLOUD_FIELDS) {
     if (cloud && cloud[k] !== undefined) picked[k] = cloud[k];
   }
-  return normalizeState({ ...local, ...picked });
+  const merged = normalizeState({ ...local, ...picked });
+  // 墓標は union し、墓標のある日付の記録は取り込まない（#319）
+  const gone = new Set([...(local?.deletedDates ?? []), ...merged.deletedDates]);
+  merged.deletedDates = [...gone];
+  merged.sessions = merged.sessions.filter((s) => !gone.has(s.date));
+  return merged;
 }
 
 // sessions を date をキーに 1 日 1 件へ解決する（keep-larger）。
@@ -172,10 +181,11 @@ export function mergeCloud(local, cloud) {
 // 並びはアプリ慣習に合わせ date 降順（新しい順）。tie（同回数）はローカル優先。
 // 付与値（bonusCoins #148 / praise #145 / tempo #239）は衝突時も非nullを勝たせて救済する
 // （失うと復元不能。coinsEarned/xpEarned は再計算できるので不問・#315。設計判断は docs）。
-export function mergeSessionsKeepLarger(localSessions, cloudSessions) {
+export function mergeSessionsKeepLarger(localSessions, cloudSessions, deletedDates = []) {
+  const gone = new Set(deletedDates);   // 片方で削除した日付は復活させない（tombstone・#319）
   const byDate = new Map();
   const consider = (s) => {
-    if (!s || s.date == null) return;
+    if (!s || s.date == null || gone.has(s.date)) return;
     const prev = byDate.get(s.date);
     if (!prev) { byDate.set(s.date, { ...s }); return; }
     const chosen = (Number(s.totalCount) || 0) > (Number(prev.totalCount) || 0) ? s : prev;
@@ -212,10 +222,14 @@ export function mergeCloudInitial(local, cloud) {
   const placedItems = [...new Set([...(l.pet.placedItems ?? []), ...(c.pet.placedItems ?? [])])]
     .filter((id) => owned.has(id));
 
+  // 墓標は両側の union（片方で消したものは消えたまま・#319）。
+  const deletedDates = [...new Set([...(l.deletedDates ?? []), ...(c.deletedDates ?? [])])];
+
   return normalizeState({
     ...l,
     inventory,
-    sessions: mergeSessionsKeepLarger(l.sessions, c.sessions),
+    deletedDates,
+    sessions: mergeSessionsKeepLarger(l.sessions, c.sessions, deletedDates),
     pet: {
       ...l.pet,
       equippedItems,

@@ -181,6 +181,12 @@ describe('applySession', () => {
     });
   });
 
+  it('その日に再び記録すると墓標（deletedDates）が外れる（#319）', () => {
+    const start = baseState({ deletedDates: ['2026-05-22', '2026-05-20'] });
+    const { state } = applySession(start, { date: '2026-05-22', songs: [], totalCount: 3 });
+    expect(state.deletedDates).toEqual(['2026-05-20']);   // 記録した日だけ外れる
+  });
+
   it('XPがしきい値を超えるとレベルアップを報告する', () => {
     const start = baseState({ pet: { name: 'き', level: 1, xp: 18, coins: 0, equippedItems: [] } });
     const { state, rewards } = applySession(start, {
@@ -403,6 +409,13 @@ describe('recomputeState', () => {
     expect(after.pet.xp).toBe(5);
     expect(after.pet.coins).toBe(5);
     expect(after.streak.current).toBe(1);
+  });
+
+  it('記録が存在する日付は deletedDates から外れる（統合・再記録の後始末・#319）', () => {
+    const live = buildHistory(['2026-05-21', '2026-05-22'], [5, 5]);
+    // 5/21 は墓標にあるが記録も残っている＝矛盾状態。入口で解消する
+    const after = recomputeState({ ...live, deletedDates: ['2026-05-21', '2026-05-30'] }, 0);
+    expect(after.deletedDates).toEqual(['2026-05-30']);
   });
 
   it('購入に使ったコイン(spent)を差し引き、マイナスにはしない', () => {

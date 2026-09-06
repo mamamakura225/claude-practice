@@ -300,4 +300,48 @@ test.describe('クラウド同期の取り込み', () => {
     expect(st.sessions.map((s) => s.date)).toEqual(['2026-09-03']);
     expect(st.sessions[0].totalCount).toBe(5);            // 残った記録は無傷
   });
+
+  // #319: 端末Aで削除 → 端末Bの古いスナップショットが降ってきても記録は復活しない
+  test('削除した記録は、古い doc が realtime で降ってきても復活しない（tombstone）', async ({ page }) => {
+    await useFakeCloud(page, {
+      ...baseState(),
+      sessions: [
+        { date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] },
+        { date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] },
+      ],
+    });
+    await seedLocal(page, baseState({
+      sessions: [
+        { date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] },
+        { date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] },
+      ],
+    }));
+    await page.goto('/');
+    await waitForSync(page);
+
+    // 端末A：9/01 を削除
+    await page.click('.nav-btn[data-nav="history"]');
+    page.once('dialog', (d) => d.accept());
+    await page.locator('#historyList .history-card').filter({ hasText: '9月1日' })
+      .locator('[data-action="delete-session"]').click();
+    await expect
+      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(1);
+
+    // 端末B（サスペンド中で削除を受けていない）の古いスナップショットが降ってくる
+    await page.evaluate(() => window.__onRemote({
+      pet: JSON.parse(localStorage.getItem('piano-pet')).pet,
+      inventory: [], streak: { current: 0, best: 0, lastPracticeDate: null, freezes: 0 }, badges: [],
+      deletedDates: [],
+      sessions: [
+        { date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] },
+        { date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] },
+      ],
+    }));
+
+    // 少し待っても 9/01 は復活しない
+    await page.waitForTimeout(300);
+    const st = await readLocal(page);
+    expect(st.sessions.map((s) => s.date)).toEqual(['2026-09-02']);
+    expect(st.deletedDates).toContain('2026-09-01');
+  });
 });
