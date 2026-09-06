@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mergeSameDaySessions, recomputeState } from '../js/game.js';
+import { mergeSameDaySessions, recomputeState, checkBadges } from '../js/game.js';
 import { spentCoins } from '../js/shop.js';
 import {
   normalizeState,
@@ -69,7 +69,60 @@ describe('normalizeState の型矯正（#272）', () => {
 
   it('sessions の null / 非オブジェクト要素を落とす（配列であることだけでは足りない）', () => {
     const s = normalizeState({ sessions: [null, 'x', 5, { date: '2026-01-01', totalCount: 3 }] });
-    expect(s.sessions).toEqual([{ date: '2026-01-01', totalCount: 3 }]);
+    expect(s.sessions).toEqual([{ date: '2026-01-01', totalCount: 3, songs: [] }]);
+  });
+
+  // #311: 配列・オブジェクト判定だけでは足りず、要素の中身（date / totalCount / songs）まで矯正する。
+  // これらが通り抜けると起動経路（app.js モジュールトップの mergeSameDaySessions）や
+  // recomputeState が throw / NaN 化してコイン・XP が全損する。
+  describe('sessions 要素の中身の矯正（#311）', () => {
+    it('date が形式不正な要素は落とす（既定値で埋めると連続日数・ヒートマップが嘘になる）', () => {
+      const s = normalizeState({ sessions: [
+        { date: '2026-01-01', totalCount: 3 },
+        { date: 'not-a-date', totalCount: 9 },
+        { date: 20260102, totalCount: 4 },
+        { totalCount: 7 },
+      ] });
+      expect(s.sessions).toEqual([{ date: '2026-01-01', totalCount: 3, songs: [] }]);
+    });
+
+    it('date 不正な要素が2件以上あっても recomputeState が throw しない（旧: RangeError）', () => {
+      const broken = normalizeState({ sessions: [
+        { date: 'x', totalCount: 1 }, { date: 'y', totalCount: 2 },
+        { date: '2026-01-01', totalCount: 3 },
+      ] });
+      expect(() => recomputeState(broken, spentCoins(broken))).not.toThrow();
+    });
+
+    it('totalCount 欠損を 0 に矯正し、coins/xp が NaN 化しない（旧: NaN → 永続化で null）', () => {
+      const broken = normalizeState({ sessions: [{ date: '2026-01-01', songs: [{ name: 'A', count: 5 }] }] });
+      const live = recomputeState(broken, spentCoins(broken));
+      expect(Number.isNaN(live.pet.coins)).toBe(false);
+      expect(Number.isNaN(live.pet.xp)).toBe(false);
+    });
+
+    it('songs が非配列（数値・オブジェクト）でも空配列へ倒し、起動経路が throw しない（旧: TypeError）', () => {
+      const s = normalizeState({ sessions: [
+        { date: '2026-01-01', songs: 5 },
+        { date: '2026-01-02', songs: { a: 1 } },
+      ] });
+      expect(s.sessions.map((v) => v.songs)).toEqual([[], []]);
+      expect(() => mergeSameDaySessions(s.sessions)).not.toThrow();
+    });
+
+    it('songs が文字列でも [\'a\',\'b\',\'c\'] に化けず除去する', () => {
+      const s = normalizeState({ sessions: [{ date: '2026-01-01', songs: 'abc' }] });
+      expect(s.sessions[0].songs).toEqual([]);
+    });
+
+    it('challenge_100 は totalCount 欠損セッションが混ざっても加算が止まらない（game.js:192）', () => {
+      const state = normalizeState({ sessions: [
+        { date: '2026-01-01', totalCount: 60 },
+        { date: '2026-01-02' },
+        { date: '2026-01-03', totalCount: 60 },
+      ] });
+      expect(checkBadges(state)).toContain('challenge_100');
+    });
   });
 
   it('pet / streak / settings / itemLayout が非オブジェクトでも既定へ倒す', () => {
@@ -154,7 +207,7 @@ describe('cloudFields', () => {
 describe('mergeCloud', () => {
   it('クラウドのデータフィールドをローカルに重ねる', () => {
     const local = normalizeState({ pet: { coins: 5 } });
-    const merged = mergeCloud(local, { pet: { coins: 99, level: 3 }, sessions: [{ date: 'x' }] });
+    const merged = mergeCloud(local, { pet: { coins: 99, level: 3 }, sessions: [{ date: '2026-01-01' }] });
     expect(merged.pet.coins).toBe(99);
     expect(merged.pet.level).toBe(3);
     expect(merged.sessions).toHaveLength(1);
@@ -168,7 +221,7 @@ describe('mergeCloud', () => {
   });
 
   it('クラウドが空/欠損でもローカルを壊さない', () => {
-    const local = normalizeState({ pet: { coins: 42 }, sessions: [{ date: 'a' }] });
+    const local = normalizeState({ pet: { coins: 42 }, sessions: [{ date: '2026-01-01' }] });
     const merged = mergeCloud(local, null);
     expect(merged.pet.coins).toBe(42);
     expect(merged.sessions).toHaveLength(1);
@@ -224,7 +277,7 @@ describe('mergeSessionsKeepLarger', () => {
 
 describe('mergeCloudInitial', () => {
   it('cloud が無ければ正規化したローカルをそのまま返す', () => {
-    const local = normalizeState({ pet: { coins: 9 }, sessions: [{ date: 'a', totalCount: 1 }] });
+    const local = normalizeState({ pet: { coins: 9 }, sessions: [{ date: '2026-01-01', totalCount: 1 }] });
     const m = mergeCloudInitial(local, null);
     expect(m.pet.coins).toBe(9);
     expect(m.sessions).toHaveLength(1);

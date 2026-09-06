@@ -168,7 +168,10 @@ test.describe('クラウド同期の取り込み', () => {
     // 認証なし doc（#258 段階2 以前）に第三者が書ける前提での防御。
     await useFakeCloud(page, {
       pet: 'broken', inventory: 'ribbon', streak: [1, 2], badges: 42,
-      sessions: { a: 1 },
+      // #311: 空配列へ潰れる { a: 1 } では「要素の中身」の防御を検証できない。
+      // songs 非配列・date 不正の要素を混ぜて、起動経路（mergeSameDaySessions）が
+      // 白画面にならないことを確認する。
+      sessions: [{ date: '2026-01-01', songs: 5 }, { date: 'garbage', totalCount: 3 }],
     });
     await seedLocal(page, baseState({
       sessions: [{ date: '2026-01-01', totalCount: 3, songs: [{ name: 'A', count: 3 }] }],

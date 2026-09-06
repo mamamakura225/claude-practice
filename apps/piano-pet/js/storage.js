@@ -92,6 +92,30 @@ function asObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// 文字列 'abc' はスプレッドで ['a','b','c'] に化けるので name:'' として弾く。
+function normalizeSong(v) {
+  const o = asObject(v);
+  return { name: String(o.name ?? ''), count: Number(o.count) || 0 };
+}
+
+// sessions 要素の中身を矯正する（#311・設計判断は docs/data-model.md）。
+// date 不正は要素ごと落とし（既定で埋めると連続日数・ヒートマップが嘘になる）、
+// totalCount / songs は安全な既定値へ倒して残す。
+function normalizeSessions(value) {
+  const objs = asArray(value).filter((v) => v !== null && typeof v === 'object' && !Array.isArray(v));
+  const kept = objs.filter((v) => typeof v.date === 'string' && DATE_RE.test(v.date));
+  if (objs.length > kept.length && typeof console !== 'undefined') {
+    console.warn(`[piano-pet] normalizeState: 日付不正の記録を ${objs.length - kept.length} 件除外`);
+  }
+  return kept.map((v) => ({
+    ...v,
+    totalCount: Number(v.totalCount) || 0,
+    songs: asArray(v.songs).map(normalizeSong).filter((x) => x.name !== ''),
+  }));
+}
+
 // 保存値に DEFAULTS を補完してアプリが前提とする形に整える。
 // localStorage の読み込みとクラウドデータの取り込みの両方で使う。
 //
@@ -117,9 +141,9 @@ export function normalizeState(saved) {
     settings: { ...DEFAULTS.settings, ...asObject(s.settings) },
     inventory: asArray(s.inventory),
     badges: asArray(s.badges),
-    // 要素も落とす：null/非オブジェクトが混ざると recomputeState / mergeSameDaySessions が
-    // `s.date` 参照で throw する（配列であることだけでは足りない）。
-    sessions: asArray(s.sessions).filter((v) => v !== null && typeof v === 'object' && !Array.isArray(v)),
+    // 要素の中身まで矯正する（#311）。怠ると recomputeState で coins/xp が NaN 化、
+    // mergeSameDaySessions が `[...s.songs]` で throw してアプリが起動不能になる。
+    sessions: normalizeSessions(s.sessions),
   };
 }
 
