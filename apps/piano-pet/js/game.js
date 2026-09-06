@@ -282,6 +282,8 @@ export function applySession(state, { date, songs, totalCount }, bonusCoins = 0)
     pet: newPet,
     streak: newStreak,
     sessions: [record, ...state.sessions],
+    // その日に再び記録したら墓標を外す（#319）
+    deletedDates: (state.deletedDates ?? []).filter((d) => d !== date),
   };
 
   return {
@@ -342,6 +344,8 @@ export function recomputeState(state, spent = 0) {
     },
     streak,
     sessions: recomputed,
+    // 記録が存在する日付は墓標から外す（削除後に再記録した／統合された・#319）
+    deletedDates: (state.deletedDates ?? []).filter((d) => !recomputed.some((s) => s.date === d)),
     badges: [], // バッジは sessions から取り直す（資格を失えば剥がれる）
   };
   return { ...partial, badges: checkBadges(partial) };

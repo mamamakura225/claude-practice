@@ -46,6 +46,18 @@ describe('normalizeState', () => {
     const s = normalizeState({ pet: { itemLayout: { crown: { x_pct: 50, y_pct: 20 } } } });
     expect(s.pet.itemLayout).toEqual({ crown: { x_pct: 50, y_pct: 20 } });
   });
+
+  it('deletedDates は日付形式のものだけ・重複を除いて残す（#319）', () => {
+    expect(normalizeState().deletedDates).toEqual([]);
+    const s = normalizeState({ deletedDates: ['2026-01-01', '2026-01-01', 'x', 42, '2026/01/02'] });
+    expect(s.deletedDates).toEqual(['2026-01-01']);   // 形式（YYYY-MM-DD）のみ検査＝sessions と同じ規則
+    expect(normalizeState({ deletedDates: 'wiped' }).deletedDates).toEqual([]);
+  });
+
+  it('deletedDates が CLOUD_FIELDS に入っている（#319）', () => {
+    expect(CLOUD_FIELDS).toContain('deletedDates');
+    expect(Object.keys(cloudFields(normalizeState()))).toContain('deletedDates');
+  });
 });
 
 // クラウド doc（認証なし・#258）や取り込んだバックアップ JSON は信頼できない入力であり、
@@ -289,6 +301,14 @@ describe('mergeSessionsKeepLarger', () => {
     expect(mergeSessionsKeepLarger(null, null)).toEqual([]);
     expect(mergeSessionsKeepLarger([{ totalCount: 1 }], null)).toEqual([]); // date 無しは捨てる
   });
+
+  // #319: 片方で削除した日付は、もう片方に残っていても復活させない
+  it('deletedDates にある日付は両側に残っていても除外する（tombstone）', () => {
+    const local = [{ date: '2026-01-02', totalCount: 5 }];
+    const cloud = [{ date: '2026-01-01', totalCount: 3 }, { date: '2026-01-02', totalCount: 9 }];
+    const m = mergeSessionsKeepLarger(local, cloud, ['2026-01-01']);
+    expect(m.map((s) => s.date)).toEqual(['2026-01-02']);   // 01-01 は復活しない
+  });
 });
 
 describe('mergeCloudInitial', () => {
@@ -334,6 +354,21 @@ describe('mergeCloudInitial', () => {
     const m = mergeCloudInitial(local, cloud);
     expect(m.pet.affinity).toBe(8);
     expect(m.pet.foodSpent).toBe(55);
+  });
+
+  // #319: 端末Aで削除 → 端末B（古いコピー）を開いても復活しない
+  it('deletedDates は両側 union、その日付の記録は復活しない（resync 経由）', () => {
+    const local = normalizeState({
+      deletedDates: ['2026-01-01'],
+      sessions: [{ date: '2026-01-02', totalCount: 5 }],
+    });
+    const cloud = {
+      deletedDates: [],
+      sessions: [{ date: '2026-01-01', totalCount: 3 }, { date: '2026-01-02', totalCount: 5 }],
+    };
+    const m = mergeCloudInitial(local, cloud);
+    expect(m.deletedDates).toEqual(['2026-01-01']);
+    expect(m.sessions.map((s) => s.date)).toEqual(['2026-01-02']);   // 01-01 は消えたまま
   });
 
   it('itemLayout は union（cloud を土台にローカル上書き）で他端末の配置座標を消さない（#242）', () => {

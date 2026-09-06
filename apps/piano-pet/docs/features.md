@@ -180,7 +180,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 **編集・削除**
 
 - 「なおす」：record 画面に切り替え、スタンプカードへ内容を復元して編集モード（`songsToStamps`）
-- 「けす」：確認ダイアログのうえ削除
+- 「けす」：確認ダイアログのうえ削除。削除した日付は `deletedDates`（tombstone・#319）に残り、他端末の古いコピーから同期で復活しない。同じ日に再記録すれば墓標は外れる
 - どちらも **sessions を唯一の正として XP・レベル・コイン・ストリーク・バッジをゼロから全再計算**（`recomputeState`）。報酬演出は出さない
 
 > **設計判断（#314）**: 編集対象は配列 index ではなく **date（同一性）で解決する**（`editingDate`）。記録は「同日1件」が不変条件なので date が主キーになる。index で持つと、フォームを開いたまま画面を離れて戻る間に同期（`mergeCloudInitial` は date 降順ソート／realtime は cloud の順／過去日は先頭 prepend）で `state.sessions` の並びが変わり、**別の日の記録を上書きして消す**。`applyRemoteState` 側で index を補正する案を採らないのは、並び替え経路が3つあり増えるたびに補正を足し忘れるため。編集開始時の date（`editingDate`）と入力欄の date（変更後）は別物として扱う。編集対象がリモートで消えていたら（`findIndex < 0`）別の記録を壊さず `#recordError` に案内を出す。

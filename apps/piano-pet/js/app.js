@@ -860,7 +860,9 @@ function deleteSession(index) {
   if (!session) return;
   if (!window.confirm(`${formatDateJa(session.date)} の きろくを けしますか？`)) return;
   const sessions = state.sessions.filter((_, i) => i !== index);
-  commitState(recomputeState({ ...state, sessions }, spentTotal(state)));
+  // 削除を墓標に残す（他端末の古いコピーから union マージで復活しない・#319）
+  const deletedDates = [...new Set([...(state.deletedDates ?? []), session.date])];
+  commitState(recomputeState({ ...state, sessions, deletedDates }, spentTotal(state)));
   renderHistory();
 }
 
