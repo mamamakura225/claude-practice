@@ -1536,6 +1536,11 @@ body {
   transition: opacity 0.25s ease;
 }
 
+/* 上の display:flex が UA既定の [hidden]{display:none} を上書きしてしまうため明示（理由・実測は features.md「ポップアップ演出」参照）。 */
+.coin-popup[hidden] {
+  display: none;
+}
+
 .coin-popup--show {
   opacity: 1;
 }
