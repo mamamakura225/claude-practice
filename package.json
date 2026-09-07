@@ -11,7 +11,7 @@
     "perf-budget:check": "node scripts/perf-budget.mjs --check"
   },
   "devDependencies": {
-    "@playwright/test": "^1.61.1",
+    "@playwright/test": "^1.62.1",
     "http-server": "^14.1.1",
     "vitest": "^4.1.9"
   }
