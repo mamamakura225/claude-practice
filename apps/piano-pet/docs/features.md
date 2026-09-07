@@ -566,7 +566,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 > **設計判断（#323）**
 > - `showPopup` 冒頭の前サイクル解除（`clearTimeout`/`removeEventListener`）を削ると4本目が落ちる、`nextDelay += 2200` の直列化を外す・`rewards.frozeDays > 0` の分岐を消す・`showBadgePopup` の `showNext` チェーンを1件目で切ると1本目が落ちることを実測済み
-> - `.coin-popup { display: flex; ... }`（[css/style.css](../css/style.css)）に `[hidden]` のCSSガードが無く、author の `display:flex` が UA 既定の `[hidden]{display:none}` を上書きするため、`hidden` 属性を立てても要素は `position:fixed; inset:0` のまま画面全体に残る（`opacity:0`・`pointer-events:none` で見た目には影響しないため気づかれていなかった）。このため Playwright の `toBeVisible`/`toBeHidden` は常に「visible」と判定してしまい使えず、`.coin-popup--show` クラスの有無で判定する（`#coinPopupLevelUp` は素の `<span hidden>` でこの問題を継承しないため `toBeVisible` のまま使える）。CSS側の是正は別issue
+> - `.coin-popup` の `[hidden]` CSSガード欠落は是正済み（詳細・実測は下記「ポップアップ演出」節の設計判断を参照）。是正後は `e2e/reward-popup.spec.js` のクラスベース回避策を素直な `toBeVisible`/`toBeHidden` に戻した。ただし `shop.spec.js` の #261 退行ガードは、フェードアウト開始直後の約250msの窓を正確に捉える精度がPlaywright側のポーリングでは不十分なため、ページ内 `MutationObserver` 計測のままにしている（Playwright非依存の理由がCSS修正とは別にあるため）
 > - #261の退行ガードは、1回目の表示直後に2回目を連打しても再現しない（1回目の `transitionend` リスナーがまだ付いていないため）。再現には1回目の `duration` 経過でフェードアウトが始まった直後（旧リスナーが付いた窓・実測で約250ms）に2回目を重ねる必要がある。固定 `waitForTimeout` で窓を狙うとCI側の遅延で静かに空振りする（実測）ため、ページ内の `MutationObserver` で「class から `--show` が外れた瞬間」を直接観測して2回目を撃つ
 > - `Math.random = () => 1` は `Math.random()` の実際の値域 `[0,1)` の外にあり、`cat-video.js` の Fisher-Yates シャッフルが範囲外スワップでバッグを壊す（未定義の穴が入る）。テストのモックは `0.999` のように値域内に収める
 
@@ -579,7 +579,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 **まだ埋まっていない空白**
 
 - **オフライン / SW の実行検証**：ほとんどの project は `serviceWorkers: 'block'`（キャッシュ干渉を避けるため）なので install / activate / fetch が走らない。担保は `gen-sw:check`（列挙の一致）と、`sw-clip-cache.spec.js`（`test.use({ serviceWorkers: 'allow' })`）の限定的な fetch 経路検証（クリップの cache-first #303／失敗レスポンスを焼かない #317）のみ。install/activate や全面的なオフライン起動は未検証（#289）
-- **`prefers-reduced-motion`**：CSS のみの実装で E2E 検証なし
+- **`prefers-reduced-motion`**：報酬ポップアップの確定経路（`showPopup` の保険タイマー）は `e2e/reward-popup.spec.js` の `@ prefers-reduced-motion` で検証済み。猫の呼吸/ジャンプ/ハート等（[cat.css](../css/cat.css)）・スタンプの登場・各種バーの伸びの停止はCSSのみでE2E検証なし
 
 ## アセット総量とパフォーマンス予算（#147 / #275）
 
@@ -630,7 +630,7 @@ JS は **起動をブロックするぶん（`js-entry`）** と **遅延読込�
 
 ## アクセシビリティ・表示テーマ（#151）
 
-- **prefers-reduced-motion**：OSの「視差効果を減らす」設定時、猫の呼吸/ジャンプ/ハート等（[cat.css](../css/cat.css)）に加え、スタンプの登場・オンボーディングのポップ・各種バーの伸び（[style.css](../css/style.css)）も停止。ご褒美フィードバックは静止表示で残す。CSSのみで完結
+- **prefers-reduced-motion**：OSの「視差効果を減らす」設定時、猫の呼吸/ジャンプ/ハート等（[cat.css](../css/cat.css)）に加え、スタンプの登場・オンボーディングのポップ・各種バーの伸び（[style.css](../css/style.css)）も停止。ご褒美フィードバックは静止表示で残るが、確定（`hidden`化）はCSSのtransitionendに頼らず`showPopup`の保険タイマー（下記「ポップアップ演出」節）で担保する
 - **ダークモード**：構造色を `:root` のセマンティック変数（`--surface`/`--surface-soft`/`--surface-mute`/`--pink-soft`/`--cream`/`--ink`/`--shadow`/`--text-muted`）に集約し、ダーク時はこの変数群だけを上書き。ピンク/ゴールド等のアクセント色は両モード共通
   - **切替**：親ゲート内の「がめんの あかるさ」で じどう / あかるい / よる。`じどう` は `@media (prefers-color-scheme: dark)` でOS追従（`data-theme` なし）、他は `data-theme="light"/"dark"` で固定
   - **保存**：端末ごとの好みなので同期せず `localStorage['pp-theme']`（`settings.soundOn` と同じ方針）
@@ -663,3 +663,9 @@ JS は **起動をブロックするぶん（`js-entry`）** と **遅延読込�
 獲得コイン / えさやり（もぐもぐ）/ きょうのおまけ / お休み券キープ / バッジ獲得。記録後はコイン → おまけ → お休み券 → 新規バッジの順で表示する。購入直後（300ms後）・えさやり直後（1800ms後）・はなまる／テンポのスタンプ直後（300ms後）にもその場でバッジが成立しうるため、成立時は同様に `showBadgePopup` を出す（`checkBadges` の即時再判定・#309/#320。詳細はバッジ節）。
 
 > **設計判断（#261）**: 表示ロジックは共通ヘルパー `showPopup(popup, duration, onHidden)` に一本化。`transitionend` の once リスナーを素朴に張る旧実装は、連続表示（えさやり連打等）で前回のリスナーが残り、新しいポップアップを表示アニメの transitionend で途中非表示にする競合があった。要素ごとにタイマー・リスナーを張り替えて解消（バッジの連続表示は `onHidden` チェーン）。
+
+> **設計判断（`[hidden]` のCSSガードと reduced-motion 保険タイマー）**: `.coin-popup`（[css/style.css](../css/style.css)）は `position:fixed; inset:0; display:flex` を持ち、`hidden` 属性が立っても `[hidden]{display:none}` という UA 既定のスタイルを author の `display:flex` が上書きしてしまい、実際には画面全体を覆う要素が残り続けていた（`opacity:0`・`pointer-events:none` で見た目・操作には影響しないため長く気づかれなかった）。実害はアクセシビリティ側にあった：5要素（`#coinPopup`/`#feedPopup`/`#bonusPopup`/`#freezePopup`/`#badgePopup`）とも `role="status" aria-live="polite"` を持つため、`hidden` が効かないと常時アクセシブルツリーに露出し続けていた（`getByRole('status')` で実測：是正前は起動直後から idle 時も含め常時5件ヒット→是正後は表示中の1件のみで、非表示時は0件）。`.coin-popup[hidden] { display: none; }` を追加して解消（属性セレクタぶん `.coin-popup` より詳細度が高く確実に上書きできる）。副産物として Playwright の `toBeVisible`/`toBeHidden` も正しく機能するようになった。
+>
+> **未検証の懸念（実際のスクリーンリーダー読み上げ）**: 各 `show*Popup`（例 `showCoinPopup`）はテキスト設定→`showPopup`（`hidden=false`）の順で呼ぶ。是正前は要素が常にツリーに存在したため「ツリー内でのテキスト変更」として live region の更新が読み上げられ得たが、是正後は「`display:none`（ツリー外）でテキストを書き換えてから出現させる」順になり、ARIA の live region 通知の仕組み上、実際にスクリーンリーダーへ読み上げられるかは未検証（`getByRole('status')` の実測はツリーへの**露出**を見ているだけで、読み上げの有無は別問題）。実機のスクリーンリーダーで確認するか、テキスト設定を `hidden=false` の**後**に動かす形へ改めるかは別issueで扱う。
+>
+> 是正の過程で第2の欠陥が見つかった：`showPopup`（[app.js](../js/app.js)）は `hidden=true` の確定を `transitionend` だけに頼っていたため、`prefers-reduced-motion: reduce`（`transition: none`）環境ではオパシティ遷移自体が起きず `transitionend` が永久に来ず、`hidden` が立たないまま（＝上記のアクセシブルツリー露出が reduced-motion 環境では再発する）＋ `showBadgePopup` の `showNext` チェーンが1件目で止まって2件目のバッジが表示されなくなっていた（実測：`page.emulateMedia({ reducedMotion: 'reduce' })` で再現。`test.use({ reducedMotion })` はこのPlaywright/ブラウザ組み合わせでは実際の `matchMedia` に反映されず検証に使えない）。`duration` 経過後に `transitionend` と `setTimeout(finish, 300)` のどちらか早い方で確定させる保険タイマーを追加して解消した。

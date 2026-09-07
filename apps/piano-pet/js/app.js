@@ -936,21 +936,34 @@ function showPopup(popup, duration, onHidden) {
   const prev = popupCycles.get(popup);
   if (prev) {
     clearTimeout(prev.timer);
+    clearTimeout(prev.fadeTimer);
     popup.removeEventListener('transitionend', prev.onEnd);
   }
   popup.hidden = false;
   void popup.getBoundingClientRect();   // リフローを挟んでアニメーションを確実に再生
   popup.classList.add('coin-popup--show');
-  const onEnd = () => {
-    popup.removeEventListener('transitionend', onEnd);
+  const cycle = {};
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    popup.removeEventListener('transitionend', cycle.onEnd);
+    clearTimeout(cycle.fadeTimer);
     popup.hidden = true;
     onHidden?.();
   };
-  const timer = setTimeout(() => {
+  cycle.onEnd = finish;
+  cycle.timer = setTimeout(() => {
     popup.classList.remove('coin-popup--show');
-    popup.addEventListener('transitionend', onEnd);
+    popup.addEventListener('transitionend', cycle.onEnd);
+    // prefers-reduced-motion（transition:none）だと opacity 遷移自体が起きず transitionend が
+    // 永久に来ない。CSSの遷移時間（0.25s）に余裕を持たせた保険タイマーで確定させる
+    // （放置すると showNext のバッジ連鎖が1件目で止まり、hidden も立たず role="status" の
+    // 全画面オーバーレイがアクセシブルツリーに残り続ける）。400ms は cat-video.js の
+    // 同種の保険タイマー（transition が効かない環境向け）と揃えた値。
+    cycle.fadeTimer = setTimeout(finish, 400);
   }, duration);
-  popupCycles.set(popup, { timer, onEnd });
+  popupCycles.set(popup, cycle);
 }
 
 function showCoinPopup({ coins, leveled, newLevel }) {

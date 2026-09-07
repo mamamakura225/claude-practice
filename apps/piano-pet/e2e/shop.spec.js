@@ -138,9 +138,10 @@ test.describe('ショップ', () => {
   // 静かに緑化する（実測：wait=2010msで3回中1回だけ検出、2060ms以降は壊れていても常に緑）。
   // ページ内で「class から --show が外れた瞬間」を直接観測して2回目を撃つことで、
   // ハーネス側の遅延に依存しない待ち合わせにする。
-  // #feedPopup は `.coin-popup{display:flex}` に [hidden] のCSSガードが無く見た目では
-  // 判別できないため（別issue task_0e74a032）、JS側の `hidden` プロパティが変わるまでの
-  // 経過時間をページ内で直接測る。
+  // 経過時間はJS側の `hidden` プロパティが変わるまでをページ内で直接測る（Playwright側の
+  // ポーリングだとラウンドトリップ遅延が窓を狙う精度を崩すため。`.coin-popup[hidden]`の
+  // CSSガードは是正済みで toBeVisible/toBeHidden 自体は使えるが、この窓（実測約250ms）を
+  // 正確に捉える精度には不十分）。
   test('えさやり連打の2回目も最後まで表示される（#261の退行ガード）', async ({ page }) => {
     await page.goto('/#/shop');
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
