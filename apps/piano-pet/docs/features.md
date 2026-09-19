@@ -464,6 +464,8 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 >
 > **`first_outfit` は `pet.equippedItems`（装備中）でなく `inventory`（所持）で判定する**（レビューで発覚・修正）。`equippedItems` は着せ替えで自由に外せる可逆トグルなので、いったん取得したバッジが「服を脱がせた」だけで剥がれてしまい、他23種（着せ替えのような可逆トグルでは覆らない——記録の編集・削除では剥がれうる。上記「資格を失えば剥がれる」のとおり）と性質が異なってしまう。`inventory` は購入を取り消す手段が無く単調増加なので、これを使う（`slot:'scene'` の置物は除外し衣装だけを見る）。desc も「きせた」→「かった」に変更し、条件と文言を一致させた。
 >
+> **`affinity_max` 獲得時は `playCelebrate`（大ジャンプ＋ハート＋きらきら）も出す**（娘のなかよしMAX到達を受けての追加要望）。えさやりのバッジ判定はバッジポップアップのみで、練習記録側の「節目は特別演出」（`celebrateRecord`）と揃っていなかったため、えさやりハンドラでも `gainedBadges` に `affinity_max` が含まれる瞬間だけ `playCelebrate` を呼ぶ（[app.js](../js/app.js) の `feedList` クリックハンドラ）。えさやりポップアップ（1800ms）と同時に再生し、バッジポップアップの表示（1800ms後）と被らない。
+
 > **`first_outfit`／`affinity_max`／`praise_all3`／`tempo_all3` は成立操作の直後にその場で再判定する**：`sessions` の回数・日付由来のバッジは `applySession`/`recomputeState`（＝次の記録）でしか判定されないが、これらは `pet`/`inventory` またはスタンプのタップ（`setSessionMark`）で条件が決まるため、購入・えさやり・スタンプの各ハンドラ（[app.js](../js/app.js)）でも `checkBadges` を呼び直す（#309 / #320）。呼ばないと「条件はとっくに満たしているのに次の練習記録までバッジ画面が🔒のまま」になり、しかもその記録が `badgeCount>0` 扱いで動画クリップ抽選から外れてしまう（上記「記録の動画クリップ演出（#227）」参照）。**スタンプを外す操作では剥がれない**：`checkBadges` は `state.badges` を Set の初期値として引き継ぐため追加のみ。剥がすには `recomputeState` 経由が要る（編集・削除と同じ）が、5歳児向けの家庭内ツールで「スタンプを1つ外したら褒めバッジ剥奪」は過剰なので既存挙動どおりとする。
 
 ## 育成・報酬ロジック（[game.js](../js/game.js)）
