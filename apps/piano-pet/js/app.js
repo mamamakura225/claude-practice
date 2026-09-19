@@ -1239,6 +1239,10 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
   renderShop();                      // ショップのコイン・なかよし・ボタン更新
   playSound('record', state);        // もぐもぐ（やわらかいチャイム）
   showFeedPopup(foodById(id));
+  // なかよしMAX到達は他の節目（レベルアップ等）と同じ特別演出で祝う（#309後追い）
+  if (gainedBadges.some((b) => b.id === 'affinity_max')) {
+    playCelebrate(document.querySelector('#catStage .cat'));
+  }
   if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 1800);
 });
 
