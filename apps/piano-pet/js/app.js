@@ -6,7 +6,7 @@ import {
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, playFeed, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
@@ -488,6 +488,18 @@ export function renderBadges() {
 const views = Array.from(document.querySelectorAll('.view'));
 const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
 
+// 給餌時は #catStage が hidden で演出が走らないため、home へ遷移した瞬間まで1件だけ持ち越す（#347・features.md）。
+let pendingFeedFx = null;   // null | 'celebrate' | { food }
+
+function flushPendingFeedFx() {
+  if (!pendingFeedFx) return;
+  const fx = pendingFeedFx;
+  pendingFeedFx = null;
+  const catEl = document.querySelector('#catStage .cat');
+  if (fx === 'celebrate') playCelebrate(catEl);
+  else playFeed(catEl, fx.food);
+}
+
 function render(view) {
   for (const el of views) {
     el.hidden = el.dataset.view !== view;
@@ -506,6 +518,7 @@ function render(view) {
   if (view === 'history') renderHistory();
   if (view === 'shop') renderShop();
   if (view === 'badges') renderBadges();
+  if (view === 'home') flushPendingFeedFx();
   window.scrollTo(0, 0);
 }
 
@@ -1239,10 +1252,10 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
   renderShop();                      // ショップのコイン・なかよし・ボタン更新
   playSound('record', state);        // もぐもぐ（やわらかいチャイム）
   showFeedPopup(foodById(id));
-  // なかよしMAX到達は他の節目（レベルアップ等）と同じ特別演出で祝う（#309後追い）
-  if (gainedBadges.some((b) => b.id === 'affinity_max')) {
-    playCelebrate(document.querySelector('#catStage .cat'));
-  }
+  // MAX到達（#309後追い）は playCelebrate に一本化（features.md 設計判断）。
+  pendingFeedFx = gainedBadges.some((b) => b.id === 'affinity_max')
+    ? 'celebrate'
+    : { food: foodById(id) };
   if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 1800);
 });
 
