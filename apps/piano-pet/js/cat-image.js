@@ -381,7 +381,7 @@ export function prefetchNextTier(style, affinityValue) {
 // 演出中だけ本体画像を happy/love に一時差し替え、終了時に元の mood へ戻す。
 const REACTION_CLASSES = [
   'cat--happy', 'cat--wiggle', 'cat--celebrate',
-  'cat--happy-hop', 'cat--happy-spin', 'cat--hiss',
+  'cat--happy-hop', 'cat--happy-spin', 'cat--hiss', 'cat--nom',
 ];
 
 function bodyEl(catEl) {
@@ -445,4 +445,43 @@ export function playReaction(catEl, rng = Math.random) {
   const mood = PET_MOODS[Math.floor(rng() * PET_MOODS.length)];
   if (mood === 'happy') playClasses(catEl, ['cat--happy'], 1200, 'love');
   else playClasses(catEl, ['cat--wiggle'], 1200, 'love');
+}
+
+// ----- 餌やり専用演出（食べ物が口へ→もぐもぐ・#347） -----
+function foodFlyEl(icon) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+  el.setAttribute('class', 'cat__food-fly');
+  el.setAttribute('x', '100');
+  el.setAttribute('y', '205');
+  el.textContent = icon;
+  return el;
+}
+
+// 食べ物アイコンを口元へ弧を描いて飛ばす単発アニメ。animationend 不発（reduced-motion 等）に
+// 備え、前回分の一掃＋900msの強制片付けフォールバックも持つ（features.md 設計判断）。
+function flyFoodToMouth(catEl, icon) {
+  const fx = catEl?.querySelector?.('.cat__fx');
+  if (!fx || !icon) return;
+  fx.querySelectorAll('.cat__food-fly').forEach((stale) => stale.remove());
+  const el = foodFlyEl(icon);
+  fx.appendChild(el);
+  void el.getBoundingClientRect();   // リフローを挟んで確実にアニメ開始させる
+  el.classList.add('cat__food-fly--go');
+  const cleanup = () => el.remove();
+  el.addEventListener('animationend', cleanup, { once: true });
+  setTimeout(cleanup, 900);
+}
+
+// ハート（pp-heart・最終ディレイ0.36s＋1.2s）を見きれるよう playHappy と同じ保持時間に揃える。
+const NOM_HOLD_MS = 1200;
+
+/** 餌やりの専用演出（#347）：食べ物が口元へ飛び、着地とほぼ同時に「もぐもぐ」が発火する。呼び出し側は #catStage が可視のときに呼ぶこと（features.md 設計判断）。 */
+export function playFeed(catEl, food) {
+  if (!catEl || !food) return;
+  flyFoodToMouth(catEl, food.icon);
+  setTimeout(() => {
+    catEl.dataset.heartCount = food.affinity >= 3 ? '3' : '1';
+    playClasses(catEl, ['cat--nom'], NOM_HOLD_MS, 'happy');
+    setTimeout(() => { delete catEl.dataset.heartCount; }, NOM_HOLD_MS);
+  }, 150);   // 食べ物が着地するタイミングに合わせて少し遅らせる
 }

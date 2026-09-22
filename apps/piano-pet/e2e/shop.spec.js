@@ -128,6 +128,34 @@ test.describe('ショップ', () => {
     await expect(page.locator('#statAffinity')).toHaveText('1');
   });
 
+  // #347 の退行ガード：節目限定の playCelebrate とは別に、毎回の給餌そのものへ専用演出
+  // （playFeed・cat--nom）が出ることを確認する。affinity_max と衝突しないよう通常値で検証。
+  // 給餌操作は #catStage が hidden（display:none）なショップタブで行うため、その場ではなく
+  // ホームへ戻った瞬間に再生されることまで確認する（#347：直後に再生すると display:none 中は
+  // CSSアニメが一切走らず、クラスだけ付いて消える「見えない演出」になっていた）。
+  test('えさやりのたびに専用演出（もぐもぐ）が出る。ホームへ戻った瞬間に再生される（#347）', async ({ page }) => {
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');   // この時点ではまだ再生しない
+    // ショップに留まったまま、旧実装のアニメ総尺（150+1200ms）より長く待つ。即時再生する
+    // 実装だと、ここで非表示のまま一連のクラス付与・除去が終わってしまい後で何も出ない。
+    await page.waitForTimeout(1500);
+    await page.click('.nav-btn[data-nav="home"]');                       // ホームへ戻った瞬間に再生
+
+    const cat = page.locator('#catStage .cat');
+    await expect(cat).toHaveClass(/cat--nom/, { timeout: 2000 });
+    // クラスが付くだけでなく、実際にCSSアニメが走っていることまで見る
+    // （display:none の要素はクラスが付いてもアニメは走らない＝クラスだけでは「見えない演出」を検知できない）。
+    await expect.poll(
+      () => cat.evaluate((el) => el.querySelector('.cat__body').getAnimations().length),
+    ).toBeGreaterThan(0);
+    await expect(cat).not.toHaveClass(/cat--nom/, { timeout: 3000 });
+
+    // 飛翔演出の一時DOMも後片付けされ、居残らない（居残ると後で無関係なタイミングに再生される幽霊アニメになる）。
+    await expect(page.locator('#catStage .cat__food-fly')).toHaveCount(0, { timeout: 2000 });
+  });
+
   // #261 の退行ガード（#323）：showPopup は要素ごとにタイマー・transitionend リスナーを
   // 張り替えて前回サイクルを解除する。これを削ると、1回目のフェードアウトで付いた
   // transitionend リスナーが残ったまま2回目の表示（フェードイン）が終わった瞬間に発火し、
@@ -203,6 +231,8 @@ test.describe('ショップ', () => {
 
   // なかよしMAX到達時の特別演出（#309後追い）：badges.js の affinity_max 獲得と同時に
   // playCelebrate（cat--celebrate）が再生される。バッジポップアップだけだった旧実装への退行ガード。
+  // 給餌操作自体はショップタブ（#catStage が hidden）で行うため、ホームへ戻った瞬間に再生される
+  // （#347・flushPendingFeedFx）。
   test('なかよしMAX到達で猫の特別演出が出る（affinity_max）', async ({ page }) => {
     // affinity=41（Lv8「えいえんのきずな」まで残り1）を仕込む。おさかな1つ（+1）で42＝MAXに到達する。
     await page.addInitScript(() => {
@@ -223,6 +253,7 @@ test.describe('ショップ', () => {
     const cat = page.locator('#catStage .cat');
     await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
     await expect(page.locator('#feedAffinity')).toHaveText('42');
+    await page.click('.nav-btn[data-nav="home"]');   // ホームへ戻った瞬間に再生される（#347）
     await expect(cat).toHaveClass(/cat--celebrate/);
     // playCelebrate は1700msで自動的にクラスを外す（cat-image.js）
     await expect(cat).not.toHaveClass(/cat--celebrate/, { timeout: 3000 });
