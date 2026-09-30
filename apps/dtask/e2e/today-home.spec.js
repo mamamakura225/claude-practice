@@ -10,7 +10,9 @@ import { test, expect } from '@playwright/test';
 function isoDay(offset = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offset);
-  return d.toISOString().slice(0, 10);
+  // アプリと同じくローカル日付（toISOString は UTC で、日本時間0〜9時に前日になる #350）
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 function mkTask(over = {}) {
@@ -84,5 +86,32 @@ test.describe('今日やること ホームビュー (#33)', () => {
     await expect(reward).toContainText('次の締切');
     await expect(page.locator('#listView')).toBeHidden();
     await expect(page.locator('#kanbanView')).toBeHidden();
+  });
+});
+
+/* 日本時間の早朝でも「今日」はローカル日付 (#350)。UTC ではまだ前日の時刻に固定する */
+test.describe('今日ビューの日付境界 (#350)', () => {
+  test.use({ timezoneId: 'Asia/Tokyo' });
+
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
+    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
+    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+    await page.clock.setFixedTime(new Date('2026-09-30T07:00:00+09:00'));
+  });
+
+  test('07:00 JST では今日締切を表示し、昨日締切は期限切れとして表示する', async ({ page }) => {
+    await seed(page, [
+      mkTask({ id: 't-today', title: 'E2E_9/30締切', deadline: '2026-09-30' }),
+      mkTask({ id: 't-yday',  title: 'E2E_9/29締切', deadline: '2026-09-29' }),
+      mkTask({ id: 't-tmrw',  title: 'E2E_10/1締切', deadline: '2026-10-01' }),
+    ]);
+    await page.goto('/');
+    await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
+
+    await expect(page.locator('#taskList .task-card[data-id="t-today"]')).toBeVisible();
+    await expect(page.locator('#taskList .task-card[data-id="t-today"]')).not.toContainText('期限切れ');
+    await expect(page.locator('#taskList .task-card[data-id="t-yday"]')).toContainText('期限切れ');
+    await expect(page.locator('#taskList .task-card[data-id="t-tmrw"]')).toHaveCount(0);
   });
 });
