@@ -32,7 +32,7 @@
 
 | 区分 | 要件 |
 |---|---|
-| データ・同期 | Firestore 単一ドキュメントに全件格納（個人利用・小規模前提）。`onSnapshot` で他端末の変更をリアルタイム反映。起動ロードは5秒タイムアウトで localStorage フォールバック（オフライン・障害時もUI起動）（→ [architecture.md](./architecture.md) / [data-model.md](./data-model.md)） |
+| データ・同期 | Firestore 単一ドキュメントに全件格納（個人利用・小規模前提）。`onSnapshot` で他端末の変更をリアルタイム反映。起動ロードは5秒タイムアウトで localStorage フォールバック（オフライン・障害時もUI起動）。**フォールバック中の操作でクラウドの既存データを失わない**（クラウド到着時に差分マージ #349）（→ [architecture.md](./architecture.md) / [data-model.md](./data-model.md)） |
 | 設定情報 | Firebase / 監視の接続情報は `*-config.js` に集約し `npm run gen-config` が環境変数から生成（未設定時は本番値／空にフォールバック）。公開情報のため秘匿目的ではなく環境分離が目的 |
 | 監視・プライバシー | Sentry（エラー監視）/ PostHog（利用計測）は鍵未設定なら無効（no-op）。送るのは操作種別と頻度のみで、**タスク名等の内容は送らない** |
 | セキュリティ | 外部入力をDOMへ挿入する箇所はすべて `escHtml` でエスケープ（XSS対策） |

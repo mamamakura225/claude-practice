@@ -1,6 +1,6 @@
 /* ===== Firebase ===== */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 
 /* ===== Utils ===== */
@@ -9,6 +9,7 @@ import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
 import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
+import { mergeFallbackChanges } from './utils/sync.js';
 
 /* ===== エラー監視・利用計測（任意・キー未設定なら no-op） ===== */
 import { initErrorMonitoring } from './sentry.js';
@@ -64,8 +65,44 @@ const SYNC_STATES = {
   saved:   { html: '✓ 保存済み' },
   error:   { html: '⚠ 保存失敗 <button class="sync-retry-btn" type="button" data-action="sync-retry">再試行</button>' },
   offline: { html: '📵 オフライン' },
+  local:   { html: '📵 未同期（この端末に保存中）' },
 };
 let syncIdleTimer = null;
+
+/* クラウドの最新を読めていない間（起動時フォールバック中・オフライン編集後）は setDoc しない。
+ * setDoc はドキュメント全体の置換なので、空や古いローカル状態で書くとクラウドの全件が消える (#349)。
+ * fallbackBaseline は「最後にクラウドと一致していた状態」(dtask_synced) で、クラウド到着時の差分マージに使う。 */
+const SYNCED_KEY = 'dtask_synced';
+let cloudLoaded = false;
+let fallbackBaseline = null;
+
+function snapshotData(tasks = state.tasks, categories = state.categories) {
+  return JSON.parse(JSON.stringify({ tasks, categories }));
+}
+
+function saveLocalMirror() {
+  try {
+    localStorage.setItem('dtask_tasks', JSON.stringify(state.tasks));
+    localStorage.setItem('dtask_categories', JSON.stringify(state.categories));
+  } catch {}
+}
+
+function saveSynced(data) {
+  try { localStorage.setItem(SYNCED_KEY, JSON.stringify(data)); } catch {}
+}
+
+/* 未同期モードへ入る。基準はクラウド一致状態。それが無い端末（本修正の初回）は現在のローカルを基準として
+ * 保存し、再起動して再びフォールバックしても未同期の変更を差分として検出できるようにする */
+function enterUnsynced() {
+  cloudLoaded = false;
+  let synced = null;
+  try { synced = JSON.parse(localStorage.getItem(SYNCED_KEY)); } catch {}
+  if (!synced || !Array.isArray(synced.tasks)) {
+    synced = snapshotData();
+    saveSynced(synced);
+  }
+  fallbackBaseline = synced;
+}
 
 function setSyncState(stateName) {
   const el = document.getElementById('syncIndicator');
@@ -79,14 +116,23 @@ function setSyncState(stateName) {
 }
 
 async function saveCloud() {
+  saveLocalMirror();
+  if (!cloudLoaded) {
+    setSyncState('local');
+    return;
+  }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // オフライン中の編集は、復帰後にクラウド最新へ差分マージしてから書く（復帰直後の全件置換で他端末の変更を消さない）
+    enterUnsynced();
     setSyncState('offline');
     return;
   }
   setSyncState('syncing');
+  // dtask_synced はここでは更新しない（他端末の変更を含むスナップショットとの順序が保証されないため）。
+  // 書込み確認は includeMetadataChanges の onSnapshot（!hasPendingWrites）で届き、そこで更新する
   try {
-    await setDoc(DATA_DOC, { tasks: state.tasks, categories: state.categories });
-    setSyncState('saved');
+    await setDoc(DATA_DOC, snapshotData());
+    if (cloudLoaded) setSyncState('saved'); // 送信中にオフライン化して未同期へ入っていたら表示を上書きしない
   } catch (err) {
     console.error('saveCloud failed', err);
     setSyncState('error');
@@ -112,14 +158,20 @@ async function loadStorage() {
       state.tasks = []; state.categories = [];
     }
     state.tasks = state.tasks.map(normalizeTask);
+    enterUnsynced();
+    loadExpanded();
     return;
   }
 
+  cloudLoaded = true;
   if (snap.exists()) {
     const d = snap.data();
     state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
+    saveLocalMirror();
+    saveSynced(snapshotData());
   } else {
+    saveSynced({ tasks: [], categories: [] }); // クラウドは空＝これが基準
     // 初回: localStorageにデータがあればFirestoreへ移行
     try {
       state.tasks      = JSON.parse(localStorage.getItem('dtask_tasks'))      || [];
@@ -1512,6 +1564,28 @@ function initDragDropZones() {
   });
 }
 
+function reconcileWithCloud(d) {
+  if (!d) {
+    // クラウドにドキュメントが無い＝初回（loadStorage の移行分岐と同じ扱い）。ローカルをそのまま上げる
+    cloudLoaded = true;
+    fallbackBaseline = null;
+    if (state.tasks.length || state.categories.length) saveCloud();
+    else setSyncState('idle');
+    return;
+  }
+  const base  = fallbackBaseline || { tasks: [], categories: [] };
+  const tasks = mergeFallbackChanges(base.tasks, state.tasks, (d.tasks || []).map(normalizeTask));
+  const cats  = mergeFallbackChanges(base.categories, state.categories, d.categories || []);
+  state.tasks      = tasks.items;
+  state.categories = cats.items;
+  cloudLoaded      = true;
+  fallbackBaseline = null;
+  if (tasks.hasLocalChanges || cats.hasLocalChanges) saveCloud();
+  else { saveLocalMirror(); saveSynced(snapshotData()); setSyncState('idle'); }
+  renderSidebar();
+  render();
+}
+
 /* ===== Init ===== */
 async function init() {
   await loadStorage();
@@ -1525,13 +1599,28 @@ async function init() {
   renderSidebar();
   render();
   maybeShowActionHint();
+  if (!cloudLoaded) setSyncState('local');
 
   /* リアルタイム同期: 他デバイスの変更を自動反映 */
-  onSnapshot(DATA_DOC, (snap) => {
+  // includeMetadataChanges: キャッシュ→サーバーで中身が同じ（fromCache だけ変わる）場合も通知を受け、
+  // 未同期モードから確実に抜けるため
+  onSnapshot(DATA_DOC, { includeMetadataChanges: true }, (snap) => {
+    if (!cloudLoaded) {
+      // 未同期モードでは、サーバー由来のスナップショットが届いた時点でクラウドを正とし、
+      // 未同期の間のローカル変更だけを載せ直してから書き戻す（キャッシュ由来は判定材料にしない）
+      if (snap.metadata.fromCache) return;
+      reconcileWithCloud(snap.exists() ? snap.data() : null);
+      return;
+    }
     if (!snap.exists()) return;
     const d = snap.data();
-    state.tasks      = (d.tasks      || []).map(normalizeTask);
-    state.categories = d.categories || [];
+    const next = snapshotData((d.tasks || []).map(normalizeTask), d.categories || []);
+    if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) saveSynced(next);
+    // 自分の書込み確認（hasPendingWrites だけ変わる通知）で再描画すると、開いたメニューや編集中の入力が閉じるため
+    if (JSON.stringify(next) === JSON.stringify(snapshotData())) return;
+    state.tasks      = next.tasks;
+    state.categories = next.categories;
+    saveLocalMirror();
     renderSidebar();
     render();
   });
@@ -1757,7 +1846,15 @@ async function init() {
 
   /* Online / offline detection */
   window.addEventListener('offline', () => setSyncState('offline'));
-  window.addEventListener('online',  () => saveCloud()); // 復帰時に自動リトライ
+  // 復帰時に自動で setDoc しない（クラウド最新を読む前の全件置換で他端末の変更を消すため #349）。
+  // 未同期ならサーバーから直接読んで差分マージする（スナップショットが来ない経路の保険）
+  window.addEventListener('online', () => {
+    if (cloudLoaded) { setSyncState('idle'); return; }
+    setSyncState('local');
+    getDocFromServer(DATA_DOC)
+      .then(s => { if (!cloudLoaded) reconcileWithCloud(s.exists() ? s.data() : null); })
+      .catch(() => {});
+  });
   if (navigator.onLine === false) setSyncState('offline');
 
   /* Keyboard shortcuts */

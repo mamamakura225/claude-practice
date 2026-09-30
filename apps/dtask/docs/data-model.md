@@ -69,10 +69,11 @@ dtask (collection)
 | `dtask_theme` | string | `'light'` / `'dark'` |
 | `dtask_fontsize` | string | `'standard'` / `'large'` |
 | `dtask_expanded` | JSON array (string[]) | インライン展開中のタスクIDリスト（削除済みIDは自動クリーンアップ） |
-| `dtask_tasks` | JSON Task[] | **フォールバック専用**：Firestoreが応答しないときの一時保存 |
-| `dtask_categories` | JSON Category[] | **フォールバック専用**：同上 |
+| `dtask_tasks` | JSON Task[] | **ローカルミラー**：`saveCloud` とリモート反映のたびに最新状態を書く。Firestore が応答しない起動時はここから復元する（#349） |
+| `dtask_categories` | JSON Category[] | **ローカルミラー**：同上 |
+| `dtask_synced` | JSON `{tasks, categories}` | **最後にクラウドと一致していた状態**。未同期（フォールバック・オフライン編集）中のローカル差分を求める基準（#349） |
 
-> **設計判断**: UI状態（テーマ、文字サイズ、展開状態）は端末固有として localStorage に分離し、クラウド同期しない。タスクデータ本体は Firestore を正とし、localStorage はあくまで非常時の退避用。
+> **設計判断**: UI状態（テーマ、文字サイズ、展開状態）は端末固有として localStorage に分離し、クラウド同期しない。タスクデータ本体は Firestore を正とし、localStorage はミラー（非常時の起動用）。ミラーから起動した状態は、クラウドを読めるまで Firestore へ書かない（→ [architecture.md](./architecture.md) の同期方式）。
 
 ## Filters（実行時状態・非永続）
 
