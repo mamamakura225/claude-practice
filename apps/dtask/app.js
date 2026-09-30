@@ -330,6 +330,13 @@ function showToast(message, undoFn, duration = 5000, action = null) {
   // entrance animation trigger
   requestAnimationFrame(() => toast.classList.add('toast-in'));
   timer = setTimeout(dismiss, duration);
+  // ホバー中・フォーカス中は消さない（キーボードでボタンまで辿り着く時間を確保する）
+  const pause  = () => clearTimeout(timer);
+  const resume = () => { if (!dismissed) timer = setTimeout(dismiss, duration); };
+  toast.addEventListener('mouseenter', pause);
+  toast.addEventListener('focusin', pause);
+  toast.addEventListener('mouseleave', () => { if (!toast.contains(document.activeElement)) resume(); });
+  toast.addEventListener('focusout', e => { if (!toast.contains(e.relatedTarget)) resume(); });
   return dismiss;
 }
 
@@ -1328,12 +1335,11 @@ function syncPresetChipUI(preset) {
   syncQuickAddPlaceholder();
 }
 
-/* 絞り込みを全解除（並べ替えは維持）してUIへ反映 */
+/* 絞り込みを全解除してUIへ反映（並べ替えと「完了タスクを隠す」は表示設定として維持） */
 function clearFilters() {
-  Object.assign(state.filters, { categoryId: '', priority: '', status: '', search: '', hideCompleted: false, preset: '' });
+  Object.assign(state.filters, { categoryId: '', priority: '', status: '', search: '', preset: '' });
   document.getElementById('statusFilter').value = '';
   document.getElementById('priorityFilter').value = '';
-  document.getElementById('hideCompletedFilter').checked = false;
   document.getElementById('searchInput').value = '';
   document.getElementById('searchClear').style.display = 'none';
   syncPresetChipUI('');
@@ -1345,9 +1351,14 @@ function clearFilters() {
 function syncQuickAddPlaceholder() {
   const input = document.getElementById('quickAddInput');
   if (!input) return;
-  input.placeholder = state.filters.preset === 'today'
+  const today = state.filters.preset === 'today';
+  input.placeholder = today
     ? '今日やることを入力して Enter（期限は今日）'
     : 'タイトルを入力して Enter で追加（N キーでフォーカス）';
+  // 読み上げでも期限が今日になることを伝える（aria-label が placeholder より優先されるため）
+  input.setAttribute('aria-label', today
+    ? 'クイック追加：今日やることを入力して Enter（期限は今日）'
+    : 'クイック追加：タイトルを入力して Enter で追加');
 }
 
 function switchView(view) {

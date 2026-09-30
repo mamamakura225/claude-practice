@@ -40,6 +40,8 @@ test.describe('今日ビューからの追加 (#352)', () => {
     const card = page.locator('#taskList .task-card', { hasText: 'E2E_今日追加' });
     await expect(card).toBeVisible();
     await expect(card).toContainText(localDay(0).replaceAll('-', '/'));
+    await expect(page.locator('.toast', { hasText: '今の絞り込みでは表示されません' })).toHaveCount(0);
+    await expect(page.locator('#quickAddInput')).toHaveAttribute('aria-label', /期限は今日/);
   });
 
   test('今日ビューで詳細モーダルを開くと期限に今日が入っている', async ({ page }) => {
@@ -51,6 +53,7 @@ test.describe('今日ビューからの追加 (#352)', () => {
   test('絞り込みで見えないタスクを追加すると通知し、「すべて表示」で見えるようになる', async ({ page }) => {
     await open(page);
     await page.locator('.preset-chip[data-preset="overdue"]').click();
+    await page.fill('#searchInput', 'E2E_検索語');
     await expect(page.locator('#quickAddInput')).not.toHaveAttribute('placeholder', /今日/);
     await page.fill('#quickAddInput', 'E2E_見えない追加');
     await page.press('#quickAddInput', 'Enter');
@@ -62,5 +65,18 @@ test.describe('今日ビューからの追加 (#352)', () => {
     await toast.getByRole('button', { name: 'すべて表示' }).click();
     await expect(page.locator('#taskList .task-card', { hasText: 'E2E_見えない追加' })).toBeVisible();
     await expect(page.locator('.preset-chip[data-preset=""]')).toHaveClass(/active/);
+    await expect(page.locator('.preset-chip[data-preset=""]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('#searchInput')).toHaveValue('');
+  });
+
+  test('トーストはフォーカス中は消えない', async ({ page }) => {
+    await open(page);
+    await page.locator('.preset-chip[data-preset="overdue"]').click();
+    await page.fill('#quickAddInput', 'E2E_フォーカス保持');
+    await page.press('#quickAddInput', 'Enter');
+    const btn = page.locator('.toast').getByRole('button', { name: 'すべて表示' });
+    await btn.focus();
+    await page.waitForTimeout(7600);
+    await expect(btn).toBeVisible();
   });
 });
