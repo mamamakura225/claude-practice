@@ -37,7 +37,8 @@ export function addMonths(dateStr, n, day) {
   const base = dateStr ? parseDateStr(dateStr) : new Date();
   const target = new Date(base.getFullYear(), base.getMonth() + n, 1);
   const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
-  target.setDate(Math.min(day ?? base.getDate(), lastDay));
+  const d = Number.isInteger(day) && day >= 1 ? day : base.getDate(); // 壊れた anchorDay は無視
+  target.setDate(Math.min(d, lastDay));
   return toDateStr(target);
 }
 

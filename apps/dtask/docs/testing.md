@@ -54,7 +54,7 @@ npm run test:e2e   # E2Eテスト実行
 | [e2e/add-task.spec.js](../e2e/add-task.spec.js) | クイック追加バーから新規タスク作成→リストに表示されることを確認。Firestore APIをブロックしてオフライン挙動を検証 |
 | [e2e/today-home.spec.js](../e2e/today-home.spec.js) | 「今日やること」ホームビュー(#33)：起動時 today フィルタON（今日＋期限切れ表示・未来非表示）、ビュー形式の localStorage 復元、今日分全完了時のご褒美空状態、日本時間早朝（`timezoneId`＋`page.clock` で 07:00 JST 固定）でも今日締切を表示する日付境界(#350) |
 | [e2e/card-menu.spec.js](../e2e/card-menu.spec.js) | カード操作メニュー(#111)：⋮ から削除・下へ並び替え・完了化、キーボードでの開閉（Enter/Esc・フォーカス復帰） |
-| [e2e/recurrence.spec.js](../e2e/recurrence.spec.js) | 繰り返しタスク(#351)：✓・⋮・Kanbanセレクト・Kanban D&D・編集モーダルの各経路で次回分が1件できる、再完了で重複しない、スキップ |
+| [e2e/recurrence.spec.js](../e2e/recurrence.spec.js) | 繰り返しタスク(#351)：✓・⋮・Kanbanセレクト・Kanban D&D・編集モーダルの各経路で次回分が1件できる、再完了で重複しない、毎月31日→2/28→3/31、スキップ |
 | [e2e/offline-fallback.spec.js](../e2e/offline-fallback.spec.js) | オフライン起動中の同期安全性(#349)：Firebase SDK を偽モジュールに `page.route` で差し替え、フォールバック中は書込まない・端末に残る・クラウド到着時の差分マージ・キャッシュ由来スナップショットの無視・再起動をまたぐ未同期分・通常起動後のオフライン編集を検証 |
 
 > spec 内で期限日を作るヘルパ（`isoDay` 等）はアプリと同じ**ローカル日付**で組み立てる。`toISOString()` を使うと、ローカル実行（JST）の 0〜9時だけアプリとずれる（#350）。

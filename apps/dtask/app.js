@@ -385,7 +385,7 @@ function toggleDone(id) {
 function spawnNextRecurrence(task) {
   const { spawnedNextId, ...rest } = task;
   // 毎月は元の「日」を anchorDay として引き継ぐ（1/31 → 2/28 → 3/31。月末で詰めた日に引きずられない #351）
-  const recurrence = task.recurrence.type === 'monthly' && task.deadline
+  const recurrence = task.recurrence.type === 'monthly' && /^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '')
     ? { ...task.recurrence, anchorDay: task.recurrence.anchorDay ?? parseDateStr(task.deadline).getDate() }
     : task.recurrence;
   const next = normalizeTask({

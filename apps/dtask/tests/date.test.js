@@ -136,5 +136,11 @@ describe('毎月の月末 (#351)', () => {
 
   it('YYYY-MM-DD でない基準日は今日を基準にする（NaN日付を作らない）', () => {
     expect(nextRecurrenceDeadline('abc', { type: 'daily' })).toBe(addDays(todayStr(), 1));
+    expect(nextRecurrenceDeadline('abc', { type: 'monthly', anchorDay: NaN })).toBe(addMonths(todayStr(), 1));
+  });
+
+  it('壊れた anchorDay（NaN・0）は無視して元の日を使う', () => {
+    expect(addMonths('2025-01-15', 1, NaN)).toBe('2025-02-15');
+    expect(addMonths('2025-01-15', 1, 0)).toBe('2025-02-15');
   });
 });

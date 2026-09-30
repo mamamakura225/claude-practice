@@ -26,8 +26,8 @@ function recurring(over = {}) {
   };
 }
 
-async function open(page, view = 'list') {
-  await seed(page, [recurring()], { dtask_view: view });
+async function open(page, view = 'list', task = recurring()) {
+  await seed(page, [task], { dtask_view: view });
   await page.goto('/');
   await expect(page.locator('#addTaskBtn')).toBeVisible({ timeout: 10000 });
   const allChip = page.locator('.preset-chip[data-preset=""]');
@@ -94,6 +94,15 @@ test.describe('繰り返しタスク (#351)', () => {
     await check.click();
     await check.click();
     await expect(cards(page, 'list')).toHaveCount(2);
+  });
+
+  test('毎月の31日締切は 2/28 に詰め、その次は 3/31 に戻る', async ({ page }) => {
+    await open(page, 'list', recurring({ deadline: '2026-01-31', recurrence: { type: 'monthly' } }));
+    await page.locator('.task-card[data-id="r"] .task-check').click();
+    const feb = cards(page, 'list').filter({ hasText: '2026/02/28' });
+    await expect(feb).toHaveCount(1);
+    await feb.locator('.task-check').click();
+    await expect(cards(page, 'list').filter({ hasText: '2026/03/31' })).toHaveCount(1);
   });
 
   test('スキップは今回分を外し、次回分だけ残す（完了→未完了後のスキップでも1件）', async ({ page }) => {
