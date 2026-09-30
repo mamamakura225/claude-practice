@@ -28,6 +28,8 @@
   --status-inprogress-bg: #EFF6FF;
   --status-done: #16A34A;
   --status-done-bg: #F0FDF4;
+  --status-inprogress-text: #1D4ED8;
+  --status-done-text: #15803D;
 }
 
 /* ===== Dark Theme ===== */
@@ -45,6 +47,8 @@
   --priority-low-bg: #1A1D27;
   --status-inprogress-bg: #0A1628;
   --status-done-bg: #071812;
+  --status-inprogress-text: #93C5FD;
+  --status-done-text: #86EFAC;
 }
 [data-theme="dark"] .filter-select,
 [data-theme="dark"] .kanban-status-select,
@@ -175,6 +179,8 @@ a { color: inherit; text-decoration: none; }
   font-weight: 700;
   color: #fff;
   letter-spacing: -0.5px;
+  white-space: nowrap; /* 狭い幅で「タ/スク」と折り返さない (#353) */
+  flex-shrink: 0;
 }
 .logo-d {
   display: inline-block;
@@ -326,7 +332,8 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
   padding: 4px 0;
 }
-.category-manage-item span { flex: 1; font-size: 13px; }
+/* 名前だけを伸ばす（span 全般に当てると色ドットまで横長の楕円になる #353） */
+.category-manage-item .category-manage-name { flex: 1; font-size: 13px; min-width: 0; overflow-wrap: anywhere; }
 .btn-delete-cat {
   color: var(--text-sub);
   font-size: 16px;
@@ -705,6 +712,11 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 .badge-high { background: var(--priority-high-bg); color: var(--priority-high); }
 .badge-medium { background: var(--priority-medium-bg); color: var(--priority-medium); }
 .badge-low { background: var(--priority-low-bg); color: var(--priority-low); }
+/* ステータス：優先度「低」と見分けがつくよう、未着手は枠線のみ・進行中/完了は色付き (#353) */
+.badge-status { border: 1px solid transparent; }
+.badge-status-todo { background: transparent; color: var(--text-sub); border-color: var(--border); }
+.badge-status-inprogress { background: var(--status-inprogress-bg); color: var(--status-inprogress-text); }
+.badge-status-done { background: var(--status-done-bg); color: var(--status-done-text); }
 .badge-category {
   background: var(--bg);
   color: var(--text-sub);
@@ -1285,6 +1297,13 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
   .task-actions { opacity: 1; } /* 常に表示 */
   .btn-action { width: 32px; height: 32px; font-size: 15px; }
 
+  /* 同期表示：アイコンのみ（文言は読み上げ用に視覚的に隠す） */
+  .sync-indicator { min-width: 0; padding: 4px; }
+  .sync-label {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+
   /* カンバン：横スクロール */
   .kanban-board {
     display: flex;
@@ -1294,9 +1313,13 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
     -webkit-overflow-scrolling: touch;
     grid-template-columns: none;
   }
+  /* 列幅は中身でなく画面幅で決める（長いカードで列が画面外まで伸び、件数バッジが切れていた #353）。
+     次の列の端を覗かせ、横スクロールできることを示す */
+  .kanban-board { scroll-snap-type: x mandatory; scroll-padding-left: 0; }
   .kanban-column {
-    min-width: 260px;
-    flex-shrink: 0;
+    flex: 0 0 min(85%, 320px);
+    min-width: 0;
+    scroll-snap-align: start;
   }
   .kanban-cards { min-height: 60px; }
 
@@ -1397,6 +1420,14 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 }
 
 /* ===== Landscape Mobile Optimization ===== */
+/* 375px 未満はヘッダーに全ボタンが収まらないため、ロゴは「d」マークのみ（文字は読み上げ用に残す #353） */
+@media (max-width: 374px) {
+  .logo-text {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+}
+
 @media (max-height: 500px) and (orientation: landscape) {
   :root { --header-h: 40px; }
 
