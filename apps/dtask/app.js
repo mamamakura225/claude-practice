@@ -4,7 +4,7 @@ import { getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot } from 
 import { firebaseConfig } from './firebase-config.js';
 
 /* ===== Utils ===== */
-import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline, todayStr, daysBetween } from './utils/date.js';
+import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline, todayStr, daysBetween, parseDateStr } from './utils/date.js';
 import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
@@ -337,7 +337,9 @@ function addTask(data) {
 function updateTask(id, data) {
   const idx = state.tasks.findIndex(t => t.id === id);
   if (idx < 0) return;
+  const prevStatus = state.tasks[idx].status;
   state.tasks[idx] = { ...state.tasks[idx], ...data };
+  spawnNextIfNeeded(state.tasks[idx], prevStatus);
   saveCloud();
   render();
 }
@@ -372,28 +374,44 @@ function deleteTask(id) {
 function toggleDone(id) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
-  const becomingDone = task.status !== 'done';
+  const prevStatus = task.status;
   task.status = task.status === 'done' ? 'todo' : 'done';
-
-  if (becomingDone && task.recurrence && task.recurrence.type) {
-    spawnNextRecurrence(task);
-  }
-
+  spawnNextIfNeeded(task, prevStatus);
   saveCloud();
   render();
 }
 
 
 function spawnNextRecurrence(task) {
+  const { spawnedNextId, ...rest } = task;
+  // 毎月は元の「日」を anchorDay として引き継ぐ（1/31 → 2/28 → 3/31。月末で詰めた日に引きずられない #351）
+  const recurrence = task.recurrence.type === 'monthly' && /^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '')
+    ? { ...task.recurrence, anchorDay: task.recurrence.anchorDay ?? parseDateStr(task.deadline).getDate() }
+    : task.recurrence;
   const next = normalizeTask({
-    ...task,
+    ...rest,
     id: uid(),
     createdAt: new Date().toISOString(),
     status: 'todo',
-    deadline: nextRecurrenceDeadline(task.deadline, task.recurrence),
+    recurrence,
+    deadline: nextRecurrenceDeadline(task.deadline, recurrence),
     subtasks: (task.subtasks || []).map(s => ({ ...s, id: uid(), done: false })),
   });
   state.tasks.push(next);
+  return next;
+}
+
+/* 繰り返しの次回分は「未完了→完了」になったときだけ1件作る。✓・⋮・Kanbanセレクト・D&D・編集モーダルの
+ * 全経路で共通 (#351)。完了→未完了→完了と戻しても、前回作った次回分が残っていれば作らない */
+function existingNext(task) {
+  return task.spawnedNextId ? state.tasks.find(t => t.id === task.spawnedNextId) || null : null;
+}
+
+function spawnNextIfNeeded(task, prevStatus) {
+  if (prevStatus === 'done' || task.status !== 'done' || !task.recurrence?.type) return null;
+  if (existingNext(task)) return null;
+  const next = spawnNextRecurrence(task);
+  task.spawnedNextId = next.id;
   return next;
 }
 
@@ -403,14 +421,15 @@ function skipRecurrence(id) {
   const original = state.tasks[idx];
   if (!original.recurrence || !original.recurrence.type) return;
 
-  const spawned = spawnNextRecurrence(original);
+  // 一度完了→未完了に戻したタスクは次回分が既にあるので、作らずに今回分だけ外す
+  const spawned = existingNext(original) ? null : spawnNextRecurrence(original);
   state.tasks = state.tasks.filter(t => t.id !== id);
   saveCloud();
   render();
 
   const dateLabel = formatDate(original.deadline) || '今回分';
   showToast(`「${original.title}」を${dateLabel}スキップしました`, () => {
-    state.tasks = state.tasks.filter(t => t.id !== spawned.id); // 自動生成された次回分を取消
+    if (spawned) state.tasks = state.tasks.filter(t => t.id !== spawned.id); // 自動生成された次回分を取消
     if (!state.tasks.some(t => t.id === original.id)) {
       state.tasks.splice(Math.min(idx, state.tasks.length), 0, original);
     }
@@ -1042,9 +1061,9 @@ function moveTask(id, dir) {
 function moveToStatus(id, status) {
   const task = state.tasks.find(t => t.id === id);
   if (!task || task.status === status) return;
-  const becomingDone = status === 'done' && task.status !== 'done';
+  const prevStatus = task.status;
   task.status = status;
-  if (becomingDone && task.recurrence && task.recurrence.type) spawnNextRecurrence(task);
+  spawnNextIfNeeded(task, prevStatus);
   saveCloud();
   render();
 }
@@ -1222,16 +1241,20 @@ function handleTaskFormSubmit(e) {
   const tags = document.getElementById('taskTags').value
     .split(',').map(s => s.trim()).filter(Boolean);
   const recurrenceType = document.getElementById('taskRecurrence').value;
+  const deadline = document.getElementById('taskDeadline').value;
+  // 種別も期限も変えていなければ、毎月の anchorDay 等を保持する（期限を手で変えたら基準日は付け直し）
+  const prev = id ? state.tasks.find(t => t.id === id) : null;
+  const keepRecurrence = prev?.recurrence?.type === recurrenceType && prev.deadline === deadline;
   const data = {
     title:       document.getElementById('taskTitle').value.trim(),
     description: document.getElementById('taskDescription').value.trim(),
-    deadline:    document.getElementById('taskDeadline').value,
+    deadline,
     priority:    document.getElementById('taskPriority').value,
     categoryId:  document.getElementById('taskCategory').value,
     status:      document.getElementById('taskStatus').value,
     tags,
     subtasks:    collectSubtasks(),
-    recurrence:  recurrenceType ? { type: recurrenceType } : null,
+    recurrence:  recurrenceType ? (keepRecurrence ? { ...prev.recurrence } : { type: recurrenceType }) : null,
   };
   if (!data.title) return;
 
@@ -1542,7 +1565,9 @@ function handleKanbanDrop(e, status) {
     if (t) t.order = idx;
   });
 
-  if (task.status !== status) task.status = status;
+  const prevStatus = task.status;
+  task.status = status;
+  spawnNextIfNeeded(task, prevStatus);
 
   syncManualSort();
   saveCloud();

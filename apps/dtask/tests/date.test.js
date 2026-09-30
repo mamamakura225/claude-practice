@@ -121,3 +121,26 @@ describe('daysBetween', () => {
     expect(daysBetween('2026-09-30', '2026-10-03')).toBe(3);
   });
 });
+
+describe('毎月の月末 (#351)', () => {
+  it('addMonths は翌月に無い日を月末に詰める（あふれない）', () => {
+    expect(addMonths('2025-01-31', 1)).toBe('2025-02-28');
+    expect(addMonths('2024-01-31', 1)).toBe('2024-02-29');
+    expect(addMonths('2026-03-31', 1)).toBe('2026-04-30');
+  });
+
+  it('anchorDay があれば詰めた月の次は元の日に戻る', () => {
+    expect(nextRecurrenceDeadline('2025-02-28', { type: 'monthly', anchorDay: 31 })).toBe('2025-03-31');
+    expect(nextRecurrenceDeadline('2025-03-31', { type: 'monthly', anchorDay: 31 })).toBe('2025-04-30');
+  });
+
+  it('YYYY-MM-DD でない基準日は今日を基準にする（NaN日付を作らない）', () => {
+    expect(nextRecurrenceDeadline('abc', { type: 'daily' })).toBe(addDays(todayStr(), 1));
+    expect(nextRecurrenceDeadline('abc', { type: 'monthly', anchorDay: NaN })).toBe(addMonths(todayStr(), 1));
+  });
+
+  it('壊れた anchorDay（NaN・0）は無視して元の日を使う', () => {
+    expect(addMonths('2025-01-15', 1, NaN)).toBe('2025-02-15');
+    expect(addMonths('2025-01-15', 1, 0)).toBe('2025-02-15');
+  });
+});
