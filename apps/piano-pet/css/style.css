@@ -13,7 +13,17 @@
   --surface-soft: #fff6ee;  /* やわらかい面（スタンプ枠・入力背景） */
   --surface-mute: #eee0e3;  /* ゴースト/ロックなど控えめなボタン面 */
   --pink-soft: #ffe1e8;     /* 進捗バーの溝・淡ピンクの面/枠線 */
-  --text-muted: #b0a3a3;    /* 補助テキスト */
+  --text-muted: #6b5b5e;    /* 補助テキスト */
+  /* 文字色（#359・features.md） */
+  --pink-ink: #b8324f;
+  --pink-fill: #c9395b;
+  --text-sub: #8a6570;
+  --header-ink: #8f2f4a;
+  --coin-ink: #9a6b00;
+  --streak-ink: #c2521a;
+  --freeze-ink: #2f6fa8;
+  --gold-ink: #a8620f;
+  --green-ink: #3d7d55;
 }
 
 /* ダークテーマの変数上書き。手動トグル(data-theme="dark")とOS設定の両対応。
@@ -27,6 +37,13 @@
   --surface-mute: #3a3236;
   --pink-soft: #3d2f36;
   --text-muted: #b9a8af;
+  --pink-ink: #ff7a93;
+  --text-sub: #c9aab3;
+  --coin-ink: #e0a91f;
+  --streak-ink: #ff7a3c;
+  --freeze-ink: #6aa9e0;
+  --gold-ink: #d98a2b;
+  --green-ink: #5b9e74;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -39,6 +56,13 @@
     --surface-mute: #3a3236;
     --pink-soft: #3d2f36;
     --text-muted: #b9a8af;
+    --pink-ink: #ff7a93;
+    --text-sub: #c9aab3;
+    --coin-ink: #e0a91f;
+    --streak-ink: #ff7a3c;
+    --freeze-ink: #6aa9e0;
+    --gold-ink: #d98a2b;
+    --green-ink: #5b9e74;
   }
 }
 
@@ -55,6 +79,8 @@ body {
 
 body {
   font-family: 'Noto Sans JP', sans-serif;
+  word-break: keep-all;
+  overflow-wrap: break-word;
   color: var(--ink);
   background: var(--cream);
   -webkit-font-smoothing: antialiased;
@@ -84,7 +110,7 @@ body {
   gap: 8px;
   padding: 16px 20px;
   background: var(--pink);
-  color: #fff;
+  color: var(--header-ink);
   box-shadow: 0 2px 8px var(--shadow);
 }
 
@@ -96,8 +122,9 @@ body {
 
 .btn-back {
   border: none;
+  white-space: nowrap;
   background: rgba(255, 255, 255, 0.35);
-  color: #fff;
+  color: inherit;
   font-size: 1rem;
   font-weight: 700;
   padding: 6px 12px;
@@ -139,7 +166,7 @@ body {
   padding: 4px 10px 4px 4px;
   background: rgba(255, 255, 255, 0.35);
   border-radius: 999px;
-  color: #fff;
+  color: inherit;
   cursor: pointer;
 }
 
@@ -246,14 +273,14 @@ body {
 .level-badge {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.05rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   white-space: nowrap;
 }
 
 .level-next {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #b48a92;
+  color: var(--text-sub);
 }
 
 .xpbar {
@@ -290,14 +317,14 @@ body {
 .bond-badge {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.05rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   white-space: nowrap;
 }
 
 .bond-name {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.85rem;
-  color: #d98a2b;
+  color: var(--gold-ink);
 }
 
 .bondbar {
@@ -318,7 +345,7 @@ body {
 .bond-next {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #b48a92;
+  color: var(--text-sub);
   margin-top: 8px;
 }
 
@@ -339,18 +366,18 @@ body {
 .goal-label {
   font-size: 0.92rem;
   font-weight: 700;
-  color: #6b5b5e;
+  color: var(--ink);
 }
 
 .goal-count {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #b48a92;
+  color: var(--text-sub);
 }
 
 .goal-count #statGoalCount {
   font-size: 1.15rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .goalbar {
@@ -372,7 +399,7 @@ body {
   margin: 8px 0 0;
   font-size: 0.82rem;
   font-weight: 700;
-  color: #5b9e74;
+  color: var(--green-ink);
   text-align: center;
 }
 
@@ -381,7 +408,7 @@ body {
 }
 
 .goal-block--done .goal-msg {
-  color: #e0a91f;
+  color: var(--coin-ink);
 }
 
 .settings-divider {
@@ -454,44 +481,44 @@ body {
 }
 
 .stat-card--coin .stat-value {
-  color: #e0a91f;
+  color: var(--coin-ink);
 }
 
 .stat-card--streak .stat-value {
-  color: #ff7a3c;
+  color: var(--streak-ink);
 }
 
 .stat-card--freeze .stat-value {
-  color: #6aa9e0;
+  color: var(--freeze-ink);
 }
 
 .stat-card--affinity .stat-value {
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .stat-label {
   font-size: 0.75rem;
   font-weight: 700;
-  color: #b0a3a3;
+  color: var(--text-muted);
 }
 
 /* ===== 記録ボタン ===== */
 .btn-record {
   border: none;
-  background: var(--pink-deep);
+  background: var(--pink-fill);
   color: #fff;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.2rem;
   padding: 16px 32px;
   border-radius: 999px;
-  box-shadow: 0 6px 0 #e85f7c;
+  box-shadow: 0 6px 0 #962a45;
   cursor: pointer;
   transition: transform 0.08s ease, box-shadow 0.08s ease;
 }
 
 .btn-record:active {
   transform: translateY(4px);
-  box-shadow: 0 2px 0 #e85f7c;
+  box-shadow: 0 2px 0 #962a45;
 }
 
 /* ===== 記録フォーム ===== */
@@ -518,7 +545,7 @@ body {
 .field-label {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #b48a92;
+  color: var(--text-sub);
 }
 
 .field-input {
@@ -554,7 +581,7 @@ body {
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 0.95rem;
   font-weight: 700;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   background: var(--surface);
   border: 2px solid var(--pink-soft);
   border-radius: 999px;
@@ -580,13 +607,16 @@ body {
 }
 
 .song-chip.is-selected {
-  background: var(--pink-deep);
+  background: var(--pink-fill);
   color: #fff;
   border-color: var(--pink-deep);
+  box-shadow: inset 0 0 0 1px var(--song-fill);
 }
 
+.song-chip, .song-title, .song-collection__name { overflow-wrap: anywhere; }
+
 .song-chip.is-selected::before {
-  background: var(--surface);
+  background: var(--song-fill, var(--surface));
 }
 
 .song-chip:active {
@@ -610,7 +640,7 @@ body {
   border: 2px dashed var(--pink);
   border-radius: 14px;
   background: var(--surface);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   font-size: 1.4rem;
   font-weight: 700;
   cursor: pointer;
@@ -681,7 +711,7 @@ body {
   margin: 0;
   font-size: 0.9rem;
   font-weight: 700;
-  color: #e0506a;
+  color: var(--pink-ink);
 }
 
 .stamp-progress {
@@ -691,7 +721,7 @@ body {
 }
 
 .stamp-progress span {
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   font-size: 1.4rem;
 }
 
@@ -699,7 +729,7 @@ body {
   border: none;
   border-radius: 14px;
   background: var(--pink-soft);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   font-weight: 700;
   font-size: 0.9rem;
   padding: 10px 18px;
@@ -719,7 +749,7 @@ body {
   text-align: center;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #e0506a;
+  color: var(--pink-ink);
 }
 
 /* ----- きろくの ほうほう 切替（スタンプ / まとめて） ----- */
@@ -735,7 +765,7 @@ body {
   flex: 1;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.95rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   background: transparent;
   border: none;
   border-radius: 12px;
@@ -746,7 +776,7 @@ body {
 
 .record-mode__btn.is-active {
   background: var(--surface);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   box-shadow: 0 2px 6px rgba(240, 138, 160, 0.3);
 }
 
@@ -781,7 +811,7 @@ body {
   border: 2px solid var(--pink-soft);
   border-radius: 12px;
   background: var(--surface);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   font-size: 1.3rem;
   font-weight: 700;
   cursor: pointer;
@@ -817,7 +847,7 @@ body {
   border: none;
   border-radius: 12px;
   background: var(--pink-soft);
-  color: #e0506a;
+  color: var(--pink-ink);
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
@@ -829,7 +859,7 @@ body {
   border: 2px dashed var(--pink);
   border-radius: 14px;
   background: var(--surface);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 0.95rem;
   font-weight: 700;
@@ -847,7 +877,7 @@ body {
 }
 
 .batch-total span {
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   font-size: 1.4rem;
 }
 
@@ -878,7 +908,7 @@ body {
 .review-card__title {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   margin-bottom: 12px;
 }
 
@@ -903,11 +933,11 @@ body {
 
 .review-stat__unit {
   font-size: 0.78rem;
-  color: #b48a92;
+  color: var(--text-sub);
 }
 
 .stat-card--best .stat-value {
-  color: #d98a2b;
+  color: var(--gold-ink);
 }
 
 .history-section {
@@ -919,7 +949,7 @@ body {
 .history-heading {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   margin-bottom: 10px;
 }
 
@@ -942,7 +972,7 @@ body {
 .calendar__nav {
   border: none;
   background: var(--surface-soft);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   width: 2rem;
   height: 2rem;
   border-radius: 50%;
@@ -983,8 +1013,9 @@ body {
 .cal-cell--pad { background: transparent; }
 .cal-cell[data-level="1"] { background: #ffc9d5; }
 .cal-cell[data-level="2"] { background: var(--pink); }
-.cal-cell[data-level="3"] { background: var(--pink-deep); }
-.cal-cell[data-level="2"] .cal-cell__day,
+.cal-cell[data-level="3"] { background: var(--pink-fill); }
+.cal-cell[data-level="1"] .cal-cell__day,
+.cal-cell[data-level="2"] .cal-cell__day { color: #4a3b3b; }
 .cal-cell[data-level="3"] .cal-cell__day { color: #fff; }
 .cal-cell--today { outline: 2px solid var(--pink-deep); outline-offset: -2px; }
 .cal-cell--future { opacity: 0.4; }
@@ -1120,6 +1151,7 @@ body {
 
 .song-collection__count {
   font-family: 'Mochiy Pop One', sans-serif;
+  color: var(--text-sub);
   font-size: 0.95rem;
   white-space: nowrap;
 }
@@ -1148,13 +1180,13 @@ body {
 .history-card__day {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.95rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .history-card__total {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #b48a92;
+  color: var(--text-sub);
 }
 
 .history-card__total b {
@@ -1179,7 +1211,7 @@ body {
 
 .history-songs .song-times {
   font-weight: 700;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   white-space: nowrap;
 }
 
@@ -1195,7 +1227,7 @@ body {
 .history-action {
   border: none;
   background: var(--pink-soft);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   font-family: 'Noto Sans JP', sans-serif;
   font-size: 0.78rem;
   font-weight: 700;
@@ -1210,13 +1242,13 @@ body {
 
 .history-action--del {
   background: var(--pink-soft);
-  color: #e0506a;
+  color: var(--pink-ink);
 }
 
 .history-empty {
   text-align: center;
   padding: 24px 12px;
-  color: #b0a3a3;
+  color: var(--text-muted);
   font-weight: 700;
 }
 
@@ -1245,14 +1277,14 @@ body {
 .shop-coins__value {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.4rem;
-  color: #e0a91f;
+  color: var(--coin-ink);
 }
 
 .shop-coins__label {
   margin-left: auto;
   font-size: 0.78rem;
   font-weight: 700;
-  color: #b0a3a3;
+  color: var(--text-muted);
 }
 
 .feed-section,
@@ -1281,7 +1313,7 @@ body {
 .feed-affinity {
   font-size: 0.8rem;
   font-weight: 700;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .feed-list,
@@ -1317,7 +1349,7 @@ body {
   box-shadow: 0 4px 12px var(--shadow);
 }
 
-.bond-reward.is-locked {
+.bond-reward.is-locked .bond-reward__icon {
   opacity: 0.55;
 }
 
@@ -1337,18 +1369,18 @@ body {
 .bond-reward__name {
   font-weight: 700;
   font-size: 0.9rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .bond-reward__desc {
   font-size: 0.78rem;
-  color: #8a7d80;
+  color: var(--text-muted);
 }
 
 .bond-reward__req {
   font-size: 0.78rem;
   font-weight: 700;
-  color: #d98a2b;
+  color: var(--gold-ink);
   white-space: nowrap;
   flex: 0 0 auto;
 }
@@ -1384,7 +1416,6 @@ body {
   flex-direction: column;
   gap: 2px;
   text-align: left;
-  min-width: 0;
 }
 
 .shop-card__name {
@@ -1396,28 +1427,27 @@ body {
 .shop-card__price {
   font-size: 0.82rem;
   font-weight: 700;
-  color: #e0a91f;
+  color: var(--coin-ink);
 }
 
 .shop-card__badge {
   font-size: 0.72rem;
   font-weight: 700;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .shop-card__badge--locked {
-  color: #b08d57;
+  color: var(--gold-ink);
 }
 
 .shop-btn {
-  flex: 0 0 auto;
+  flex: 0 1 auto;
   border: none;
   border-radius: 999px;
   padding: 10px 16px;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.82rem;
   cursor: pointer;
-  white-space: nowrap;
   transition: transform 0.08s ease;
 }
 
@@ -1426,9 +1456,9 @@ body {
 }
 
 .shop-btn--buy {
-  background: var(--pink-deep);
+  background: var(--pink-fill);
   color: #fff;
-  box-shadow: 0 3px 0 #e85f7c;
+  box-shadow: 0 3px 0 #962a45;
 }
 
 .shop-btn--equip {
@@ -1439,12 +1469,12 @@ body {
 
 .shop-btn--unequip {
   background: var(--pink-soft);
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .shop-btn--locked {
   background: var(--surface-mute);
-  color: #b0a3a3;
+  color: var(--text-muted);
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -1462,7 +1492,7 @@ body {
 .badges-count {
   font-weight: 700;
   font-size: 0.9rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .badge-grid {
@@ -1499,7 +1529,7 @@ body {
 .badge-card__desc {
   font-size: 0.72rem;
   font-weight: 700;
-  color: #b0a3a3;
+  color: var(--text-muted);
 }
 
 .badge-card--locked {
@@ -1513,13 +1543,13 @@ body {
 }
 
 .badge-card--locked .badge-card__name {
-  color: #b0a3a3;
+  color: var(--text-muted);
 }
 
 .badge-popup__name {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.1rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 /* ===== 獲得コインのポップアップ ===== */
@@ -1570,20 +1600,20 @@ body {
 .coin-popup__amount {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 2rem;
-  color: #e0a91f;
+  color: var(--coin-ink);
 }
 
 .coin-popup__label {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #b0a3a3;
+  color: var(--text-muted);
 }
 
 .coin-popup__levelup {
   margin-top: 6px;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 /* ===== えさやり演出（#217） ===== */
@@ -1696,7 +1726,7 @@ body {
 .settings-panel__title {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.2rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   text-align: center;
 }
 
@@ -1792,7 +1822,7 @@ body {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1rem;
   color: #fff;
-  background: var(--pink-deep);
+  background: var(--pink-fill);
   cursor: pointer;
 }
 
@@ -1903,7 +1933,7 @@ body {
 .onboarding__title {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.15rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .onboarding__body {
@@ -1954,7 +1984,7 @@ body {
 
 .onboarding__next {
   color: #fff;
-  background: var(--pink-deep);
+  background: var(--pink-fill);
 }
 
 .onboarding__skip:active,
@@ -1985,7 +2015,7 @@ body {
   align-items: center;
   justify-content: center;
   gap: 2px;
-  color: #c9b8b8;
+  color: var(--text-muted);
   font-size: 0.72rem;
   font-weight: 700;
   cursor: pointer;
@@ -1998,7 +2028,7 @@ body {
 }
 
 .nav-btn.active {
-  color: var(--pink-deep);
+  color: var(--pink-ink);
 }
 
 .nav-btn.active .nav-icon {

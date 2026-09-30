@@ -8,11 +8,11 @@
 import { affinityLevel } from './feed.js';
 
 export const SHOP_ITEMS = [
-  { id: 'ribbon', name: '赤いリボン', price: 25, slot: 'neck', icon: '🎀', unlockLevel: 1 },
+  { id: 'ribbon', name: 'あかい リボン', price: 25, slot: 'neck', icon: '🎀', unlockLevel: 1 },
   { id: 'bowtie', name: 'ループリボン', price: 35, slot: 'neck', icon: '🎗️', unlockLevel: 1 },
-  { id: 'hat', name: '麦わら帽子', price: 40, slot: 'head', icon: '👒', unlockLevel: 1 },
+  { id: 'hat', name: 'むぎわら ぼうし', price: 40, slot: 'head', icon: '👒', unlockLevel: 1 },
   { id: 'flower', name: 'おはな', price: 45, slot: 'head', icon: '🌸', unlockLevel: 2 },
-  { id: 'collar', name: '星の首輪', price: 50, slot: 'neck', icon: '⭐', unlockLevel: 2 },
+  { id: 'collar', name: 'ほしの くびわ', price: 50, slot: 'neck', icon: '⭐', unlockLevel: 2 },
   { id: 'beret', name: 'ベレーぼう', price: 55, slot: 'head', icon: '🎨', unlockLevel: 2 },
   { id: 'bell', name: 'すずのくびわ', price: 55, slot: 'neck', icon: '🔔', unlockLevel: 2 },
   { id: 'scarf', name: 'マフラー', price: 60, slot: 'neck', icon: '🧣', unlockLevel: 4 },
@@ -21,7 +21,7 @@ export const SHOP_ITEMS = [
   { id: 'cape', name: 'ミニマント', price: 75, slot: 'back', icon: '🧥', unlockLevel: 6 },
   { id: 'wings', name: 'てんしのはね', price: 110, slot: 'back', icon: '🪽', unlockLevel: 6 },
   { id: 'flowerCrown', name: 'はなかんむり', price: 130, slot: 'head', icon: '💮', unlockLevel: 8 },
-  { id: 'crown', name: '王冠', price: 150, slot: 'head', icon: '👑', unlockLevel: 8 },
+  { id: 'crown', name: 'おうかん', price: 150, slot: 'head', icon: '👑', unlockLevel: 8 },
   // 置物・小物系（シーン配置型・#226）。slot:'scene' は排他なし複数配置で、装備とは別管理
   // （placedItems）。価格・解放Lvは既存帯に合わせる。描画枠・layer は cat-image.js の SCENE_BOX。
   { id: 'yarnBall', name: 'けいとだま', price: 40, slot: 'scene', icon: '🧶', unlockLevel: 1 },

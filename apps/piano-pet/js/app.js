@@ -312,7 +312,7 @@ function songCollectionMarkup(totals) {
         <span class="song-collection__swatch" style="background:${c.fill}" aria-hidden="true">🐾</span>
         <span class="song-collection__name">${escapeHtml(t.name)}</span>
         ${crown}
-        <span class="song-collection__count" style="color:${c.ink}">${t.count}かい</span>
+        <span class="song-collection__count">${t.count}かい</span>
       </li>`;
     })
     .join('');
@@ -624,9 +624,9 @@ function renderChips() {
     .map((name) => {
       const selected = name === selectedSong;
       const c = colors.get(name) ?? songColor(name);
-      // 選択中は曲の色で塗り、未選択は色スウォッチ（左の丸）で曲色を示す（#122）
+      // 選択中は曲の淡色＋濃い文字（白文字だと黄・緑系で読めない・#359）、未選択は色スウォッチで曲色を示す（#122）
       const style = selected
-        ? `style="background:${c.fill};border-color:${c.fill}"`
+        ? `style="background:${c.tint};border-color:${c.fill};color:${c.ink};--song-fill:${c.fill}"`
         : `style="--song-fill:${c.fill}"`;
       return `<button type="button" class="song-chip${selected ? ' is-selected' : ''}" role="option" aria-selected="${selected}" data-song="${escapeHtml(name)}" ${style}>${escapeHtml(name)}</button>`;
     })

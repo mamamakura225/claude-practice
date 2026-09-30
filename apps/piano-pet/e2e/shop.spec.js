@@ -42,7 +42,7 @@ test.describe('ショップ', () => {
 
     // 装備する → 「みにつけてる」バッジが出る
     await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');
-    const ribbonCard = page.locator('.shop-card', { hasText: '赤いリボン' });
+    const ribbonCard = page.locator('.shop-card', { hasText: 'あかい リボン' });
     await expect(ribbonCard.locator('.shop-card__badge')).toBeVisible();
 
     // ホームへ → 猫にアイテムグループが1つ乗る
@@ -93,7 +93,7 @@ test.describe('ショップ', () => {
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
     await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');
     await expect(
-      page.locator('.shop-card', { hasText: '赤いリボン' }).locator('.shop-card__badge'),
+      page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-card__badge'),
     ).toBeVisible();
 
     // 星の首輪購入＆装備（どちらも首スロット）
@@ -102,15 +102,28 @@ test.describe('ショップ', () => {
 
     // 星の首輪が装備中、リボンは外れて「みにつける」に戻る
     await expect(
-      page.locator('.shop-card', { hasText: '星の首輪' }).locator('.shop-card__badge'),
+      page.locator('.shop-card', { hasText: 'ほしの くびわ' }).locator('.shop-card__badge'),
     ).toBeVisible();
     await expect(
-      page.locator('.shop-card', { hasText: '赤いリボン' }).locator('.shop-btn'),
+      page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-btn'),
     ).toHaveText('みにつける');
 
     // ホームの猫に乗っているアイテムは1つ（付け替えなので増えない）
     await page.click('.nav-btn[data-nav="home"]');
     await expect(page.locator('#catStage .cat__front > g')).toHaveCount(1);
+  });
+
+  // #359: 320px で名前の列が潰れて「お／う／か／ん」と1文字ずつ縦に並ばない。語の途中で改行しない
+  test('せまい画面でも アイテム名が1文字ずつ縦に並ばない（#359）', async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopList .shop-card').first()).toBeVisible({ timeout: 10000 });
+    expect(await page.evaluate(() => getComputedStyle(document.body).wordBreak)).toBe('keep-all');
+    const lines = await page.locator('#shopList .shop-card__name').evaluateAll((els) => els.map((el) => {
+      const lh = parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.5;
+      return Math.round(el.getBoundingClientRect().height / lh);
+    }));
+    expect(Math.max(...lines)).toBeLessThanOrEqual(2);
   });
 
   test('えさをあげるとコインが減り なかよし度が上がる', async ({ page }) => {
@@ -281,7 +294,7 @@ test.describe('ショップ', () => {
     await expect(page.locator('#shopCoins')).toHaveText('100', { timeout: 10000 });
 
     // 王冠は150コインなので100では買えない
-    const crownBtn = page.locator('.shop-card', { hasText: '王冠' }).locator('.shop-btn');
+    const crownBtn = page.locator('.shop-card', { hasText: 'おうかん' }).locator('.shop-btn');
     await expect(crownBtn).toBeDisabled();
     await expect(crownBtn).toHaveText('コインが たりない');
   });
@@ -302,7 +315,7 @@ test.describe('ショップ', () => {
 
     // Lv1 のリボンは解放済みで買える
     await expect(
-      page.locator('.shop-card', { hasText: '赤いリボン' }).locator('.shop-btn[data-action="buy"]'),
+      page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-btn[data-action="buy"]'),
     ).toBeVisible();
   });
 });

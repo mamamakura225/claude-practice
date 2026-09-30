@@ -32,7 +32,7 @@ function colorFromHue(hue) {
     hue,
     fill: `hsl(${hue} 70% 60%)`,
     tint: `hsl(${hue} 78% 93%)`,
-    ink: `hsl(${hue} 45% 38%)`,
+    ink: `hsl(${hue} 45% 30%)`,   // 淡色(tint)・白の上で AA を満たす濃さ（#359）
   };
 }
 
