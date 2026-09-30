@@ -79,14 +79,15 @@ describe.each([
 ])('ローカル日付 ($tz)', ({ tz, now }) => {
   let prevTz;
   beforeEach(() => {
-    prevTz = process.env.TZ;
+    // delete では Node のタイムゾーンが戻らないため、実際に解決されている TZ を保存して代入し直す
+    prevTz = process.env.TZ ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     process.env.TZ = tz;
     vi.useFakeTimers();
     vi.setSystemTime(new Date(now));
   });
   afterEach(() => {
     vi.useRealTimers();
-    if (prevTz === undefined) delete process.env.TZ; else process.env.TZ = prevTz;
+    process.env.TZ = prevTz;
   });
 
   it('todayStr は端末ローカルの日付を返す', () => {
