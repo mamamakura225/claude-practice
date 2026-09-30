@@ -279,7 +279,7 @@ function triggerLatestUndo() {
 }
 
 /* ===== Toast (with optional Undo) ===== */
-function showToast(message, undoFn, duration = 5000) {
+function showToast(message, undoFn, duration = 5000, action = null) {
   const container = document.getElementById('toastContainer');
   if (!container) return () => {};
 
@@ -317,6 +317,14 @@ function showToast(message, undoFn, duration = 5000) {
     });
     toast.appendChild(btn);
   }
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-undo';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => { action.fn(); dismiss(); });
+    toast.appendChild(btn);
+  }
 
   container.appendChild(toast);
   // entrance animation trigger
@@ -327,9 +335,15 @@ function showToast(message, undoFn, duration = 5000) {
 
 /* ===== Task CRUD ===== */
 function addTask(data) {
-  state.tasks.push(normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data }));
+  const task = normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data });
+  state.tasks.push(task);
   saveCloud();
   render();
+  // 絞り込みで見えないタスクを足すと「何も起きなかった」ように見えるため、理由と戻り道を出す (#352)
+  if (!getFilteredTasks().some(t => t.id === task.id)) {
+    showToast(`「${task.title}」を追加しました（今の絞り込みでは表示されません）`, undefined, 7000,
+      { label: 'すべて表示', fn: clearFilters });
+  }
   // 操作種別と頻度のみ計測（内容は送らない）
   track('task_added', { priority: data.priority || 'medium', hasDeadline: !!data.deadline });
 }
@@ -911,6 +925,7 @@ function openTaskModal(task = null) {
     document.getElementById('taskTags').value       = '';
     document.getElementById('taskRecurrence').value = '';
     document.getElementById('taskCategory').value = state.filters.categoryId || '';
+    if (state.filters.preset === 'today') document.getElementById('taskDeadline').value = todayStr();
   }
 
   modal.classList.remove('hidden');
@@ -1310,6 +1325,29 @@ function syncPresetChipUI(preset) {
     c.classList.toggle('active', isActive);
     c.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
+  syncQuickAddPlaceholder();
+}
+
+/* 絞り込みを全解除（並べ替えは維持）してUIへ反映 */
+function clearFilters() {
+  Object.assign(state.filters, { categoryId: '', priority: '', status: '', search: '', hideCompleted: false, preset: '' });
+  document.getElementById('statusFilter').value = '';
+  document.getElementById('priorityFilter').value = '';
+  document.getElementById('hideCompletedFilter').checked = false;
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').style.display = 'none';
+  syncPresetChipUI('');
+  renderSidebar();
+  render();
+}
+
+/* 「今日」ビューのクイック追加は期限=今日になることを入力欄で示す (#352) */
+function syncQuickAddPlaceholder() {
+  const input = document.getElementById('quickAddInput');
+  if (!input) return;
+  input.placeholder = state.filters.preset === 'today'
+    ? '今日やることを入力して Enter（期限は今日）'
+    : 'タイトルを入力して Enter で追加（N キーでフォーカス）';
 }
 
 function switchView(view) {
@@ -1688,6 +1726,8 @@ async function init() {
   function quickAddResolveDeadline() {
     if (quickAddMeta.deadlinePreset === 'today')    return todayStr();
     if (quickAddMeta.deadlinePreset === 'tomorrow') return addDays(todayStr(), 1);
+    // 期限チップ未指定でも「今日」ビューでは今日にする（今日ビュー＝今日やることを足す場所 #352）
+    if (state.filters.preset === 'today') return todayStr();
     return '';
   }
   function quickAddSubmit() {
@@ -1836,11 +1876,7 @@ async function init() {
   document.querySelectorAll('.preset-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       state.filters.preset = chip.dataset.preset || '';
-      document.querySelectorAll('.preset-chip').forEach(c => {
-        const isActive = c === chip;
-        c.classList.toggle('active', isActive);
-        c.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      });
+      syncPresetChipUI(state.filters.preset);
       render();
     });
   });
