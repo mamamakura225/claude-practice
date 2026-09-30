@@ -9,7 +9,9 @@ import { test, expect } from '@playwright/test';
 function isoDay(offsetDays = 0) {
   const d = new Date();
   d.setDate(d.getDate() + offsetDays);
-  return d.toISOString().slice(0, 10);
+  // アプリと同じくローカル日付（toISOString は UTC で、日本時間0〜9時に前日になる #350）
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 function seedTasks(page, tasks) {

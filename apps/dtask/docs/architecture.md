@@ -52,7 +52,7 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 | [monitoring-config.js](../monitoring-config.js) | Sentry DSN / PostHog キー（`gen-config` が生成・未設定なら空） |
 | [sentry.js](../sentry.js) | エラー監視の初期化（キー未設定なら no-op） |
 | [analytics.js](../analytics.js) | PostHog 利用計測（操作種別・頻度のみ。内容は送らない） |
-| [utils/date.js](../utils/date.js) | 日付計算（formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline） |
+| [utils/date.js](../utils/date.js) | 日付計算（todayStr, toDateStr, parseDateStr, daysBetween, formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline）。日付は**端末ローカルの `YYYY-MM-DD`** で扱う（#350） |
 | [utils/task.js](../utils/task.js) | タスク正規化（normalizeTask）、サブタスク進捗計算（calculateSubtaskProgress） |
 | [utils/filter.js](../utils/filter.js) | filterTasks（カテゴリ・優先度・ステータス・期限プリセット・検索） |
 | [utils/sort.js](../utils/sort.js) | sortTasks（手動 / 作成日 / 期限 / 優先度。完了タスクは常に末尾） |
@@ -126,6 +126,12 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 - `http-server` — ローカル/E2E用静的サーバ
 
 > **設計判断**: ビルドツールを入れていないのは、依存最小化と学習コスト軽減のため。将来TypeScript化やバンドル最適化が必要になればViteなどを検討する。
+
+## 日付の扱い
+
+期限・「今日」判定はすべて端末ローカル日付の `YYYY-MM-DD` 文字列で行い、[utils/date.js](../utils/date.js) の `todayStr` / `addDays` 等を通す。`YYYY-MM-DD` 同士は文字列比較で大小が決まる。
+
+> **設計判断 (#350)**: 以前は `new Date().toISOString().slice(0,10)`（UTC日付）を「今日」にしていたため、日本時間 0:00〜8:59 は前日扱いになり、今日ビューに昨日締切が出て今日締切が消え、クイック追加「明日」が今日の日付になっていた。また `new Date('YYYY-MM-DD')` は UTC 0時として解釈されるため、UTCより西の地域では当日締切が期限切れ判定になっていた。`toISOString` / `new Date(文字列)` を日付計算に使わず、分解してローカル日付で組み立てる関数に一本化した。`createdAt`（ISO8601の時刻）は日付計算に使わないので UTC のままでよい。
 
 ## 設定情報
 

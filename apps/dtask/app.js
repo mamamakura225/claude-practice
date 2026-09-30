@@ -4,7 +4,7 @@ import { getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot } from 
 import { firebaseConfig } from './firebase-config.js';
 
 /* ===== Utils ===== */
-import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline } from './utils/date.js';
+import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline, todayStr, daysBetween } from './utils/date.js';
 import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
@@ -464,7 +464,7 @@ function getCategoryById(id) {
 
 /* ===== Filter & Sort ===== */
 function getFilteredTasks() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const filtered = filterTasks(state.tasks, state.filters, today);
   return sortTasks(filtered, state.filters.sort);
 }
@@ -761,14 +761,14 @@ function renderStats() {
 
 /* ===== Today home: 達成（ご褒美）空状態 ===== */
 function nextDeadlineInfo() {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayStr();
   const upcoming = state.tasks
     .filter(t => t.status !== 'done' && t.deadline && t.deadline > today)
     .map(t => t.deadline)
     .sort();
   if (!upcoming.length) return null;
   const next = upcoming[0];
-  const days = Math.round((new Date(next) - new Date(today)) / 86_400_000);
+  const days = daysBetween(today, next);
   return { date: next, days };
 }
 
@@ -1661,8 +1661,8 @@ async function init() {
   const quickAddMeta = { priority: 'medium', deadlinePreset: '' /* '' | 'today' | 'tomorrow' */ };
 
   function quickAddResolveDeadline() {
-    if (quickAddMeta.deadlinePreset === 'today')    return new Date().toISOString().slice(0, 10);
-    if (quickAddMeta.deadlinePreset === 'tomorrow') return addDays(new Date().toISOString().slice(0, 10), 1);
+    if (quickAddMeta.deadlinePreset === 'today')    return todayStr();
+    if (quickAddMeta.deadlinePreset === 'tomorrow') return addDays(todayStr(), 1);
     return '';
   }
   function quickAddSubmit() {
