@@ -57,6 +57,7 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 | [utils/filter.js](../utils/filter.js) | filterTasks（カテゴリ・優先度・ステータス・期限プリセット・検索） |
 | [utils/sort.js](../utils/sort.js) | sortTasks（手動 / 作成日 / 期限 / 優先度。完了タスクは常に末尾） |
 | [utils/html.js](../utils/html.js) | escHtml（XSS対策） |
+| [utils/sync.js](../utils/sync.js) | mergeFallbackChanges（フォールバック中のローカル差分をクラウド最新へ載せ直す #349） |
 | [vercel.json](../../../vercel.json) | SPA用URLリライト（リポジトリルートに集約） |
 
 ## 状態管理
@@ -87,7 +88,10 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 
 - **読み込み**: 起動時に `getDoc(DATA_DOC)` で初期ロード。**5秒タイムアウト**でlocalStorageへフォールバック（オフライン・障害時にもUI起動可）。
 - **リアルタイム同期**: `onSnapshot` で他デバイスからの変更を即時反映。
-- **書き込み**: 変更が起きるたびに `saveCloud()` → `setDoc(DATA_DOC, {tasks, categories})` で全体置換。
+- **書き込み**: 変更が起きるたびに `saveCloud()` → `setDoc(DATA_DOC, {tasks, categories})` で全体置換。同時に localStorage（`dtask_tasks` / `dtask_categories`）へミラーし、フォールバック時に「最後の状態」で起動できるようにする。
+- **フォールバック中の書き込み禁止 (#349)**: クラウドを一度も読めていない間（`cloudLoaded === false`）は `setDoc` せず、ローカルミラーのみ更新して同期表示を「未同期」にする。サーバー由来の初回スナップショット（`metadata.fromCache === false`）が届いた時点でクラウドを正とし、フォールバック起動時の状態（`fallbackBaseline`）からのローカル差分（追加・編集・削除）だけを載せ直して書き戻す（[utils/sync.js](../utils/sync.js) `mergeFallbackChanges`）。クラウドにドキュメントが無ければ初回扱いでローカルを上げる。
+
+> **設計判断 (#349)**: `setDoc` はドキュメント全体の置換なので、クラウド未読込のまま書くと空や古いローカル状態で**クラウドの全件が消える**（旧実装は localStorage に書かず、起動時フォールバックの中身は移行前の空データだった）。不採用案：①フォールバック中を読み取り専用にする＝オフライン時に何もできず本末転倒、②Firestore の永続キャッシュ（`persistentLocalCache`）へ移行＝SDK がオフライン書込を面倒見るが、キャッシュ未作成の端末・キャッシュ消去時に同じ全件置換リスクが残るため根治にならない。差分マージは「クラウドで他端末が同じタスクを編集していてもローカル側で編集した要素はローカル版が勝つ」単純な規則で、単一ユーザー前提では十分とした。
 - **同期状況UI**: 画面上部の `#syncIndicator` に `idle` / `syncing` / `saved` / `error` / `offline` を表示（`setSyncState`）。
 - **オフライン検知**: `window` の `online` / `offline` イベント（`addEventListener`）で状態切替、復帰時に自動リトライ。
 

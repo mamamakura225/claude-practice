@@ -9,6 +9,7 @@ import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
 import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
+import { mergeFallbackChanges } from './utils/sync.js';
 
 /* ===== エラー監視・利用計測（任意・キー未設定なら no-op） ===== */
 import { initErrorMonitoring } from './sentry.js';
@@ -64,8 +65,22 @@ const SYNC_STATES = {
   saved:   { html: '✓ 保存済み' },
   error:   { html: '⚠ 保存失敗 <button class="sync-retry-btn" type="button" data-action="sync-retry">再試行</button>' },
   offline: { html: '📵 オフライン' },
+  local:   { html: '📵 未同期（この端末に保存中）' },
 };
 let syncIdleTimer = null;
+
+/* クラウドの内容を一度も読めていない間（起動時フォールバック中）は setDoc しない。
+ * setDoc はドキュメント全体の置換なので、空や古いローカル状態で書くとクラウドの全件が消える (#349)。
+ * fallbackBaseline はフォールバック起動時に読んだローカル状態で、クラウド到着時の差分マージに使う。 */
+let cloudLoaded = false;
+let fallbackBaseline = null;
+
+function saveLocalMirror() {
+  try {
+    localStorage.setItem('dtask_tasks', JSON.stringify(state.tasks));
+    localStorage.setItem('dtask_categories', JSON.stringify(state.categories));
+  } catch {}
+}
 
 function setSyncState(stateName) {
   const el = document.getElementById('syncIndicator');
@@ -79,6 +94,11 @@ function setSyncState(stateName) {
 }
 
 async function saveCloud() {
+  saveLocalMirror();
+  if (!cloudLoaded) {
+    setSyncState('local');
+    return;
+  }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     setSyncState('offline');
     return;
@@ -112,9 +132,12 @@ async function loadStorage() {
       state.tasks = []; state.categories = [];
     }
     state.tasks = state.tasks.map(normalizeTask);
+    fallbackBaseline = JSON.parse(JSON.stringify({ tasks: state.tasks, categories: state.categories }));
+    loadExpanded();
     return;
   }
 
+  cloudLoaded = true;
   if (snap.exists()) {
     const d = snap.data();
     state.tasks      = (d.tasks      || []).map(normalizeTask);
@@ -1512,6 +1535,28 @@ function initDragDropZones() {
   });
 }
 
+function reconcileWithCloud(d) {
+  if (!d) {
+    // クラウドにドキュメントが無い＝初回（loadStorage の移行分岐と同じ扱い）。ローカルをそのまま上げる
+    cloudLoaded = true;
+    fallbackBaseline = null;
+    if (state.tasks.length || state.categories.length) saveCloud();
+    else setSyncState('idle');
+    return;
+  }
+  const base  = fallbackBaseline || { tasks: [], categories: [] };
+  const tasks = mergeFallbackChanges(base.tasks, state.tasks, (d.tasks || []).map(normalizeTask));
+  const cats  = mergeFallbackChanges(base.categories, state.categories, d.categories || []);
+  state.tasks      = tasks.items;
+  state.categories = cats.items;
+  cloudLoaded      = true;
+  fallbackBaseline = null;
+  if (tasks.hasLocalChanges || cats.hasLocalChanges) saveCloud();
+  else { saveLocalMirror(); setSyncState('idle'); }
+  renderSidebar();
+  render();
+}
+
 /* ===== Init ===== */
 async function init() {
   await loadStorage();
@@ -1528,10 +1573,18 @@ async function init() {
 
   /* リアルタイム同期: 他デバイスの変更を自動反映 */
   onSnapshot(DATA_DOC, (snap) => {
+    if (!cloudLoaded) {
+      // フォールバック起動後、サーバー由来のスナップショットが初めて届いた時点でクラウドを正とし、
+      // フォールバック中のローカル変更だけを載せ直してから書き戻す（キャッシュ由来は判定材料にしない）
+      if (snap.metadata.fromCache) return;
+      reconcileWithCloud(snap.exists() ? snap.data() : null);
+      return;
+    }
     if (!snap.exists()) return;
     const d = snap.data();
     state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
+    saveLocalMirror();
     renderSidebar();
     render();
   });
