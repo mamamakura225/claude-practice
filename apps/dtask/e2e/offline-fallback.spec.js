@@ -7,7 +7,7 @@ import { test, expect } from '@playwright/test';
  */
 
 const FAKE_APP = 'export function initializeApp() { return {}; }';
-// window.__fakeCloud を初期化スクリプトで置くと getDoc がそれを返す（=クラウド読込成功）。無ければ失敗（=フォールバック）
+// window.__fakeCloud を置くと getDoc / getDocFromServer がそれを返す（=クラウド読込成功）。無ければ失敗（=フォールバック）
 const FAKE_FIRESTORE = `
 const fs = (window.__fakeFs = { writes: [], listeners: [] });
 export function getFirestore() { return {}; }
@@ -16,6 +16,7 @@ export function getDoc() {
   const d = window.__fakeCloud;
   return d ? Promise.resolve({ exists: () => true, data: () => d }) : Promise.reject(new Error('offline (fake)'));
 }
+export function getDocFromServer() { return getDoc(); }
 export function setDoc(_ref, data) { fs.writes.push(JSON.parse(JSON.stringify(data))); return Promise.resolve(); }
 export function onSnapshot(_ref, a, b) { fs.listeners.push(typeof a === 'function' ? a : b); return () => {}; }
 window.__emitSnapshot = (data, metadata) => fs.listeners.forEach(cb => cb({
@@ -126,22 +127,39 @@ test.describe('オフライン起動中の同期安全性 (#349)', () => {
     expect(writes[0].tasks.map(t => t.title)).toEqual(['E2E_A', 'E2E_再起動またぎ']);
   });
 
-  test('通常起動後にオフラインで編集しても、復帰時は他端末の変更とマージして書く', async ({ page, context }) => {
+  test('通常起動後にオフラインで編集しても、復帰時はクラウド最新を読んでマージしてから書く', async ({ page, context }) => {
     await openOffline(page, [], { tasks: [mkTask('a', 'E2E_A')], categories: [] });
     await expect(page.locator('#syncIndicator')).not.toContainText('未同期');
 
     await context.setOffline(true);
     await quickAdd(page, 'E2E_オフライン編集');
-    await context.setOffline(false);
-    await page.waitForTimeout(300);
-    // 復帰イベントだけでは書かない（クラウド最新が未確認のため）
     expect(await page.evaluate(() => window.__fakeFs.writes.length)).toBe(0);
-
-    await page.evaluate(({ a, c }) => window.__emitServerSnapshot({ tasks: [a, c], categories: [] }), {
+    // オフライン中に他端末がクラウドを更新した
+    await page.evaluate(({ a, c }) => { window.__fakeCloud = { tasks: [a, c], categories: [] }; }, {
       a: mkTask('a', 'E2E_A'), c: mkTask('c', 'E2E_C_他端末'),
     });
+    await context.setOffline(false);
+
+    await expect.poll(() => page.evaluate(() => window.__fakeFs.writes.length)).toBe(1);
     const writes = await page.evaluate(() => window.__fakeFs.writes);
-    expect(writes).toHaveLength(1);
     expect(writes[0].tasks.map(t => t.title)).toEqual(['E2E_A', 'E2E_C_他端末', 'E2E_オフライン編集']);
+    await expect(page.locator('.task-card', { hasText: 'E2E_C_他端末' })).toBeVisible();
+  });
+
+  test('通常起動後に編集せずオフライン→復帰しても、古い状態で書き込まない', async ({ page, context }) => {
+    await openOffline(page, [], { tasks: [mkTask('a', 'E2E_A')], categories: [] });
+    await context.setOffline(true);
+    await context.setOffline(false);
+    await page.waitForTimeout(500);
+    expect(await page.evaluate(() => window.__fakeFs.writes.length)).toBe(0);
+  });
+
+  test('自分の書込み確認（中身が同じスナップショット）では再描画せず、開いたメニューを閉じない', async ({ page }) => {
+    const a = mkTask('a', 'E2E_A');
+    await openOffline(page, [], { tasks: [a], categories: [] });
+    await page.locator('.task-card[data-id="a"] .card-menu-btn').click();
+    await expect(page.locator('#cardMenu')).toBeVisible();
+    await page.evaluate((a) => window.__emitServerSnapshot({ tasks: [a], categories: [] }), a);
+    await expect(page.locator('#cardMenu')).toBeVisible();
   });
 });

@@ -1,6 +1,6 @@
 /* ===== Firebase ===== */
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-app.js';
-import { getFirestore, doc, getDoc, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
+import { getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/12.13.0/firebase-firestore.js';
 import { firebaseConfig } from './firebase-config.js';
 
 /* ===== Utils ===== */
@@ -128,11 +128,11 @@ async function saveCloud() {
     return;
   }
   setSyncState('syncing');
-  const payload = snapshotData();
+  // dtask_synced はここでは更新しない（他端末の変更を含むスナップショットとの順序が保証されないため）。
+  // 書込み確認は includeMetadataChanges の onSnapshot（!hasPendingWrites）で届き、そこで更新する
   try {
-    await setDoc(DATA_DOC, payload);
-    saveSynced(payload);
-    setSyncState('saved');
+    await setDoc(DATA_DOC, snapshotData());
+    if (cloudLoaded) setSyncState('saved'); // 送信中にオフライン化して未同期へ入っていたら表示を上書きしない
   } catch (err) {
     console.error('saveCloud failed', err);
     setSyncState('error');
@@ -171,6 +171,7 @@ async function loadStorage() {
     saveLocalMirror();
     saveSynced(snapshotData());
   } else {
+    saveSynced({ tasks: [], categories: [] }); // クラウドは空＝これが基準
     // 初回: localStorageにデータがあればFirestoreへ移行
     try {
       state.tasks      = JSON.parse(localStorage.getItem('dtask_tasks'))      || [];
@@ -1613,10 +1614,13 @@ async function init() {
     }
     if (!snap.exists()) return;
     const d = snap.data();
-    state.tasks      = (d.tasks      || []).map(normalizeTask);
-    state.categories = d.categories || [];
+    const next = snapshotData((d.tasks || []).map(normalizeTask), d.categories || []);
+    if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) saveSynced(next);
+    // 自分の書込み確認（hasPendingWrites だけ変わる通知）で再描画すると、開いたメニューや編集中の入力が閉じるため
+    if (JSON.stringify(next) === JSON.stringify(snapshotData())) return;
+    state.tasks      = next.tasks;
+    state.categories = next.categories;
     saveLocalMirror();
-    if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) saveSynced(snapshotData());
     renderSidebar();
     render();
   });
@@ -1842,7 +1846,15 @@ async function init() {
 
   /* Online / offline detection */
   window.addEventListener('offline', () => setSyncState('offline'));
-  window.addEventListener('online',  () => saveCloud()); // 復帰時に自動リトライ
+  // 復帰時に自動で setDoc しない（クラウド最新を読む前の全件置換で他端末の変更を消すため #349）。
+  // 未同期ならサーバーから直接読んで差分マージする（スナップショットが来ない経路の保険）
+  window.addEventListener('online', () => {
+    if (cloudLoaded) { setSyncState('idle'); return; }
+    setSyncState('local');
+    getDocFromServer(DATA_DOC)
+      .then(s => { if (!cloudLoaded) reconcileWithCloud(s.exists() ? s.data() : null); })
+      .catch(() => {});
+  });
   if (navigator.onLine === false) setSyncState('offline');
 
   /* Keyboard shortcuts */
