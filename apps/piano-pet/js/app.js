@@ -28,7 +28,7 @@ import { isSoundOn, toggleSound, playSound, playStamp, rollCatVoice, playCatVoic
 import { badgesWithStatus, earnedCount, newlyEarned, BADGES } from './badges.js';
 import { initErrorMonitoring } from './sentry.js';
 import { initAnalytics, track } from './analytics.js';
-import { isOnboarded, setOnboarded, ONBOARD_STEPS, isLastStep, nextStepIndex } from './onboarding.js';
+import { isOnboarded } from './onboarding.js';
 
 // エラー監視・利用計測（任意・キー未設定なら no-op）。早期に起動する。
 initErrorMonitoring();
@@ -1806,62 +1806,18 @@ importFileEl?.addEventListener('change', (e) => {
   e.target.value = '';   // 同じファイルを連続選択しても change が発火するように
 });
 
-// ===== 初回オンボーディング（猫の吹き出し紙芝居・#141） =====
-// 何をするアプリかを猫の吹き出し3画面で案内する。スキップ可・一度見たら出さない。
-const onboardingEl = document.getElementById('onboardingOverlay');
-const onboardingNextEl = document.getElementById('onboardingNext');
-let onboardStep = 0;
-
-// 現在のステップ番号に合わせて吹き出し・進捗ドット・ボタン文言を描き直す。
-function renderOnboardingStep() {
-  const step = ONBOARD_STEPS[onboardStep];
-  if (!step) return;
-  setText('onboardingEmoji', step.emoji);
-  setText('onboardingTitle', step.title);
-  setText('onboardingBody', step.body);
-  const dotsEl = document.getElementById('onboardingDots');
-  if (dotsEl) {
-    dotsEl.innerHTML = ONBOARD_STEPS
-      .map((_, i) => `<span class="onboarding__dot${i === onboardStep ? ' is-active' : ''}"></span>`)
-      .join('');
-  }
-  if (onboardingNextEl) onboardingNextEl.textContent = isLastStep(onboardStep) ? 'はじめる！' : 'つぎへ';
-}
-
-function showOnboarding() {
-  if (!onboardingEl) return;
-  onboardStep = 0;
-  // ホームと同じ猫描画を流用（新規アセットなし）。案内中は通常表情を出す。
-  const catEl = document.getElementById('onboardingCat');
-  if (catEl) catEl.innerHTML = catMarkup({ mood: 'idle', name: state.pet.name, style: state.pet.catStyle });
-  renderOnboardingStep();
-  onboardingEl.hidden = false;
-}
-
-// 完了（スキップ／はじめる いずれも）：フラグを立てて二度と出さない。
-function finishOnboarding() {
-  setOnboarded();
-  if (onboardingEl) onboardingEl.hidden = true;
-}
-
-onboardingNextEl?.addEventListener('click', () => {
-  if (isLastStep(onboardStep)) {
-    finishOnboarding();
-    return;
-  }
-  onboardStep = nextStepIndex(onboardStep);
-  renderOnboardingStep();
-});
-document.getElementById('onboardingSkip')?.addEventListener('click', finishOnboarding);
-
 window.addEventListener('hashchange', () => router.syncFromHash(window.location.hash));
 
 // 初期表示
 renderHome();
 router.syncFromHash(window.location.hash);
 
-// 初回起動なら使い方の案内を出す（renderHome 後に重ねる）
-if (!isOnboarded()) showOnboarding();
+// 初回起動なら使い方の案内を出す（renderHome 後に重ねる）。画面は未表示のときだけ読む（#365）
+if (!isOnboarded()) {
+  import('./onboarding-ui.js')
+    .then((m) => m.showOnboarding(catMarkup({ mood: 'idle', name: state.pet.name, style: state.pet.catStyle })))
+    .catch(() => {});   // 読めなくても本体は動く（次の起動で出る）
+}
 
 // ===== クラウド同期（Firestore） =====
 // ローカルで即描画したあと、クラウドと突き合わせる。SDK は CDN 読み込みなので
