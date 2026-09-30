@@ -4,7 +4,7 @@ import { getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot } from 
 import { firebaseConfig } from './firebase-config.js';
 
 /* ===== Utils ===== */
-import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline, todayStr, daysBetween } from './utils/date.js';
+import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline, todayStr, daysBetween, parseDateStr } from './utils/date.js';
 import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
@@ -279,7 +279,7 @@ function triggerLatestUndo() {
 }
 
 /* ===== Toast (with optional Undo) ===== */
-function showToast(message, undoFn, duration = 5000) {
+function showToast(message, undoFn, duration = 5000, action = null) {
   const container = document.getElementById('toastContainer');
   if (!container) return () => {};
 
@@ -317,19 +317,40 @@ function showToast(message, undoFn, duration = 5000) {
     });
     toast.appendChild(btn);
   }
+  if (action) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'toast-undo';
+    btn.textContent = action.label;
+    btn.addEventListener('click', () => { action.fn(); dismiss(); });
+    toast.appendChild(btn);
+  }
 
   container.appendChild(toast);
   // entrance animation trigger
   requestAnimationFrame(() => toast.classList.add('toast-in'));
   timer = setTimeout(dismiss, duration);
+  // ホバー中・フォーカス中は消さない（キーボードでボタンまで辿り着く時間を確保する）
+  const pause  = () => clearTimeout(timer);
+  const resume = () => { if (!dismissed) timer = setTimeout(dismiss, duration); };
+  toast.addEventListener('mouseenter', pause);
+  toast.addEventListener('focusin', pause);
+  toast.addEventListener('mouseleave', () => { if (!toast.contains(document.activeElement)) resume(); });
+  toast.addEventListener('focusout', e => { if (!toast.contains(e.relatedTarget)) resume(); });
   return dismiss;
 }
 
 /* ===== Task CRUD ===== */
 function addTask(data) {
-  state.tasks.push(normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data }));
+  const task = normalizeTask({ id: uid(), createdAt: new Date().toISOString(), ...data });
+  state.tasks.push(task);
   saveCloud();
   render();
+  // 絞り込みで見えないタスクを足すと「何も起きなかった」ように見えるため、理由と戻り道を出す (#352)
+  if (!getFilteredTasks().some(t => t.id === task.id)) {
+    showToast(`「${task.title}」を追加しました（今の絞り込みでは表示されません）`, undefined, 7000,
+      { label: 'すべて表示', fn: clearFilters });
+  }
   // 操作種別と頻度のみ計測（内容は送らない）
   track('task_added', { priority: data.priority || 'medium', hasDeadline: !!data.deadline });
 }
@@ -337,7 +358,9 @@ function addTask(data) {
 function updateTask(id, data) {
   const idx = state.tasks.findIndex(t => t.id === id);
   if (idx < 0) return;
+  const prevStatus = state.tasks[idx].status;
   state.tasks[idx] = { ...state.tasks[idx], ...data };
+  spawnNextIfNeeded(state.tasks[idx], prevStatus);
   saveCloud();
   render();
 }
@@ -372,28 +395,44 @@ function deleteTask(id) {
 function toggleDone(id) {
   const task = state.tasks.find(t => t.id === id);
   if (!task) return;
-  const becomingDone = task.status !== 'done';
+  const prevStatus = task.status;
   task.status = task.status === 'done' ? 'todo' : 'done';
-
-  if (becomingDone && task.recurrence && task.recurrence.type) {
-    spawnNextRecurrence(task);
-  }
-
+  spawnNextIfNeeded(task, prevStatus);
   saveCloud();
   render();
 }
 
 
 function spawnNextRecurrence(task) {
+  const { spawnedNextId, ...rest } = task;
+  // 毎月は元の「日」を anchorDay として引き継ぐ（1/31 → 2/28 → 3/31。月末で詰めた日に引きずられない #351）
+  const recurrence = task.recurrence.type === 'monthly' && /^\d{4}-\d{2}-\d{2}$/.test(task.deadline || '')
+    ? { ...task.recurrence, anchorDay: task.recurrence.anchorDay ?? parseDateStr(task.deadline).getDate() }
+    : task.recurrence;
   const next = normalizeTask({
-    ...task,
+    ...rest,
     id: uid(),
     createdAt: new Date().toISOString(),
     status: 'todo',
-    deadline: nextRecurrenceDeadline(task.deadline, task.recurrence),
+    recurrence,
+    deadline: nextRecurrenceDeadline(task.deadline, recurrence),
     subtasks: (task.subtasks || []).map(s => ({ ...s, id: uid(), done: false })),
   });
   state.tasks.push(next);
+  return next;
+}
+
+/* 繰り返しの次回分は「未完了→完了」になったときだけ1件作る。✓・⋮・Kanbanセレクト・D&D・編集モーダルの
+ * 全経路で共通 (#351)。完了→未完了→完了と戻しても、前回作った次回分が残っていれば作らない */
+function existingNext(task) {
+  return task.spawnedNextId ? state.tasks.find(t => t.id === task.spawnedNextId) || null : null;
+}
+
+function spawnNextIfNeeded(task, prevStatus) {
+  if (prevStatus === 'done' || task.status !== 'done' || !task.recurrence?.type) return null;
+  if (existingNext(task)) return null;
+  const next = spawnNextRecurrence(task);
+  task.spawnedNextId = next.id;
   return next;
 }
 
@@ -403,14 +442,15 @@ function skipRecurrence(id) {
   const original = state.tasks[idx];
   if (!original.recurrence || !original.recurrence.type) return;
 
-  const spawned = spawnNextRecurrence(original);
+  // 一度完了→未完了に戻したタスクは次回分が既にあるので、作らずに今回分だけ外す
+  const spawned = existingNext(original) ? null : spawnNextRecurrence(original);
   state.tasks = state.tasks.filter(t => t.id !== id);
   saveCloud();
   render();
 
   const dateLabel = formatDate(original.deadline) || '今回分';
   showToast(`「${original.title}」を${dateLabel}スキップしました`, () => {
-    state.tasks = state.tasks.filter(t => t.id !== spawned.id); // 自動生成された次回分を取消
+    if (spawned) state.tasks = state.tasks.filter(t => t.id !== spawned.id); // 自動生成された次回分を取消
     if (!state.tasks.some(t => t.id === original.id)) {
       state.tasks.splice(Math.min(idx, state.tasks.length), 0, original);
     }
@@ -892,6 +932,7 @@ function openTaskModal(task = null) {
     document.getElementById('taskTags').value       = '';
     document.getElementById('taskRecurrence').value = '';
     document.getElementById('taskCategory').value = state.filters.categoryId || '';
+    if (state.filters.preset === 'today') document.getElementById('taskDeadline').value = todayStr();
   }
 
   modal.classList.remove('hidden');
@@ -1042,9 +1083,9 @@ function moveTask(id, dir) {
 function moveToStatus(id, status) {
   const task = state.tasks.find(t => t.id === id);
   if (!task || task.status === status) return;
-  const becomingDone = status === 'done' && task.status !== 'done';
+  const prevStatus = task.status;
   task.status = status;
-  if (becomingDone && task.recurrence && task.recurrence.type) spawnNextRecurrence(task);
+  spawnNextIfNeeded(task, prevStatus);
   saveCloud();
   render();
 }
@@ -1222,16 +1263,20 @@ function handleTaskFormSubmit(e) {
   const tags = document.getElementById('taskTags').value
     .split(',').map(s => s.trim()).filter(Boolean);
   const recurrenceType = document.getElementById('taskRecurrence').value;
+  const deadline = document.getElementById('taskDeadline').value;
+  // 種別も期限も変えていなければ、毎月の anchorDay 等を保持する（期限を手で変えたら基準日は付け直し）
+  const prev = id ? state.tasks.find(t => t.id === id) : null;
+  const keepRecurrence = prev?.recurrence?.type === recurrenceType && prev.deadline === deadline;
   const data = {
     title:       document.getElementById('taskTitle').value.trim(),
     description: document.getElementById('taskDescription').value.trim(),
-    deadline:    document.getElementById('taskDeadline').value,
+    deadline,
     priority:    document.getElementById('taskPriority').value,
     categoryId:  document.getElementById('taskCategory').value,
     status:      document.getElementById('taskStatus').value,
     tags,
     subtasks:    collectSubtasks(),
-    recurrence:  recurrenceType ? { type: recurrenceType } : null,
+    recurrence:  recurrenceType ? (keepRecurrence ? { ...prev.recurrence } : { type: recurrenceType }) : null,
   };
   if (!data.title) return;
 
@@ -1287,6 +1332,33 @@ function syncPresetChipUI(preset) {
     c.classList.toggle('active', isActive);
     c.setAttribute('aria-selected', isActive ? 'true' : 'false');
   });
+  syncQuickAddPlaceholder();
+}
+
+/* 絞り込みを全解除してUIへ反映（並べ替えと「完了タスクを隠す」は表示設定として維持） */
+function clearFilters() {
+  Object.assign(state.filters, { categoryId: '', priority: '', status: '', search: '', preset: '' });
+  document.getElementById('statusFilter').value = '';
+  document.getElementById('priorityFilter').value = '';
+  document.getElementById('searchInput').value = '';
+  document.getElementById('searchClear').style.display = 'none';
+  syncPresetChipUI('');
+  renderSidebar();
+  render();
+}
+
+/* 「今日」ビューのクイック追加は期限=今日になることを入力欄で示す (#352) */
+function syncQuickAddPlaceholder() {
+  const input = document.getElementById('quickAddInput');
+  if (!input) return;
+  const today = state.filters.preset === 'today';
+  input.placeholder = today
+    ? '今日やることを入力して Enter（期限は今日）'
+    : 'タイトルを入力して Enter で追加（N キーでフォーカス）';
+  // 読み上げでも期限が今日になることを伝える（aria-label が placeholder より優先されるため）
+  input.setAttribute('aria-label', today
+    ? 'クイック追加：今日やることを入力して Enter（期限は今日）'
+    : 'クイック追加：タイトルを入力して Enter で追加');
 }
 
 function switchView(view) {
@@ -1542,7 +1614,9 @@ function handleKanbanDrop(e, status) {
     if (t) t.order = idx;
   });
 
-  if (task.status !== status) task.status = status;
+  const prevStatus = task.status;
+  task.status = status;
+  spawnNextIfNeeded(task, prevStatus);
 
   syncManualSort();
   saveCloud();
@@ -1663,6 +1737,8 @@ async function init() {
   function quickAddResolveDeadline() {
     if (quickAddMeta.deadlinePreset === 'today')    return todayStr();
     if (quickAddMeta.deadlinePreset === 'tomorrow') return addDays(todayStr(), 1);
+    // 期限チップ未指定でも「今日」ビューでは今日にする（今日ビュー＝今日やることを足す場所 #352）
+    if (state.filters.preset === 'today') return todayStr();
     return '';
   }
   function quickAddSubmit() {
@@ -1811,11 +1887,7 @@ async function init() {
   document.querySelectorAll('.preset-chip').forEach(chip => {
     chip.addEventListener('click', () => {
       state.filters.preset = chip.dataset.preset || '';
-      document.querySelectorAll('.preset-chip').forEach(c => {
-        const isActive = c === chip;
-        c.classList.toggle('active', isActive);
-        c.setAttribute('aria-selected', isActive ? 'true' : 'false');
-      });
+      syncPresetChipUI(state.filters.preset);
       render();
     });
   });
