@@ -1,12 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import {
-  ONBOARD_KEY,
-  ONBOARD_STEPS,
-  isOnboarded,
-  setOnboarded,
-  isLastStep,
-  nextStepIndex,
-} from '../js/onboarding.js';
+import { ONBOARD_KEY, isOnboarded, setOnboarded } from '../js/onboarding.js';
+import { ONBOARD_STEPS, isLastStep, nextStepIndex } from '../js/onboarding-ui.js';
 
 // node 環境には localStorage が無いので Map ベースの簡易モックを差し込む。
 function mockLocalStorage() {
