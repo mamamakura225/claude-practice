@@ -15,7 +15,7 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | `streak` | Streak | ✓ | 連続練習記録 |
 | `badges` | string[] | ✓ | 獲得バッジID |
 | `sessions` | Session[] | ✓ | 練習セッション履歴（XP/レベル等の計算元） |
-| `deletedDates` | `string[]` | ✓ | 削除した記録の日付（`YYYY-MM-DD`）の墓標（#319）。union マージで「消したはずの記録が他端末から復活する」のを防ぐ。同じ日に再記録すると外れる。剪定なし（1日1エントリ＝1年で約3.6 KiB） |
+| `deletedDates` | `string[]` | ✓ | 削除した記録の日付（`YYYY-MM-DD`）の墓標（#319）。union マージで「消したはずの記録が他端末から復活する」のを防ぐ。**「なおす」で日付を動かしたときの元の日付も積む**（#358）。同じ日に再記録すると外れる。剪定なし（1日1エントリ＝1年で約3.6 KiB） |
 | `settings` | Settings | − | 端末ローカル設定（音など）。クラウド非同期 |
 
 クラウド（Firestore `pianopet/<doc ID>`）に載るのは `CLOUD_FIELDS`（`pet, inventory, streak, badges, sessions, deletedDates`）のみ。doc ID は [account.js](../js/account.js) `cloudDocIdFor`（[cloud.js](../js/cloud.js) が import 時に束縛）で導出する。`settings` と `version` は端末ローカルに留まる。
@@ -192,10 +192,17 @@ const MIGRATIONS = [
 | 経路 | 契機 | 規則 | 失われうるもの |
 |---|---|---|---|
 | 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別ローカル優先（union） | 同日衝突で回数の**少ない方**（keep-larger の既知トレードオフ） |
-| 復帰時 resync（#242） | `visibilitychange`→visible の `fetchCloud` | 同上（`reconcileInitialCloud`） | 同上。加えて union の副作用で**一方で外した装備・置物が復活**しうる（記録の削除は `deletedDates` 墓標で復活しない・#319） |
-| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。自分の書き込みのエコーは差分比較でスキップ。ただし `deletedDates` は union し墓標の日付の記録は取り込まない・#319） | **まだ push していないローカルの変更**（`pushCloudDebounced` の待ち時間ぶん・既定2秒）。ただし保留データは thunk で持ち送信時点の state を読むため（#313）、待ち時間中に届いた**他端末の確定済み記録は次の flush で送り直され巻き戻らない** |
+| 復帰時 resync（#242 / #358） | `visibilitychange`→visible、および `online` 復帰の `fetchCloud` | 同上（`reconcileInitialCloud`） | 同上。加えて union の副作用で**一方で外した装備・置物が復活**しうる（記録の削除は `deletedDates` 墓標で復活しない・#319） |
+| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。自分の書き込みのエコーは差分比較でスキップ。ただし `deletedDates` は union し墓標の日付の記録は取り込まない・#319）。**オフライン中にローカルを変更した印（`offlineDirty`）が立っている間は union（`reconcileInitialCloud`）で取り込む**（#358） | **まだ push していないローカルの変更**（`pushCloudDebounced` の待ち時間ぶん・既定2秒）。ただし保留データは thunk で持ち送信時点の state を読むため（#313）、待ち時間中に届いた**他端末の確定済み記録は次の flush で送り直され巻き戻らない** |
 
 > **設計判断**: realtime を cloud-wins のままにしているのは、平常時に union を使うと「一方の端末で外した装備が相手のスナップショットのたびに復活し続ける」ことになり操作が確定しないため。取りこぼすのは debounce 待ちの数秒ぶんだけで、記録確定時は `flushCloud()` で即送るので**記録そのものは落ちない**。フィールド別のタイムスタンプ／世代管理で本質的に解くのは #258（認証＋ルール）と合わせて別途。
+>
+> **設計判断（#358・オフライン復帰）**: 旧実装は `online` で `pushCloud(state)`（setDoc 全置換）を無条件に撃っていた。オフライン中は `onSnapshot` が届かないので state は古く、**その間に他端末が確定した記録を消す**。逆に、オフライン中にこの端末で記録した分は `pushCloud` が早期 return で送らない（#288）ため、再接続で届いたスナップショットの cloud-wins で消える。
+> - 復帰時は resync（fetch → union → 差分があれば push）に置き換えた。取り込めなかった（`fetchCloud` が null）ときは印を下ろさない
+> - 印はオフライン中の `commitState` / スタンプ / 目標変更（いずれも `queueCloudPush` 経由）と `offline` イベントで立つ（後者は debounce 待ちのままオフラインをまたいだ変更のため）。**オンライン中の debounce 待ちの数秒ぶんは従来どおり cloud-wins** のまま＝平常時の「外した装備が復活し続けない」性質は変えない
+> - 印を下ろすのは、復帰時 resync（`online` / `visibilitychange`）が取り込めて、かつその時点でオンラインのとき（`resyncAndSettle`）と、オンラインで届いたスナップショットを union で取り込んだとき。fetch 待ちの間に再びオフラインになった場合は下ろさない
+> - **既知の制限**: `navigator.onLine === true` なのに実際は不通の回線（キャプティブ Wi-Fi 等）では印が立たず、SDK がメモリに積んだ `setDoc` 全置換を再接続時に送る（下記の不採用案と同じ挙動になる）
+> - SDK にオフライン書き込みを積ませる（`pushCloud` の早期 return をやめる）案は不採用。再接続時に setDoc 全置換がそのまま送られ、他端末の記録を消す向きが逆になるだけ
 >
 > 逆に**初回 `fetchCloud` で cloud-wins を使うと**、idle 同期完了前にローカルで記録した内容を上書き（clobber）してしまう。そのため初回・復帰時だけ union に倒す。
 
@@ -241,11 +248,11 @@ const MIGRATIONS = [
 
 > **設計判断**: ローカル保存は従来どおり即時（オフラインキャッシュ・損失なし）で、遅延させるのはクラウド送信のみ。debounce を延ばすほど書き込みは減るが反映が遅れるため、ライフサイクル境界での `flushCloud()` を必須経路にして「まとめつつ取りこぼさない」を両立する。
 >
-> **設計判断（#288）**: オフライン中は `pushCloud` が早期 return で握りつぶすため、`flushCloud()` は `navigator.onLine === false` のとき保留データを消さずに保持する。次の記録確定または再オンライン後の debounce 満了で送り直せる（ローカルには保存済みなので、最悪でも次回起動の `reconcileInitialCloud` が差分を押し戻す）。
+> **設計判断（#288）**: オフライン中は `pushCloud` が早期 return で握りつぶすため、`flushCloud()` は `navigator.onLine === false` のとき保留データを消さずに保持する。次の記録確定、または `online` 復帰時の resync（#358・差分があれば push）で送り直せる（ローカルには保存済みなので、最悪でも次回起動の `reconcileInitialCloud` が差分を押し戻す）。
 >
 > **設計判断（#313）**: 保留データは「呼び出し時点の state のスナップショット（値）」ではなく **thunk（`() => cloudFields(state)`）** で持つ。値で焼き付けると、保留中に `applyRemoteState` 等で state が差し替わっても古い内容を `setDoc` 全置換で送ってしまい、**他端末が確定済みの記録を巻き戻す**。破棄方式（保留中に state が変わったら捨てる）ではなく thunk を選ぶのは、state 変更経路が増えるたびに無効化を足し忘れるため。送信時点で最新を読めば `visibilitychange` / `pagehide` の flush が古い state を送る問題も同時に消える。
 >
-> **設計判断（#313）**: `initCloudSync` の `fetchCloud`（最大5秒）待ちの間に `online` が発火してもマージ前のローカル state を push しない。`cloudSynced`（import 成功で立つ）とは別に `initialSyncDone`（初回 reconcile 完了）を設け、`online` ハンドラの push はこれでガードする。
+> **設計判断（#313）**: `initCloudSync` の `fetchCloud`（最大5秒）待ちの間に `online` が発火してもマージ前のローカル state を push しない。`cloudSynced`（import 成功で立つ）とは別に `initialSyncDone`（初回 reconcile 完了）を設け、`online` ハンドラの resync（#358 以前は push）はこれでガードする。
 
 ## バックアップ/復元・初期化（[js/backup.js](../js/backup.js)・#140 / #183）
 
@@ -279,10 +286,10 @@ const MIGRATIONS = [
 1. 復元直前の現行 localStorage を `piano-pet-backup-before-restore` へ自動退避（誤読込からの復旧用）。
 2. 保持しておいた cloud 購読解除ハンドル（`cloudUnsub`）を実行して **onSnapshot を一時解除**。
 3. `saveState(imported)` でローカル反映。
-4. `await pushCloud(cloudFields(imported))` で**クラウド反映の完了を待つ**。
+4. `await pushCloud(cloudFields(imported))` で**クラウド反映の完了を待つ**。がぞくコード同梱のファイル（#233）は `pushCloudDoc(コード, …)` でコードの doc へ書く（#358。`cloud.js` の `DATA_DOC` は import 時点＝切替前の doc に固定なので、`pushCloud` だと親が空にした旧・推測可能な doc へ家族のデータを書き戻してしまう）。
 5. `window.location.reload()` でクリーン再起動。リロード後の `fetchCloud()` は push 済みデータを返すため巻き戻しは起きない。
 
-> **設計判断**: 購読を解除せず差分比較だけに頼ると、import 直後の旧スナップショットが `mergeCloud` で取り込み結果を上書きしうる。`cloudUnsub` の保持＋push 完了待ち＋reload の三段で競合を物理的に排除する。オフライン時は `pushCloud` が早期 return するが、ローカルには取り込み済みが残り次回オンライン同期で送られる。
+> **設計判断**: 購読を解除せず差分比較だけに頼ると、import 直後の旧スナップショットが `mergeCloud` で取り込み結果を上書きしうる。`cloudUnsub` の保持＋push 完了待ち＋reload の三段で競合を物理的に排除する。オフライン時は push せずに reload する（`pushCloudDoc` には早期 return が無く、オフラインの `setDoc` は解決しないため app 側でガードする。待つと reload が止まる）。この場合クラウドは置き換わらず、次回の初回同期は union になる＝**復元が「置き換え」でなく「マージ」に弱まる**。
 
 **データ初期化（`resetData`・#183）**：復元と**同一の5段手順**で、取り込み対象が `normalizeState({})`（新品の `DEFAULTS`）になるだけ。直前データの退避も行うため誤って押しても復旧できる。`settings` 等の端末ローカル値も既定へ戻る。
 

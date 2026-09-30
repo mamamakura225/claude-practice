@@ -77,10 +77,19 @@ function cleanItemLayout(pet) {
   return cleaned;
 }
 
+// オフライン中の未送信変更の印＝立っている間の realtime は union（#358）
+let offlineDirty = false;
+
+function queueCloudPush() {
+  if (!cloud) return;
+  if (navigator.onLine === false) offlineDirty = true;
+  cloud.pushCloudDebounced(() => cloudFields(state));
+}
+
 export function commitState(newState) {
   state = { ...newState, pet: { ...newState.pet, itemLayout: cleanItemLayout(newState.pet) } };
   saveState(state);                 // ローカルキャッシュ（オフライン用）
-  if (cloud) cloud.pushCloudDebounced(() => cloudFields(state));  // クラウドへ反映（読み込み済みのときだけ）
+  queueCloudPush();
   renderHome();
 }
 
@@ -893,7 +902,7 @@ function setSessionMark(kind, index, id) {
   state = { ...state, badges: checkBadges(state) };
   const gained = newlyEarned(prevBadges, state.badges);
   saveState(state);
-  if (cloud) cloud.pushCloudDebounced(() => cloudFields(state));
+  queueCloudPush();
   renderHistory();
   if (gained.length) setTimeout(() => showBadgePopup(gained), 300);
 }
@@ -1094,7 +1103,10 @@ function submitRecord(event) {
     }
     const sessions = state.sessions.map((s, i) =>
       i === idx ? { ...s, date, songs, totalCount } : s);
-    commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions) }, spentTotal(state)));
+    // 日付を動かしたら元の日付は墓標へ（#358）
+    const deletedDates = date === editingDate ? state.deletedDates
+      : [...new Set([...(state.deletedDates ?? []), editingDate])];
+    commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions), deletedDates }, spentTotal(state)));
     resetRecordForm();
     router.go('history');
     return;
@@ -1418,7 +1430,7 @@ function setDailyGoal(value) {
   if (goal === currentGoal() && state.pet.dailyGoal === goal) return;
   state.pet = { ...state.pet, dailyGoal: goal };
   saveState(state);
-  if (cloud) cloud.pushCloudDebounced(() => cloudFields(state));
+  queueCloudPush();
   const goalInput = document.getElementById('goalTargetInput');
   if (goalInput) goalInput.value = String(goal);   // クランプ結果を入力欄に反映
   renderHome();
@@ -1553,7 +1565,8 @@ async function downloadBackup() {
 
 // 取り込み確定：①直前データを退避 ②クラウド購読を解除 ③ローカル保存
 // ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
-async function applyImportedState(imported) {
+// docId＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
+async function applyImportedState(imported, docId = null) {
   const { RESTORE_BACKUP_KEY } = await loadBackup();
   try {
     const cur = localStorage.getItem(activeStorageKey());
@@ -1565,8 +1578,9 @@ async function applyImportedState(imported) {
   }
   state = imported;
   saveState(state);
-  if (cloud) {
-    try { await cloud.pushCloud(cloudFields(state)); } catch { /* push 失敗時もローカルは取り込み済み */ }
+  if (cloud && navigator.onLine !== false) {
+    const data = cloudFields(state);
+    try { await (docId ? cloud.pushCloudDoc(docId, data) : cloud.pushCloud(data)); } catch { /* push 失敗時もローカルは取り込み済み */ }
   }
   window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
 }
@@ -1673,8 +1687,8 @@ function handleImportFile(file) {
     }
     if (!window.confirm('いまの データは きえて、ファイルの データに なります。よろしいですか？')) return;
     // バックアップに がぞくコード（#233）が入っていれば、同じクラウド保存先へ合流させる。
-    if (res.cloudDocId) setCloudDocId(getActiveAccountId(), res.cloudDocId);
-    applyImportedState(res.state);
+    const docId = res.cloudDocId && setCloudDocId(getActiveAccountId(), res.cloudDocId) ? res.cloudDocId : null;
+    applyImportedState(res.state, docId);
   };
   reader.onerror = async () => showImportStatus((await loadBackup()).importErrorMessage('parse'), true);
   reader.readAsText(file);
@@ -1856,6 +1870,11 @@ if (!isOnboarded()) showOnboarding();
 // クラウドのデータを現在の state に取り込んで再描画する。
 // 自分の書き込みのエコーなど「実質変化なし」のときは再描画をスキップする。
 function applyRemoteState(cloudData) {
+  if (offlineDirty) {
+    reconcileInitialCloud(cloudData);
+    if (navigator.onLine !== false) offlineDirty = false;
+    return;
+  }
   const merged = mergeCloud(state, cloudData);
   if (JSON.stringify(cloudFields(merged)) === JSON.stringify(cloudFields(state))) return;
   state = merged;
@@ -1925,18 +1944,24 @@ function reconcileInitialCloud(cloudData) {
 // fetch → 非破壊 union マージ（reconcileInitialCloud＝mergeCloudInitial 経路）で取り込み、
 // 以後の push が最新の配置込みになるようにする。差分が無ければ getDoc 1 回で no-op。
 async function resyncFromCloud() {
-  if (!cloudSynced || !cloud) return;
+  if (!cloudSynced || !cloud) return false;
   const cloudData = await cloud.fetchCloud();
   if (cloudData) reconcileInitialCloud(cloudData);
+  return !!cloudData;
 }
+
+// 印を下ろす条件は data-model.md #358
+const resyncAndSettle = () => resyncFromCloud()
+  .then((ok) => { if (ok && navigator.onLine !== false) offlineDirty = false; });
 
 // オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。
 window.addEventListener('online', () => {
   if (!cloudSynced) { initCloudSync(); return; }
   // 初回 reconcile 前は送らない（マージ前のローカル state で全置換すると他端末の記録を消す・#313）。
-  // 完了後は subscribe が最新を届けているので、復帰時に最新を一度送り直す。
-  if (initialSyncDone) cloud?.pushCloud(cloudFields(state));
+  // オフライン中の state は古いので union してから送る（#358）。
+  if (initialSyncDone) resyncAndSettle();
 });
+window.addEventListener('offline', () => { offlineDirty = true; });
 
 // タブの表示状態に応じて省電力・取りこぼし防止を行う（#146）。
 //   - 非アクティブ化: 効果音用 AudioContext を suspend（音声HWを休ませバッテリ節約）し、
@@ -1948,7 +1973,7 @@ document.addEventListener('visibilitychange', () => {
     cloud?.flushCloud();
   } else {
     resumeAudio();
-    resyncFromCloud();            // 復帰時に最新クラウドを取り込んでから操作を受ける（#242）
+    resyncAndSettle();            // 復帰時に最新クラウドを取り込んでから操作を受ける（#242）
   }
 });
 // 離脱直前（タブ閉じ・遷移）にも保留中の書き込みを確定する。pagehide は
