@@ -371,6 +371,9 @@ function renderReviewCard() {
   setText('reviewDays', sum.dayCount);
 }
 
+const HISTORY_PAGE = 14;
+let historyShown = HISTORY_PAGE;
+
 export async function renderHistory() {
   await loadHistory();
   setText('historyStreakCurrent', state.streak.current);
@@ -391,13 +394,18 @@ export async function renderHistory() {
     // 元配列のインデックスを保持したまま新しい順に並べる（編集・削除の参照用）
     const indexed = state.sessions.map((s, i) => ({ s, i }));
     indexed.sort((a, b) => String(b.s.date).localeCompare(String(a.s.date)));
+    const rest = indexed.length - historyShown;
     listEl.innerHTML = indexed.length
-      ? indexed.map(({ s, i }) => historyCardMarkup(s, i)).join('')
+      ? indexed.slice(0, historyShown).map(({ s, i }) => historyCardMarkup(s, i)).join('')
+        + (rest > 0 ? `<button type="button" class="settings-btn settings-btn--ghost settings-btn--block" data-action="more-history">もっと みる（あと ${rest}けん）</button>` : '')
       : '<p class="history-empty">まだ きろくが ないよ。<br>れんしゅうを きろくしてね！</p>';
   }
 }
 
 // ===== ショップ画面（Epic 7） =====
+// コイン不足は「あと ○ コイン」で次の目標として見せる（1かい＝1コイン・#360）
+const shortBtn = (price) => `<button type="button" class="shop-btn shop-btn--locked" disabled>あと ${price - (state.pet.coins ?? 0)} コイン</button>`;
+
 function shopCardMarkup(item) {
   const owned = isOwned(state, item.id);
   // 置物（#226）は装備でなく「配置(placedItems)」。slotで判定し、ラベルと状態語を切り替える。
@@ -418,7 +426,7 @@ function shopCardMarkup(item) {
   } else if (!owned) {
     btn = canBuy(state, item.id)
       ? `<button type="button" class="shop-btn shop-btn--buy" data-action="buy" data-id="${item.id}">かう</button>`
-      : `<button type="button" class="shop-btn shop-btn--locked" disabled>コインが たりない</button>`;
+      : shortBtn(item.price);
   } else if (active) {
     btn = `<button type="button" class="shop-btn shop-btn--unequip" data-action="${action}" data-id="${item.id}">${offLabel}</button>`;
   } else {
@@ -443,7 +451,7 @@ function feedCardMarkup(food) {
   const affordable = canFeed(state, food.id);
   const btn = affordable
     ? `<button type="button" class="shop-btn shop-btn--buy" data-action="feed" data-id="${food.id}">あげる</button>`
-    : `<button type="button" class="shop-btn shop-btn--locked" disabled>コインが たりない</button>`;
+    : shortBtn(food.price);
   return `<div class="shop-card">
     <span class="shop-card__icon" aria-hidden="true">${food.icon}</span>
     <div class="shop-card__info">
@@ -544,7 +552,10 @@ const router = createRouter({
 });
 
 navButtons.forEach((btn) => {
-  btn.addEventListener('click', () => router.go(btn.dataset.nav));
+  btn.addEventListener('click', () => {
+    if (btn.dataset.nav === 'history') historyShown = HISTORY_PAGE;   // ナビから入り直したら直近へ（#360）
+    router.go(btn.dataset.nav);
+  });
 });
 
 document.getElementById('goRecordBtn')?.addEventListener('click', () => router.go('record'));
@@ -1223,6 +1234,13 @@ document.getElementById('historyList')?.addEventListener('click', (e) => {
   if (btn.dataset.action === 'edit-session') startEditSession(index);
   else if (btn.dataset.action === 'delete-session') deleteSession(index);
   else if (btn.dataset.action === 'set-mark') setSessionMark(btn.dataset.mark, index, btn.dataset.id);
+  else if (btn.dataset.action === 'more-history') {
+    const from = historyShown;
+    historyShown += HISTORY_PAGE;
+    // innerHTML の組み直しで body に落ちるフォーカスを、足した先頭の記録へ移す
+    const list = e.currentTarget;
+    renderHistory().then(() => list.children[from]?.querySelector('button')?.focus());
+  }
 });
 
 // ===== ショップの購入・装備操作 =====
