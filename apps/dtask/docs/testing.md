@@ -26,7 +26,7 @@ npm test          # 全テスト実行（vitest run）
 | [tests/filter.test.js](../tests/filter.test.js) | `filterTasks`（カテゴリ・優先度・ステータス・期限プリセット・フリーテキスト/タグ検索） |
 | [tests/sort.test.js](../tests/sort.test.js) | `sortTasks`（manual/created/deadline/priority、完了タスク末尾保証） |
 | [tests/html.test.js](../tests/html.test.js) | `escHtml`（XSS対策） |
-| [tests/sync.test.js](../tests/sync.test.js) | `mergeFallbackChanges`（ローカル追加/編集/削除のクラウドへの載せ直し、空フォールバックでクラウドを消さない #349） |
+| [tests/sync.test.js](../tests/sync.test.js) | `mergeFallbackChanges`（ローカル追加/編集/削除の載せ直し、フィールド単位の重ね合わせ、空フォールバックでクラウドを消さない #349） |
 
 ### 単体テスト方針
 - `utils/` への新規追加・変更時は必ずテストを追加または更新
@@ -54,7 +54,7 @@ npm run test:e2e   # E2Eテスト実行
 | [e2e/add-task.spec.js](../e2e/add-task.spec.js) | クイック追加バーから新規タスク作成→リストに表示されることを確認。Firestore APIをブロックしてオフライン挙動を検証 |
 | [e2e/today-home.spec.js](../e2e/today-home.spec.js) | 「今日やること」ホームビュー(#33)：起動時 today フィルタON（今日＋期限切れ表示・未来非表示）、ビュー形式の localStorage 復元、今日分全完了時のご褒美空状態 |
 | [e2e/card-menu.spec.js](../e2e/card-menu.spec.js) | カード操作メニュー(#111)：⋮ から削除・下へ並び替え・完了化、キーボードでの開閉（Enter/Esc・フォーカス復帰） |
-| [e2e/offline-fallback.spec.js](../e2e/offline-fallback.spec.js) | オフライン起動中の同期安全性(#349)：Firebase SDK を偽モジュールに `page.route` で差し替え、フォールバック中は書込まない・端末に残る・クラウド到着時の差分マージを検証 |
+| [e2e/offline-fallback.spec.js](../e2e/offline-fallback.spec.js) | オフライン起動中の同期安全性(#349)：Firebase SDK を偽モジュールに `page.route` で差し替え、フォールバック中は書込まない・端末に残る・クラウド到着時の差分マージ・キャッシュ由来スナップショットの無視・再起動をまたぐ未同期分・通常起動後のオフライン編集を検証 |
 
 > 起動既定が「今日」フィルタ(#33)のため、全件表示を前提とする既存 spec は冒頭で「すべて」chip へ切替える `showAll(page)` ヘルパを通す。
 

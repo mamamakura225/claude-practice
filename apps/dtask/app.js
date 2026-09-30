@@ -69,17 +69,39 @@ const SYNC_STATES = {
 };
 let syncIdleTimer = null;
 
-/* クラウドの内容を一度も読めていない間（起動時フォールバック中）は setDoc しない。
+/* クラウドの最新を読めていない間（起動時フォールバック中・オフライン編集後）は setDoc しない。
  * setDoc はドキュメント全体の置換なので、空や古いローカル状態で書くとクラウドの全件が消える (#349)。
- * fallbackBaseline はフォールバック起動時に読んだローカル状態で、クラウド到着時の差分マージに使う。 */
+ * fallbackBaseline は「最後にクラウドと一致していた状態」(dtask_synced) で、クラウド到着時の差分マージに使う。 */
+const SYNCED_KEY = 'dtask_synced';
 let cloudLoaded = false;
 let fallbackBaseline = null;
+
+function snapshotData(tasks = state.tasks, categories = state.categories) {
+  return JSON.parse(JSON.stringify({ tasks, categories }));
+}
 
 function saveLocalMirror() {
   try {
     localStorage.setItem('dtask_tasks', JSON.stringify(state.tasks));
     localStorage.setItem('dtask_categories', JSON.stringify(state.categories));
   } catch {}
+}
+
+function saveSynced(data) {
+  try { localStorage.setItem(SYNCED_KEY, JSON.stringify(data)); } catch {}
+}
+
+/* 未同期モードへ入る。基準はクラウド一致状態。それが無い端末（本修正の初回）は現在のローカルを基準として
+ * 保存し、再起動して再びフォールバックしても未同期の変更を差分として検出できるようにする */
+function enterUnsynced() {
+  cloudLoaded = false;
+  let synced = null;
+  try { synced = JSON.parse(localStorage.getItem(SYNCED_KEY)); } catch {}
+  if (!synced || !Array.isArray(synced.tasks)) {
+    synced = snapshotData();
+    saveSynced(synced);
+  }
+  fallbackBaseline = synced;
 }
 
 function setSyncState(stateName) {
@@ -100,12 +122,16 @@ async function saveCloud() {
     return;
   }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    // オフライン中の編集は、復帰後にクラウド最新へ差分マージしてから書く（復帰直後の全件置換で他端末の変更を消さない）
+    enterUnsynced();
     setSyncState('offline');
     return;
   }
   setSyncState('syncing');
+  const payload = snapshotData();
   try {
-    await setDoc(DATA_DOC, { tasks: state.tasks, categories: state.categories });
+    await setDoc(DATA_DOC, payload);
+    saveSynced(payload);
     setSyncState('saved');
   } catch (err) {
     console.error('saveCloud failed', err);
@@ -132,7 +158,7 @@ async function loadStorage() {
       state.tasks = []; state.categories = [];
     }
     state.tasks = state.tasks.map(normalizeTask);
-    fallbackBaseline = JSON.parse(JSON.stringify({ tasks: state.tasks, categories: state.categories }));
+    enterUnsynced();
     loadExpanded();
     return;
   }
@@ -142,6 +168,8 @@ async function loadStorage() {
     const d = snap.data();
     state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
+    saveLocalMirror();
+    saveSynced(snapshotData());
   } else {
     // 初回: localStorageにデータがあればFirestoreへ移行
     try {
@@ -1552,7 +1580,7 @@ function reconcileWithCloud(d) {
   cloudLoaded      = true;
   fallbackBaseline = null;
   if (tasks.hasLocalChanges || cats.hasLocalChanges) saveCloud();
-  else { saveLocalMirror(); setSyncState('idle'); }
+  else { saveLocalMirror(); saveSynced(snapshotData()); setSyncState('idle'); }
   renderSidebar();
   render();
 }
@@ -1570,12 +1598,15 @@ async function init() {
   renderSidebar();
   render();
   maybeShowActionHint();
+  if (!cloudLoaded) setSyncState('local');
 
   /* リアルタイム同期: 他デバイスの変更を自動反映 */
-  onSnapshot(DATA_DOC, (snap) => {
+  // includeMetadataChanges: キャッシュ→サーバーで中身が同じ（fromCache だけ変わる）場合も通知を受け、
+  // 未同期モードから確実に抜けるため
+  onSnapshot(DATA_DOC, { includeMetadataChanges: true }, (snap) => {
     if (!cloudLoaded) {
-      // フォールバック起動後、サーバー由来のスナップショットが初めて届いた時点でクラウドを正とし、
-      // フォールバック中のローカル変更だけを載せ直してから書き戻す（キャッシュ由来は判定材料にしない）
+      // 未同期モードでは、サーバー由来のスナップショットが届いた時点でクラウドを正とし、
+      // 未同期の間のローカル変更だけを載せ直してから書き戻す（キャッシュ由来は判定材料にしない）
       if (snap.metadata.fromCache) return;
       reconcileWithCloud(snap.exists() ? snap.data() : null);
       return;
@@ -1585,6 +1616,7 @@ async function init() {
     state.tasks      = (d.tasks      || []).map(normalizeTask);
     state.categories = d.categories || [];
     saveLocalMirror();
+    if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites) saveSynced(snapshotData());
     renderSidebar();
     render();
   });
