@@ -17,6 +17,7 @@
 | `subtasks` | Subtask[] |  | サブタスク配列。デフォルト `[]` |
 | `recurrence` | Recurrence \| null |  | 定期タスク設定。デフォルト `null` |
 | `order` | number |  | 手動ソート順。デフォルト `0` |
+| `spawnedNextId` | string |  | 繰り返しタスクを完了にして生成した次回分のID。再完了時の重複生成防止に使う（#351） |
 | `createdAt` | ISO8601 string | ✓ | 作成日時 |
 
 正規化は [utils/task.js](../utils/task.js) の `normalizeTask` が担う（読み込み時に `tags`/`subtasks`/`recurrence`/`order` のデフォルト値を補完）。
@@ -46,8 +47,9 @@
 | フィールド | 型 | 説明 |
 |---|---|---|
 | `type` | `'daily'` \| `'weekly'` \| `'monthly'` | 繰り返し種別 |
+| `anchorDay` | number（任意・毎月のみ） | 基準の「日」。次回分の生成時に元の期限日から付与し、月末で詰めた月（2/28 等）の翌月に元の日（31 等）へ戻すため（#351）。編集モーダルで期限か種別を変えると付け直し |
 
-次回期限の計算は [utils/date.js](../utils/date.js) の `nextRecurrenceDeadline(deadline, recurrence)`。間隔は `type` のみで表現し、`interval` のような数値フィールドは持たない（将来「2週間ごと」等が必要になった時点で追加する）。
+次回期限の計算は [utils/date.js](../utils/date.js) の `nextRecurrenceDeadline(deadline, recurrence)`。毎月は翌月に同じ日が無ければ月末に詰める（1/31 → 2/28 → 3/31）。間隔は `type` のみで表現し、`interval` のような数値フィールドは持たない（将来「2週間ごと」等が必要になった時点で追加する）。
 
 ## Firestore スキーマ
 

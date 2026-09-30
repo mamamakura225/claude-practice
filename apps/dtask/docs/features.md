@@ -90,7 +90,13 @@
 
 ## 定期タスク (Recurrence)
 
-`recurrence.type = daily | weekly | monthly` を設定したタスクは、完了時に次回タスクを自動生成（[app.js](../app.js) `spawnNextRecurrence`）。`skipRecurrence` で次回をスキップ可能。
+`recurrence.type = daily | weekly | monthly` を設定したタスクは、完了時に次回タスクを自動生成（[app.js](../app.js) `spawnNextIfNeeded` → `spawnNextRecurrence`）。`skipRecurrence` で今回分をスキップ可能（次回分は残る）。
+
+- **どの経路で完了にしても同じ規則**：✓ボタン・スワイプ・⋮メニュー・Kanbanセレクト・Kanban D&D・編集モーダルのいずれでも、「未完了→完了」になったときに1件だけ生成する
+- **重複しない**：完了→未完了→完了と戻しても、前回生成した次回分（`spawnedNextId`）が残っていれば作らない。スキップも同様
+- **毎月の月末**：翌月に同じ日が無ければ月末に詰め、その次は元の日に戻る（`anchorDay`）
+
+> **設計判断 (#351)**: 以前は生成処理が ✓ と ⋮ の経路にしか無く、Kanbanセレクト・D&D・編集モーダルで完了にすると次回分が作られなかった。ステータス変更の全経路から `spawnNextIfNeeded(task, prevStatus)` を呼ぶ形に集約した。重複防止を「完了済みフラグ」でなく次回分IDの実在確認にしたのは、ユーザーが次回分を削除した後に完了し直した場合は再生成されるべきだから。
 
 ## ドラッグ&ドロップ
 
