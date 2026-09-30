@@ -117,18 +117,18 @@ body.cat-clip-playing .coin-popup { background: transparent; }
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.95rem;
   color: #fff;
-  background: var(--pink-deep, #ff7a93);
+  background: var(--pink-fill, #c9395b);
   border: none;
   border-radius: 999px;
   padding: 7px 18px;
-  box-shadow: 0 2px 0 #e0607c;
+  box-shadow: 0 2px 0 #962a45;
   cursor: pointer;
 }
 .btn-dressup { margin-top: 4px; }
 .cat-actions .btn-dressup { margin-top: 0; }
 .btn-dressup[aria-pressed="true"] {
-  background: #6cc24a;
-  box-shadow: 0 2px 0 #4e9a35;
+  background: #3a8527;
+  box-shadow: 0 2px 0 #2a611c;
 }
 .btn-photo[disabled] { opacity: 0.5; cursor: default; }
 
@@ -154,7 +154,7 @@ body.cat-clip-playing .coin-popup { background: transparent; }
   cursor: pointer;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.75rem;
-  color: var(--pink-deep, #ff7a93);
+  color: var(--pink-ink, #b8324f);
 }
 .style-picker__btn img {
   width: 52px;
@@ -162,7 +162,7 @@ body.cat-clip-playing .coin-popup { background: transparent; }
   object-fit: contain;
 }
 .style-picker__btn[aria-pressed="true"] {
-  border-color: var(--pink-deep, #ff7a93);
+  border-color: var(--pink-ink, #b8324f);
   background: var(--surface-soft, #fff0f3);
 }
 
@@ -188,7 +188,7 @@ body.cat-clip-playing .coin-popup { background: transparent; }
 .layer-panel__empty {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.8rem;
-  color: var(--pink-deep, #ff7a93);
+  color: var(--pink-ink, #b8324f);
 }
 .layer-panel__empty { color: var(--text-muted, #b0a3a3); }
 .layer-panel__chip {
@@ -203,13 +203,13 @@ body.cat-clip-playing .coin-popup { background: transparent; }
   cursor: pointer;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.75rem;
-  color: var(--pink-deep, #ff7a93);
+  color: var(--pink-ink, #b8324f);
 }
 
 .pet-name {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.3rem;
-  color: var(--pink-deep);
+  color: var(--pink-ink);
   margin-top: -8px;
 }
 

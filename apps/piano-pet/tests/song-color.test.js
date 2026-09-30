@@ -128,3 +128,25 @@ describe('assignSongColors（衝突回避つき一括割り当て・#165）', ()
     expect(c.ink).toMatch(/^hsl\(/);
   });
 });
+
+// 選択中の曲チップは tint の面に ink の文字（#359）。どの色相でも AA（4.5:1）を満たすこと。
+// 旧実装（ink の明度 38%）は黄〜緑の色相で 3.35 まで落ちる。
+describe('ink / tint のコントラスト（#359）', () => {
+  const rgb = (hsl) => {
+    const [h, s, l] = hsl.match(/[\d.]+/g).map(Number);
+    const k = (n) => (n + h / 30) % 12;
+    const a = (s / 100) * Math.min(l / 100, 1 - l / 100);
+    return [0, 8, 4].map((n) => l / 100 - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)));
+  };
+  const lum = (c) => c.map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4))
+    .reduce((sum, v, i) => sum + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const ratio = (a, b) => { const [x, y] = [lum(rgb(a)), lum(rgb(b))].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+
+  it('全360色相で 4.5 以上', () => {
+    const base = songColor('きらきらぼし');
+    const at = (css, h) => css.replace(`hsl(${base.hue} `, `hsl(${h} `);
+    let min = Infinity;
+    for (let h = 0; h < 360; h += 1) min = Math.min(min, ratio(at(base.ink, h), at(base.tint, h)));
+    expect(min).toBeGreaterThanOrEqual(4.5);
+  });
+});

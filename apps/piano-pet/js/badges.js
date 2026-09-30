@@ -12,7 +12,7 @@ export const BADGES = [
   { id: 'praise_all3', name: 'いろんな きもち', desc: 'はなまる・じょうず・がんばった ぜんぶ もらった', icon: '🎭' },
   { id: 'songs_5', name: 'いろいろな きょく', desc: '5きょく れんしゅうした', icon: '🎵' },
   { id: 'streak_7', name: 'れんぞく 7にち', desc: '7にち つづけて れんしゅう', icon: '⭐' },
-  { id: 'goal_hit_5', name: 'もくひょう たっせい', desc: '1にち10かい いじょうの 日が5にち', icon: '🎯' },
+  { id: 'goal_hit_5', name: 'もくひょう たっせい', desc: '1にち10かい いじょうの ひが 5にち', icon: '🎯' },
   { id: 'first_outfit', name: 'おきがえ じょうず', desc: 'ねこの おようふくを かった', icon: '👕' },
   { id: 'challenge_100', name: '100かい チャレンジ', desc: 'ぜんぶで 100かい ひいた', icon: '💯' },
   { id: 'streak_14', name: 'れんぞく 14にち', desc: '14にち つづけて れんしゅう', icon: '🌈' },
