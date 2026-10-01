@@ -47,6 +47,7 @@ GitHub Actions のテスト (Vitest + Playwright) が両方通過した場合に
 
 | ドキュメント | 内容 |
 |---|---|
+| [docs/requirements.md](./docs/requirements.md) | 要件定義（目的・機能要件・非機能要件・スコープ外） |
 | [docs/architecture.md](./docs/architecture.md) | アーキテクチャ全体像 |
 | [docs/data-model.md](./docs/data-model.md) | Task / Subtask / Category のスキーマ |
 | [docs/features.md](./docs/features.md) | 機能一覧・ショートカット |

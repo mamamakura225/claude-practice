@@ -52,7 +52,16 @@ npm run test:e2e   # E2Eテスト実行
 ### 現状カバレッジ
 | ファイル | カバー範囲 |
 |---|---|
-| [e2e/add-task.spec.js](../e2e/add-task.spec.js) | クイック追加バーから新規タスク作成→リストに表示されることを確認。Firestore APIをブロックしてオフライン挙動を検証 |
+| [e2e/add-task.spec.js](../e2e/add-task.spec.js) | 詳細モーダルから新規タスク作成 → リストに表示（`@compat`）。Firestore APIをブロックしてオフライン挙動を検証 |
+| [e2e/kanban.spec.js](../e2e/kanban.spec.js) | Kanban へ切替えてステータスセレクトで進行中へ変更 |
+| [e2e/kanban-full-cycle.spec.js](../e2e/kanban-full-cycle.spec.js) | todo → inprogress → done で対応する列へ移動（`@compat`） |
+| [e2e/filter-sort.spec.js](../e2e/filter-sort.spec.js) | ステータス・優先度フィルタ、優先度順ソート、期限プリセット「期限切れ」 |
+| [e2e/search.spec.js](../e2e/search.spec.js) | 検索バーの部分一致絞り込み |
+| [e2e/subtasks.spec.js](../e2e/subtasks.spec.js) | 詳細モーダルでサブタスク2件追加 → カードに進捗表示 |
+| [e2e/subtask-inline.spec.js](../e2e/subtask-inline.spec.js) | カード上のインライン操作：0件からの追加、チェックで進捗 0/2→1/2→2/2、タイトル編集 |
+| [e2e/swipe-delete.spec.js](../e2e/swipe-delete.spec.js) | モバイルエミュレーションで左スワイプ削除 → トースト |
+| [e2e/keyboard-shortcuts.spec.js](../e2e/keyboard-shortcuts.spec.js) | `N` / `/` のフォーカス、`Esc` でモーダルを閉じる、入力中は無効 |
+| [e2e/undo-shortcut.spec.js](../e2e/undo-shortcut.spec.js) | 削除後の `Ctrl+Z` 復元、入力中は無効、連続 Undo |
 | [e2e/today-home.spec.js](../e2e/today-home.spec.js) | 「今日やること」ホームビュー(#33)：起動時 today フィルタON（今日＋期限切れ表示・未来非表示）、ビュー形式の localStorage 復元、今日分全完了時のご褒美空状態、日本時間早朝（`timezoneId`＋`page.clock` で 07:00 JST 固定）でも今日締切を表示する日付境界(#350) |
 | [e2e/card-menu.spec.js](../e2e/card-menu.spec.js) | カード操作メニュー(#111)：⋮ から削除・下へ並び替え・完了化、キーボードでの開閉（Enter/Esc・フォーカス復帰） |
 | [e2e/a11y.spec.js](../e2e/a11y.spec.js) | アクセシビリティ(#354)：表示中の全文字のコントラスト（ライト/ダーク×リスト/ボード）、モバイルのタップ領域、ARIA（読み上げ名・期限プリセットの aria-pressed）、モーダル後のフォーカス復帰、同期表示（送信待ち・保存失敗の維持。偽SDK） |
@@ -70,20 +79,17 @@ npm run test:e2e   # E2Eテスト実行
 - Firebase API はテスト中ブロックして再現性を確保（localStorage フォールバック挙動でテスト）
 - 視覚回帰やパフォーマンス計測は本テストでは扱わない
 
-### 拡充候補（バックログとして起票予定）
-- サブタスクの追加・編集・チェック切替
-- Kanban カードのステータス変更
-- フィルタ・ソート切替
-- キーボードショートカット
-- スワイプ削除（モバイルエミュレーション）
+### 拡充
+未カバーの主要機能（プロジェクト・表示設定・クイック追加チップ等）は GitHub Issues で管理（#356）。
 
 ## CI (GitHub Actions)
 
 [.github/workflows/test.yml](../../../.github/workflows/test.yml) で以下を自動実行：
 
-- すべての push、main 向け PR で起動
-- Vitest 単体テスト
-- Playwright E2E テスト
+- **main への push と main 向け PR で起動**（PR ブランチへの push では起動しない。二重実行を避けるため）
+- 単体ジョブ：`gen-sw:check`（piano-pet のキャッシュ版）・`gen-config:check`（Firebase/監視設定の生成物ドリフト）・`perf-budget:check`（gzip 予算）→ Vitest
+- Playwright E2E：dtask は Chromium で全件、`@compat` タグの付いた spec だけ Firefox / WebKit でも実行
+- unit と e2e が両方成功したときだけ Vercel へデプロイ（main push＝本番、PR＝プレビュー）
 - **Lighthouse 定点観測**（`lighthouse` ジョブ）：[lighthouserc.json](../../../lighthouserc.json) を使い、トップ / dtask / piano-pet の各 URL で performance / accessibility / best-practices / seo を計測。**警告のみ（`warn`）でデプロイをブロックしない**定点観測用。閾値は accessibility ≥ 0.95、その他 ≥ 0.9。結果は artifacts にアップロード（`treosh/lighthouse-ci-action`）
 
 > **不在**: Lint / 型チェック / カバレッジ計測 / ビジュアル回帰テスト。必要に応じて段階的に追加する。
