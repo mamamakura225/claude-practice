@@ -25,6 +25,7 @@ const logPush = (target) => {
   sessionStorage.setItem('__pushLog', JSON.stringify([...log, target]));
 };
 export async function fetchCloud() {
+  if (window.__fetchFail) return undefined;   // タイムアウト・通信エラー（doc が無い null とは別・#362）
   return window.__cloudDoc ?? null;
 }
 export async function pushCloud(data) {
@@ -479,5 +480,29 @@ test.describe('クラウド同期の取り込み', () => {
       .toContain('pushDoc:pp-family-code-1234');
     const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem('__pushLog') ?? '[]'));
     expect(log).not.toContain('push:data');   // 旧 doc へは一度も書かない
+  });
+
+  // #362: fetchCloud のタイムアウトを「doc が無い」と取り違えて、ローカルで全置換しない
+  test('初回の取得に失敗しても、他端末の記録がある doc をローカルで上書きしない（#362）', async ({ page }) => {
+    const local = baseState({ sessions: [{ date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
+    await useFakeCloud(page, {
+      ...baseState(),
+      sessions: [{ date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] }],
+    });
+    await seedLocal(page, local);
+    await page.addInitScript(() => { window.__fetchFail = true; });
+    await page.goto('/');
+    await waitForSync(page);
+
+    // 取得に失敗した起動では push しない（旧実装は hasLocalData で 09-01 だけの state を全置換）
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__cloudDoc.sessions.map((s) => s.date))).toEqual(['2026-09-02']);
+
+    // 最初に届いたスナップショットは cloud-wins でなく union で取り込み、両方を残して送る
+    await page.evaluate(() => window.__onRemote(window.__cloudDoc));
+    await expect.poll(() => page.evaluate(() => window.__cloudDoc.sessions.map((s) => s.date).sort()))
+      .toEqual(['2026-09-01', '2026-09-02']);
+    const st = await readLocal(page);
+    expect(st.sessions.map((s) => s.date).sort()).toEqual(['2026-09-01', '2026-09-02']);
   });
 });
