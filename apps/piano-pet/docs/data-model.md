@@ -299,7 +299,7 @@ const MIGRATIONS = [
 4. `await pushCloud(cloudFields(imported))` で**クラウド反映の完了を待つ**。がぞくコード同梱のファイル（#233）は `pushCloudDoc(コード, …)` でコードの doc へ書く（#358。`cloud.js` の `DATA_DOC` は import 時点＝切替前の doc に固定なので、`pushCloud` だと親が空にした旧・推測可能な doc へ家族のデータを書き戻してしまう）。
 5. `window.location.reload()` でクリーン再起動。リロード後の `fetchCloud()` は push 済みデータを返すため巻き戻しは起きない。
 
-> **設計判断（#378）**: push の ack を待つ間に、先に走り出していた resync（`visibilitychange` / `online` / `retryResync`）の取得が返ると、**上書き前の古いクラウドと union した state** を `reconcileInitialCloud` が追い送りし、復元より後に着地して古い記録が混ざる（初期化なら「消したはずの記録が戻る」）。`overwriting` を立てて `reconcileInitialCloud` と resync の取り込み・初回移行を止める。リロードで全体が貼り直されるので下ろす必要は無い。
+> **設計判断（#378）**: push の ack を待つ間に、先に走り出していた resync（`visibilitychange` / `online` / `retryResync`）の取得が返ると、**上書き前の古いクラウドと union した state** を `reconcileInitialCloud` が追い送りし、復元より後に着地して古い記録が混ざる（初期化なら「消したはずの記録が戻る」）。`overwriting` を立てて止めるのは次の4経路：`reconcileInitialCloud`、resync の取り込み・初回移行、**起動直後の初回取得**（上書き中に返ったら捨て、購読も張らない。張り直すと旧 doc のスナップショットが cloud-wins で復元結果を消す）、**debounce の保留**（thunk が `null` を返す。がぞくコード付き復元では送り先が切替前の旧 doc のため）。リロードで全体が貼り直されるので下ろす必要は無い。
 >
 > **設計判断**: 購読を解除せず差分比較だけに頼ると、import 直後の旧スナップショットが `mergeCloud` で取り込み結果を上書きしうる。`cloudUnsub` の保持＋push 完了待ち＋reload の三段で競合を物理的に排除する。オフライン時は push せずに reload する（`pushCloudDoc` には早期 return が無く、オフラインの `setDoc` は解決しないため app 側でガードする。待つと reload が止まる）。この場合クラウドは置き換わらず、次回の初回同期は union になる＝**復元が「置き換え」でなく「マージ」に弱まる**。
 

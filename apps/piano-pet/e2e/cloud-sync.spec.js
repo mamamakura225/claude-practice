@@ -591,6 +591,7 @@ test.describe('クラウド同期の取り込み', () => {
     // 復帰時 resync の取得が走り出す（サーバは 09-01・09-02 を返す・3秒かかる）
     await page.evaluate(() => {
       window.__fetchDelay = 3000; window.__fetchDone = false; window.__pushDelay = 6000; window.__pushCount = 0;
+      window.__pushStarted = false;   // 以降の待ち条件を「復元の push が始まった」にする
       document.dispatchEvent(new Event('visibilitychange'));
     });
     const backup = JSON.stringify({
@@ -604,5 +605,28 @@ test.describe('クラウド同期の取り込み', () => {
     // 復元の1回だけ。旧実装は resync が union（09-01・09-02・09-05）を追い送りする
     expect(await page.evaluate(() => window.__pushCount)).toBe(1);
     expect(await cloudDates(page)).toEqual(['2026-09-05']);
+  });
+
+  test('起動直後の初回取得が復元中に返っても、購読を張り直して古い doc で上書きしない（#378）', async ({ page }) => {
+    await useFakeCloud(page, { ...otherDoc(), sessions: [...otherDoc().sessions, ...localSeed().sessions] });
+    await page.addInitScript((st) => {
+      if (sessionStorage.getItem('seeded')) return;
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('piano-pet', JSON.stringify(st));
+      window.__fetchDelay = 3000; window.__pushDelay = 6000;
+    }, localSeed());
+    await page.goto('/');
+    await page.waitForFunction(() => window.__fetching === true, null, { timeout: 10000 });
+    const backup = JSON.stringify({
+      app: 'piano-pet', schemaVersion: 2, exportedAt: '2026-10-01T00:00:00.000Z',
+      state: baseState({ sessions: [{ date: '2026-09-05', totalCount: 2, songs: [{ name: 'Z', count: 2 }] }] }),
+    });
+    page.on('dialog', (d) => d.accept());
+    await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+    await page.waitForFunction(() => window.__fetchDone === true, null, { timeout: 10000 });
+
+    expect(await page.evaluate(() => typeof window.__onRemote)).not.toBe('function');   // 購読を張り直さない
+    const st = await readLocal(page);
+    expect(st.sessions.map((x) => x.date)).toEqual(['2026-09-05']);                     // 復元結果のまま
   });
 });

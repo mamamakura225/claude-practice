@@ -84,7 +84,7 @@ let offlineDirty = false;
 function queueCloudPush() {
   if (!cloud || !initialSyncDone) return;
   if (navigator.onLine === false) offlineDirty = true;
-  if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty ? null : cloudFields(state)));
+  if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty || overwriting ? null : cloudFields(state)));
 }
 
 export function commitState(newState) {
@@ -1585,7 +1585,7 @@ async function downloadBackup() {
 // 取り込み確定：①直前データを退避 ②クラウド購読を解除 ③ローカル保存
 // ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
 // docId＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
-// 上書き中は resync も止める（#378）
+// #378
 let overwriting = false;
 function stopCloudForOverwrite() {
   overwriting = true;
@@ -1887,6 +1887,7 @@ async function initCloudSync() {
   }
   cloudSynced = true;
   const cloudData = await cloud.fetchCloud();
+  if (overwriting) return;
   if (cloudData) {
     reconcileInitialCloud(cloudData);       // 初回はローカル優先マージ（起動直後の記録を消さない）
   } else if (cloudData === null && hasLocalData(state)) {
