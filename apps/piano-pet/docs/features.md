@@ -607,13 +607,13 @@ JS は **起動をブロックするぶん（`js-entry`）** と **遅延読込�
 | html（`index.html` + `manifest.json`） | 2 | 7.2 KiB | 8 KiB | ✓ |
 | css | 2 | 12.9 KiB | 13 KiB | ✓ |
 | js-entry（起動をブロック） | 18 | 74.3 KiB | 77 KiB | ✓ |
-| js-lazy（遅延読込） | 10 | 20.9 KiB | 21 KiB | ✓ |
-| **total（html+css+js-entry）** | — | **94.4 KiB** | **96 KiB** | ✓ |
+| js-lazy（遅延読込） | 10 | 20.9 KiB | 22 KiB | ✓ |
+| **total（html+css+js-entry）** | — | **94.5 KiB** | **96 KiB** | ✓ |
 | icons | 5 | 39.0 KiB | — | 対象外 |
 | img（猫45＋装着14＋置物2） | 61 | 3655 KiB | — | 対象外 |
 | sounds | 4 | 103 KiB | — | 対象外 |
 
-上表は `npm run perf-budget` の全カテゴリ（予算値は [scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs) `BUDGETS_KIB`・:31）。2026-10-02 実測（#358〜#362・#365・#374・#378・#382 反映後）。total は #378 で 96.0/96 まで詰まり、#382 で「きろく」画面の組み立てを遅延化して **残り 1.6 KiB** に戻した。**css の残りは 0.1 KiB**。計測は LF（`.gitattributes` で固定済み・#324・CI と同一の値がローカルでも出る）。**既存クローンは `.gitattributes` を pull しただけでは作業ツリーが LF に変わらない**（git は attribute 追加時に既存ファイルを書き換えない）ため、未コミット作業を退避したうえで `git rm --cached -r . && git reset --hard` を一度実行して作業ツリーを引き直す必要がある。予算判定は gzip が効くテキスト資産のみ。画像・音声は変更頻度が低く配信時に再圧縮されないため判定から外すが、**レポートには必ず出す**。
+上表は `npm run perf-budget` の全カテゴリ（予算値は [scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs) `BUDGETS_KIB`・:31）。2026-10-02 実測（#358〜#362・#365・#374・#378・#382 反映後）。total は #378 で 96.0/96 まで詰まり、#382 で「きろく」画面の組み立てを遅延化して **残り 1.5 KiB** に戻した。**css の残りは 0.1 KiB**。計測は LF（`.gitattributes` で固定済み・#324・CI と同一の値がローカルでも出る）。**既存クローンは `.gitattributes` を pull しただけでは作業ツリーが LF に変わらない**（git は attribute 追加時に既存ファイルを書き換えない）ため、未コミット作業を退避したうえで `git rm --cached -r . && git reset --hard` を一度実行して作業ツリーを引き直す必要がある。予算判定は gzip が効くテキスト資産のみ。画像・音声は変更頻度が低く配信時に再圧縮されないため判定から外すが、**レポートには必ず出す**。
 
 > **設計判断（#324・.gitattributes と history.js の遅延化）**: 2つの別問題が同じ場所で絡んでいた。(A) `core.autocrlf=true` の Windows で作業ツリーが CRLF になり `npm run perf-budget:check` がローカルでだけ赤くなる偽陽性——リポジトリ直下に `.gitattributes`（`* text=auto eol=lf` ＋ バイナリ指定）を追加し、作業ツリーを LF に固定して解消した。(B) 予算の残余が html 0.8 / css 0.8 / js-entry 0.6 / total 0.16 KiB まで詰まり、次の小さな機能追加で CI が確実に赤くなる状態だった——`history.js`（「きろく」ビュー専用のカレンダー／週次集計／記録カードの日付整形。`renderHome()` からは一切参照されない）を `js/app.js` の動的 import へ移し、js-entry を 74.4 KiB（77 KiB 中）まで戻した。`js-lazy` は +2.3 KiB で 17 へ引き上げ（#284 の「遅延ぶんは起動をブロックしないので緩め」の位置づけどおり）、`total` は逆に 93.8 まで下がった（history.js の import 文自体が js-entry から消えるぶんが差し引かれるため、js-lazy の増分とは一致しない）。不採用にした案: **枠を上げるだけ**（`history.js` という遅延化できる候補が残っているうちに枠を動かすと予算が「超えたら上げるもの」に劣化する。CLAUDE.md ④ の「最小構成を徹底しても超える」に該当しない）／**`shop.js` の遅延化**（`game.js` が `itemById` を静的 import しており `game.js` 自体が entry なので分離できない）／**`analytics.js`/`sentry.js` の遅延化**（起動時エラーを早く捕まえる監視の目的が薄まる）／**`perf-budget.mjs` 側で改行を正規化してから測る**（表示は直るが手元のファイルは CRLF のままで差分・エディタとのズレが残る。`.gitattributes` はリポジトリ全体の改行を1つに決めるのでこの種の偽陽性をまとめて消せる）。
 
@@ -634,7 +634,7 @@ JS は **起動をブロックするぶん（`js-entry`）** と **遅延読込�
 > - 分類は**ソースの import 文から導出**する。手書きリストにすると遅延化したのに更新を忘れて実体とズレる（#234 の列挙ドリフトと同じ轍）。[tests/assets.test.js](../tests/assets.test.js) が静的 import へ戻す退行を捕まえる
 > - 遅延化したのは `dressup.js`（きせかえ編集）/ `cat-snapshot.js`（写真モード）/ `backup.js`（親ゲート・バックアップ）。いずれも**押されるまで不要**。`cloud.js` は #142 で先行済み。のちに `history.js`（#324）、`onboarding-ui.js`（#365・初回のみ）、`history-view.js`（#382・きろく画面の HTML 組み立て。`history.js` を re-export し、app.js はこの1モジュールだけを読む）も追加
 >
-> **設計判断（#382）**: app.js に残っていた週次グラフ・記録カード（はなまる／テンポ行）・曲別コレクション・カレンダーのセルの組み立ては、state も DOM も触らない純粋な文字列組み立てなので、そのまま遅延モジュールへ移せた。state と DOM を扱う `render*`（どの要素に書くか・ページング・カレンダーの月）は app.js に残す。曲の色マップ（`buildSongColors`）は記録画面と共有するので app.js 側で作って引数で渡す。`history.js` とは別モジュールにしたのは、`history.js` を「データの集計（純粋ロジック）」のまま保つため。js-lazy は 18.3→20.9 KiB で枠を 19→21
+> **設計判断（#382）**: app.js に残っていた週次グラフ・記録カード（はなまる／テンポ行）・曲別コレクション・カレンダーのセルの組み立ては、state も DOM も触らない純粋な文字列組み立てなので、そのまま遅延モジュールへ移せた。state と DOM を扱う `render*`（どの要素に書くか・ページング・カレンダーの月）は app.js に残す。曲の色マップ（`buildSongColors`）は記録画面と共有するので app.js 側で作って引数で渡す。`history.js` とは別モジュールにしたのは、`history.js` を「データの集計（純粋ロジック）」のまま保つため。js-lazy は 18.3→20.9 KiB で枠を 19→22（過去の引き上げと同じく約 1 KiB の余白）
 > - どこからも import されない JS は `orphan` として CI を落とす（配信と SW プリキャッシュだけ太らせる死んだファイルの検知）
 > - `js-lazy` には **操作するまで読まない**もの（きせかえ・写真・親ゲート/バックアップ）と、**idle で必ず読む**もの（`cloud.js` → `initCloudSync`）が混在する。後者は無操作でも通信が発生するが起動はブロックしないので `total` には入れない。**idle 読みを増やしても total は動かない**点に注意
 > - 全 JS を束ねる上限は無くなった（旧 `js` 82 KiB → 新 `js-entry` 74 + `js-lazy` 12 = 86 KiB）。遅延ぶんを総量規制から外し、代わりに独立枠を置いた

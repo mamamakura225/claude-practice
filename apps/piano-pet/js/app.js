@@ -809,7 +809,8 @@ async function deleteSession(index) {
 // スタンプ（praise #145 / tempo #239）を付与／解除。報酬に影響しないので再計算は不要。
 // 同じスタンプを再タップしたら解除（null）。保存してクラウドへ即送信。
 function setSessionMark(kind, index, id) {
-  const normalize = { praise: normalizePraise, tempo: normalizeTempo }[kind];
+  const marks = { praise: normalizePraise, tempo: normalizeTempo };
+  const normalize = Object.hasOwn(marks, kind) ? marks[kind] : null;   // data-mark は DOM 由来
   const session = normalize && state.sessions[index];
   if (!session) return;
   const next = normalize(session[kind]) === id ? null : normalize(id);
