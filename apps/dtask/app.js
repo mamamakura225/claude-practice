@@ -76,7 +76,6 @@ const SYNC_PENDING_MS = 10_000;
 let syncIdleTimer = null;
 let currentSyncState = 'idle';
 let lastSaveFailed = false; // 保存失敗が未解決（再試行導線を回線の出入りで消さないため）
-let saveSeq = 0;
 
 /* クラウドの最新を読めていない間（起動時フォールバック中・オフライン編集後）は setDoc しない。
  * setDoc はドキュメント全体の置換なので、空や古いローカル状態で書くとクラウドの全件が消える (#349)。
@@ -137,19 +136,22 @@ async function saveCloud() {
     setSyncState('offline');
     return;
   }
-  setSyncState('syncing');
-  const seq = ++saveSeq;
+  if (currentSyncState !== 'pending') setSyncState('syncing'); // 送信待ち中の追加編集で「同期中」へ戻してちらつかせない
+  // 保存ごとに確定を待つ。Firestore は順に確定を返すので、古い保存が未確定なら後続も未確定＝連続編集中でも「送信待ち」を出せる
+  let settled = false;
   const pendingTimer = setTimeout(() => {
-    if (seq === saveSeq && currentSyncState === 'syncing') setSyncState('pending');
+    if (!settled && currentSyncState === 'syncing') setSyncState('pending');
   }, SYNC_PENDING_MS);
   // dtask_synced はここでは更新しない（他端末の変更を含むスナップショットとの順序が保証されないため）。
   // 書込み確認は includeMetadataChanges の onSnapshot（!hasPendingWrites）で届き、そこで更新する
   try {
     await setDoc(DATA_DOC, snapshotData());
+    settled = true;
     clearTimeout(pendingTimer);
     lastSaveFailed = false;
     if (cloudLoaded) setSyncState('saved'); // 送信中にオフライン化して未同期へ入っていたら表示を上書きしない
   } catch (err) {
+    settled = true;
     clearTimeout(pendingTimer);
     console.error('saveCloud failed', err);
     lastSaveFailed = true;
@@ -251,7 +253,6 @@ function applyTheme(theme) {
 function toggleTheme() {
   state.theme = state.theme === 'dark' ? 'light' : 'dark';
   applyTheme(state.theme);
-  render(); // プロジェクトバッジの文字色はテーマごとに算出するため
 }
 
 /* ===== Utility ===== */
@@ -533,14 +534,17 @@ function priorityBadgeHtml(priority) {
   return `<span class="badge badge-${priority}">${PRIORITY_LABEL[priority] || priority}</span>`;
 }
 
+const CARD_SURFACE = { light: '#FFFFFF', dark: '#1A1D27' }; // style.css の --card-bg と一致させる
+
 function categoryBadgeHtml(categoryId) {
   const cat = getCategoryById(categoryId);
   if (!cat) return '';
-  // ユーザーが選んだ色でも読めるよう、テーマの面に対して AA を満たす文字色を算出する (#354)
-  const surface = state.theme === 'dark' ? '#1A1D27' : '#FFFFFF';
-  const bg = tint(cat.color, surface, 0.13);
-  const fg = readableTextColor(cat.color, surface, 0.13);
-  return `<span class="badge badge-category" style="background:${bg};color:${fg}">${escHtml(cat.name)}</span>`;
+  // ユーザーが選んだ色でも読めるよう、ライト/ダークそれぞれのカード面に対して AA を満たす色を算出し、
+  // CSS 変数で渡す（テーマ切替は CSS 側で行い、再描画しない #354）
+  const vars = [['l', CARD_SURFACE.light], ['d', CARD_SURFACE.dark]]
+    .map(([k, surface]) => `--cat-bg-${k}:${tint(cat.color, surface, 0.13)};--cat-fg-${k}:${readableTextColor(cat.color, surface, 0.13)}`)
+    .join(';');
+  return `<span class="badge badge-category" style="${vars}">${escHtml(cat.name)}</span>`;
 }
 
 function deadlineBadgeHtml(deadline) {
@@ -930,14 +934,16 @@ let modalReturnFocus = null;
 function rememberFocus() {
   const el = document.activeElement;
   modalReturnFocus = el && el !== document.body
-    ? { el, selector: el.dataset?.action && el.dataset?.id ? `[data-action="${el.dataset.action}"][data-id="${el.dataset.id}"]` : null }
+    ? { el, selector: el.dataset?.action && el.dataset?.id ? `[data-action="${CSS.escape(el.dataset.action)}"][data-id="${CSS.escape(el.dataset.id)}"]` : null }
     : null;
 }
 function restoreFocus() {
   const r = modalReturnFocus;
   modalReturnFocus = null;
   if (!r) return;
-  const target = r.el.isConnected ? r.el : (r.selector ? document.querySelector(r.selector) : null);
+  // 対象のタスクが絞り込みから外れた・削除された等で見つからなければ、クイック追加欄へ（body に落とさない）
+  const target = (r.el.isConnected ? r.el : (r.selector ? document.querySelector(r.selector) : null))
+    || document.getElementById('quickAddInput');
   target?.focus();
 }
 
@@ -1692,7 +1698,7 @@ function reconcileWithCloud(d) {
     cloudLoaded = true;
     fallbackBaseline = null;
     if (state.tasks.length || state.categories.length) saveCloud();
-    else setSyncState('idle');
+    else { lastSaveFailed = false; setSyncState('idle'); }
     return;
   }
   const base  = fallbackBaseline || { tasks: [], categories: [] };
@@ -1703,7 +1709,7 @@ function reconcileWithCloud(d) {
   cloudLoaded      = true;
   fallbackBaseline = null;
   if (tasks.hasLocalChanges || cats.hasLocalChanges) saveCloud();
-  else { saveLocalMirror(); saveSynced(snapshotData()); setSyncState('idle'); }
+  else { lastSaveFailed = false; saveLocalMirror(); saveSynced(snapshotData()); setSyncState('idle'); }
   renderSidebar();
   render();
 }

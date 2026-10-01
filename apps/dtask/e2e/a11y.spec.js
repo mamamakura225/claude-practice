@@ -23,6 +23,7 @@ function seed(page, extra = {}) {
       t('a', 'A', { priority: 'high', deadline: '2020-01-01' }),
       t('b', 'B', { priority: 'low', status: 'inprogress', categoryId: 'c2' }),
       t('c', 'C', { status: 'done', categoryId: 'c3' }),
+      t('d', 'D', { subtasks: [], recurrence: null, deadline: '' }), // サブタスク0件（「＋ サブタスク」ボタン）
     ]));
     // 総点検で AA 未達だった色（緑・青）と、薄い黄色
     localStorage.setItem('dtask_categories', JSON.stringify([
@@ -74,16 +75,21 @@ async function contrastFailures(page) {
       for (let i = stack.length - 1; i >= 0; i--) acc = blend(stack[i], acc);
       return acc;
     };
-    const visible = (e) => {
-      for (let x = e; x; x = x.parentElement) if (+getComputedStyle(x).opacity === 0) return false;
-      return e.offsetParent && e.getBoundingClientRect().width > 1;
+    // 祖先を含めた opacity の積（文字の実効アルファに掛ける。完了カードの opacity で AA を割った退行を検知するため）
+    const opacityOf = (e) => {
+      let op = 1;
+      for (let x = e; x; x = x.parentElement) op *= +getComputedStyle(x).opacity;
+      return op;
     };
+    // 無効化された操作は WCAG 1.4.3 の対象外
+    const visible = (e) => opacityOf(e) > 0 && e.offsetParent && e.getBoundingClientRect().width > 1 && !e.closest(':disabled');
     const out = [];
     for (const e of document.querySelectorAll('body *')) {
       if (!visible(e) || ![...e.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
       const cs = getComputedStyle(e);
       const bg = bgOf(e);
-      const fg = blend(parse(cs.color), bg);
+      const c = parse(cs.color);
+      const fg = blend({ ...c, a: c.a * opacityOf(e) }, bg);
       const L1 = lum(fg), L2 = lum(bg);
       const ratio = (Math.max(L1, L2) + 0.05) / (Math.min(L1, L2) + 0.05);
       const size = parseFloat(cs.fontSize);
@@ -111,13 +117,32 @@ test.describe('アクセシビリティ (#354)', () => {
     }
   }
 
+  for (const theme of ['light', 'dark']) {
+    test(`操作中の状態（チップON・プロジェクト絞り込み・メニュー・モーダル）でも AA（${theme}）`, async ({ page }) => {
+      await seed(page, { dtask_theme: theme });
+      await open(page);
+      for (const meta of ['priority-high', 'deadline-today']) {
+        await page.locator(`.quick-add-chip[data-meta="${meta}"]`).click();
+      }
+      await page.locator('#categoryFilter [data-category-id="c1"]').click();
+      await page.locator('.preset-chip[data-preset=""]').click();
+      await page.locator('.task-card[data-id="a"] .card-menu-btn').click();
+      await expect(page.locator('#cardMenu')).toBeVisible();
+      expect(await contrastFailures(page)).toEqual([]);
+      await page.keyboard.press('Escape');
+      await page.click('#addTaskBtn');
+      await expect(page.locator('#taskModal')).toBeVisible();
+      expect(await contrastFailures(page)).toEqual([]);
+    });
+  }
+
   test('モバイルのタップ領域が 32px 以上', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await seed(page, { dtask_view: 'kanban' });
     await open(page);
     await page.click('#hamburgerBtn');
     const small = await page.evaluate(() =>
-      ['#addCategoryBtn', '.btn-delete-cat', '.subtask-toggle', '.kanban-status-select', '.fontsize-btn']
+      ['#addCategoryBtn', '.btn-delete-cat', '.subtask-toggle', '.subtask-toggle-empty', '.kanban-status-select', '.fontsize-btn']
         .flatMap((sel) => [...document.querySelectorAll(sel)].filter((e) => e.offsetParent).map((e) => {
           const r = e.getBoundingClientRect();
           return { sel, w: Math.round(r.width), h: Math.round(r.height) };
