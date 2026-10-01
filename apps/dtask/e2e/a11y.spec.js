@@ -141,6 +141,8 @@ test.describe('アクセシビリティ (#354)', () => {
     await seed(page, { dtask_view: 'kanban' });
     await open(page);
     await page.click('#hamburgerBtn');
+    // カードの登場アニメーション（scale 0.98）の途中を測らない
+    await page.addStyleTag({ content: '*, *::before, *::after { transition: none !important; animation: none !important; }' });
     const small = await page.evaluate(() =>
       ['#addCategoryBtn', '.btn-delete-cat', '.subtask-toggle', '.subtask-toggle-empty', '.kanban-status-select', '.fontsize-btn']
         .flatMap((sel) => [...document.querySelectorAll(sel)].filter((e) => e.offsetParent).map((e) => {
