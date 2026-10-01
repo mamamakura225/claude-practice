@@ -19,7 +19,8 @@ const DATA_DOC = doc(db, 'pianopet', cloudDocIdFor(getActiveAccountId()));
 // 初回読み込み: クラウド doc を取得する。
 //   - 存在すれば data() を返す（呼び出し側が local state にマージ）
 //   - 存在しなければ null（呼び出し側で local→cloud 移行を判断）
-// Firestore 無応答(オフライン等)は 5 秒でタイムアウトして null を返し、local 起動を妨げない。
+//   - 取れなかった（5秒タイムアウト・通信エラー）ときは undefined。doc が無い null と区別しないと、
+//     doc があるのにローカルで全置換して他端末の記録を消す（#362）。local 起動は妨げない。
 export async function fetchCloud() {
   try {
     const snap = await Promise.race([
@@ -29,7 +30,7 @@ export async function fetchCloud() {
     return snap.exists() ? snap.data() : null;
   } catch (err) {
     console.warn('pianopet fetchCloud unavailable, using local only', err);
-    return null;
+    return undefined;
   }
 }
 

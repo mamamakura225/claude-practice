@@ -1883,8 +1883,10 @@ async function initCloudSync() {
   const cloudData = await cloud.fetchCloud();
   if (cloudData) {
     reconcileInitialCloud(cloudData);       // 初回はローカル優先マージ（起動直後の記録を消さない）
-  } else if (hasLocalData(state)) {
-    await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行
+  } else if (cloudData === null && hasLocalData(state)) {
+    await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行（doc が本当に無いときだけ）
+  } else if (cloudData === undefined) {
+    offlineDirty = true;                    // 取れなかった：最初のスナップショットを union で取り込む（#362）
   }
   initialSyncDone = true;
   cloudUnsub = cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映（ハンドルは復元時の解除用に保持）

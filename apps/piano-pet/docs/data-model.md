@@ -184,6 +184,9 @@ const MIGRATIONS = [
 1. `loadState()`（localStorage）→ `renderHome()` を**同期実行**（最初の描画はクラウドを待たない）。
 2. クラウド同期の起動（`initCloudSync`）は **`requestIdleCallback`**（非対応環境は `setTimeout`）で**アイドル時間まで遅延**。Firebase SDK の動的 import（CDN 取得）と初期化はこの時点で初めて走り、初回描画・操作と競合しない。
 3. オフライン等で SDK 取得に失敗してもローカル動作は妨げない（`online` 復帰で再試行）。
+4. `fetchCloud` は「doc が無い（`null`）」と「取れなかった（タイムアウト・通信エラー＝`undefined`）」を分けて返す。ローカルを丸ごと送る初回移行は `null` のときだけ。`undefined` のときは送らず、#358 の印（`offlineDirty`）を立てて最初のスナップショットを union で取り込む（#362）
+
+> **設計判断（#362）**: 旧実装は5秒タイムアウトも `null` で返していたため、回線が遅い起動では doc があるのに「初回移行」としてローカル state で `setDoc` 全置換し、他端末の記録を消しえた。取れなかったときは何も送らず、平常の取り込み経路（最初の `onSnapshot`）に任せる。その最初の1回を cloud-wins にするとローカルだけの記録が消えるので、オフライン復帰と同じく union に倒す
 
 ### 取り込み経路は3つあり、規則が同じではない
 
