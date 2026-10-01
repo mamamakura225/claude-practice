@@ -1549,7 +1549,6 @@ function attachSwipeListeners(card, wrapper, id) {
   }, { passive: true });
 }
 
-
 /* ===== Drag & Drop (desktop only) ===== */
 const isDndDesktop = () => window.matchMedia('(hover: hover)').matches;
 const dragState = { id: null };
