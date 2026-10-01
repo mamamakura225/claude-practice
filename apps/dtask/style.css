@@ -4,6 +4,8 @@
   --primary-dark: #A30029;
   --primary-light: #ff4d6d;
   --primary-bg: #fff0f3;
+  /* 文字として使う主色。背景用の --primary とは分ける（ダークの暗い面でも 4.5:1 を満たすため #354） */
+  --primary-text: #CC0033;
   --bg: #F2F3F5;
   --card-bg: #FFFFFF;
   --text: #1A1A1A;
@@ -18,9 +20,9 @@
 
   --priority-high: #CC0033;
   --priority-high-bg: #fff0f3;
-  --priority-medium: #D97706;
+  --priority-medium: #B45309;
   --priority-medium-bg: #fffbeb;
-  --priority-low: #6B7280;
+  --priority-low: #4B5563;
   --priority-low-bg: #F3F4F6;
 
   --status-todo: #6B7280;
@@ -42,6 +44,10 @@
   --shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   --shadow-hover: 0 4px 16px rgba(0, 0, 0, 0.55);
   --primary-bg: #2A0A12;
+  --primary-text: #FF6B85;
+  --priority-high: #FF6B85;
+  --priority-medium: #F59E0B;
+  --priority-low: #9CA3AF;
   --priority-high-bg: #2A0A12;
   --priority-medium-bg: #1F1800;
   --priority-low-bg: #1A1D27;
@@ -107,7 +113,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
-  color: rgba(255,255,255,0.85);
+  color: #fff;
   min-width: 56px;
   white-space: nowrap;
   padding: 4px 8px;
@@ -125,11 +131,12 @@ a { color: inherit; text-decoration: none; }
   font-weight: 600;
 }
 .sync-indicator.sync-offline {
-  background: #d97706;
+  background: #B45309; /* 白文字 5.0:1（旧 #d97706 は 3.1:1） */
   color: #fff;
   font-weight: 600;
 }
 /* 未同期（端末内のみ保存）：オフラインと別の見た目（濃い半透明）＋別アイコン(💾) #353 */
+.sync-indicator.sync-pending { background: rgba(0, 0, 0, 0.32); font-weight: 600; }
 .sync-indicator.sync-local {
   background: rgba(0, 0, 0, 0.32);
   color: #fff;
@@ -216,7 +223,7 @@ a { color: inherit; text-decoration: none; }
   gap: 6px;
   padding: 5px 14px;
   border-radius: 4px;
-  color: rgba(255,255,255,0.75);
+  color: #fff; /* 半透明の白は赤地で 3.4:1 しかなかった (#354) */
   font-size: 13px;
   font-weight: 500;
   transition: all 0.15s;
@@ -323,7 +330,7 @@ a { color: inherit; text-decoration: none; }
   transition: background 0.12s;
 }
 .category-chip:hover { background: var(--bg); }
-.category-chip.active { background: var(--primary-bg); color: var(--primary); font-weight: 500; }
+.category-chip.active { background: var(--primary-bg); color: var(--primary-text); font-weight: 500; }
 .category-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
@@ -348,7 +355,7 @@ a { color: inherit; text-decoration: none; }
   border-radius: 3px;
   transition: all 0.12s;
 }
-.btn-delete-cat:hover { color: var(--primary); background: var(--primary-bg); }
+.btn-delete-cat:hover { color: var(--primary-text); background: var(--primary-bg); }
 
 /* ===== Main Content ===== */
 .main-content {
@@ -385,7 +392,7 @@ a { color: inherit; text-decoration: none; }
   min-width: 44px;
   min-height: 30px;
 }
-.fontsize-btn:hover  { background: var(--primary-bg); color: var(--primary); }
+.fontsize-btn:hover  { background: var(--primary-bg); color: var(--primary-text); }
 .fontsize-btn.active { background: var(--primary); color: #fff; font-weight: 600; }
 .fontsize-btn:focus-visible {
   outline: 2px solid var(--primary);
@@ -447,7 +454,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 }
 .preset-chip:hover {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--primary-text);
   background: var(--primary-bg);
 }
 .preset-chip.active {
@@ -477,7 +484,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   box-shadow: 0 0 0 3px rgba(204,0,51,0.15);
 }
 .quick-add-icon {
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 20px;
   font-weight: 700;
   line-height: 1;
@@ -513,15 +520,11 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   min-height: 30px;
   transition: all 0.12s;
 }
-.quick-add-chip:hover { border-color: var(--primary); color: var(--primary); }
+.quick-add-chip:hover { border-color: var(--primary); color: var(--primary-text); }
 .quick-add-chip.active {
   background: var(--primary);
   border-color: var(--primary);
   color: #fff;
-}
-.quick-add-chip.meta-priority.active {
-  background: var(--priority-high);
-  border-color: var(--priority-high);
 }
 .quick-add-chip:focus-visible {
   outline: 2px solid var(--primary);
@@ -533,7 +536,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   padding: 8px 14px;
   border-radius: var(--radius-sm);
   background: var(--primary-bg);
-  color: var(--primary);
+  color: var(--primary-text);
   font-size: 12.5px;
   font-weight: 600;
   transition: background 0.12s;
@@ -599,7 +602,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 }
 .stats-info { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
 .stats-text { font-size: 13px; color: var(--text-sub); font-weight: 500; }
-.stats-pct { font-size: 13px; font-weight: 700; color: var(--primary); }
+.stats-pct { font-size: 13px; font-weight: 700; color: var(--primary-text); }
 .stats-track { height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
 .stats-fill {
   height: 100%;
@@ -635,7 +638,9 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   transform: translateY(-2px);
   border-color: rgba(204,0,51,0.15);
 }
-.task-card.done-card { opacity: 0.6; }
+/* 完了カードは opacity で薄くしない（バッジ・文字が合成後に AA を割るため #354）。タイトルと説明の色で落ち着かせる */
+.task-card.done-card .task-title,
+.task-card.done-card .task-desc { color: var(--text-sub); }
 .task-card.removing {
   animation: cardOut 0.24s ease forwards !important;
   pointer-events: none;
@@ -723,10 +728,15 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 .badge-status-todo { background: transparent; color: var(--text-sub); border-color: var(--text-sub); }
 .badge-status-inprogress { background: var(--status-inprogress-bg); color: var(--status-inprogress-text); }
 .badge-status-done { background: var(--status-done-bg); color: var(--status-done-text); }
+/* プロジェクト色バッジ：ライト/ダーク用の背景・文字色を app.js が CSS 変数で渡し、テーマはここで切替える (#354) */
 .badge-category {
-  background: var(--bg);
-  color: var(--text-sub);
+  background: var(--cat-bg-l, var(--bg));
+  color: var(--cat-fg-l, var(--text-sub));
   font-weight: 500;
+}
+[data-theme="dark"] .badge-category {
+  background: var(--cat-bg-d, var(--bg));
+  color: var(--cat-fg-d, var(--text-sub));
 }
 .badge-deadline {
   font-size: 11px;
@@ -735,7 +745,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   align-items: center;
   gap: 3px;
 }
-.badge-deadline.overdue { color: var(--primary); font-weight: 600; }
+.badge-deadline.overdue { color: var(--primary-text); font-weight: 600; }
 
 /* Task actions */
 .task-actions {
@@ -759,7 +769,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 }
 .btn-action:hover { background: var(--bg); color: var(--text); }
 .btn-action:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
-.btn-action.delete:hover { background: var(--primary-bg); color: var(--primary); }
+.btn-action.delete:hover { background: var(--primary-bg); color: var(--primary-text); }
 .btn-action.skip:hover { background: var(--status-inprogress-bg); color: var(--status-inprogress); }
 
 /* 操作メニュー(⋮) トリガー：常時表示（ホバー非依存＝タッチ/キーボードの正規ルート #111） */
@@ -808,8 +818,8 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
   white-space: nowrap;
 }
 .card-menu-item:hover:not([disabled]),
-.card-menu-item:focus-visible { background: var(--primary-bg); color: var(--primary); outline: none; }
-.card-menu-item.danger:hover:not([disabled]) { background: var(--primary-bg); color: var(--primary); }
+.card-menu-item:focus-visible { background: var(--primary-bg); color: var(--primary-text); outline: none; }
+.card-menu-item.danger:hover:not([disabled]) { background: var(--primary-bg); color: var(--primary-text); }
 .card-menu-item[disabled] { opacity: 0.4; cursor: default; }
 body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 
@@ -839,14 +849,14 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 }
 .empty-tip code {
   font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
-  color: var(--primary);
+  color: var(--primary-text);
   font-weight: 500;
 }
 /* 達成（ご褒美）空状態：今日のタスク完了時 */
 .today-done-title {
   font-size: 20px;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--primary-text);
   margin-bottom: 8px;
 }
 
@@ -956,7 +966,7 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 
 .btn-secondary {
   background: #fff;
-  color: var(--primary);
+  color: var(--primary-text);
   border: 1px solid var(--primary);
   padding: 8px 18px;
   border-radius: var(--radius-sm);
@@ -1081,7 +1091,7 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
-.required { color: var(--primary); }
+.required { color: var(--primary-text); }
 .form-input, .form-select, .form-textarea {
   width: 100%;
   padding: 9px 12px;
@@ -1156,7 +1166,7 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(255,255,255,0.75);
+  color: #fff;
   transition: all 0.15s;
 }
 .view-btn-icon:hover { color: #fff; background: rgba(255,255,255,0.1); }
@@ -1366,6 +1376,12 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 
   /* サイドバー内のタップターゲット拡大 */
   .category-chip { padding: 10px; }
+  /* タップ領域の最小サイズ（総点検で 16〜26px だったもの #354） */
+  .btn-icon-small { width: 36px; height: 36px; font-size: 20px; }
+  .btn-delete-cat { min-width: 36px; min-height: 36px; display: inline-flex; align-items: center; justify-content: center; }
+  .subtask-toggle, .subtask-toggle-empty { min-height: 32px; }
+  .kanban-status-select { min-height: 36px; font-size: 13px; }
+  .fontsize-btn { min-height: 36px; }
   .filter-select { padding: 10px 8px; font-size: 15px; }
 }
 
@@ -1541,7 +1557,7 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 }
 .subtask-add-btn {
   font-size: 12px;
-  color: var(--primary);
+  color: var(--primary-text);
   padding: 4px 0;
 }
 .subtask-add-btn:hover { text-decoration: underline; }
@@ -1604,7 +1620,7 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 }
 .subtask-toggle-empty:hover,
 .subtask-toggle-empty:focus-visible {
-  color: var(--primary);
+  color: var(--primary-text);
   border-color: var(--primary);
   background: var(--border);
 }
@@ -1695,7 +1711,7 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 .subtask-inline-add:hover,
 .subtask-inline-add:focus-visible {
   border-color: var(--primary);
-  color: var(--primary);
+  color: var(--primary-text);
   background: var(--border);
   outline: none;
 }
@@ -1719,7 +1735,7 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
   padding: 2px 7px;
   border-radius: 4px;
   background: var(--status-inprogress-bg);
-  color: var(--status-inprogress);
+  color: var(--status-inprogress-text);
   font-weight: 500;
 }
 
@@ -1892,7 +1908,6 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
   flex-shrink: 0;
 }
 .current-project-close {
-  font-size: 11px;
-  opacity: 0.7;
+  font-size: 11px; /* opacity で薄くしない（赤地で 3.0:1 だった #354） */
   flex-shrink: 0;
 }

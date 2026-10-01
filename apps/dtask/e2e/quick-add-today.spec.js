@@ -65,7 +65,7 @@ test.describe('今日ビューからの追加 (#352)', () => {
     await toast.getByRole('button', { name: 'すべて表示' }).click();
     await expect(page.locator('#taskList .task-card', { hasText: 'E2E_見えない追加' })).toBeVisible();
     await expect(page.locator('.preset-chip[data-preset=""]')).toHaveClass(/active/);
-    await expect(page.locator('.preset-chip[data-preset=""]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('.preset-chip[data-preset=""]')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#searchInput')).toHaveValue('');
   });
 

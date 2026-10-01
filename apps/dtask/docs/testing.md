@@ -26,6 +26,7 @@ npm test          # 全テスト実行（vitest run）
 | [tests/filter.test.js](../tests/filter.test.js) | `filterTasks`（カテゴリ・優先度・ステータス・期限プリセット・フリーテキスト/タグ検索） |
 | [tests/sort.test.js](../tests/sort.test.js) | `sortTasks`（manual/created/deadline/priority、完了タスク末尾保証） |
 | [tests/html.test.js](../tests/html.test.js) | `escHtml`（XSS対策） |
+| [tests/color.test.js](../tests/color.test.js) | `readableTextColor`（AA未達だった色・極端な色でもライト/ダーク両面で 4.5:1）、`safeColor`（不正値の置換） #354 |
 | [tests/sync.test.js](../tests/sync.test.js) | `mergeFallbackChanges`（ローカル追加/編集/削除の載せ直し、フィールド単位の重ね合わせ、空フォールバックでクラウドを消さない #349） |
 
 ### 単体テスト方針
@@ -54,6 +55,7 @@ npm run test:e2e   # E2Eテスト実行
 | [e2e/add-task.spec.js](../e2e/add-task.spec.js) | クイック追加バーから新規タスク作成→リストに表示されることを確認。Firestore APIをブロックしてオフライン挙動を検証 |
 | [e2e/today-home.spec.js](../e2e/today-home.spec.js) | 「今日やること」ホームビュー(#33)：起動時 today フィルタON（今日＋期限切れ表示・未来非表示）、ビュー形式の localStorage 復元、今日分全完了時のご褒美空状態、日本時間早朝（`timezoneId`＋`page.clock` で 07:00 JST 固定）でも今日締切を表示する日付境界(#350) |
 | [e2e/card-menu.spec.js](../e2e/card-menu.spec.js) | カード操作メニュー(#111)：⋮ から削除・下へ並び替え・完了化、キーボードでの開閉（Enter/Esc・フォーカス復帰） |
+| [e2e/a11y.spec.js](../e2e/a11y.spec.js) | アクセシビリティ(#354)：表示中の全文字のコントラスト（ライト/ダーク×リスト/ボード）、モバイルのタップ領域、ARIA（読み上げ名・期限プリセットの aria-pressed）、モーダル後のフォーカス復帰、同期表示（送信待ち・保存失敗の維持。偽SDK） |
 | [e2e/layout.spec.js](../e2e/layout.spec.js) | 表示崩れの退行防止(#353)：幅320/390pxでヘッダーが収まりロゴ1行、色ドットが円、モバイルKanban列が画面幅以内、ステータスバッジが優先度と別の見た目 |
 | [e2e/quick-add-today.spec.js](../e2e/quick-add-today.spec.js) | 今日ビューからの追加(#352)：クイック追加が期限=今日で表示される、詳細モーダルの期限初期値、見えない追加のトースト＋「すべて表示」 |
 | [e2e/recurrence.spec.js](../e2e/recurrence.spec.js) | 繰り返しタスク(#351)：✓・⋮・Kanbanセレクト・Kanban D&D・編集モーダルの各経路で次回分が1件できる、再完了で重複しない、毎月31日→2/28→3/31、スキップ |

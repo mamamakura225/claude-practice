@@ -57,6 +57,7 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 | [utils/filter.js](../utils/filter.js) | filterTasks（カテゴリ・優先度・ステータス・期限プリセット・検索） |
 | [utils/sort.js](../utils/sort.js) | sortTasks（手動 / 作成日 / 期限 / 優先度。完了タスクは常に末尾） |
 | [utils/html.js](../utils/html.js) | escHtml（XSS対策） |
+| [utils/color.js](../utils/color.js) | safeColor / contrastRatio / tint / readableTextColor（プロジェクト色バッジを AA で読める文字色にする #354） |
 | [utils/sync.js](../utils/sync.js) | mergeFallbackChanges（フォールバック中のローカル差分をクラウド最新へ載せ直す #349） |
 | [vercel.json](../../../vercel.json) | SPA用URLリライト（リポジトリルートに集約） |
 
