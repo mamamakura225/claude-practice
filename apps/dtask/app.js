@@ -10,6 +10,7 @@ import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
 import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
 import { mergeFallbackChanges } from './utils/sync.js';
+import { safeColor, tint, readableTextColor } from './utils/color.js';
 
 /* ===== エラー監視・利用計測（任意・キー未設定なら no-op） ===== */
 import { initErrorMonitoring } from './sentry.js';
@@ -68,8 +69,14 @@ const SYNC_STATES = {
   offline: { html: '<span aria-hidden="true">📵</span><span class="sync-label"> オフライン</span>' },
   // 未同期はオフライン（📵）と別アイコン・別背景にし、アイコンだけのスマホ幅でも区別できるようにする
   local:   { html: '<span aria-hidden="true">💾</span><span class="sync-label"> 未同期（この端末に保存中）</span>' },
+  // 送信が長く終わらない（端末はオンライン扱いだがサーバーに届かない）とき。SDK が接続回復後に送る (#354)
+  pending: { html: '<span aria-hidden="true">⏳</span><span class="sync-label"> 送信待ち（接続を待っています）</span>' },
 };
+const SYNC_PENDING_MS = 10_000;
 let syncIdleTimer = null;
+let currentSyncState = 'idle';
+let lastSaveFailed = false; // 保存失敗が未解決（再試行導線を回線の出入りで消さないため）
+let saveSeq = 0;
 
 /* クラウドの最新を読めていない間（起動時フォールバック中・オフライン編集後）は setDoc しない。
  * setDoc はドキュメント全体の置換なので、空や古いローカル状態で書くとクラウドの全件が消える (#349)。
@@ -110,6 +117,7 @@ function setSyncState(stateName) {
   const el = document.getElementById('syncIndicator');
   if (!el) return;
   clearTimeout(syncIdleTimer);
+  currentSyncState = stateName;
   el.className = `sync-indicator sync-${stateName}`;
   el.innerHTML = SYNC_STATES[stateName].html;
   if (stateName === 'saved') {
@@ -130,13 +138,21 @@ async function saveCloud() {
     return;
   }
   setSyncState('syncing');
+  const seq = ++saveSeq;
+  const pendingTimer = setTimeout(() => {
+    if (seq === saveSeq && currentSyncState === 'syncing') setSyncState('pending');
+  }, SYNC_PENDING_MS);
   // dtask_synced はここでは更新しない（他端末の変更を含むスナップショットとの順序が保証されないため）。
   // 書込み確認は includeMetadataChanges の onSnapshot（!hasPendingWrites）で届き、そこで更新する
   try {
     await setDoc(DATA_DOC, snapshotData());
+    clearTimeout(pendingTimer);
+    lastSaveFailed = false;
     if (cloudLoaded) setSyncState('saved'); // 送信中にオフライン化して未同期へ入っていたら表示を上書きしない
   } catch (err) {
+    clearTimeout(pendingTimer);
     console.error('saveCloud failed', err);
+    lastSaveFailed = true;
     setSyncState('error');
   }
 }
@@ -235,6 +251,7 @@ function applyTheme(theme) {
 function toggleTheme() {
   state.theme = state.theme === 'dark' ? 'light' : 'dark';
   applyTheme(state.theme);
+  render(); // プロジェクトバッジの文字色はテーマごとに算出するため
 }
 
 /* ===== Utility ===== */
@@ -519,7 +536,11 @@ function priorityBadgeHtml(priority) {
 function categoryBadgeHtml(categoryId) {
   const cat = getCategoryById(categoryId);
   if (!cat) return '';
-  return `<span class="badge badge-category" style="background:${cat.color}22;color:${cat.color}">${escHtml(cat.name)}</span>`;
+  // ユーザーが選んだ色でも読めるよう、テーマの面に対して AA を満たす文字色を算出する (#354)
+  const surface = state.theme === 'dark' ? '#1A1D27' : '#FFFFFF';
+  const bg = tint(cat.color, surface, 0.13);
+  const fg = readableTextColor(cat.color, surface, 0.13);
+  return `<span class="badge badge-category" style="background:${bg};color:${fg}">${escHtml(cat.name)}</span>`;
 }
 
 function deadlineBadgeHtml(deadline) {
@@ -740,7 +761,7 @@ function renderSidebar() {
     btn.className = `category-chip${active ? ' active' : ''}`;
     btn.dataset.categoryId = cat.id;
     btn.setAttribute('aria-pressed', active ? 'true' : 'false');
-    btn.innerHTML = `<span class="category-dot" style="background:${cat.color}" aria-hidden="true"></span>${escHtml(cat.name)}`;
+    btn.innerHTML = `<span class="category-dot" style="background:${safeColor(cat.color)}" aria-hidden="true"></span>${escHtml(cat.name)}`;
     filterEl.appendChild(btn);
   });
 
@@ -751,7 +772,7 @@ function renderSidebar() {
     const item = document.createElement('div');
     item.className = 'category-manage-item';
     item.innerHTML = `
-      <span class="category-dot" style="background:${cat.color}" aria-hidden="true"></span>
+      <span class="category-dot" style="background:${safeColor(cat.color)}" aria-hidden="true"></span>
       <span class="category-manage-name">${escHtml(cat.name)}</span>
       <button type="button" class="btn-delete-cat" data-action="delete-cat" data-id="${cat.id}" title="削除" aria-label="プロジェクトを削除: ${escHtml(cat.name)}">✕</button>
     `;
@@ -762,7 +783,7 @@ function renderSidebar() {
   const badge = document.getElementById('currentProjectBadge');
   const activeCat = state.categories.find(c => c.id === state.filters.categoryId);
   if (activeCat) {
-    document.getElementById('currentProjectDot').style.background = activeCat.color;
+    document.getElementById('currentProjectDot').style.background = safeColor(activeCat.color);
     document.getElementById('currentProjectName').textContent = activeCat.name;
     badge.classList.remove('hidden');
   } else {
@@ -903,6 +924,23 @@ function collectSubtasks() {
   return result;
 }
 
+/* ===== Modal focus return (#354) =====
+ * 閉じたら開いたボタンへフォーカスを戻す。再描画でボタンが差し替わっていたら同じ操作のボタンを探す */
+let modalReturnFocus = null;
+function rememberFocus() {
+  const el = document.activeElement;
+  modalReturnFocus = el && el !== document.body
+    ? { el, selector: el.dataset?.action && el.dataset?.id ? `[data-action="${el.dataset.action}"][data-id="${el.dataset.id}"]` : null }
+    : null;
+}
+function restoreFocus() {
+  const r = modalReturnFocus;
+  modalReturnFocus = null;
+  if (!r) return;
+  const target = r.el.isConnected ? r.el : (r.selector ? document.querySelector(r.selector) : null);
+  target?.focus();
+}
+
 /* ===== Modal: Task ===== */
 function openTaskModal(task = null) {
   const modal    = document.getElementById('taskModal');
@@ -937,12 +975,14 @@ function openTaskModal(task = null) {
     if (state.filters.preset === 'today') document.getElementById('taskDeadline').value = todayStr();
   }
 
+  rememberFocus();
   modal.classList.remove('hidden');
   document.getElementById('taskTitle').focus();
 }
 
 function closeTaskModal() {
   document.getElementById('taskModal').classList.add('hidden');
+  restoreFocus();
 }
 
 /* ===== Modal: Category ===== */
@@ -950,22 +990,26 @@ function openCategoryModal() {
   document.getElementById('categoryName').value  = '';
   document.getElementById('categoryColor').value = '#CC0033';
   document.getElementById('categoryColorHex').textContent = '#CC0033';
+  rememberFocus();
   document.getElementById('categoryModal').classList.remove('hidden');
   document.getElementById('categoryName').focus();
 }
 
 function closeCategoryModal() {
   document.getElementById('categoryModal').classList.add('hidden');
+  restoreFocus();
 }
 
 /* ===== Modal: Shortcuts Help ===== */
 function openShortcutsModal() {
+  rememberFocus();
   document.getElementById('shortcutsModal').classList.remove('hidden');
   document.getElementById('closeShortcutsModal').focus();
 }
 
 function closeShortcutsModal() {
   document.getElementById('shortcutsModal').classList.add('hidden');
+  restoreFocus();
 }
 
 /* ===== Inline subtask edit / add (card) =====
@@ -1146,7 +1190,9 @@ function openCardMenu(triggerBtn, id) {
 function activateCardMenuItem(i) {
   const menu = document.getElementById('cardMenu');
   const it = menu?._items?.[i];
+  const trigger = cardMenuState.triggerBtn;
   closeCardMenu();
+  trigger?.focus(); // メニューから開くモーダルが閉じたとき ⋮ へ戻れるように
   if (it && !it.disabled) it.fn();
 }
 
@@ -1332,7 +1378,7 @@ function syncPresetChipUI(preset) {
   document.querySelectorAll('.preset-chip').forEach(c => {
     const isActive = (c.dataset.preset || '') === (preset || '');
     c.classList.toggle('active', isActive);
-    c.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    c.setAttribute('aria-pressed', isActive ? 'true' : 'false');
   });
   syncQuickAddPlaceholder();
 }
@@ -1923,7 +1969,8 @@ async function init() {
   // 復帰時に自動で setDoc しない（クラウド最新を読む前の全件置換で他端末の変更を消すため #349）。
   // 未同期ならサーバーから直接読んで差分マージする（スナップショットが来ない経路の保険）
   window.addEventListener('online', () => {
-    if (cloudLoaded) { setSyncState('idle'); return; }
+    // 保存失敗の表示（再試行導線）は回線の出入りで消さない（offline 表示を挟んでも復帰時に戻す）
+    if (cloudLoaded) { setSyncState(lastSaveFailed ? 'error' : 'idle'); return; }
     setSyncState('local');
     getDocFromServer(DATA_DOC)
       .then(s => { if (!cloudLoaded) reconcileWithCloud(s.exists() ? s.data() : null); })
