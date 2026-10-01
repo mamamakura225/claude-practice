@@ -20,7 +20,7 @@ const DATA_DOC = doc(db, 'pianopet', cloudDocIdFor(getActiveAccountId()));
 //   - 存在すれば data() を返す（呼び出し側が local state にマージ）
 //   - 存在しなければ null（呼び出し側で local→cloud 移行を判断）
 //   - 取れなかった（5秒タイムアウト・通信エラー）ときは undefined。doc が無い null と区別しないと、
-//     doc があるのにローカルで全置換して他端末の記録を消す（#362）。local 起動は妨げない。
+//     doc があるのにローカルで全置換して他端末の記録を消す（#362・app.js initCloudSync が区別する）。
 export async function fetchCloud() {
   try {
     const snap = await Promise.race([
