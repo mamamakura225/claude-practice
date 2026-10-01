@@ -14,7 +14,7 @@ dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES 
 │  └──────┬───────┘                    │
 │         │                            │
 │  ┌──────▼───────────────────────┐    │
-│  │ app.js  (約1600行)            │    │
+│  │ app.js                        │    │
 │  │  ├─ state / uiState           │    │
 │  │  ├─ Firestore 同期             │    │
 │  │  ├─ レンダリング (List/Kanban) │    │

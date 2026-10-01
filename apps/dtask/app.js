@@ -4,11 +4,11 @@ import { getFirestore, doc, getDoc, getDocFromServer, setDoc, onSnapshot } from 
 import { firebaseConfig } from './firebase-config.js';
 
 /* ===== Utils ===== */
-import { formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline, todayStr, daysBetween, parseDateStr } from './utils/date.js';
+import { formatDate, isOverdue, addDays, nextRecurrenceDeadline, todayStr, daysBetween, parseDateStr } from './utils/date.js';
 import { normalizeTask, calculateSubtaskProgress } from './utils/task.js';
 import { escHtml } from './utils/html.js';
 import { filterTasks } from './utils/filter.js';
-import { sortTasks, PRIORITY_ORDER } from './utils/sort.js';
+import { sortTasks } from './utils/sort.js';
 import { mergeFallbackChanges } from './utils/sync.js';
 import { safeColor, tint, readableTextColor } from './utils/color.js';
 
@@ -44,14 +44,8 @@ const uiState = {
   expanded: new Set(), // taskId set: インライン展開中のタスク
 };
 
-/* ===== Swipe Gesture State ===== */
-const SWIPE_THRESHOLD    = 40;
-const SWIPE_AUTO_TRIGGER = 100;
-const swipeState = {
-  active: false, startX: 0, startY: 0, currentX: 0,
-  card: null, wrapper: null, id: null, canceled: false,
-};
-let swipeDidMove = false;
+/* ===== Swipe Gesture ===== */
+const SWIPE_AUTO_TRIGGER = 100; // この距離を超えて離すと削除（左）/ 完了（右）
 
 /* ===== Storage ===== */
 const THEME_KEY     = 'dtask_theme';
@@ -1555,8 +1549,6 @@ function attachSwipeListeners(card, wrapper, id) {
   }, { passive: true });
 }
 
-function initSwipeGestures() { /* attachSwipeListeners()でカード生成時に付与 */ }
-
 /* ===== Drag & Drop (desktop only) ===== */
 const isDndDesktop = () => window.matchMedia('(hover: hover)').matches;
 const dragState = { id: null };
@@ -1963,9 +1955,6 @@ async function init() {
   document.addEventListener('change', handleGlobalChange);
   document.addEventListener('keydown', handleDelegatedActivation);
   document.addEventListener('keydown', handleCardMenuKeydown);
-
-  /* Swipe gestures (mobile list view) */
-  initSwipeGestures();
 
   /* D&D drop zones (desktop only) */
   initDragDropZones();

@@ -71,6 +71,8 @@ dtask (collection)
 | `dtask_theme` | string | `'light'` / `'dark'` |
 | `dtask_fontsize` | string | `'standard'` / `'large'` |
 | `dtask_expanded` | JSON array (string[]) | インライン展開中のタスクIDリスト（削除済みIDは自動クリーンアップ） |
+| `dtask_view` | string | `'list'` / `'kanban'`。前回のビュー形式（起動時に復元 #33） |
+| `dtask_hint_actions` | string | `'1'` なら操作メニュー(⋮)の初回ヒントを表示済み（#111） |
 | `dtask_tasks` | JSON Task[] | **ローカルミラー**：`saveCloud` とリモート反映のたびに最新状態を書く。Firestore が応答しない起動時はここから復元する（#349） |
 | `dtask_categories` | JSON Category[] | **ローカルミラー**：同上 |
 | `dtask_synced` | JSON `{tasks, categories}` | **最後にクラウドと一致していた状態**。未同期（フォールバック・オフライン編集）中のローカル差分を求める基準（#349） |
@@ -86,7 +88,7 @@ dtask (collection)
 | `categoryId` | string | `''` | プロジェクト（categoryId）絞り込み。空＝すべて |
 | `priority` | `'high'` \| `'medium'` \| `'low'` \| `''` | `''` | 優先度絞り込み。空＝すべて |
 | `status` | `'todo'` \| `'inprogress'` \| `'done'` \| `''` | `''` | ステータス絞り込み。空＝すべて |
-| `sort` | `'manual'` \| `'created'` \| `'deadline'` \| `'priority'` | `'manual'` | ソート種別 |
+| `sort` | `'manual'` \| `'createdAt'` \| `'deadline'` \| `'priority'` | `'manual'` | ソート種別 |
 | `search` | string | `''` | 検索クエリ（フルテキスト／`#tag`） |
 | `hideCompleted` | boolean | `false` | 完了タスクを非表示 |
 | `preset` | `''` \| `'today'` \| `'week'` \| `'overdue'` | `'today'` | 期限プリセット。起動既定は `'today'`（今日締切＋期限切れ未完了）に固定(#33)。`today` は完了確認のため当日完了済みも含む |

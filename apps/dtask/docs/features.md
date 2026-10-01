@@ -89,7 +89,7 @@
 
 ### ソート
 - `manual` — 手動順（`order` フィールド、D&Dで変更）
-- `created` — 作成日降順（新しい順）
+- `createdAt` — 作成日降順（新しい順）
 - `deadline` — 期限昇順（未設定は最後）
 - `priority` — 優先度順（high → medium → low）
 
