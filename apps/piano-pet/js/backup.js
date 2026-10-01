@@ -90,6 +90,10 @@ export function importErrorMessage(reason) {
   }
 }
 
+// 初期化・復元がクラウドへ届かなかったとき、次の起動で親に出す案内（#384）
+export const OVERWRITE_UNSENT_MESSAGE = 'つうしんが できなかったので、クラウドの データは まだ かわっていない かもしれません。'
+  + 'ほかの たんまつや つぎの どうきで もとに もどることが あります。つながる ばしょで もういちど ためしてね。';
+
 // ペアレンタルゲート用の掛け算問題を作る（1桁×1桁・九九）。足し算より子の突破を防ぐ。
 // rng を差し替え可能にしてテストしやすくする。
 export function makeGateProblem(rng = Math.random) {

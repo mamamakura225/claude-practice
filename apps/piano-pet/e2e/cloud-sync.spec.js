@@ -643,7 +643,8 @@ test.describe('クラウド同期の取り込み', () => {
       await page.goto('/');
       await waitForSync(page);
       await page.evaluate(() => { window.__pushDelay = 60000; });   // ack が返らない
-      page.on('dialog', (d) => d.accept());
+      const messages = [];
+      page.on('dialog', (d) => { messages.push(d.message()); d.accept(); });
       const reloaded = page.waitForEvent('load', { timeout: 14000 });   // 見切りは10秒
       if (kind === 'しょきか') {
         await page.click('#settingsToggle');
@@ -660,6 +661,62 @@ test.describe('クラウド同期の取り込み', () => {
         await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
       }
       await reloaded;   // 旧実装は ack を待ち続けて 60 秒止まる
+      // 見切ったので、リロード後に「クラウドは まだ かわっていないかも」と伝える（#384）。
+      // 案内を待ってから終える（テスト終了後に出たダイアログを閉じようとして落ちないように）
+      await expect.poll(() => messages.some((m) => m.includes('つうしん')), { timeout: 5000 }).toBe(true);
+    });
+  }
+
+  // #384: 見切ったこと（クラウドは置き換わっていないかもしれない）を親に伝える／移行・旧doc空化にも上限
+  const openParentMenu = async (page) => {
+    await page.click('#settingsToggle');
+    await expect(page.locator('#settingsGate')).toBeVisible();
+    const a = Number(await page.textContent('#gateA'));
+    const b = Number(await page.textContent('#gateB'));
+    await page.fill('#gateAnswer', String(a * b));
+    await page.click('#gateSubmit');
+    await expect(page.locator('#settingsMenu')).toBeVisible();
+  };
+
+  test('初期化の push を見切ったら、リロード後に「クラウドは まだ かわっていないかも」と伝える（#384）', async ({ page }) => {
+    await useFakeCloud(page, { ...baseState() });
+    await seedLocal(page, localSeed());
+    const messages = [];
+    page.on('dialog', (d) => { messages.push(d.message()); d.accept(); });
+    await page.goto('/');
+    await waitForSync(page);
+    await page.evaluate(() => { window.__pushDelay = 60000; });
+    await openParentMenu(page);
+    const reloaded = page.waitForEvent('load', { timeout: 14000 });
+    await page.click('#resetBtn');
+    await reloaded;
+    await expect.poll(() => messages.some((m) => m.includes('つうしん')), { timeout: 5000 }).toBe(true);
+    // 一度伝えたら次の起動では出さない
+    const before = messages.length;
+    await page.reload();
+    await waitForSync(page);
+    await page.waitForTimeout(500);
+    expect(messages.slice(before).some((m) => m.includes('つうしん'))).toBe(false);
+  });
+
+  for (const [btn, label] of [['#cloudMigrateBtn', 'うつす'], ['#cloudClearLegacyBtn', 'からにする']]) {
+    test(`ack が返らない回線でも「${label}」は上限時間内に失敗を伝える（#384）`, async ({ page }) => {
+      await useFakeCloud(page, { ...baseState() });
+      await seedLocal(page, localSeed());
+      if (btn === '#cloudClearLegacyBtn') {
+        await page.addInitScript(() => localStorage.setItem('piano-pet:cloud-ids', JSON.stringify({ data: 'pp-family-code-1234' })));
+      }
+      page.on('dialog', (d) => d.accept());
+      await page.goto('/');
+      await waitForSync(page);
+      await page.evaluate(() => { window.__pushDelay = 60000; });
+      await openParentMenu(page);
+      await page.click(btn);
+      await expect(page.locator('#cloudStatus')).toBeVisible({ timeout: 14000 });
+      await expect(page.locator('#cloudStatus')).toHaveClass(/settings-menu__note--error/);
+      if (btn === '#cloudMigrateBtn') {   // 時間内に終わらなかった移行ではコードを保存しない
+        expect(await page.evaluate(() => localStorage.getItem('piano-pet:cloud-ids'))).toBeNull();
+      }
     });
   }
 });

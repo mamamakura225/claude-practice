@@ -34,13 +34,15 @@ export async function fetchCloud() {
   }
 }
 
-// クラウドへ保存（射影済みのデータオブジェクトを受け取る）。
+// クラウドへ保存（射影済みのデータオブジェクトを受け取る）。送れたら true（上書きの成否を親に伝えるため・#384）。
 export async function pushCloud(data) {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
   try {
     await setDoc(DATA_DOC, data);
+    return true;
   } catch (err) {
     console.warn('pianopet pushCloud failed', err);
+    return false;
   }
 }
 

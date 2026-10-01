@@ -1494,12 +1494,16 @@ async function downloadBackup() {
 // docId＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
 // #378
 let overwriting = false;
-// 上書きの push。不通の回線では setDoc が解決しないので10秒で見切る（#381・data-model.md）
+// 不通の回線では setDoc が解決しないので10秒で見切る。時間内に送れたら true（#381/#384・data-model.md）
+const withinLimit = (p) => Promise.race([p.then((v) => v !== false, () => false), new Promise((r) => setTimeout(() => r(false), 10000))]);
+const UNSENT_KEY = 'piano-pet:overwrite-unsent';
+
+// 上書きの push。届かなかったら印を残し、次の起動で親に伝える（#384）
 async function pushForOverwrite(docId = null) {
-  if (!cloud || navigator.onLine === false) return;
   const data = cloudFields(state);
-  const push = docId ? cloud.pushCloudDoc(docId, data) : cloud.pushCloud(data);
-  await Promise.race([push.catch(() => {}), new Promise((r) => setTimeout(r, 10000))]);
+  const ok = cloud && navigator.onLine !== false
+    && await withinLimit(docId ? cloud.pushCloudDoc(docId, data) : cloud.pushCloud(data));
+  if (!ok) try { localStorage.setItem(UNSENT_KEY, '1'); } catch { /* 無視 */ }
 }
 
 function stopCloudForOverwrite() {
@@ -1564,7 +1568,7 @@ async function migrateCloudDoc() {
   } catch { /* 退避失敗は致命的でないので無視 */ }
 
   const newId = generateCloudDocId();
-  const ok = await cloud.pushCloudDoc(newId, cloudFields(state));   // 新 doc へコピー
+  const ok = await withinLimit(cloud.pushCloudDoc(newId, cloudFields(state)));   // 新 doc へコピー
   if (!ok) { showCloudStatus('うつせませんでした。つうしんを かくにんしてね。', true); return; }
   if (!setCloudDocId(accountId, newId)) { showCloudStatus('コードを ほぞんできませんでした。', true); return; }
   window.location.reload();   // cloud.js の購読 doc を貼り直す
@@ -1588,8 +1592,8 @@ async function clearLegacyCloudDoc() {
     + 'すすめますか？',
   );
   if (!ok) return;
-  const done = await cloud.pushCloudDoc(legacyCloudDocIdFor(getActiveAccountId()), {});
-  showCloudStatus(done ? 'ふるい ばしょを からに しました。' : 'できませんでした。', !done);
+  const done = await withinLimit(cloud.pushCloudDoc(legacyCloudDocIdFor(getActiveAccountId()), {}));
+  showCloudStatus(done ? 'ふるい ばしょを からに しました。' : 'できませんでした。つうしんを かくにんしてね。', !done);
 }
 
 // データ初期化（#183）：購入履歴・猫の状態・練習記録をすべて消して新品に戻す。
@@ -1745,6 +1749,14 @@ window.addEventListener('hashchange', () => router.syncFromHash(window.location.
 // 初期表示
 renderHome();
 router.syncFromHash(window.location.hash);
+
+// 前回の初期化・復元がクラウドへ届かなかったら一度だけ伝える（#384）
+try {
+  if (localStorage.getItem(UNSENT_KEY)) {
+    localStorage.removeItem(UNSENT_KEY);
+    loadBackup().then((m) => window.alert(m.OVERWRITE_UNSENT_MESSAGE)).catch(() => {});
+  }
+} catch { /* 無視 */ }
 
 // 初回起動なら使い方の案内を出す（renderHome 後に重ねる）。画面は未表示のときだけ読む（#365）
 if (!isOnboarded()) {
