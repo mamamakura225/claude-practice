@@ -84,7 +84,7 @@ let offlineDirty = false;
 function queueCloudPush() {
   if (!cloud || !initialSyncDone) return;
   if (navigator.onLine === false) offlineDirty = true;
-  if (!offlineDirty) cloud.pushCloudDebounced(() => cloudFields(state));
+  if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty ? null : cloudFields(state)));
 }
 
 export function commitState(newState) {
@@ -1885,10 +1885,10 @@ async function initCloudSync() {
   if (cloudData) {
     reconcileInitialCloud(cloudData);       // 初回はローカル優先マージ（起動直後の記録を消さない）
   } else if (cloudData === null && hasLocalData(state)) {
-    await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行（doc が本当に無いときだけ）
+    cloud.pushCloud(cloudFields(state));    // 初回移行（doc が無いときだけ）。ack は待たない（#374）
   } else if (cloudData === undefined) {
     offlineDirty = true;                    // 取れなかった：最初のスナップショットを union で取り込む（#362）
-    setTimeout(retryResync, 30000);
+    scheduleRetry();
   }
   initialSyncDone = true;
   cloudUnsub = cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映（ハンドルは復元時の解除用に保持）
@@ -1925,15 +1925,19 @@ async function resyncFromCloud() {
   if (!cloudSynced || !cloud) return false;
   const cloudData = await cloud.fetchCloud();
   if (cloudData) reconcileInitialCloud(cloudData);
-  else if (cloudData === null && hasLocalData(state)) await cloud.pushCloud(cloudFields(state));
+  else if (cloudData === null && hasLocalData(state)) cloud.pushCloud(cloudFields(state));
   return cloudData !== undefined;
 }
 
 // 印を下ろす条件は data-model.md #358
 const resyncAndSettle = () => resyncFromCloud()
   .then((ok) => { if (ok && navigator.onLine !== false) offlineDirty = false; });
+let retryTimer = null;
+function scheduleRetry() {
+  retryTimer ??= setTimeout(() => { retryTimer = null; retryResync(); }, 30000);
+}
 function retryResync() {
-  resyncAndSettle().then(() => { if (offlineDirty && navigator.onLine !== false) setTimeout(retryResync, 30000); });
+  resyncAndSettle().then(() => { if (offlineDirty && navigator.onLine !== false) scheduleRetry(); });
 }
 
 // オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。
@@ -1941,7 +1945,7 @@ window.addEventListener('online', () => {
   if (!cloudSynced) { initCloudSync(); return; }
   // 初回 reconcile 前は送らない（マージ前のローカル state で全置換すると他端末の記録を消す・#313）。
   // オフライン中の state は古いので union してから送る（#358）。
-  if (initialSyncDone) resyncAndSettle();
+  if (initialSyncDone) retryResync();
 });
 window.addEventListener('offline', () => { offlineDirty = true; });
 

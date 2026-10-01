@@ -26,7 +26,9 @@ export function createCloudQueue(pushCloud, { defaultDelay = 2000 } = {}) {
     if (typeof navigator !== 'undefined' && navigator.onLine === false) return undefined;
     const getData = pending;
     pending = null;
-    return pushCloud(typeof getData === 'function' ? getData() : getData);
+    const data = typeof getData === 'function' ? getData() : getData;
+    if (data == null) return undefined;   // thunk が送らない判断をした（未送信の印・#374）
+    return pushCloud(data);
   }
 
   return { pushCloudDebounced, flushCloud };

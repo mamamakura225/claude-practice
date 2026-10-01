@@ -51,3 +51,16 @@ describe('createCloudQueue（#313）', () => {
     expect(sent).toEqual(['a']);
   });
 });
+
+describe('createCloudQueue（#374）', () => {
+  it('thunk が null を返したら送らない（印より前に積まれた保留を、union 前に送らない）', async () => {
+    const sent = [];
+    const q = createCloudQueue((d) => sent.push(d));
+    let dirty = false;
+    q.pushCloudDebounced(() => (dirty ? null : { n: 1 }), 5);
+    dirty = true;                 // 保留中にオフラインになり印が立つ
+    q.flushCloud();
+    await flush();
+    expect(sent).toEqual([]);
+  });
+});
