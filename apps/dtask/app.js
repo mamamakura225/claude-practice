@@ -59,13 +59,15 @@ const EXPANDED_KEY  = 'dtask_expanded';
 const VIEW_KEY      = 'dtask_view'; // 'list' | 'kanban'（ビュー形式のみ復元。preset は毎回 today 固定）
 const HINT_KEY      = 'dtask_hint_actions'; // 操作メニュー(⋮)の初回ヒント表示済みフラグ
 
+// 文言は .sync-label に入れる。スマホ幅ではアイコンだけ見せて文言は読み上げ用に残す（ヘッダーからはみ出さない #353）
 const SYNC_STATES = {
   idle:    { html: '' },
-  syncing: { html: '<span class="sync-dot" aria-hidden="true"></span>同期中…' },
-  saved:   { html: '✓ 保存済み' },
-  error:   { html: '⚠ 保存失敗 <button class="sync-retry-btn" type="button" data-action="sync-retry">再試行</button>' },
-  offline: { html: '📵 オフライン' },
-  local:   { html: '📵 未同期（この端末に保存中）' },
+  syncing: { html: '<span class="sync-dot" aria-hidden="true"></span><span class="sync-label">同期中…</span>' },
+  saved:   { html: '<span aria-hidden="true">✓</span><span class="sync-label"> 保存済み</span>' },
+  error:   { html: '<span aria-hidden="true">⚠</span><span class="sync-label"> 保存失敗</span> <button class="sync-retry-btn" type="button" data-action="sync-retry">再試行</button>' },
+  offline: { html: '<span aria-hidden="true">📵</span><span class="sync-label"> オフライン</span>' },
+  // 未同期はオフライン（📵）と別アイコン・別背景にし、アイコンだけのスマホ幅でも区別できるようにする
+  local:   { html: '<span aria-hidden="true">💾</span><span class="sync-label"> 未同期（この端末に保存中）</span>' },
 };
 let syncIdleTimer = null;
 
@@ -595,7 +597,7 @@ function renderListView() {
           ${deadlineBadgeHtml(task.deadline)}
           ${recurrenceBadgeHtml(task.recurrence)}
           ${subtaskProgressHtml(task.subtasks, task.id, uiState.expanded.has(task.id))}
-          <span class="badge badge-low">${STATUS_LABEL[task.status] || task.status}</span>
+          <span class="badge badge-status badge-status-${task.status}">${STATUS_LABEL[task.status] || task.status}</span>
         </div>
         ${task.tags && task.tags.length ? `<div class="task-tags">${tagChipsHtml(task.tags)}</div>` : ''}
         ${uiState.expanded.has(task.id)
@@ -750,7 +752,7 @@ function renderSidebar() {
     item.className = 'category-manage-item';
     item.innerHTML = `
       <span class="category-dot" style="background:${cat.color}" aria-hidden="true"></span>
-      <span>${escHtml(cat.name)}</span>
+      <span class="category-manage-name">${escHtml(cat.name)}</span>
       <button type="button" class="btn-delete-cat" data-action="delete-cat" data-id="${cat.id}" title="削除" aria-label="プロジェクトを削除: ${escHtml(cat.name)}">✕</button>
     `;
     manageEl.appendChild(item);
