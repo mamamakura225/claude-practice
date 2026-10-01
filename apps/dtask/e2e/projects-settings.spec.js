@@ -84,11 +84,15 @@ test.describe('プロジェクト・表示設定・クイック追加チップ (
     const toast = page.locator('.toast', { hasText: '1件のタスクが「なし」になりました' });
     await expect(toast).toBeVisible();
     await expect(card.locator('.badge-category')).toHaveCount(0);
+    // バッジはプロジェクトが消えれば出なくなるので、タスク側の所属が外れたことは保存内容で確かめる
+    const categoryOf = () => page.evaluate(() => JSON.parse(localStorage.getItem('dtask_tasks')).find(t => t.id === 't1').categoryId);
+    expect(await categoryOf()).toBe('');
     await expect(page.locator('#categoryFilter .category-chip', { hasText: 'E2E_消すPJ' })).toHaveCount(0);
 
     await toast.getByRole('button', { name: '元に戻す' }).click();
     await expect(card.locator('.badge-category')).toHaveText('E2E_消すPJ');
     await expect(page.locator('#categoryFilter .category-chip', { hasText: 'E2E_消すPJ' })).toBeVisible();
+    expect(await categoryOf()).toBe('c1');
   });
 
   test('テーマと文字サイズはリロード後も保持される', { tag: '@compat' }, async ({ page }) => {
@@ -125,12 +129,14 @@ test.describe('プロジェクト・表示設定・クイック追加チップ (
     await seed(page);
     await open(page);
     await page.locator('.quick-add-chip[data-meta="priority-high"]').click();
+    await page.locator('.quick-add-chip[data-meta="deadline-tomorrow"]').click();
     await page.fill('#quickAddInput', 'E2E_詳細へ');
     await page.press('#quickAddInput', 'Shift+Enter');
 
     await expect(page.locator('#taskModal')).toBeVisible();
     await expect(page.locator('#taskTitle')).toHaveValue('E2E_詳細へ');
     await expect(page.locator('#taskPriority')).toHaveValue('high');
+    await expect(page.locator('#taskDeadline')).toHaveValue(localDay(1));
     await expect(page.locator('#quickAddInput')).toHaveValue('');
   });
 });
