@@ -26,9 +26,11 @@ const logPush = (target) => {
 };
 export async function fetchCloud() {
   window.__fetching = true;
+  const doc = window.__cloudDoc ?? null;   // サーバが読んだ時点の内容（遅延中の書き込みは載らない）
   if (window.__fetchDelay) await new Promise((r) => setTimeout(r, window.__fetchDelay));
+  window.__fetchDone = true;
   if (window.__fetchFail) return undefined;   // タイムアウト・通信エラー（doc が無い null とは別・#362）
-  return window.__cloudDoc ?? null;
+  return doc;
 }
 export async function pushCloud(data) {
   if (navigator.onLine === false) return;
@@ -573,5 +575,34 @@ test.describe('クラウド同期の取り込み', () => {
     await page.evaluate(() => window.__onRemote(window.__cloudDoc));
     const st = await readLocal(page);
     expect(st.sessions.map((x) => x.date).sort()).toEqual(['2026-09-01', today].sort());
+  });
+
+  // #378: 復元の push（ack 待ち）の間に、先に走り出していた resync が古いクラウドとの union を送らない
+  test('復元の push を待つ間に resync が終わっても、古い記録を混ぜて送らない（#378）', async ({ page }) => {
+    await useFakeCloud(page, { ...otherDoc(), sessions: [...otherDoc().sessions, ...localSeed().sessions] });
+    await page.addInitScript((st) => {   // リロード後に再シードしない（復元結果を上書きしないため）
+      if (sessionStorage.getItem('seeded')) return;
+      sessionStorage.setItem('seeded', '1');
+      localStorage.setItem('piano-pet', JSON.stringify(st));
+    }, localSeed());
+    await page.goto('/');
+    await waitForSync(page);
+
+    // 復帰時 resync の取得が走り出す（サーバは 09-01・09-02 を返す・3秒かかる）
+    await page.evaluate(() => {
+      window.__fetchDelay = 3000; window.__fetchDone = false; window.__pushDelay = 6000; window.__pushCount = 0;
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    const backup = JSON.stringify({
+      app: 'piano-pet', schemaVersion: 2, exportedAt: '2026-10-01T00:00:00.000Z',
+      state: baseState({ sessions: [{ date: '2026-09-05', totalCount: 2, songs: [{ name: 'Z', count: 2 }] }] }),
+    });
+    page.on('dialog', (d) => d.accept());
+    await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+    await page.waitForFunction(() => window.__pushStarted === true && window.__fetchDone === true, null, { timeout: 10000 });
+
+    // 復元の1回だけ。旧実装は resync が union（09-01・09-02・09-05）を追い送りする
+    expect(await page.evaluate(() => window.__pushCount)).toBe(1);
+    expect(await cloudDates(page)).toEqual(['2026-09-05']);
   });
 });
