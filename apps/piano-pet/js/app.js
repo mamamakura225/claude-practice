@@ -84,7 +84,7 @@ let offlineDirty = false;
 function queueCloudPush() {
   if (!cloud || !initialSyncDone) return;
   if (navigator.onLine === false) offlineDirty = true;
-  if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty ? null : cloudFields(state)));
+  if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty || overwriting ? null : cloudFields(state)));
 }
 
 export function commitState(newState) {
@@ -1585,16 +1585,24 @@ async function downloadBackup() {
 // 取り込み確定：①直前データを退避 ②クラウド購読を解除 ③ローカル保存
 // ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
 // docId＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
+// #378
+let overwriting = false;
+function stopCloudForOverwrite() {
+  overwriting = true;
+  clearTimeout(retryTimer);
+  if (cloudUnsub) {
+    try { cloudUnsub(); } catch { /* 解除失敗は無視 */ }
+    cloudUnsub = null;
+  }
+}
+
 async function applyImportedState(imported, docId = null) {
   const { RESTORE_BACKUP_KEY } = await loadBackup();
   try {
     const cur = localStorage.getItem(activeStorageKey());
     if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤読込からの復旧用に退避
   } catch { /* 退避失敗は致命的でないので無視 */ }
-  if (cloudUnsub) {
-    try { cloudUnsub(); } catch { /* 解除失敗は無視 */ }
-    cloudUnsub = null;
-  }
+  stopCloudForOverwrite();
   state = imported;
   saveState(state);
   if (cloud && navigator.onLine !== false) {
@@ -1682,10 +1690,7 @@ async function resetData() {
     const cur = localStorage.getItem(activeStorageKey());
     if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤操作からの復旧用に退避
   } catch { /* 退避失敗は致命的でないので無視 */ }
-  if (cloudUnsub) {
-    try { cloudUnsub(); } catch { /* 解除失敗は無視 */ }
-    cloudUnsub = null;
-  }
+  stopCloudForOverwrite();
   state = normalizeState({});            // 新品の DEFAULTS へ
   saveState(state);
   if (cloud) {
@@ -1882,6 +1887,7 @@ async function initCloudSync() {
   }
   cloudSynced = true;
   const cloudData = await cloud.fetchCloud();
+  if (overwriting) return;
   if (cloudData) {
     reconcileInitialCloud(cloudData);       // 初回はローカル優先マージ（起動直後の記録を消さない）
   } else if (cloudData === null && hasLocalData(state)) {
@@ -1898,6 +1904,7 @@ async function initCloudSync() {
 // 起動直後（idle 同期完了前）にローカルで記録した内容を cloud で上書きしないよう、
 // mergeCloudInitial でフィールドごとにローカル優先マージし、sessions から全導出値を再計算する。
 function reconcileInitialCloud(cloudData) {
+  if (overwriting) return;
   const merged = mergeCloudInitial(state, cloudData);
   const reconciled = recomputeState(merged, spentTotal(merged));
   const reconciledCloud = JSON.stringify(cloudFields(reconciled));
@@ -1924,6 +1931,7 @@ function reconcileInitialCloud(cloudData) {
 async function resyncFromCloud() {
   if (!cloudSynced || !cloud) return false;
   const cloudData = await cloud.fetchCloud();
+  if (overwriting) return false;
   if (cloudData) reconcileInitialCloud(cloudData);
   else if (cloudData === null && hasLocalData(state)) cloud.pushCloud(cloudFields(state));
   return cloudData !== undefined;
