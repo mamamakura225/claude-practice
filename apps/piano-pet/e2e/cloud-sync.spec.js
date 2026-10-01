@@ -45,7 +45,11 @@ export async function pushCloud(data) {
 const __queue = createCloudQueue(pushCloud, { defaultDelay: window.__cloudDelay ?? 0 });
 export const pushCloudDebounced = __queue.pushCloudDebounced;
 export const flushCloud = __queue.flushCloud;
-export async function pushCloudDoc(docId, data) { logPush('pushDoc:' + docId); window.__pushedDoc = { docId, data }; return true; }
+export async function pushCloudDoc(docId, data) {
+  logPush('pushDoc:' + docId); window.__pushedDoc = { docId, data };
+  if (window.__pushDelay) await new Promise((r) => setTimeout(r, window.__pushDelay));
+  return true;
+}
 export function subscribeCloud(onRemote) {
   window.__onRemote = onRemote;
   return () => { window.__unsubscribed = true; };
@@ -578,6 +582,7 @@ test.describe('クラウド同期の取り込み', () => {
   });
 
   // #378: 復元の push（ack 待ち）の間に、先に走り出していた resync が古いクラウドとの union を送らない
+  // （__pushDelay は上書きの見切り 10 秒（#381）より短く、__fetchDelay はそれよりさらに短く保つ）
   test('復元の push を待つ間に resync が終わっても、古い記録を混ぜて送らない（#378）', async ({ page }) => {
     await useFakeCloud(page, { ...otherDoc(), sessions: [...otherDoc().sessions, ...localSeed().sessions] });
     await page.addInitScript((st) => {   // リロード後に再シードしない（復元結果を上書きしないため）
@@ -629,4 +634,32 @@ test.describe('クラウド同期の取り込み', () => {
     const st = await readLocal(page);
     expect(st.sessions.map((x) => x.date)).toEqual(['2026-09-05']);                     // 復元結果のまま
   });
+
+  // #381: onLine なのに不通の回線では setDoc が解決しない。上書き系の push を待ち続けてリロードが止まらない
+  for (const kind of ['しょきか', 'ふくげん', 'ふくげん（がぞくコード付き）']) {
+    test(`push が返らない回線でも ${kind} は上限時間内にリロードする（#381）`, async ({ page }) => {
+      await useFakeCloud(page, { ...baseState() });
+      await seedLocal(page, localSeed());
+      await page.goto('/');
+      await waitForSync(page);
+      await page.evaluate(() => { window.__pushDelay = 60000; });   // ack が返らない
+      page.on('dialog', (d) => d.accept());
+      const reloaded = page.waitForEvent('load', { timeout: 14000 });   // 見切りは10秒
+      if (kind === 'しょきか') {
+        await page.click('#settingsToggle');
+        await expect(page.locator('#settingsGate')).toBeVisible();
+        const a = Number(await page.textContent('#gateA'));
+        const b = Number(await page.textContent('#gateB'));
+        await page.fill('#gateAnswer', String(a * b));
+        await page.click('#gateSubmit');
+        await expect(page.locator('#settingsMenu')).toBeVisible();
+        await page.click('#resetBtn');
+      } else {
+        const code = kind.includes('がぞく') ? { cloudDocId: 'pp-family-code-1234' } : {};
+        const backup = JSON.stringify({ app: 'piano-pet', schemaVersion: 2, exportedAt: '2026-10-02T00:00:00.000Z', ...code, state: baseState() });
+        await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+      }
+      await reloaded;   // 旧実装は ack を待ち続けて 60 秒止まる
+    });
+  }
 });

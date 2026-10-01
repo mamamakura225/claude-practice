@@ -1494,6 +1494,14 @@ async function downloadBackup() {
 // docId＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
 // #378
 let overwriting = false;
+// 上書きの push。不通の回線では setDoc が解決しないので10秒で見切る（#381・data-model.md）
+async function pushForOverwrite(docId = null) {
+  if (!cloud || navigator.onLine === false) return;
+  const data = cloudFields(state);
+  const push = docId ? cloud.pushCloudDoc(docId, data) : cloud.pushCloud(data);
+  await Promise.race([push.catch(() => {}), new Promise((r) => setTimeout(r, 10000))]);
+}
+
 function stopCloudForOverwrite() {
   overwriting = true;
   clearTimeout(retryTimer);
@@ -1512,10 +1520,7 @@ async function applyImportedState(imported, docId = null) {
   stopCloudForOverwrite();
   state = imported;
   saveState(state);
-  if (cloud && navigator.onLine !== false) {
-    const data = cloudFields(state);
-    try { await (docId ? cloud.pushCloudDoc(docId, data) : cloud.pushCloud(data)); } catch { /* push 失敗時もローカルは取り込み済み */ }
-  }
+  await pushForOverwrite(docId);
   window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
 }
 
@@ -1600,9 +1605,7 @@ async function resetData() {
   stopCloudForOverwrite();
   state = normalizeState({});            // 新品の DEFAULTS へ
   saveState(state);
-  if (cloud) {
-    try { await cloud.pushCloud(cloudFields(state)); } catch { /* push 失敗時もローカルは初期化済み */ }
-  }
+  await pushForOverwrite();
   window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
 }
 

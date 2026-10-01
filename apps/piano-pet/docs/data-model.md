@@ -296,12 +296,17 @@ const MIGRATIONS = [
 1. 復元直前の現行 localStorage を `piano-pet-backup-before-restore` へ自動退避（誤読込からの復旧用）。
 2. 保持しておいた cloud 購読解除ハンドル（`cloudUnsub`）を実行して **onSnapshot を一時解除**。あわせて**復帰時 resync と30秒の再試行も止める**（`stopCloudForOverwrite`・#378）
 3. `saveState(imported)` でローカル反映。
-4. `await pushCloud(cloudFields(imported))` で**クラウド反映の完了を待つ**。がぞくコード同梱のファイル（#233）は `pushCloudDoc(コード, …)` でコードの doc へ書く（#358。`cloud.js` の `DATA_DOC` は import 時点＝切替前の doc に固定なので、`pushCloud` だと親が空にした旧・推測可能な doc へ家族のデータを書き戻してしまう）。
-5. `window.location.reload()` でクリーン再起動。リロード後の `fetchCloud()` は push 済みデータを返すため巻き戻しは起きない。
+4. `await pushCloud(cloudFields(imported))` で**クラウド反映の完了を待つ**（**上限10秒**・`pushForOverwrite`・#381）。がぞくコード同梱のファイル（#233）は `pushCloudDoc(コード, …)` でコードの doc へ書く（#358。`cloud.js` の `DATA_DOC` は import 時点＝切替前の doc に固定なので、`pushCloud` だと親が空にした旧・推測可能な doc へ家族のデータを書き戻してしまう）。
+5. `window.location.reload()` でクリーン再起動。リロード後の `fetchCloud()` は push 済みデータを返すため巻き戻しは起きない（10秒以内に ack が返った場合。見切った場合は下の #381）。
 
 > **設計判断（#378）**: push の ack を待つ間に、先に走り出していた resync（`visibilitychange` / `online` / `retryResync`）の取得が返ると、**上書き前の古いクラウドと union した state** を `reconcileInitialCloud` が追い送りし、復元より後に着地して古い記録が混ざる（初期化なら「消したはずの記録が戻る」）。`overwriting` を立てて止めるのは次の4経路：`reconcileInitialCloud`、resync の取り込み・初回移行、**起動直後の初回取得**（上書き中に返ったら捨て、購読も張らない。張り直すと旧 doc のスナップショットが cloud-wins で復元結果を消す）、**debounce の保留**（thunk が `null` を返す。がぞくコード付き復元では送り先が切替前の旧 doc のため）。リロードで全体が貼り直されるので下ろす必要は無い。
 >
 > **設計判断**: 購読を解除せず差分比較だけに頼ると、import 直後の旧スナップショットが `mergeCloud` で取り込み結果を上書きしうる。`cloudUnsub` の保持＋push 完了待ち＋reload の三段で競合を物理的に排除する。オフライン時は push せずに reload する（`pushCloudDoc` には早期 return が無く、オフラインの `setDoc` は解決しないため app 側でガードする。待つと reload が止まる）。この場合クラウドは置き換わらず、次回の初回同期は union になる＝**復元が「置き換え」でなく「マージ」に弱まる**。
+>
+> **設計判断（#381・上限10秒）**: `navigator.onLine` が true なのに実際は不通の回線（キャプティブ Wi-Fi 等）では `setDoc` がタイムアウトせず、ack を待ち続けて reload に進まない。親には「ぜんぶ けす」「よみこむ」を押しても何も起きないように見えていた。復元と初期化の push を共通の `pushForOverwrite` にまとめ、10秒で見切って reload する。初期化にはオフラインのガードも無かったので、復元と揃えた。
+> - **見切ったときの帰結**: 未送信の書き込みはリロードで捨てられ（`getFirestore` 既定の memory cache）、次回の初回同期は union になる。**復元は「置き換え」でなく「マージ」に弱まり、初期化は旧クラウドのデータがほぼそのまま戻る＝実質的に取り消される**（端末のローカルは `piano-pet-backup-before-restore` に退避済み）。送信済みで ack だけ待っていた書き込みが遅れて着地した場合は、新しいページの購読（cloud-wins）か初回 fetch がそれを受け取るので、最終状態は「置き換え」か「union」のどちらかで、それより悪くはならない
+> - **値の根拠**: 通常の回線でも、長いアイドル後の write stream の張り直し等で ack が数秒かかることがある。見切りが短いほど通常回線で上書きが弱まるので、`fetchCloud` の5秒より長い10秒にした（初期化・復元は頻度の低い操作で、待ち時間より確実さを優先する）
+> - 見切ったことを親へ伝える導線、および上書きの保留を次回起動で再送する案は #384
 
 **データ初期化（`resetData`・#183）**：復元と**同一の5段手順**で、取り込み対象が `normalizeState({})`（新品の `DEFAULTS`）になるだけ。直前データの退避も行うため誤って押しても復旧できる。`settings` 等の端末ローカル値も既定へ戻る。
 
