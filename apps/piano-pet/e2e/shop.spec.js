@@ -296,7 +296,21 @@ test.describe('ショップ', () => {
     // 王冠は150コインなので100では買えない
     const crownBtn = page.locator('.shop-card', { hasText: 'おうかん' }).locator('.shop-btn');
     await expect(crownBtn).toBeDisabled();
-    await expect(crownBtn).toHaveText('コインが たりない');
+    await expect(crownBtn).toHaveText('あと 50 コイン');   // 目標として不足ぶんを見せる（#360）
+  });
+
+  test('コイン不足のえさは「あと ○ コイン」で無効（#360）', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem('piano-pet', JSON.stringify({
+        pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 3, equippedItems: [], affinity: 0, foodSpent: 0 },
+        inventory: [], streak: { current: 0, best: 0, lastPracticeDate: null }, badges: [], sessions: [],
+      }));
+    });
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('3', { timeout: 10000 });
+    const milkBtn = page.locator('#feedList .shop-card', { hasText: 'ミルク' }).locator('.shop-btn');
+    await expect(milkBtn).toBeDisabled();
+    await expect(milkBtn).toHaveText('あと 4 コイン');
   });
 
   test('なかよしLv未到達のアイテムはロック表示で買えない（#126）', async ({ page }) => {
