@@ -158,7 +158,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 > **設計判断（配信方式）**: 動画は `apps/piano-pet/video/cat_<style>_record_v<n>.mp4` に**リポジトリ同梱**し Vercel の静的配信（rewrite `/piano-pet/(.*)`）で配る。当初案の Firebase Storage 外部配信は不採用——(1) プリキャッシュ（gen-sw の `APP_SHELL`）と perf-budget のカテゴリ判定は [piano-pet-assets.mjs](../../../scripts/piano-pet-assets.mjs) の `listAssets()`（`css/ js/ icons/ img/cat* sounds/`）だけを見ており、`video/` はどちらにも載らないので「同梱すると SW が太る」前提が事実と違った。(2) Storage は Blaze 課金＋セキュリティルールの版管理課題（#266）を1つ増やす。`img/` に既に 3.6 MiB のバイナリがある以上、同梱は方針と矛盾しない。**再検討条件**: クリップが十数本を超えて git が重くなったら Storage へ移す。`video/*.mp4` は `listHashOnlyAssets()`（#318）でハッシュにだけ載るため、**内容が1バイトでも変われば** `sw.js` の `CACHE` 名が必ず動き、取得済み端末が古い動画を再生し続けることはない（precache・perf-budget には引き続き載せない）。差し替え時に `_v2b` のような別名を付ける規約は「差し替え履歴ではなく動作のバリエーション」（#300）を区別するための命名規約であって、キャッシュを更新するための手段ではない（そちらは #318 で機械的に保証済み）。
 
-> **今回入れないもの**: bag shuffle（1スタイル1本では無意味・2本以上で `pickClip` に足す）／クリップ図鑑（視聴済みフラグは `storage.js`／クラウド同期／`recomputeState` に波及するため別issue）／えさやりへの展開（#294）。
+> **#227 で入れなかったもの**: bag shuffle（当時は1スタイル1本で無意味だった。#300 で3本にしたときに実装済み・上記）／クリップ図鑑（視聴済みフラグは `storage.js`／クラウド同期／`recomputeState` に波及するため別issue）／えさやりへの展開（#294）。
 
 ## 記録履歴（きろく）
 
@@ -605,15 +605,15 @@ JS は **起動をブロックするぶん（`js-entry`）** と **遅延読込�
 | カテゴリ | 件数 | gzip | 予算 | 判定 |
 |---|---:|---:|---:|:--:|
 | html（`index.html` + `manifest.json`） | 2 | 7.2 KiB | 8 KiB | ✓ |
-| css | 2 | 12.2 KiB | 13 KiB | ✓ |
-| js-entry（起動をブロック） | 18 | 74.4 KiB | 77 KiB | ✓ |
-| js-lazy（遅延読込） | 8 | 16.7 KiB | 17 KiB | ✓ |
-| **total（html+css+js-entry）** | — | **93.8 KiB** | **96 KiB** | ✓ |
+| css | 2 | 12.9 KiB | 13 KiB | ✓ |
+| js-entry（起動をブロック） | 18 | 75.6 KiB | 77 KiB | ✓ |
+| js-lazy（遅延読込） | 9 | 18.2 KiB | 19 KiB | ✓ |
+| **total（html+css+js-entry）** | — | **95.7 KiB** | **96 KiB** | ✓ |
 | icons | 5 | 39.0 KiB | — | 対象外 |
 | img（猫45＋装着14＋置物2） | 61 | 3655 KiB | — | 対象外 |
 | sounds | 4 | 103 KiB | — | 対象外 |
 
-上表は `npm run perf-budget` の全カテゴリ（予算値は [scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs) `BUDGETS_KIB`・:31）。2026-09 実測（`.gitattributes` で LF 固定済み・#324・CI と同一の値がローカルでも出る）。**既存クローンは `.gitattributes` を pull しただけでは作業ツリーが LF に変わらない**（git は attribute 追加時に既存ファイルを書き換えない）ため、未コミット作業を退避したうえで `git rm --cached -r . && git reset --hard` を一度実行して作業ツリーを引き直す必要がある。予算判定は gzip が効くテキスト資産のみ。画像・音声は変更頻度が低く配信時に再圧縮されないため判定から外すが、**レポートには必ず出す**。
+上表は `npm run perf-budget` の全カテゴリ（予算値は [scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs) `BUDGETS_KIB`・:31）。2026-10-01 実測（#358〜#360・#365 反映後）。**total の残りは 0.3 KiB、css は 0.1 KiB**で、次の機能追加は遅延化で余地を作るか枠の見直しが要る水準（CLAUDE.md ④）。計測は LF（`.gitattributes` で固定済み・#324・CI と同一の値がローカルでも出る）。**既存クローンは `.gitattributes` を pull しただけでは作業ツリーが LF に変わらない**（git は attribute 追加時に既存ファイルを書き換えない）ため、未コミット作業を退避したうえで `git rm --cached -r . && git reset --hard` を一度実行して作業ツリーを引き直す必要がある。予算判定は gzip が効くテキスト資産のみ。画像・音声は変更頻度が低く配信時に再圧縮されないため判定から外すが、**レポートには必ず出す**。
 
 > **設計判断（#324・.gitattributes と history.js の遅延化）**: 2つの別問題が同じ場所で絡んでいた。(A) `core.autocrlf=true` の Windows で作業ツリーが CRLF になり `npm run perf-budget:check` がローカルでだけ赤くなる偽陽性——リポジトリ直下に `.gitattributes`（`* text=auto eol=lf` ＋ バイナリ指定）を追加し、作業ツリーを LF に固定して解消した。(B) 予算の残余が html 0.8 / css 0.8 / js-entry 0.6 / total 0.16 KiB まで詰まり、次の小さな機能追加で CI が確実に赤くなる状態だった——`history.js`（「きろく」ビュー専用のカレンダー／週次集計／記録カードの日付整形。`renderHome()` からは一切参照されない）を `js/app.js` の動的 import へ移し、js-entry を 74.4 KiB（77 KiB 中）まで戻した。`js-lazy` は +2.3 KiB で 17 へ引き上げ（#284 の「遅延ぶんは起動をブロックしないので緩め」の位置づけどおり）、`total` は逆に 93.8 まで下がった（history.js の import 文自体が js-entry から消えるぶんが差し引かれるため、js-lazy の増分とは一致しない）。不採用にした案: **枠を上げるだけ**（`history.js` という遅延化できる候補が残っているうちに枠を動かすと予算が「超えたら上げるもの」に劣化する。CLAUDE.md ④ の「最小構成を徹底しても超える」に該当しない）／**`shop.js` の遅延化**（`game.js` が `itemById` を静的 import しており `game.js` 自体が entry なので分離できない）／**`analytics.js`/`sentry.js` の遅延化**（起動時エラーを早く捕まえる監視の目的が薄まる）／**`perf-budget.mjs` 側で改行を正規化してから測る**（表示は直るが手元のファイルは CRLF のままで差分・エディタとのズレが残る。`.gitattributes` はリポジトリ全体の改行を1つに決めるのでこの種の偽陽性をまとめて消せる）。
 
