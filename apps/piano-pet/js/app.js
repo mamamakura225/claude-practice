@@ -7,7 +7,7 @@ import {
 } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, playFeed, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, isSongMaster, PRAISE_STAMPS, normalizePraise, TEMPO_STAMPS, normalizeTempo } from './record-form.js';
+import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import {
@@ -34,10 +34,10 @@ import { isOnboarded } from './onboarding.js';
 initErrorMonitoring();
 initAnalytics();
 
-// 「きろく」ビュー専用モジュール（./history.js）。ホーム表示には不要なので初回ロードから外す
+// 「きろく」ビュー専用モジュール（./history-view.js＝組み立て #382＋history.js を re-export）。ホーム表示には不要なので初回ロードから外す
 // （#324・js-entry予算の残り確保）。「きろく」ビューへ入る／カレンダー操作／記録削除の入口でだけ待つ。
 let historyMod = null;
-const loadHistory = async () => (historyMod ??= await import('./history.js'));
+const loadHistory = async () => (historyMod ??= await import('./history-view.js'));
 
 // ===== 状態管理 =====
 export let state = loadState();
@@ -230,95 +230,6 @@ function renderStats() {
 }
 
 // ===== 記録履歴画面（Epic 6） =====
-// 週ごとの合計回数を SVG の棒グラフにする
-function weeklyChartSvg(bars) {
-  const N = bars.length;
-  const W = N * 30;
-  const H = 120;
-  const topPad = 12;     // 値ラベルの余白
-  const baseline = H - 16; // 棒の下端（この下に週ラベル）
-  const barMaxH = baseline - topPad;
-  const slotW = W / N;
-  const barW = slotW * 0.58;
-
-  const parts = bars.map((b, i) => {
-    const x = i * slotW + (slotW - barW) / 2;
-    const cx = x + barW / 2;
-    const h = b.total > 0 ? Math.max(3, Math.round(b.ratio * barMaxH)) : 0;
-    const y = baseline - h;
-    const value = b.total > 0
-      ? `<text class="bar-value" x="${cx.toFixed(1)}" y="${(y - 3).toFixed(1)}">${b.total}</text>`
-      : '';
-    return `${value}<rect class="bar" x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${barW.toFixed(1)}" height="${h}" rx="3"/>` +
-      `<text class="bar-label" x="${cx.toFixed(1)}" y="${H - 3}">${b.label}</text>`;
-  });
-
-  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">` +
-    `<defs><linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">` +
-    `<stop offset="0%" stop-color="#ffd06a"/><stop offset="100%" stop-color="#ff7a93"/>` +
-    `</linearGradient></defs>${parts.join('')}</svg>`;
-}
-
-// 記録カードのワンタップ・スタンプ行（はなまる #145 / 練習の質メモ #239）。
-// 同型（Session の単一フィールドに id を1つ・再タップで解除）なので設定駆動で共通化する。
-const SESSION_MARKS = {
-  praise: { stamps: PRAISE_STAMPS, normalize: normalizePraise, cls: 'praise-stamp', row: 'praise-row', label: 'はなまるスタンプ' },
-  tempo: { stamps: TEMPO_STAMPS, normalize: normalizeTempo, cls: 'tempo-stamp', row: 'tempo-row', label: 'れんしゅうの ようす' },
-};
-
-// スタンプ行のマークアップ：選択中のものを強調。タップで付与／同じものを再タップで解除。
-function markRowMarkup(kind, session, index) {
-  const m = SESSION_MARKS[kind];
-  const current = m.normalize(session[kind]);
-  const buttons = m.stamps.map((p) => {
-    const on = p.id === current;
-    return `<button type="button" class="${m.cls}${on ? ` ${m.cls}--on` : ''}"` +
-      ` data-action="set-mark" data-mark="${kind}" data-index="${index}" data-id="${p.id}"` +
-      ` aria-pressed="${on}" title="${p.label}" aria-label="${p.label}">${p.emoji}</button>`;
-  }).join('');
-  return `<div class="${m.row}" role="group" aria-label="${m.label}">${buttons}</div>`;
-}
-
-function historyCardMarkup(session, index) {
-  // 同日同曲が複数行に分かれた既存データも1行に合算して表示する（#186）
-  const songs = combineSongs(session.songs)
-    .map((s) => `<li><span class="song-title">${escapeHtml(s.name)}</span>` +
-      `<span class="song-times">${Number(s.count) || 0}かい</span></li>`)
-    .join('');
-  return `<div class="history-card">
-    <div class="history-card__date">
-      <span class="history-card__day">${historyMod.formatDateJa(session.date)}</span>
-      <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
-    </div>
-    <ul class="history-songs">${songs}</ul>
-    ${markRowMarkup('praise', session, index)}
-    ${markRowMarkup('tempo', session, index)}
-    <div class="history-card__actions">
-      <button type="button" class="history-action" data-action="edit-session" data-index="${index}" aria-label="この きろくを なおす">✏️ なおす</button>
-      <button type="button" class="history-action history-action--del" data-action="delete-session" data-index="${index}" aria-label="この きろくを けす">🗑️ けす</button>
-    </div>
-  </div>`;
-}
-
-// 曲別コレクション：曲ごとの色スウォッチ＋累計回数を多い順に並べる（#122）
-function songCollectionMarkup(totals) {
-  const colors = buildSongColors();
-  return totals
-    .map((t) => {
-      const c = colors.get(t.name) ?? songColor(t.name);
-      const crown = isSongMaster(t.count)
-        ? '<span class="song-collection__crown" title="マスター" aria-label="マスター">👑</span>'
-        : '';
-      return `<li class="song-collection__item">
-        <span class="song-collection__swatch" style="background:${c.fill}" aria-hidden="true">🐾</span>
-        <span class="song-collection__name">${escapeHtml(t.name)}</span>
-        ${crown}
-        <span class="song-collection__count">${t.count}かい</span>
-      </li>`;
-    })
-    .join('');
-}
-
 // 表示中の月（練習カレンダー・#236）。初期値は今月。前月/翌月ボタンで移動する。
 let calYear = null;
 let calMonth = null;
@@ -338,12 +249,7 @@ function renderCalendar() {
   ensureCalMonth();
   setText('calTitle', historyMod.monthLabel(calYear, calMonth));
   const weeks = historyMod.monthGrid(calYear, calMonth, state.sessions, { today: todayStr(), goal: currentGoal() });
-  grid.innerHTML = weeks.map((week) => week.map((cell) => {
-    if (!cell) return '<span class="cal-cell cal-cell--pad" aria-hidden="true"></span>';
-    const cls = `cal-cell${cell.isToday ? ' cal-cell--today' : ''}${cell.isFuture ? ' cal-cell--future' : ''}`;
-    const title = `${calMonth}/${cell.day}：${cell.count}かい`;
-    return `<span class="${cls}" data-level="${cell.level}" title="${title}"><span class="cal-cell__day">${cell.day}</span></span>`;
-  }).join('')).join('');
+  grid.innerHTML = historyMod.calendarCellsMarkup(weeks, calMonth);
 }
 
 async function moveCalendar(delta) {
@@ -360,7 +266,7 @@ function renderSongCollection() {
   if (!el) return;
   const totals = songTotals(state.sessions);
   el.innerHTML = totals.length
-    ? `<ul class="song-collection__list">${songCollectionMarkup(totals)}</ul>`
+    ? `<ul class="song-collection__list">${historyMod.songCollectionMarkup(totals, buildSongColors())}</ul>`
     : '<p class="history-empty">まだ きょくが ないよ。</p>';
 }
 
@@ -387,7 +293,7 @@ export async function renderHistory() {
 
   const chartEl = document.getElementById('weeklyChart');
   if (chartEl) {
-    chartEl.innerHTML = weeklyChartSvg(historyMod.weeklyChartModel(historyMod.weeklyTotals(state.sessions)));
+    chartEl.innerHTML = historyMod.weeklyChartSvg(historyMod.weeklyChartModel(historyMod.weeklyTotals(state.sessions)));
   }
 
   const listEl = document.getElementById('historyList');
@@ -397,7 +303,7 @@ export async function renderHistory() {
     indexed.sort((a, b) => String(b.s.date).localeCompare(String(a.s.date)));
     const rest = indexed.length - historyShown;
     listEl.innerHTML = indexed.length
-      ? indexed.slice(0, historyShown).map(({ s, i }) => historyCardMarkup(s, i)).join('')
+      ? indexed.slice(0, historyShown).map(({ s, i }) => historyMod.historyCardMarkup(s, i)).join('')
         + (rest > 0 ? `<button type="button" class="settings-btn settings-btn--ghost settings-btn--block" data-action="more-history">もっと みる（あと ${rest}けん）</button>` : '')
       : '<p class="history-empty">まだ きろくが ないよ。<br>れんしゅうを きろくしてね！</p>';
   }
@@ -903,10 +809,11 @@ async function deleteSession(index) {
 // スタンプ（praise #145 / tempo #239）を付与／解除。報酬に影響しないので再計算は不要。
 // 同じスタンプを再タップしたら解除（null）。保存してクラウドへ即送信。
 function setSessionMark(kind, index, id) {
-  const m = SESSION_MARKS[kind];
-  const session = m && state.sessions[index];
+  const marks = { praise: normalizePraise, tempo: normalizeTempo };
+  const normalize = Object.hasOwn(marks, kind) ? marks[kind] : null;   // data-mark は DOM 由来
+  const session = normalize && state.sessions[index];
   if (!session) return;
-  const next = m.normalize(session[kind]) === id ? null : m.normalize(id);
+  const next = normalize(session[kind]) === id ? null : normalize(id);
   state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, [kind]: next } : s));
   // スタンプで praise_all3 / tempo_all3 が成立しうる。購入・えさやりと同じくその場で
   // 再判定する（#320・設計判断は docs/features.md）。外す操作では剥がれない（checkBadges は state.badges 引継ぎ）。

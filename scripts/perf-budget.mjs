@@ -55,7 +55,10 @@ const BUDGETS_KIB = {
   // 増分と一致しない）。
   // #365: 初回オンボーディングの文面と画面（onboarding-ui.js・見ていない端末でだけ読む）を
   // 動的 import へ移し、js-entry 76.1→75.1（total 96.0→95.0）。js-lazy は 16.7→18.2 のため 19 へ。
-  'js-lazy': 19,
+  // #382: total が 96.0/96（残り4バイト）で止まったため、「きろく」画面の HTML 組み立て
+  // （history-view.js・history.js を re-export）を動的 import へ移し js-entry 75.8→74.3・total 96.0→94.5。
+  // js-lazy は 18.3→20.9 のため、過去の引き上げと同じく 1 KiB 程度の余白を残して 22 へ（起動をブロックしないので緩め・#284）。
+  'js-lazy': 22,
   // #311〜#320 のデータ健全性修正群（壊れ state の入口ガード・属性注入の allowlist+escape・
   // クラウド debounce の thunk 化・編集参照の同一性化・付与値のマージ救済・同日重複の
   // 二重清算防止・削除の tombstone・スタンプのバッジ再判定）はいずれも圧縮で削ると
