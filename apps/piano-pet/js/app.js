@@ -80,10 +80,11 @@ function cleanItemLayout(pet) {
 // オフライン中の未送信変更の印＝立っている間の realtime は union（#358）
 let offlineDirty = false;
 
+// 取り込み前・印の間は送らない（#374・data-model.md）
 function queueCloudPush() {
-  if (!cloud) return;
+  if (!cloud || !initialSyncDone) return;
   if (navigator.onLine === false) offlineDirty = true;
-  cloud.pushCloudDebounced(() => cloudFields(state));
+  if (!offlineDirty) cloud.pushCloudDebounced(() => cloudFields(state));
 }
 
 export function commitState(newState) {
@@ -1887,6 +1888,7 @@ async function initCloudSync() {
     await cloud.pushCloud(cloudFields(state));  // 初回: 既存のローカルデータを移行（doc が本当に無いときだけ）
   } else if (cloudData === undefined) {
     offlineDirty = true;                    // 取れなかった：最初のスナップショットを union で取り込む（#362）
+    setTimeout(retryResync, 30000);
   }
   initialSyncDone = true;
   cloudUnsub = cloud.subscribeCloud(applyRemoteState);   // 以降は他端末の変更をリアルタイム反映（ハンドルは復元時の解除用に保持）
@@ -1923,12 +1925,16 @@ async function resyncFromCloud() {
   if (!cloudSynced || !cloud) return false;
   const cloudData = await cloud.fetchCloud();
   if (cloudData) reconcileInitialCloud(cloudData);
-  return !!cloudData;
+  else if (cloudData === null && hasLocalData(state)) await cloud.pushCloud(cloudFields(state));
+  return cloudData !== undefined;
 }
 
 // 印を下ろす条件は data-model.md #358
 const resyncAndSettle = () => resyncFromCloud()
   .then((ok) => { if (ok && navigator.onLine !== false) offlineDirty = false; });
+function retryResync() {
+  resyncAndSettle().then(() => { if (offlineDirty && navigator.onLine !== false) setTimeout(retryResync, 30000); });
+}
 
 // オフライン起動後にネットワークが復帰したら同期を立ち上げ直す。
 window.addEventListener('online', () => {
