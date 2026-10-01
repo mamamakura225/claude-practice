@@ -46,6 +46,8 @@ test.describe('表示崩れの退行防止 (#353)', () => {
       await page.setViewportSize({ width, height: 800 });
       await seed(page);
       await open(page);
+      // はみ出しの元凶だった「未同期」表示が出ている状態で測る
+      await expect(page.locator('#syncIndicator')).toHaveClass(/sync-local/);
       const m = await page.evaluate(() => ({
         help: document.getElementById('shortcutsHelpBtn').getBoundingClientRect().right,
         logoH: document.querySelector('.logo').getBoundingClientRect().height,
@@ -79,11 +81,13 @@ test.describe('表示崩れの退行防止 (#353)', () => {
     const status = page.locator('.task-card[data-id="a"] .badge-status');
     await expect(status).toHaveText('未着手');
     await expect(status).not.toHaveClass(/badge-low/);
-    const [lowBg, statusBorder] = await page.evaluate(() => [
-      getComputedStyle(document.querySelector('.task-card[data-id="a"] .badge-low')).backgroundColor,
-      getComputedStyle(document.querySelector('.task-card[data-id="a"] .badge-status')).borderTopStyle,
-    ]);
-    expect(statusBorder).toBe('solid');
-    expect(lowBg).not.toBe('rgba(0, 0, 0, 0)');
+    const look = (sel) => page.evaluate((sel) => {
+      const cs = getComputedStyle(document.querySelector(sel));
+      return [cs.backgroundColor, cs.borderTopColor];
+    }, sel);
+    for (const theme of ['light', 'dark']) {
+      await page.evaluate((t) => { document.body.dataset.theme = t; }, theme);
+      expect(await look('.task-card[data-id="a"] .badge-status')).not.toEqual(await look('.task-card[data-id="a"] .badge-low'));
+    }
   });
 });

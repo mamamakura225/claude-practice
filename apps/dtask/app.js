@@ -63,10 +63,11 @@ const HINT_KEY      = 'dtask_hint_actions'; // 操作メニュー(⋮)の初回�
 const SYNC_STATES = {
   idle:    { html: '' },
   syncing: { html: '<span class="sync-dot" aria-hidden="true"></span><span class="sync-label">同期中…</span>' },
-  saved:   { html: '✓<span class="sync-label"> 保存済み</span>' },
-  error:   { html: '⚠<span class="sync-label"> 保存失敗</span> <button class="sync-retry-btn" type="button" data-action="sync-retry">再試行</button>' },
-  offline: { html: '📵<span class="sync-label"> オフライン</span>' },
-  local:   { html: '📵<span class="sync-label"> 未同期（この端末に保存中）</span>' },
+  saved:   { html: '<span aria-hidden="true">✓</span><span class="sync-label"> 保存済み</span>' },
+  error:   { html: '<span aria-hidden="true">⚠</span><span class="sync-label"> 保存失敗</span> <button class="sync-retry-btn" type="button" data-action="sync-retry">再試行</button>' },
+  offline: { html: '<span aria-hidden="true">📵</span><span class="sync-label"> オフライン</span>' },
+  // 未同期はオフライン（📵）と別アイコン・別背景にし、アイコンだけのスマホ幅でも区別できるようにする
+  local:   { html: '<span aria-hidden="true">💾</span><span class="sync-label"> 未同期（この端末に保存中）</span>' },
 };
 let syncIdleTimer = null;
 

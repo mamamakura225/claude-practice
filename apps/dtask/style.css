@@ -129,6 +129,12 @@ a { color: inherit; text-decoration: none; }
   color: #fff;
   font-weight: 600;
 }
+/* 未同期（端末内のみ保存）：オフラインと別の見た目（濃い半透明）＋別アイコン(💾) #353 */
+.sync-indicator.sync-local {
+  background: rgba(0, 0, 0, 0.32);
+  color: #fff;
+  font-weight: 600;
+}
 
 /* pulsing dot for syncing state */
 .sync-dot {
@@ -714,7 +720,7 @@ body[data-fontsize="large"] .btn-secondary    { font-size: 15px; }
 .badge-low { background: var(--priority-low-bg); color: var(--priority-low); }
 /* ステータス：優先度「低」と見分けがつくよう、未着手は枠線のみ・進行中/完了は色付き (#353) */
 .badge-status { border: 1px solid transparent; }
-.badge-status-todo { background: transparent; color: var(--text-sub); border-color: var(--border); }
+.badge-status-todo { background: transparent; color: var(--text-sub); border-color: var(--text-sub); }
 .badge-status-inprogress { background: var(--status-inprogress-bg); color: var(--status-inprogress-text); }
 .badge-status-done { background: var(--status-done-bg); color: var(--status-done-text); }
 .badge-category {
@@ -1312,10 +1318,10 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
     padding-bottom: 8px;
     -webkit-overflow-scrolling: touch;
     grid-template-columns: none;
+    scroll-snap-type: x mandatory;
   }
   /* 列幅は中身でなく画面幅で決める（長いカードで列が画面外まで伸び、件数バッジが切れていた #353）。
      次の列の端を覗かせ、横スクロールできることを示す */
-  .kanban-board { scroll-snap-type: x mandatory; scroll-padding-left: 0; }
   .kanban-column {
     flex: 0 0 min(85%, 320px);
     min-width: 0;
@@ -1361,6 +1367,14 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
   /* サイドバー内のタップターゲット拡大 */
   .category-chip { padding: 10px; }
   .filter-select { padding: 10px 8px; font-size: 15px; }
+}
+
+/* 375px 未満はヘッダーに全ボタンが収まらないため、ロゴは「d」マークのみ（文字は読み上げ用に残す #353） */
+@media (max-width: 374px) {
+  .logo-text {
+    position: absolute; width: 1px; height: 1px; margin: -1px;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
 }
 
 /* ===== Swipe Gesture ===== */
@@ -1420,14 +1434,6 @@ body[data-fontsize="large"] .card-menu-item { font-size: 15.5px; }
 }
 
 /* ===== Landscape Mobile Optimization ===== */
-/* 375px 未満はヘッダーに全ボタンが収まらないため、ロゴは「d」マークのみ（文字は読み上げ用に残す #353） */
-@media (max-width: 374px) {
-  .logo-text {
-    position: absolute; width: 1px; height: 1px; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-  }
-}
-
 @media (max-height: 500px) and (orientation: landscape) {
   :root { --header-h: 40px; }
 
