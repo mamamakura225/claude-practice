@@ -25,6 +25,8 @@ const logPush = (target) => {
   sessionStorage.setItem('__pushLog', JSON.stringify([...log, target]));
 };
 export async function fetchCloud() {
+  window.__fetching = true;
+  if (window.__fetchDelay) await new Promise((r) => setTimeout(r, window.__fetchDelay));
   if (window.__fetchFail) return undefined;   // タイムアウト・通信エラー（doc が無い null とは別・#362）
   return window.__cloudDoc ?? null;
 }
@@ -34,6 +36,9 @@ export async function pushCloud(data) {
   window.__pushed = data;
   window.__pushCount = (window.__pushCount ?? 0) + 1;
   window.__cloudDoc = JSON.parse(JSON.stringify(data));
+  // 実 Firestore と同じく書き込みはローカルへ即反映し、サーバの ack だけ遅らせる（#374）
+  window.__pushStarted = true;
+  if (window.__pushDelay) await new Promise((r) => setTimeout(r, window.__pushDelay));
 }
 const __queue = createCloudQueue(pushCloud, { defaultDelay: window.__cloudDelay ?? 0 });
 export const pushCloudDebounced = __queue.pushCloudDebounced;
@@ -504,5 +509,69 @@ test.describe('クラウド同期の取り込み', () => {
       .toEqual(['2026-09-01', '2026-09-02']);
     const st = await readLocal(page);
     expect(st.sessions.map((s) => s.date).sort()).toEqual(['2026-09-01', '2026-09-02']);
+  });
+
+  // #374: 初回の取り込みが済むまで（取得待ち・取得失敗後）のユーザー操作で、ローカルだけの state を全置換 push しない
+  const record3 = async (page) => {
+    await page.click('#goRecordBtn');
+    await page.fill('#newSongInput', 'C');
+    await page.click('#addSongBtn');
+    for (let i = 0; i < 3; i += 1) await page.click('#stampCard');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-home')).toBeVisible();
+    return page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.find((x) => x.date !== '2026-09-01').date);
+  };
+  const otherDoc = () => ({ ...baseState(), sessions: [{ date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] }] });
+  const localSeed = () => baseState({ sessions: [{ date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
+  const cloudDates = (page) => page.evaluate(() => (window.__cloudDoc?.sessions ?? []).map((x) => x.date).sort());
+
+  test('初回の取得を待つ間に記録しても、他端末の記録を上書きしない（#374）', async ({ page }) => {
+    await useFakeCloud(page, otherDoc());
+    await seedLocal(page, localSeed());
+    await page.addInitScript(() => { window.__fetchDelay = 8000; });
+    await page.goto('/');
+    await page.waitForFunction(() => window.__fetching === true, null, { timeout: 10000 });
+    const today = await record3(page);
+    expect(await cloudDates(page)).toEqual(['2026-09-02']);   // 取り込み前は送らない（旧実装はここで 09-02 を消す）
+    await waitForSync(page);
+    await expect.poll(() => cloudDates(page)).toEqual(['2026-09-01', '2026-09-02', today].sort());
+  });
+
+  test('初回の取得に失敗したあと記録しても、最初のスナップショットまで送らない（#374）', async ({ page }) => {
+    await useFakeCloud(page, otherDoc());
+    await seedLocal(page, localSeed());
+    await page.addInitScript(() => { window.__fetchFail = true; });
+    await page.goto('/');
+    await waitForSync(page);
+    const today = await record3(page);
+    expect(await cloudDates(page)).toEqual(['2026-09-02']);
+    await page.evaluate(() => window.__onRemote(window.__cloudDoc));
+    await expect.poll(() => cloudDates(page)).toEqual(['2026-09-01', '2026-09-02', today].sort());
+  });
+
+  test('doc が無いのに取得に失敗した端末は、次の resync で初回移行する（#374）', async ({ page }) => {
+    await useFakeCloud(page, null);
+    await seedLocal(page, localSeed());
+    await page.addInitScript(() => { window.__fetchFail = true; });
+    await page.goto('/');
+    await waitForSync(page);
+    const today = await record3(page);
+    expect(await page.evaluate(() => window.__cloudDoc ?? null)).toBeNull();   // 取れないうちは送らない
+    await page.evaluate(() => { window.__fetchFail = false; document.dispatchEvent(new Event('visibilitychange')); });
+    await expect.poll(() => cloudDates(page)).toEqual(['2026-09-01', today].sort());
+  });
+
+  test('初回移行の ack を待つ間に記録しても、最初のスナップショットで消えない（#374）', async ({ page }) => {
+    await useFakeCloud(page, null);   // doc が無い＝ローカルを初回移行する
+    await seedLocal(page, localSeed());
+    await page.addInitScript(() => { window.__pushDelay = 8000; });
+    await page.goto('/');
+    await page.waitForFunction(() => window.__pushStarted === true, null, { timeout: 10000 });
+    const today = await record3(page);
+    await waitForSync(page);
+    // 購読開始後の最初のスナップショット（ローカル即時反映ぶんを含む doc）
+    await page.evaluate(() => window.__onRemote(window.__cloudDoc));
+    const st = await readLocal(page);
+    expect(st.sessions.map((x) => x.date).sort()).toEqual(['2026-09-01', today].sort());
   });
 });
