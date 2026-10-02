@@ -1,104 +1,67 @@
 # データモデル
 
-## Task
+型と保存先。同期の方式は [architecture.md](./architecture.md#同期)。
 
-タスク本体。Firestore の `dtask/data` ドキュメント内 `tasks` 配列要素として保存される。
+## 保存先
+
+| データ | 保存先 |
+|---|---|
+| タスク・プロジェクト | Firestore `dtask/data`（`{tasks: Task[], categories: Category[]}` の単一ドキュメント）＋ localStorage ミラー |
+| テーマ・文字サイズ・ビュー形式・サブタスク展開 | localStorage（端末ごと。同期しない） |
+| 絞り込み・並べ替え | メモリのみ（リロードで既定に戻る） |
+
+> **設計判断**: タスクごとにドキュメントを分けないのは、個人利用で量が小さく、全件購読の方が同期が単純だから（数百件を超えたら再設計）。表示設定を同期しないのは、端末ごとの「いま見ている状態」だから。
+
+## Task
 
 | フィールド | 型 | 必須 | 説明 |
 |---|---|---|---|
-| `id` | string | ✓ | 一意ID（UUID） |
+| `id` | string | ✓ | UUID |
 | `title` | string | ✓ | タスク名 |
-| `description` | string |  | 詳細メモ |
-| `status` | `'todo'` \| `'inprogress'` \| `'done'` | ✓ | 進捗ステータス |
+| `description` | string |  | メモ |
+| `status` | `'todo'` \| `'inprogress'` \| `'done'` | ✓ | ステータス |
 | `priority` | `'high'` \| `'medium'` \| `'low'` |  | 優先度 |
-| `categoryId` | string |  | カテゴリへの参照（空文字なら未分類） |
-| `deadline` | `YYYY-MM-DD` |  | 期限（空文字なら未設定） |
-| `tags` | string[] |  | タグ配列。デフォルト `[]` |
-| `subtasks` | Subtask[] |  | サブタスク配列。デフォルト `[]` |
-| `recurrence` | Recurrence \| null |  | 定期タスク設定。デフォルト `null` |
-| `order` | number |  | 手動ソート順。デフォルト `0` |
-| `spawnedNextId` | string |  | 繰り返しタスクを完了にして生成した次回分のID。再完了時の重複生成防止に使う（#351） |
-| `createdAt` | ISO8601 string | ✓ | 作成日時 |
+| `categoryId` | string |  | プロジェクトID（空＝なし） |
+| `deadline` | `YYYY-MM-DD` |  | 期限（端末ローカルの日付。空＝なし） |
+| `tags` | string[] |  | 既定 `[]` |
+| `subtasks` | Subtask[] |  | 既定 `[]` |
+| `recurrence` | Recurrence \| null |  | 既定 `null` |
+| `order` | number |  | 手動順。既定 `0` |
+| `spawnedNextId` | string |  | 完了時に作った次回分のID（再完了での重複防止） |
+| `createdAt` | ISO8601 | ✓ | 作成日時（UTC） |
 
-正規化は [utils/task.js](../utils/task.js) の `normalizeTask` が担う（読み込み時に `tags`/`subtasks`/`recurrence`/`order` のデフォルト値を補完）。
+読み込み時に [utils/task.js](../utils/task.js) の `normalizeTask` が既定値を補う。
 
-## Subtask
+| 型 | フィールド |
+|---|---|
+| Subtask | `id`・`title`・`done: boolean` |
+| Category（UI上は「プロジェクト」） | `id`・`name`・`color`（`#RRGGBB`。それ以外は表示時に既定色） |
+| Recurrence | `type: 'daily' \| 'weekly' \| 'monthly'`、`anchorDay?: number`（毎月のみ。月末で詰めた翌月に元の日へ戻すための基準日。期限か種別を手で変えたら付け直す） |
 
-`Task.subtasks` の要素。
-
-| フィールド | 型 | 説明 |
-|---|---|---|
-| `id` | string | 一意ID |
-| `title` | string | サブタスク名 |
-| `done` | boolean | 完了フラグ |
-
-進捗計算は `calculateSubtaskProgress(subtasks)` → `{ total, done, percent }`。
-
-## Category
-
-| フィールド | 型 | 説明 |
-|---|---|---|
-| `id` | string | 一意ID |
-| `name` | string | カテゴリ名 |
-| `color` | string | カラーコード（カード上のアクセント色） |
-
-## Recurrence
-
-| フィールド | 型 | 説明 |
-|---|---|---|
-| `type` | `'daily'` \| `'weekly'` \| `'monthly'` | 繰り返し種別 |
-| `anchorDay` | number（任意・毎月のみ） | 基準の「日」。次回分の生成時に元の期限日から付与し、月末で詰めた月（2/28 等）の翌月に元の日（31 等）へ戻すため（#351）。編集モーダルで期限か種別を変えると付け直し |
-
-次回期限の計算は [utils/date.js](../utils/date.js) の `nextRecurrenceDeadline(deadline, recurrence)`。毎月は翌月に同じ日が無ければ月末に詰める（1/31 → 2/28 → 3/31）。間隔は `type` のみで表現し、`interval` のような数値フィールドは持たない（将来「2週間ごと」等が必要になった時点で追加する）。
-
-## Firestore スキーマ
-
-```
-dtask (collection)
-└── data (document)
-    ├── tasks:      Task[]
-    └── categories: Category[]
-```
-
-> **設計判断**: タスクごとにドキュメントを分けず単一ドキュメントに全件格納している。理由：個人利用前提でデータ量が小さく、`onSnapshot` で全件購読する方が同期実装がシンプルになるため。タスク件数が数百を超える規模では再設計が必要。
+間隔は `type` だけで表す（「2週間ごと」が要るまで `interval` は持たない）。
 
 ## localStorage キー
 
-`app.js` のキー定義（`THEME_KEY` / `FONTSIZE_KEY` / `EXPANDED_KEY`）、および Firestore 障害時フォールバック（`loadStorage` 内の localStorage 読み込み）で使用。
+| キー | 内容 |
+|---|---|
+| `dtask_tasks` / `dtask_categories` | クラウドのミラー（保存・受信のたびに更新。Firestore が応答しない起動時はここから） |
+| `dtask_synced` | 最後にクラウドと一致した `{tasks, categories}`（未同期分の差分を求める基準） |
+| `dtask_theme` | `'light'` / `'dark'` |
+| `dtask_fontsize` | `'standard'` / `'large'` |
+| `dtask_view` | `'list'` / `'kanban'` |
+| `dtask_expanded` | 展開中のタスクID（削除済みIDは自動で除く） |
+| `dtask_hint_actions` | ⋮メニューのヒントを表示済みなら `'1'` |
 
-| キー | 型 | 用途 |
+## Filters（`state.filters`・メモリのみ）
+
+| プロパティ | 値 | 既定 |
 |---|---|---|
-| `dtask_theme` | string | `'light'` / `'dark'` |
-| `dtask_fontsize` | string | `'standard'` / `'large'` |
-| `dtask_expanded` | JSON array (string[]) | インライン展開中のタスクIDリスト（削除済みIDは自動クリーンアップ） |
-| `dtask_view` | string | `'list'` / `'kanban'`。前回のビュー形式（起動時に復元 #33） |
-| `dtask_hint_actions` | string | `'1'` なら操作メニュー(⋮)の初回ヒントを表示済み（#111） |
-| `dtask_tasks` | JSON Task[] | **ローカルミラー**：`saveCloud` とリモート反映のたびに最新状態を書く。Firestore が応答しない起動時はここから復元する（#349） |
-| `dtask_categories` | JSON Category[] | **ローカルミラー**：同上 |
-| `dtask_synced` | JSON `{tasks, categories}` | **最後にクラウドと一致していた状態**。未同期（フォールバック・オフライン編集）中のローカル差分を求める基準（#349） |
+| `categoryId` / `priority` / `status` | 各値、空＝すべて | `''` |
+| `search` | 文字列（`#タグ` はタグ完全一致） | `''` |
+| `hideCompleted` | boolean | `false` |
+| `preset` | `''` / `'today'` / `'week'` / `'overdue'` | `'today'`（起動時は常に今日） |
+| `sort` | `'manual'` / `'createdAt'` / `'deadline'` / `'priority'` | `'manual'` |
 
-> **設計判断**: UI状態（テーマ、文字サイズ、展開状態）は端末固有として localStorage に分離し、クラウド同期しない。タスクデータ本体は Firestore を正とし、localStorage はミラー（非常時の起動用）。ミラーから起動した状態は、クラウドを読めるまで Firestore へ書かない（→ [architecture.md](./architecture.md) の同期方式）。
+## スキーマ変更
 
-## Filters（実行時状態・非永続）
-
-`state.filters` の構造。**メモリのみ**でクラウド・localStorage いずれにも永続化せず、リロードで既定値にリセットされる（→ [architecture.md](./architecture.md) の状態管理）。`filterTasks` / `sortTasks` の入力となる。
-
-| プロパティ | 型 | 既定 | 説明 |
-|---|---|---|---|
-| `categoryId` | string | `''` | プロジェクト（categoryId）絞り込み。空＝すべて |
-| `priority` | `'high'` \| `'medium'` \| `'low'` \| `''` | `''` | 優先度絞り込み。空＝すべて |
-| `status` | `'todo'` \| `'inprogress'` \| `'done'` \| `''` | `''` | ステータス絞り込み。空＝すべて |
-| `sort` | `'manual'` \| `'createdAt'` \| `'deadline'` \| `'priority'` | `'manual'` | ソート種別 |
-| `search` | string | `''` | 検索クエリ（フルテキスト／`#tag`） |
-| `hideCompleted` | boolean | `false` | 完了タスクを非表示 |
-| `preset` | `''` \| `'today'` \| `'week'` \| `'overdue'` | `'today'` | 期限プリセット。起動既定は `'today'`（今日締切＋期限切れ未完了）に固定(#33)。`today` は完了確認のため当日完了済みも含む |
-
-## スキーマ変更時の注意
-
-現在マイグレーション機構はない。フィールド追加程度なら `normalizeTask` でデフォルト値を補完すれば後方互換になるが、フィールド名変更・削除は要注意。スキーマ変更時は：
-
-1. `normalizeTask` を更新し既存データに対するデフォルト動作を保証
-2. テスト ([tests/task.test.js](../tests/task.test.js)) を追加
-3. `docs/data-model.md`（このファイル）を更新
-
-将来的にはバージョニング戦略を導入したい（[infra issue として起票予定]）。
+マイグレーション機構は無い。追加は `normalizeTask` で既定値を補えば後方互換になる。名前変更・削除をするときは、`normalizeTask` で旧データを吸収し、[tests/task.test.js](../tests/task.test.js) にテストを足し、本書を更新する。

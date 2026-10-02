@@ -1,58 +1,33 @@
 # dtask
 
-シンプルなタスク管理SPA。Vanilla JavaScript + Firebase Firestore。
+個人用のタスク管理SPA（Vanilla JS + Firebase Firestore、ビルド無し）。
 
-🌐 **本番URL**: https://claude-practice-hazel.vercel.app/dtask/
-
-## 機能
-
-- リスト / Kanban の2ビュー
-- サブタスク（インライン展開・編集）
-- カテゴリ・優先度・タグ・期限・定期タスク
-- フィルタ（プリセット: 今日 / 今週 / 期限切れ）、検索（フルテキスト / `#tag`）、ソート（手動 / 期限 / 優先度 / 作成日）
-- ドラッグ&ドロップ並び替え（デスクトップ）、スワイプ操作（モバイル）
-- キーボードショートカット (`N` / `/` / `?` / `Ctrl+Z` / `Esc`)
-- Firestore リアルタイム同期、オフライン時はlocalStorageフォールバック
-- Undo（トースト5秒 + `Ctrl+Z` で60秒・最大5件のスタックUndo）、テーマ（ライト / ダーク）、文字サイズ切替
-
-詳細は [docs/features.md](./docs/features.md) を参照。
+🌐 本番: https://claude-practice-hazel.vercel.app/dtask/
 
 ## 開発
 
-リポジトリ共通のツール（npm / テスト）はリポジトリルートで実行する。
+npm スクリプトはリポジトリルートで実行する。
 
-### ローカル起動
 ```bash
-npx http-server ./apps/dtask -p 3000 -c-1
-# → http://localhost:3000 を開く
+npx http-server ./apps/dtask -p 3000 -c-1   # ローカル起動 → http://localhost:3000
+npm test                                     # Vitest（単体）
+npm run test:e2e                             # Playwright（E2E。サーバは自動起動）
 ```
 
-### テスト（リポジトリルートで実行）
-```bash
-npm test           # Vitest 単体テスト（apps/dtask/tests）
-npm run test:e2e   # Playwright E2E テスト（http-serverは自動起動）
-```
+ローカル起動は本番 Firestore（`dtask-d08b6`）に接続する。データを触らずに画面を確認するときは、DevTools のリクエストブロックで `firestore.googleapis.com` を遮断する（5秒後に端末保存のデータで起動し、未同期モードなのでクラウドへ書かない）。
 
-## デプロイ
-
-GitHub Actions のテスト (Vitest + Playwright) が両方通過した場合にのみ Vercel CLI でデプロイされる。
-
-- `main` への push → 本番デプロイ
-- PR (mainターゲット) → プレビューデプロイ
-- テスト失敗時はデプロイされない
-
-セットアップ詳細・必要なSecretsは [docs/architecture.md#デプロイ方式](./docs/architecture.md#デプロイ方式) を参照。
+本番のパス `/dtask/` は `vercel.json` の rewrite で `apps/dtask/` を指す。
 
 ## ドキュメント
 
-| ドキュメント | 内容 |
+| ドキュメント | 役割 |
 |---|---|
-| [docs/requirements.md](./docs/requirements.md) | 要件定義（目的・機能要件・非機能要件・スコープ外） |
-| [docs/architecture.md](./docs/architecture.md) | アーキテクチャ全体像 |
-| [docs/data-model.md](./docs/data-model.md) | Task / Subtask / Category のスキーマ |
-| [docs/features.md](./docs/features.md) | 機能一覧・ショートカット |
-| [docs/testing.md](./docs/testing.md) | テスト戦略 |
+| [requirements.md](./docs/requirements.md) | 何を・誰のために作るか（目的・機能要件・非機能要件・スコープ外） |
+| [features.md](./docs/features.md) | ふるまい（画面・操作・ショートカット・同期表示・アクセシビリティ）と、その設計判断 |
+| [architecture.md](./docs/architecture.md) | 構造と方式（状態管理・同期・日付・設定・デプロイ）と、その設計判断 |
+| [data-model.md](./docs/data-model.md) | 型（Task / Subtask / Category / Recurrence / Filters）と保存先・キー |
+| [testing.md](./docs/testing.md) | テスト戦略・カバレッジ・CI |
 
-## バックログ
+更新ルールは [CLAUDE.md](../../CLAUDE.md) ⑤（ソース変更と同じPRで docs を更新し、非自明な判断は理由を残す）。同じ理由を2箇所に書かない。
 
-[GitHub Issues](https://github.com/mamamakura225/claude-practice/issues) でラベル `type/infra` / `type/ux` / `type/tech-debt` と優先度 `P1` / `P2` / `P3` で管理。
+バックログは [GitHub Issues](https://github.com/mamamakura225/claude-practice/issues)（`app/dtask`・`type/*`・`P1`〜`P3`）。

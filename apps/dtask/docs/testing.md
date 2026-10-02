@@ -1,108 +1,65 @@
-# テスト戦略
+# テスト
 
-## 全体方針
+| 層 | ツール | 対象 |
+|---|---|---|
+| 単体 | Vitest（`npm test`） | [utils/](../utils/) の純粋関数。DOM・Firebase・localStorage は扱わない |
+| E2E | Playwright（`npm run test:e2e`） | ブラウザでの主要フロー。Chromium で全件、`@compat` タグのテストだけ Firefox / WebKit でも実行 |
 
-純粋関数（`utils/`配下）は **Vitest による単体テスト** で網羅、UIを伴う動作確認は **Playwright による E2E テスト** で代表的フローを保証する2層構成。
+- 不具合を直したら、**修正前のコードで落ちる**退行テストを足す
+- 既存機能のテストは、その機能を壊すと落ちることを確かめる
 
-| 層 | ツール | 対象 | 速度 | 安定性 |
-|---|---|---|---|---|
-| 単体 | Vitest | utils/ の純粋関数 | 速い | 高い |
-| E2E | Playwright（Chromium 全件＋`@compat` のみ Firefox/WebKit） | ブラウザ全体フロー | 遅い | 中 |
+## 単体（[tests/](../tests/)）
 
-## 単体テスト (Vitest)
-
-設定：[vitest.config.js](../../../vitest.config.js)
-
-```bash
-npm test          # 全テスト実行（vitest run）
-```
-
-テスト配置：[tests/](../tests/) 配下、 `*.test.js`
-
-| ファイル | カバレッジ |
+| ファイル | 対象 |
 |---|---|
-| [tests/task.test.js](../tests/task.test.js) | `normalizeTask`（デフォルト値補完）、`calculateSubtaskProgress`（0/100%/中間値） |
-| [tests/date.test.js](../tests/date.test.js) | `formatDate`, `isOverdue`, `addDays`, `addMonths`, `nextRecurrenceDeadline`, `daysBetween`。**ローカル日付の境界**（`process.env.TZ` を実行時に Asia/Tokyo 07:00・America/Los_Angeles 20:00 へ切替え、時刻固定で `todayStr`/期限切れ/明日/今日プリセットを検証 #350）、毎月の月末詰めと `anchorDay`（#351） |
-| [tests/filter.test.js](../tests/filter.test.js) | `filterTasks`（カテゴリ・優先度・ステータス・期限プリセット・フリーテキスト/タグ検索） |
-| [tests/sort.test.js](../tests/sort.test.js) | `sortTasks`（manual/createdAt/deadline/priority、完了タスク末尾保証） |
-| [tests/html.test.js](../tests/html.test.js) | `escHtml`（XSS対策） |
-| [tests/color.test.js](../tests/color.test.js) | `readableTextColor`（AA未達だった色・極端な色でもライト/ダーク両面で 4.5:1）、`safeColor`（不正値の置換） #354 |
-| [tests/sync.test.js](../tests/sync.test.js) | `mergeFallbackChanges`（ローカル追加/編集/削除の載せ直し、フィールド単位の重ね合わせ、空フォールバックでクラウドを消さない #349） |
+| task.test.js | `normalizeTask`・`calculateSubtaskProgress` |
+| date.test.js | 日付関数。`process.env.TZ` を実行時に切替えて時刻を固定し、ローカル日付の境界（東京 07:00・ロサンゼルス 20:00）と毎月の月末詰め・`anchorDay` を確認 |
+| filter.test.js | `filterTasks`（各条件・プリセット・検索） |
+| sort.test.js | `sortTasks`（各並べ替え・完了は末尾） |
+| html.test.js | `escHtml` |
+| color.test.js | `readableTextColor`（任意の色でライト／ダークとも 4.5:1）・`safeColor` |
+| sync.test.js | `mergeFallbackChanges`（追加・編集・削除、フィールド単位、空のフォールバックでクラウドを消さない） |
 
-### 単体テスト方針
-- `utils/` への新規追加・変更時は必ずテストを追加または更新
-- エッジケース（空配列、null、未設定フィールド）を意識
-- 純粋関数のみ対象。DOM・Firebase・localStorage は単体テストでは扱わない
+## E2E（[e2e/](../e2e/)）
 
-## E2E テスト (Playwright)
-
-設定：[playwright.config.js](../../../playwright.config.js)
-
-```bash
-npm run test:e2e   # E2Eテスト実行
-```
-
-- 主要テストは Chromium（Desktop Chrome）で全件実行
-- 互換性検証は `@compat` タグ付きのクリティカルパスのみ Firefox / WebKit(Safari) でも実行（[playwright.config.js](../../../playwright.config.js) の `dtask-firefox` / `dtask-webkit` プロジェクト。全件は重いためタグで限定）
-- `http-server` をテスト開始時に自動起動（port 3000）
-- CI では `retries: 1`, `workers: 1`
-
-テスト配置：[e2e/](../e2e/) 配下、 `*.spec.js`
-
-### 現状カバレッジ
-| ファイル | カバー範囲 |
+| ファイル | 対象 |
 |---|---|
-| [e2e/add-task.spec.js](../e2e/add-task.spec.js) | 詳細モーダルから新規タスク作成 → リストに表示（`@compat`）。Firestore APIをブロックしてオフライン挙動を検証 |
-| [e2e/kanban.spec.js](../e2e/kanban.spec.js) | Kanban へ切替えてステータスセレクトで進行中へ変更 |
-| [e2e/kanban-full-cycle.spec.js](../e2e/kanban-full-cycle.spec.js) | todo → inprogress → done で対応する列へ移動（`@compat`） |
-| [e2e/filter-sort.spec.js](../e2e/filter-sort.spec.js) | ステータス・優先度フィルタ、優先度順ソート、期限プリセット「期限切れ」 |
-| [e2e/search.spec.js](../e2e/search.spec.js) | 検索バーの部分一致絞り込み |
-| [e2e/subtasks.spec.js](../e2e/subtasks.spec.js) | 詳細モーダルでサブタスク2件追加 → カードに進捗表示 |
-| [e2e/subtask-inline.spec.js](../e2e/subtask-inline.spec.js) | カード上のインライン操作：0件からの追加、チェックで進捗 0/2→1/2→2/2、タイトル編集 |
-| [e2e/swipe-delete.spec.js](../e2e/swipe-delete.spec.js) | モバイルエミュレーションで左スワイプ削除 → トースト |
-| [e2e/keyboard-shortcuts.spec.js](../e2e/keyboard-shortcuts.spec.js) | `N` / `/` のフォーカス、`Esc` でモーダルを閉じる、入力中は無効 |
-| [e2e/undo-shortcut.spec.js](../e2e/undo-shortcut.spec.js) | 削除後の `Ctrl+Z` 復元、入力中は無効、連続 Undo |
-| [e2e/today-home.spec.js](../e2e/today-home.spec.js) | 「今日やること」ホームビュー(#33)：起動時 today フィルタON（今日＋期限切れ表示・未来非表示）、ビュー形式の localStorage 復元、今日分全完了時のご褒美空状態、日本時間早朝（`timezoneId`＋`page.clock` で 07:00 JST 固定）でも今日締切を表示する日付境界(#350) |
-| [e2e/card-menu.spec.js](../e2e/card-menu.spec.js) | カード操作メニュー(#111)：⋮ から削除・下へ並び替え・完了化、キーボードでの開閉（Enter/Esc・フォーカス復帰） |
-| [e2e/a11y.spec.js](../e2e/a11y.spec.js) | アクセシビリティ(#354)：表示中の全文字のコントラスト（ライト/ダーク×リスト/ボード）、モバイルのタップ領域、ARIA（読み上げ名・期限プリセットの aria-pressed）、モーダル後のフォーカス復帰、同期表示（送信待ち・保存失敗の維持。偽SDK） |
-| [e2e/layout.spec.js](../e2e/layout.spec.js) | 表示崩れの退行防止(#353)：幅320/390pxでヘッダーが収まりロゴ1行、色ドットが円、モバイルKanban列が画面幅以内、ステータスバッジが優先度と別の見た目 |
-| [e2e/projects-settings.spec.js](../e2e/projects-settings.spec.js) | プロジェクト・表示設定・クイック追加チップ(#356)：作成→絞り込み→ヘッダーバッジで解除、絞り込み中の追加に自動付与、削除で所属タスクが「なし」→Undo、テーマ/文字サイズのリロード後保持（`@compat`）、「高」「明日」チップ、Shift+Enter で詳細モーダルへ引継ぎ |
-| [e2e/quick-add-today.spec.js](../e2e/quick-add-today.spec.js) | 今日ビューからの追加(#352)：クイック追加が期限=今日で表示される、詳細モーダルの期限初期値、見えない追加のトースト＋「すべて表示」、トーストはフォーカス中は消えない |
-| [e2e/recurrence.spec.js](../e2e/recurrence.spec.js) | 繰り返しタスク(#351)：✓・⋮・Kanbanセレクト・Kanban D&D・編集モーダルの各経路で次回分が1件できる、再完了で重複しない、毎月31日→2/28→3/31、スキップ |
-| [e2e/offline-fallback.spec.js](../e2e/offline-fallback.spec.js) | オフライン起動中の同期安全性(#349)：Firebase SDK を偽モジュールに `page.route` で差し替え、フォールバック中は書込まない・端末に残る・クラウド到着時の差分マージ・キャッシュ由来スナップショットの無視・再起動をまたぐ未同期分・通常起動後のオフライン編集・編集なしのオフライン→復帰で書かない・自分の書込み確認で再描画しない を検証 |
+| add-task | 詳細モーダルから追加（`@compat`） |
+| kanban / kanban-full-cycle | Kanban のステータス変更／列の移動（kanban-full-cycle は `@compat`） |
+| filter-sort / search | 絞り込み・並べ替え・期限切れプリセット／部分一致検索 |
+| subtasks / subtask-inline | モーダルでの追加／カード上の追加・チェック・編集 |
+| swipe-delete | モバイルの左スワイプ削除 |
+| keyboard-shortcuts / undo-shortcut | `N` `/` `Esc`、入力中の無効化／`Ctrl+Z` の復元・連続 Undo |
+| card-menu | ⋮メニューの削除・並べ替え・完了・キーボード操作 |
+| today-home | 起動時の今日ビュー、ビュー形式の復元、達成画面、07:00 JST の日付境界 |
+| quick-add-today | 今日ビューでの追加（期限＝今日）、見えない追加の通知と［すべて表示］、トーストはフォーカス中は消えない |
+| projects-settings | プロジェクトの作成・絞り込み・削除と Undo、テーマ／文字サイズの保持（`@compat`）、クイック追加チップ、Shift+Enter |
+| recurrence | 各完了経路で次回分が1件、再完了で重複しない、月末、スキップ |
+| offline-fallback | 未同期中は書かない、端末に残る、クラウド到着時のマージ、キャッシュ由来のスナップショットを無視、再起動をまたぐ未同期分、オフライン→復帰、自分の書込み確認では再描画しない |
+| layout | 320／390px でヘッダーが収まる、色ドットの形、モバイル Kanban の列幅、ステータスバッジ |
+| a11y | 表示中の全文字のコントラスト（ライト／ダーク、操作中の状態も）、タップ領域、ARIA、フォーカス復帰、同期表示（送信待ち・保存失敗の維持） |
 
-> spec 内で期限日を作るヘルパ（`isoDay` 等）はアプリと同じ**ローカル日付**で組み立てる。`toISOString()` を使うと、ローカル実行（JST）の 0〜9時だけアプリとずれる（#350）。
+書き方の決まり：
 
-> 起動既定が「今日」フィルタ(#33)のため、全件表示を前提とする既存 spec は冒頭で「すべて」chip へ切替える `showAll(page)` ヘルパを通す。
+- Firebase への通信は遮断して localStorage で動かす（本番データを触らない）。同期の経路を確かめる spec（offline-fallback・a11y の同期表示）は、SDK を `page.route` で偽モジュールに差し替える
+- 起動時は「今日」ビューなので、全件を前提にする spec は先に「すべて」へ切り替える
+- 期限日を作るヘルパはアプリと同じくローカル日付で組み立てる（`toISOString()` は使わない）
+- 色・サイズを測る前にアニメーション・トランジションを止める（途中の値を測らない）
 
-### E2E方針
-- 数より重要度。クリティカルパスを覆うことを優先
-- Firebase API はテスト中ブロックして再現性を確保（localStorage フォールバック挙動でテスト）
-- 同期経路そのものを検証する spec（offline-fallback / a11y の同期表示）は、Firebase SDK を `page.route` で偽モジュールに差し替える
-- 視覚回帰やパフォーマンス計測は本テストでは扱わない
+E2E 未カバー：リストの D&D 並べ替え、スキップの Undo。
 
-### 拡充
-未カバーの機能（D&D 並べ替え、定期タスクのスキップ Undo 等）は必要に応じて GitHub Issues で起票する。
+未導入：Lint・型チェック・カバレッジ計測・ビジュアル回帰。
 
-## CI (GitHub Actions)
+## CI（[test.yml](../../../.github/workflows/test.yml)）
 
-[.github/workflows/test.yml](../../../.github/workflows/test.yml) で以下を自動実行：
+- main への push と main 向け PR で起動
+- 単体ジョブ：`gen-sw:check` → `gen-config:check` → `perf-budget:check` → Vitest
+- E2E ジョブ：Playwright（CI では `retries: 1`・`workers: 1`）
+- Lighthouse：トップ・dtask・piano-pet を計測。警告のみ（accessibility ≥ 0.95、他 ≥ 0.9）でデプロイは止めない
+- unit と e2e が両方通ったらデプロイ（→ [architecture.md](./architecture.md#設定デプロイ)）
 
-- **main への push と main 向け PR で起動**（PR ブランチへの push では起動しない。二重実行を避けるため）
-- 単体ジョブ：`gen-sw:check`（piano-pet のキャッシュ版）・`gen-config:check`（Firebase/監視設定の生成物ドリフト）・`perf-budget:check`（gzip 予算）→ Vitest
-- Playwright E2E：dtask は Chromium で全件、`@compat` タグの付いたテストだけ Firefox / WebKit でも実行
-- unit と e2e が両方成功したときだけ Vercel へデプロイ（main push＝本番、PR＝プレビュー。Dependabot の PR はプレビュー対象外）
-- **Lighthouse 定点観測**（`lighthouse` ジョブ）：[lighthouserc.json](../../../lighthouserc.json) を使い、トップ / dtask / piano-pet の各 URL で performance / accessibility / best-practices / seo を計測。**警告のみ（`warn`）でデプロイをブロックしない**定点観測用。閾値は accessibility ≥ 0.95、その他 ≥ 0.9。結果は artifacts にアップロード（`treosh/lighthouse-ci-action`）
+ローカル Windows では、Playwright のワーカーが終了時に止まり（`worker process did not exit ... force-killed`）、全件成功でも終了コード 1・数分かかることがある（2026-10 に #370〜#379 の作業中に複数回観測）。判定は成功件数とエラー行で行い、CI（Linux）を正とする。
 
-> **不在**: Lint / 型チェック / カバレッジ計測 / ビジュアル回帰テスト。必要に応じて段階的に追加する。
+## 手動で確認するもの
 
-## 手動テスト
-
-自動化が難しい以下は手動確認：
-
-- 実機モバイルでのスワイプ感
-- 複数デバイス間のリアルタイム同期挙動
-- ダークモード／文字サイズ切替後の視認性
-- 実 Firestore でのエラー時UI（オフライン化・権限エラー）
-
-PRレビュー時は [pull_request_template.md](../../../.github/pull_request_template.md) のチェックリストに沿って実施。
+実機のスワイプ感、複数端末のリアルタイム同期、実 Firestore でのエラー時の表示。PR は [pull_request_template.md](../../../.github/pull_request_template.md) のチェックリストに沿う。

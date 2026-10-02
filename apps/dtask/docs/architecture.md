@@ -1,169 +1,78 @@
-# アーキテクチャ（設計書）
+# アーキテクチャ
 
-> **更新ルール**: `apps/dtask/` のソースを変更したら関連docsへ必ず反映（[CLAUDE.md](../../../CLAUDE.md)）。
+構造と方式、その理由。ふるまいは [features.md](./features.md)、型と保存キーは [data-model.md](./data-model.md)。
 
-## 全体像
+## 構成
 
-dtask は **Vanilla JavaScript の SPA**で、ビルドツールを使わず ES Modules を直接ブラウザに読み込む構成。データは Firebase Firestore にクラウド永続化される。
+ビルドツール無しの SPA。ES Modules をそのままブラウザで読み込み、データは Firestore の単一ドキュメント `dtask/data` に `{tasks, categories}` として置く。
 
-```
-┌──────────────────────────────────────┐
-│  ブラウザ                              │
-│  ┌──────────────┐                    │
-│  │ index.html   │ ← エントリ           │
-│  └──────┬───────┘                    │
-│         │                            │
-│  ┌──────▼───────────────────────┐    │
-│  │ app.js                        │    │
-│  │  ├─ state / uiState           │    │
-│  │  ├─ Firestore 同期             │    │
-│  │  ├─ レンダリング (List/Kanban) │    │
-│  │  ├─ イベントハンドラ           │    │
-│  │  └─ utils/ 呼び出し            │    │
-│  └──────┬────────────────────────┘    │
-│         │                             │
-│  ┌──────▼──────┐  ┌─────────────┐    │
-│  │ utils/      │  │ localStorage│    │
-│  │ ├ date.js   │  │ (UI状態のみ) │    │
-│  │ ├ task.js   │  └─────────────┘    │
-│  │ ├ filter.js │                      │
-│  │ ├ sort.js   │                      │
-│  │ └ html.js   │                      │
-│  └─────────────┘                      │
-└──────────────────────────────────────┘
-                │
-                ▼
-        ┌───────────────┐
-        │ Firestore     │
-        │ dtask/data    │
-        │ {tasks,       │
-        │  categories}  │
-        └───────────────┘
-```
-
-## ファイル構成
-
-| パス | 役割 |
+| ファイル | 役割 |
 |---|---|
-| [index.html](../index.html) | エントリHTML、UI要素の宣言 |
-| [app.js](../app.js) | メインロジック（状態管理／同期／レンダリング／イベント） |
-| [style.css](../style.css) | スタイル |
-| [firebase-config.js](../firebase-config.js) | Firebase接続設定（`gen-config` が環境変数から生成） |
-| [monitoring-config.js](../monitoring-config.js) | Sentry DSN / PostHog キー（`gen-config` が生成・未設定なら空） |
-| [sentry.js](../sentry.js) | エラー監視の初期化（キー未設定なら no-op） |
-| [analytics.js](../analytics.js) | PostHog 利用計測（操作種別・頻度のみ。内容は送らない） |
-| [utils/date.js](../utils/date.js) | 日付計算（todayStr, toDateStr, parseDateStr, daysBetween, formatDate, isOverdue, addDays, addMonths, nextRecurrenceDeadline）。日付は**端末ローカルの `YYYY-MM-DD`** で扱う（#350） |
-| [utils/task.js](../utils/task.js) | タスク正規化（normalizeTask）、サブタスク進捗計算（calculateSubtaskProgress） |
-| [utils/filter.js](../utils/filter.js) | filterTasks（カテゴリ・優先度・ステータス・期限プリセット・検索） |
-| [utils/sort.js](../utils/sort.js) | sortTasks（手動 / 作成日 / 期限 / 優先度。完了タスクは常に末尾） |
-| [utils/html.js](../utils/html.js) | escHtml（XSS対策） |
-| [utils/color.js](../utils/color.js) | safeColor / contrastRatio / tint / readableTextColor（プロジェクト色バッジを AA で読める文字色にする #354） |
-| [utils/sync.js](../utils/sync.js) | mergeFallbackChanges（フォールバック中のローカル差分をクラウド最新へ載せ直す #349） |
-| [vercel.json](../../../vercel.json) | SPA用URLリライト（リポジトリルートに集約） |
+| [index.html](../index.html) / [style.css](../style.css) | 画面要素とスタイル |
+| [app.js](../app.js) | 状態・同期・描画・イベント（ロジックの大半） |
+| [utils/](../utils/) | 純粋関数（単体テスト対象）。`date`（ローカル日付）・`task`（正規化・進捗）・`filter`・`sort`・`html`（エスケープ）・`color`（読める文字色）・`sync`（未同期分のマージ） |
+| [firebase-config.js](../firebase-config.js) / [monitoring-config.js](../monitoring-config.js) | 接続設定。`npm run gen-config` が環境変数から生成（直接編集しない） |
+| [sentry.js](../sentry.js) / [analytics.js](../analytics.js) | エラー監視・利用計測。鍵が無ければ何もしない。送るのは操作種別のみ（breadcrumb・request・user は送らない） |
 
-## 状態管理
+実行時依存は Firebase SDK 12.13.0（CDN）のみ。Sentry / PostHog は鍵があるときだけ CDN から動的 import。
 
-`app.js` 冒頭の `state` / `uiState` 2つのオブジェクトにアプリ状態を集約している。ただし**永続化先はフィールドごとに異なる**点に注意（`state` ＝ クラウド永続化、ではない）。
+## 状態と描画
 
-### `state`（実行時の中心状態）
-| フィールド | 型 | 永続化先 |
-|---|---|---|
-| `tasks` | Task配列 | **Firestore**（`saveCloud` が書込） |
-| `categories` | Category配列 | **Firestore**（同上） |
-| `theme` | `'light'` \| `'dark'` | **localStorage**（`dtask_theme`）。クラウド非同期 |
-| `currentView` | `'list'` \| `'kanban'` | **localStorage**（`dtask_view`）。`switchView` で保存し `init` で復元(#33) |
-| `filters` | フィルタ・ソート・検索条件 | **永続化なし**（メモリのみ。リロードで既定にリセット。ただし `preset` の既定は `'today'`=「今日やること」固定(#33)） |
+- `app.js` の `state`（タスク・プロジェクト・テーマ・ビュー・絞り込み）と `uiState`（サブタスク展開）に集約。保存先は項目ごとに違う（→ [data-model.md](./data-model.md)）
+- 状態が変わるたびに `render()` が一覧を `innerHTML` で組み直す（仮想DOM無し）。外部入力は必ず [utils/html.js](../utils/html.js) の `escHtml` を通す（XSS対策）
+- イベントは document への委譲＋`data-action` で分岐。スワイプ（モバイル）・D&D（`hover:hover` の端末のみ）・キーボードは専用ハンドラ
 
-> **重要**: クラウド（Firestore）へ書き込むのは `saveCloud()` の `setDoc(DATA_DOC, { tasks, categories })` のみ。`theme` / `currentView` は localStorage（クラウド非同期）、`filters` はメモリ上の一時状態でクラウド同期されない。
+## 同期
 
-### `uiState`（端末ローカル、クラウド非同期）
-- `expanded`: `Set<taskId>` — インライン展開中のタスクIDセット（localStorage `dtask_expanded` に永続化）
+| 場面 | 方式 |
+|---|---|
+| 起動 | `getDoc`。5秒で応答が無ければ localStorage のミラーで起動する |
+| 他端末の変更 | `onSnapshot`（`includeMetadataChanges: true`）で反映 |
+| 保存 | 変更のたびに `setDoc` でドキュメント全体を置換し、localStorage にもミラー |
+| 回線の復帰（`online`） | 自動で `setDoc` しない。未同期なら `getDocFromServer` で読んでマージする（スナップショットが届かない経路の保険）。保存失敗は同期表示の［再試行］から |
 
-> **設計判断**: 展開状態をクラウド同期しないのは、デバイス間で展開状態を共有することがUX上不要なため（端末ごとに独立した「いま見ている」状態として扱う）。テーマ・文字サイズも同様に端末固有として localStorage に分離している（→ [data-model.md](./data-model.md)）。
+**未同期モード (#349)**：クラウドの最新を確認できていない間（`cloudLoaded === false`）は `setDoc` しない。
 
-詳細スキーマは [data-model.md](./data-model.md) を参照。
+- 入る条件：起動時のフォールバック、または `navigator.onLine === false` の間の編集
+- この間：ミラーだけ更新し、同期表示は「未同期」「オフライン」
+- 抜けるとき：サーバー由来のスナップショット（`fromCache === false`）か、復帰時の `getDocFromServer` でクラウドが読めたら、`mergeFallbackChanges` で「最後にクラウドと一致した状態」（`dtask_synced`）からのローカル差分をクラウド最新に重ねて書き戻す
+  - 既存要素は変更したフィールドだけ上書きする。追加は末尾、ローカル削除はクラウドからも除く
+  - クラウドで消えた要素をローカルで編集していたら残す
+  - クラウドにドキュメントが無ければ初回とみなしてローカルを上げる
+- `dtask_synced` の更新：`getDoc` 成功時、保留書込の無いサーバースナップショット受信時、変更なしのマージ時
+  - `setDoc` の成功では更新しない
+  - 未同期に入った時点で `dtask_synced` が無ければ、その時のローカルを基準として保存する
+- 中身が今の state と同じスナップショット（自分の書込み確認）では再描画しない（再描画すると開いた⋮メニューや編集中の入力が閉じるため）
 
-## 同期方式
+保存の進み具合は同期表示に出す（状態一覧は [features.md](./features.md#同期表示)）。
 
-同期ロジックは `app.js` の `saveCloud` / `loadStorage` / `setSyncState` 周辺。
+## 日付
 
-- **読み込み**: 起動時に `getDoc(DATA_DOC)` で初期ロード。**5秒タイムアウト**でlocalStorageへフォールバック（オフライン・障害時にもUI起動可）。
-- **リアルタイム同期**: `onSnapshot` で他デバイスからの変更を即時反映。
-- **書き込み**: 変更が起きるたびに `saveCloud()` → `setDoc(DATA_DOC, {tasks, categories})` で全体置換。同時に localStorage（`dtask_tasks` / `dtask_categories`）へミラーし、フォールバック時に「最後の状態」で起動できるようにする。
-- **未同期モード＝書き込み禁止 (#349)**: クラウドの最新を確認できていない間（`cloudLoaded === false`）は `setDoc` しない。入るのは①起動時フォールバック、②通常起動後に `navigator.onLine === false` で編集したとき。この間はローカルミラーのみ更新し、同期表示を「未同期」/「オフライン」にする。`online` 復帰イベントでは `setDoc` しない（未同期なら `getDocFromServer` でクラウド最新を読んで差分マージする。スナップショットが来ない経路の保険）。
-- **クラウド到着時の差分マージ**: `onSnapshot`（`includeMetadataChanges: true`）でサーバー由来のスナップショット（`metadata.fromCache === false`）が届いた時点でクラウドを正とし、「最後にクラウドと一致していた状態」（localStorage `dtask_synced`＝`fallbackBaseline`）からのローカル差分だけを載せ直して書き戻す（[utils/sync.js](../utils/sync.js) `mergeFallbackChanges`）。既存要素は**変更したフィールドだけ**を重ね、追加は末尾へ、ローカル削除はクラウドからも除く。クラウドで削除済みの要素をローカルで編集していた場合は残す（消えない側に倒す）。クラウドにドキュメントが無ければ初回扱いでローカルを上げる。
-- **`dtask_synced` の更新**: `getDoc` 成功時・クラウドにドキュメントが無いとき（空）・保留書込の無いサーバースナップショット（`!fromCache && !hasPendingWrites`）受信時・変更なしのマージ完了時。`setDoc` 成功時には更新しない（他端末の変更を含むスナップショットとの到着順が保証されず、古い内容で基準を戻しうるため。自分の書込み確認は `includeMetadataChanges` で必ずスナップショットとして届く）。中身が現在の state と同じスナップショット（自分の書込み確認）では再描画しない（開いたメニューや編集中の入力を閉じないため）。未同期モードに入った時点で `dtask_synced` が無い端末は、そのときのローカルを基準として保存する（再起動して再びフォールバックしても未同期分を差分として検出するため）。
-- **同期状況UI**: 画面上部の `#syncIndicator` に `idle` / `syncing` / `saved` / `error` / `offline` / `local` を表示（`setSyncState`）。
-- **オフライン検知**: `window` の `online` / `offline` イベント（`addEventListener`）で状態切替。復帰時に自動再送はしない（書込み失敗は同期表示の「再試行」から）。
+期限と「今日」は端末ローカルの `YYYY-MM-DD` 文字列で扱い、[utils/date.js](../utils/date.js)（`todayStr`・`addDays` 等）を通す。比較は文字列比較。`toISOString()` と `new Date('YYYY-MM-DD')` は日付計算に使わない。`createdAt` は時刻なので UTC の ISO8601 のまま。
 
-> **設計判断 (#349)**: `setDoc` はドキュメント全体の置換なので、クラウド最新を読まずに書くと空や古いローカル状態で**クラウドの全件（または他端末の変更）が消える**（旧実装は localStorage に書かず、起動時フォールバックの中身は移行前の空データだった）。
-> - 差分の基準をローカルミラーでなく `dtask_synced` にしたのは、ミラーを基準にすると「未同期のまま再起動→再フォールバック」で未同期分が基準に溶けて差分として消えるため。
-> - マージを要素単位でなくフィールド単位にしたのは、並べ替え（`order` 振り直し）が表示中の全タスクを「変更」にし、他端末のタイトル・完了状態を丸ごと巻き戻すため。
-> - 不採用案：①未同期中を読み取り専用にする＝オフライン時に何もできず本末転倒、②Firestore の永続キャッシュ（`persistentLocalCache`）へ移行＝SDK がオフライン書込を面倒見るが、キャッシュ未作成の端末・キャッシュ消去時に同じ全件置換リスクが残るため根治にならない。
-> - 既知の限界：本修正を一度もオンラインで動かしていない端末がフォールバック起動すると、ミラーの中身は移行前の古いデータ（旧実装はミラーを書かなかった）。触らなければ無害で、編集した場合もそのフィールドだけがクラウドへ戻る。同一フィールドを両端末で編集した場合はローカル側が勝つ（単一ユーザー前提で許容）。また `navigator.onLine` が true のまま Firestore に届かない（不安定なWi‑Fi・キャプティブポータル）場合や、回線断の瞬間に送信途中だった `setDoc` は、未同期モードに入らず SDK 内部のキューに全件置換として残り、復帰時に送られて他端末の変更を上書きしうる（アプリ側から取り消す手段がない）。
+## 設定・デプロイ
 
-## レンダリング戦略
+- `*-config.js` は環境変数から生成し、未設定なら本番値（監視は無効）。CI の `gen-config:check` がずれを検知する。値は公開して安全なもので、目的は秘匿でなく環境分離。アクセス制御は Firestore ルール
+- デプロイは GitHub Actions（[test.yml](../../../.github/workflows/test.yml)）だけが行う。unit と e2e が両方成功したら Vercel CLI で `vercel pull → build → deploy --prebuilt`（main への push＝本番、PR＝プレビュー。Dependabot の PR はプレビューしない）。Vercel の Git 自動デプロイは `vercel.json` の `git.deploymentEnabled: false` で止めている
+- Secrets：`VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`（値は `vercel link` 後の `.vercel/project.json`）と `FIREBASE_*`・監視用の鍵
+- 外部サービス（Firebase / Vercel / Sentry / PostHog）の設定とプライバシー方針は [docs/external-services.md](../../../docs/external-services.md)
 
-- **命令型 DOM 操作**：仮想DOMやテンプレートエンジンは使わず、`innerHTML` でカード単位を組み立て。
-- **全画面再描画**：状態変化のたびに `render()` → `renderListView()` または `renderKanbanView()` を実行。
-- **Fiber アニメーション**：CSS カスタムプロパティ `--card-i` でカードごとに stagger 表示（重い計算は避けつつ視覚的にリッチ）。
+## 設計判断
 
-> **設計判断**: シンプルさ優先のため再描画コストを許容している。タスク件数が数百を超える規模になったらこの戦略は再考する。
+| 判断 | 理由・不採用案 |
+|---|---|
+| ビルドツールを入れない | 依存と学習コストを最小にする。TypeScript 化やバンドル最適化が要るなら Vite を検討 |
+| 全体再描画 | 単純さ優先。数百件を超えたら差分描画を検討 |
+| 未同期中は書かない (#349) | `setDoc` は全体置換なので、クラウドを読まずに書くと空・古い状態で全件（や他端末の変更）が消える。旧実装はミラーを書かず、フォールバックの中身は移行前の空データだった |
+| 差分の基準をミラーでなく `dtask_synced` に (#349) | ミラーを基準にすると、未同期のまま再起動→再フォールバックで未同期分が基準に溶けて消える |
+| フィールド単位でマージ (#349) | 並べ替えは表示中の全タスクの `order` を振り直すので、要素単位だと他端末のタイトル・完了状態を丸ごと巻き戻す |
+| `setDoc` 成功で `dtask_synced` を更新しない (#349) | 他端末の変更を含むスナップショットとの順序が保証されず、古い内容で基準を戻しうる |
+| 未同期対策に Firestore の永続キャッシュを使わない (#349) | キャッシュ未作成の端末・キャッシュ消去時に同じ全件置換が起きる。未同期中を読み取り専用にする案はオフラインで何もできなくなるので不採用 |
+| 日付をローカルの文字列で扱う (#350) | `toISOString()` は UTC なので日本時間 0〜9 時に前日扱いになり、`new Date('YYYY-MM-DD')` は UTC 0時なので UTC より西では当日締切が期限切れになっていた |
+| CI 経由でデプロイ (#43) | Vercel の Required Checks は Pro プラン以上。無料プランでも「テストが通ったものだけ本番」にするため |
 
-## イベント処理
+既知の限界（いずれも単一ユーザー前提で許容）：
 
-- ドキュメント全体への単一リスナー + `data-action` 属性で操作タイプを分岐（イベント委譲パターン）。
-- スワイプ（モバイル）、D&D（デスクトップのみ）、キーボードショートカットはそれぞれ専用ハンドラ。
-
-## 依存ライブラリ
-
-実行時依存：
-- Firebase SDK 12.13.0（CDN直読み）
-- Sentry / PostHog（任意。`monitoring-config.js` に鍵がある場合のみ CDN から動的 import。未設定なら no-op）
-
-開発時依存（[package.json](../../../package.json)）：
-- `vitest` — 単体テスト
-- `@playwright/test` — E2Eテスト
-- `http-server` — ローカル/E2E用静的サーバ
-
-> **設計判断**: ビルドツールを入れていないのは、依存最小化と学習コスト軽減のため。将来TypeScript化やバンドル最適化が必要になればViteなどを検討する。
-
-## 日付の扱い
-
-期限・「今日」判定はすべて端末ローカル日付の `YYYY-MM-DD` 文字列で行い、[utils/date.js](../utils/date.js) の `todayStr` / `addDays` 等を通す。`YYYY-MM-DD` 同士は文字列比較で大小が決まる。
-
-> **設計判断 (#350)**: 以前は `new Date().toISOString().slice(0,10)`（UTC日付）を「今日」にしていたため、日本時間 0:00〜8:59 は前日扱いになり、今日ビューに昨日締切が出て今日締切が消え、クイック追加「明日」が今日の日付になっていた。また `new Date('YYYY-MM-DD')` は UTC 0時として解釈されるため、UTCより西の地域では当日締切が期限切れ判定になっていた。`toISOString` / `new Date(文字列)` を日付計算に使わず、分解してローカル日付で組み立てる関数に一本化した。`createdAt`（ISO8601の時刻）は日付計算に使わないので UTC のままでよい。
-
-## 設定情報
-
-Firebase設定は [firebase-config.js](../firebase-config.js) に集約し、`app.js` が import する（`getFirestore` → `doc(db, 'dtask', 'data')`）。`firebase-config.js` と監視用 `monitoring-config.js` は `npm run gen-config`（[scripts/gen-firebase-config.mjs](../../../scripts/gen-firebase-config.mjs)）が `FIREBASE_*` / `SENTRY_DSN` 等の環境変数から生成する。env未設定時は本番値（DSNは空＝Sentry無効）にフォールバックし、CIの `gen-config:check` がドリフトを検知する。
-
-Web APIキーや Sentry DSN は公開しても安全な種類で、秘匿目的ではなく**環境分離（将来のステージング）**のための継ぎ目。Firestore のアクセス制御はセキュリティルールで行う前提。
-
-## デプロイ方式
-
-GitHub Actions のテスト (Vitest + Playwright) が両方 success になった場合にのみ Vercel へデプロイする構成。テスト失敗時に本番が更新されるリスクを排除している。
-
-```
-push / PR
-   │
-   ▼
-┌─────────────┐  ┌─────────────┐
-│ Vitest      │  │ Playwright  │  ← .github/workflows/test.yml
-│ (unit)      │  │ (e2e)       │
-└──────┬──────┘  └──────┬──────┘
-       │ 両方 success    │
-       └────────┬────────┘
-                ▼
-        ┌──────────────┐
-        │ Vercel CLI   │  ← needs: [unit, e2e]
-        │  - prod (mainへのpush時)
-        │  - preview (PR時)
-        └──────────────┘
-```
-
-- **Vercelのgit自動デプロイは無効化**：`vercel.json` の `git.deploymentEnabled: false` により、Vercel が GitHub の push を受けて自動デプロイすることを止めている。
-- **CLI からのデプロイ**：`.github/workflows/test.yml` の `deploy-production` / `deploy-preview` ジョブが `vercel pull` → `vercel build` → `vercel deploy --prebuilt` を実行する。
-- **必要なGitHub Secrets**：`VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`。値はVercelダッシュボードとプロジェクトルートで `vercel link` 後に生成される `.vercel/project.json` から取得する。
-
-> **方針判断**：Vercelの「Deployment Protection」(Required Checks) は Pro プラン以上で利用可能なため、無料プランでも動かせる「GitHub Actions経由でCLIデプロイ」方式を採用した（issue #43）。
+- 同じフィールドを2端末で編集したらローカル側が勝つ
+- `navigator.onLine` が true のまま Firestore に届かない場合や、回線断の瞬間に送信中だった `setDoc` は、SDK のキューに全件置換として残る。復帰時に送られて他端末の変更を上書きしうる（アプリ側から取り消す手段は無い）
+- #349 以前のコードしか動かしていない端末がフォールバックで起動すると、ミラーは移行前の古いデータになる。触らなければ無害で、編集してもそのフィールドだけがクラウドへ戻る
