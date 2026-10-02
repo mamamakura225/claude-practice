@@ -19,7 +19,7 @@
 ## 状態と描画
 
 - `app.js` の `state`（タスク・プロジェクト・テーマ・ビュー・絞り込み）と `uiState`（サブタスク展開）に集約。保存先は項目ごとに違う（→ [data-model.md](./data-model.md)）
-- 状態が変わるたびに `render()` が一覧を `innerHTML` で組み直す（仮想DOM無し）。数百件までは許容し、それを超えたら再考する
+- 状態が変わるたびに `render()` が一覧を `innerHTML` で組み直す（仮想DOM無し）。外部入力は必ず [utils/html.js](../utils/html.js) の `escHtml` を通す（XSS対策）
 - イベントは document への委譲＋`data-action` で分岐。スワイプ（モバイル）・D&D（`hover:hover` の端末のみ）・キーボードは専用ハンドラ
 
 ## 同期
@@ -29,11 +29,12 @@
 | 起動 | `getDoc`。5秒で応答が無ければ localStorage のミラーで起動する |
 | 他端末の変更 | `onSnapshot`（`includeMetadataChanges: true`）で反映 |
 | 保存 | 変更のたびに `setDoc` でドキュメント全体を置換し、localStorage にもミラー |
+| 回線の復帰（`online`） | 自動で `setDoc` しない。未同期なら `getDocFromServer` で読んでマージする（スナップショットが届かない経路の保険）。保存失敗は同期表示の［再試行］から |
 
 **未同期モード (#349)**：クラウドの最新を確認できていない間（`cloudLoaded === false`）は `setDoc` しない。
 
 - 入る条件：起動時のフォールバック、または `navigator.onLine === false` の間の編集
-- この間：ミラーだけ更新し、同期表示は「未同期」「オフライン」。`online` イベントでも書かない
+- この間：ミラーだけ更新し、同期表示は「未同期」「オフライン」
 - 抜けるとき：サーバー由来のスナップショット（`fromCache === false`）か、復帰時の `getDocFromServer` でクラウドが読めたら、`mergeFallbackChanges` で「最後にクラウドと一致した状態」（`dtask_synced`）からのローカル差分をクラウド最新に重ねて書き戻す
   - 既存要素は変更したフィールドだけ上書きする。追加は末尾、ローカル削除はクラウドからも除く
   - クラウドで消えた要素をローカルで編集していたら残す
@@ -41,7 +42,7 @@
 - `dtask_synced` の更新：`getDoc` 成功時、保留書込の無いサーバースナップショット受信時、変更なしのマージ時
   - `setDoc` の成功では更新しない
   - 未同期に入った時点で `dtask_synced` が無ければ、その時のローカルを基準として保存する
-- 中身が今の state と同じスナップショット（自分の書込み確認）では再描画しない
+- 中身が今の state と同じスナップショット（自分の書込み確認）では再描画しない（再描画すると開いた⋮メニューや編集中の入力が閉じるため）
 
 保存の進み具合は同期表示に出す（状態一覧は [features.md](./features.md#同期表示)）。
 
@@ -52,7 +53,7 @@
 ## 設定・デプロイ
 
 - `*-config.js` は環境変数から生成し、未設定なら本番値（監視は無効）。CI の `gen-config:check` がずれを検知する。値は公開して安全なもので、目的は秘匿でなく環境分離。アクセス制御は Firestore ルール
-- デプロイは GitHub Actions（[test.yml](../../../.github/workflows/test.yml)）だけが行う。unit と e2e が両方成功したら Vercel CLI で `vercel pull → build → deploy --prebuilt`（main への push＝本番、PR＝プレビュー）。Vercel の Git 自動デプロイは `vercel.json` の `git.deploymentEnabled: false` で止めている
+- デプロイは GitHub Actions（[test.yml](../../../.github/workflows/test.yml)）だけが行う。unit と e2e が両方成功したら Vercel CLI で `vercel pull → build → deploy --prebuilt`（main への push＝本番、PR＝プレビュー。Dependabot の PR はプレビューしない）。Vercel の Git 自動デプロイは `vercel.json` の `git.deploymentEnabled: false` で止めている
 - Secrets：`VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`（値は `vercel link` 後の `.vercel/project.json`）と `FIREBASE_*`・監視用の鍵
 - 外部サービス（Firebase / Vercel / Sentry / PostHog）の設定とプライバシー方針は [docs/external-services.md](../../../docs/external-services.md)
 
@@ -73,5 +74,5 @@
 既知の限界（いずれも単一ユーザー前提で許容）：
 
 - 同じフィールドを2端末で編集したらローカル側が勝つ
-- `navigator.onLine` が true のまま Firestore に届かない場合や、回線断の瞬間に送信中だった `setDoc` は、SDK のキューに全件置換として残る。復帰時に送られて他端末の変更を上書きしうる
-- #349 以前のコードしか動かしていない端末がフォールバックで起動すると、ミラーは移行前の古いデータになる
+- `navigator.onLine` が true のまま Firestore に届かない場合や、回線断の瞬間に送信中だった `setDoc` は、SDK のキューに全件置換として残る。復帰時に送られて他端末の変更を上書きしうる（アプリ側から取り消す手段は無い）
+- #349 以前のコードしか動かしていない端末がフォールバックで起動すると、ミラーは移行前の古いデータになる。触らなければ無害で、編集してもそのフィールドだけがクラウドへ戻る

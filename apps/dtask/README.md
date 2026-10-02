@@ -14,7 +14,9 @@ npm test                                     # Vitest（単体）
 npm run test:e2e                             # Playwright（E2E。サーバは自動起動）
 ```
 
-ローカル起動は本番 Firestore に接続する。データを触らずに画面を確認するときは E2E と同じく Firestore への通信を遮断する（→ [testing.md](./docs/testing.md)）。
+ローカル起動は本番 Firestore（`dtask-d08b6`）に接続する。データを触らずに画面を確認するときは、DevTools のリクエストブロックで `firestore.googleapis.com` を遮断する（5秒後に端末保存のデータで起動し、未同期モードなのでクラウドへ書かない）。
+
+本番のパス `/dtask/` は `vercel.json` の rewrite で `apps/dtask/` を指す。
 
 ## ドキュメント
 
