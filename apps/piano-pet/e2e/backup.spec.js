@@ -101,7 +101,8 @@ test.describe('データのバックアップ/復元', () => {
     await expect(page.locator('#statCoins')).toHaveText('123');
     await passGate(page);
 
-    page.on('dialog', (d) => d.accept());
+    const messages = [];
+    page.on('dialog', (d) => { messages.push(d.message()); d.accept(); });
     await page.setInputFiles('#importFile', {
       name: 'backup.json',
       mimeType: 'application/json',
@@ -110,6 +111,8 @@ test.describe('データのバックアップ/復元', () => {
 
     // reload 後に取り込んだコイン999が反映される（直接フィールドなので確実な証拠）
     await expect(page.locator('#statCoins')).toHaveText('999', { timeout: 10000 });
+    // この spec はクラウドを遮断しているので、復元はクラウドへ届かない→リロード後に一度だけ案内（#384）
+    await expect.poll(() => messages.some((m) => m.includes('つうしん'))).toBe(true);
   });
 
   test('よみこむ：確認キャンセルなら復元しない', async ({ page }) => {
@@ -133,11 +136,13 @@ test.describe('データのバックアップ/復元', () => {
     await expect(page.locator('#statCoins')).toHaveText('123');
     await passGate(page);
 
-    page.on('dialog', (d) => d.accept());
+    const messages = [];
+    page.on('dialog', (d) => { messages.push(d.message()); d.accept(); });
     await page.click('#resetBtn');
 
     // reload 後に DEFAULTS（coins:0）へ戻る
     await expect(page.locator('#statCoins')).toHaveText('0', { timeout: 10000 });
+    await expect.poll(() => messages.some((m) => m.includes('つうしん'))).toBe(true);   // クラウド遮断→案内（#384）
   });
 
   test('しょきか：確認キャンセルなら初期化しない（#183）', async ({ page }) => {
