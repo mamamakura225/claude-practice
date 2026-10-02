@@ -1495,7 +1495,7 @@ async function downloadBackup() {
 // #378
 let overwriting = false;
 // 不通の回線では setDoc が解決しないので10秒で見切る。時間内に送れたら true（#381/#384・data-model.md）
-const withinLimit = (p) => Promise.race([p.then((v) => v !== false, () => false), new Promise((r) => setTimeout(() => r(false), 10000))]);
+const withinLimit = (p) => Promise.race([p.then((v) => v === true, () => false), new Promise((r) => setTimeout(() => r(false), 10000))]);
 const UNSENT_KEY = 'piano-pet:overwrite-unsent';
 
 // 上書きの push。届かなかったら印を残し、次の起動で親に伝える（#384）
@@ -1593,7 +1593,7 @@ async function clearLegacyCloudDoc() {
   );
   if (!ok) return;
   const done = await withinLimit(cloud.pushCloudDoc(legacyCloudDocIdFor(getActiveAccountId()), {}));
-  showCloudStatus(done ? 'ふるい ばしょを からに しました。' : 'できませんでした。つうしんを かくにんしてね。', !done);
+  showCloudStatus(done ? 'ふるい ばしょを からに しました。' : 'できなかった かもしれません。つうしんを かくにんしてね。', !done);
 }
 
 // データ初期化（#183）：購入履歴・猫の状態・練習記録をすべて消して新品に戻す。

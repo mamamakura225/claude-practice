@@ -33,7 +33,7 @@ export async function fetchCloud() {
   return doc;
 }
 export async function pushCloud(data) {
-  if (navigator.onLine === false) return;
+  if (navigator.onLine === false) return false;   // 実物と同じく成否を返す（#384）
   logPush('push:' + DOC_ID);
   window.__pushed = data;
   window.__pushCount = (window.__pushCount ?? 0) + 1;
@@ -41,6 +41,7 @@ export async function pushCloud(data) {
   // 実 Firestore と同じく書き込みはローカルへ即反映し、サーバの ack だけ遅らせる（#374）
   window.__pushStarted = true;
   if (window.__pushDelay) await new Promise((r) => setTimeout(r, window.__pushDelay));
+  return true;
 }
 const __queue = createCloudQueue(pushCloud, { defaultDelay: window.__cloudDelay ?? 0 });
 export const pushCloudDebounced = __queue.pushCloudDebounced;
@@ -697,6 +698,23 @@ test.describe('クラウド同期の取り込み', () => {
     await waitForSync(page);
     await page.waitForTimeout(500);
     expect(messages.slice(before).some((m) => m.includes('つうしん'))).toBe(false);
+  });
+
+  test('初期化の push が届いたら、リロード後に案内を出さない（#384）', async ({ page }) => {
+    await useFakeCloud(page, { ...baseState() });
+    await seedLocal(page, localSeed());
+    const messages = [];
+    page.on('dialog', (d) => { messages.push(d.message()); d.accept(); });
+    await page.goto('/');
+    await waitForSync(page);
+    await openParentMenu(page);
+    const reloaded = page.waitForEvent('load', { timeout: 14000 });
+    await page.click('#resetBtn');
+    await reloaded;
+    await waitForSync(page);
+    await page.waitForTimeout(500);
+    expect(messages.some((m) => m.includes('つうしん'))).toBe(false);
+    expect(await page.evaluate(() => localStorage.getItem('piano-pet:overwrite-unsent'))).toBeNull();
   });
 
   for (const [btn, label] of [['#cloudMigrateBtn', 'うつす'], ['#cloudClearLegacyBtn', 'からにする']]) {
