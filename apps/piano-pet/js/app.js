@@ -6,7 +6,7 @@ import {
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, playFeed, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
@@ -412,16 +412,14 @@ export function renderBadges() {
 const views = Array.from(document.querySelectorAll('.view'));
 const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
 
-// 給餌時は #catStage が hidden で演出が走らないため、home へ遷移した瞬間まで1件だけ持ち越す（#347・features.md）。
-let pendingFeedFx = null;   // null | 'celebrate' | { food }
+// なかよしMAX（affinity_max）の playCelebrate は、給餌時は #catStage が hidden で走らないため
+// home へ遷移した瞬間まで持ち越す（#347）。毎回の給餌はショップ内のクリップで見せる（#294・features.md）。
+let pendingFeedCelebrate = false;
 
 function flushPendingFeedFx() {
-  if (!pendingFeedFx) return;
-  const fx = pendingFeedFx;
-  pendingFeedFx = null;
-  const catEl = document.querySelector('#catStage .cat');
-  if (fx === 'celebrate') playCelebrate(catEl);
-  else playFeed(catEl, fx.food);
+  if (!pendingFeedCelebrate) return;
+  pendingFeedCelebrate = false;
+  playCelebrate(document.querySelector('#catStage .cat'));
 }
 
 function render(view) {
@@ -450,6 +448,7 @@ const router = createRouter({
   onChange(view) {
     render(view);
     if (view === 'record') primeCatVideo();   // 記録演出の動画モジュール＋クリップを先読み（#227・#284）
+    if (view === 'shop') primeCatVideo('feed');   // えさやりクリップを先読み（#294）
     track('view_changed', { view });
     const target = hashFromView(view);
     if (window.location.hash !== target) {
@@ -829,14 +828,15 @@ function setSessionMark(kind, index, id) {
 // 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。
 const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
-// 記録演出の動画モジュール（./cat-video.js・#227）。記録ビューへ入ったとき idle で読み込み、
-// 現スタイルのクリップを prefetch する。押されるまで＝記録が確定するまで不要なので動的 import（#284）。
+// 記録・えさやり演出の動画モジュール（./cat-video.js・#227/#294）。記録ビューかショップへ入ったとき
+// idle で読み込み、現スタイルのクリップを prefetch する。押されるまで＝記録が確定するまで不要なので動的 import（#284）。
 // celebrateRecord は import 結果（or null）を待ってから再生判定するので、素早く記録しても取りこぼさない。
 let catVideoPromise = null;
-function primeCatVideo() {
-  if (catVideoPromise) { catVideoPromise.then((m) => m?.prime(state.pet.catStyle)).catch(() => {}); return; }
+function primeCatVideo(kind = 'record') {
+  const primeKind = (m) => (kind === 'feed' ? m.primeFeed : m.prime)(state.pet.catStyle);
+  if (catVideoPromise) { catVideoPromise.then((m) => m && primeKind(m)).catch(() => {}); return; }
   const load = () => import('./cat-video.js')
-    .then((m) => { m.prime(state.pet.catStyle); return m; })
+    .then((m) => { primeKind(m); return m; })
     .catch(() => null);   // オフライン等。読めなければ既存CSS演出のまま
   catVideoPromise = new Promise((resolve) => {
     const run = () => resolve(load());
@@ -894,7 +894,10 @@ function showPopup(popup, duration, onHidden) {
     onHidden?.();
   };
   cycle.onEnd = finish;
-  cycle.timer = setTimeout(() => {
+  const hide = () => {
+    if (popupCycles.get(popup) !== cycle || cycle.hiding) return;   // 次の表示に張り替え済み／フェード中
+    cycle.hiding = true;
+    clearTimeout(cycle.timer);
     popup.classList.remove('coin-popup--show');
     popup.addEventListener('transitionend', cycle.onEnd);
     // prefers-reduced-motion（transition:none）だと opacity 遷移自体が起きず transitionend が
@@ -903,8 +906,10 @@ function showPopup(popup, duration, onHidden) {
     // 全画面オーバーレイがアクセシブルツリーに残り続ける）。400ms は cat-video.js の
     // 同種の保険タイマー（transition が効かない環境向け）と揃えた値。
     cycle.fadeTimer = setTimeout(finish, 400);
-  }, duration);
+  };
+  cycle.timer = setTimeout(hide, duration);
   popupCycles.set(popup, cycle);
+  return hide;   // duration を待たずに閉じる（えさやりクリップの終了・スキップ・#294）
 }
 
 function showCoinPopup({ coins, leveled, newLevel }) {
@@ -920,14 +925,37 @@ function showCoinPopup({ coins, leveled, newLevel }) {
   showPopup(popup, 2000);
 }
 
-// えさやりのポップアップ（もぐもぐ＋なかよし上昇）
-function showFeedPopup(food) {
+// えさやりのポップアップ（なかよし上昇）。まず従来の静止カード（もぐもぐ）を出し、えさやり
+// クリップ（#294）の再生が始まったらカードをクリップ表示に切り替えて、見終わる／タップまで出し続ける。
+// クリップが出せなければ従来どおり 1800ms で閉じる。onHidden は閉じきった後に呼ぶ（連打で前回の
+// サイクルが張り替えられると前回分は呼ばれないので、呼び出し側は冪等なコールバックを渡す）。
+function showFeedPopup(food, onHidden) {
   const popup = document.getElementById('feedPopup');
+  const host = document.getElementById('feedClip');
   if (!popup) return;
   setText('feedPopupIcon', food.icon);
   setText('feedPopupGain', `+${food.affinity}`);
-  showPopup(popup, 1800);
+  popup.classList.remove('coin-popup--clip');
+  let closed = false;
+  showPopup(popup, 1800, () => { closed = true; onHidden?.(); });
+  if (!host || !catVideoPromise) return;
+  let hide = null;
+  catVideoPromise
+    .then((m) => m?.playFeedClip(host, state.pet.catStyle, food.id, () => hide?.()).then((ok) => {
+      if (!ok) return;
+      // モジュール読み込みが遅く、静止カードが閉じきってから再生が始まったら出さずに畳む
+      // （開き直すと onHidden＝バッジ告知が2回走る）
+      if (closed) { m.stopClip(host); return; }
+      popup.classList.add('coin-popup--clip');
+      hide = showPopup(popup, FEED_CLIP_MAX_MS, () => {
+        popup.classList.remove('coin-popup--clip');
+        onHidden?.();
+      });
+    }))
+    .catch(() => {});
 }
+// クリップ（8秒）の ended／保険タイマーで閉じるので、これは両方が来なかったときの上限。
+const FEED_CLIP_MAX_MS = 12000;
 
 // バッジ獲得ポップアップ（複数取得時は前のフェードアウト完了を待って順番に表示）
 function showBadgePopup(badges) {
@@ -1174,6 +1202,13 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
 });
 
 // ===== えさやり（#80・コインの使い道） =====
+let feedBadgeQueue = [];
+function flushFeedBadges() {
+  const badges = feedBadgeQueue;
+  feedBadgeQueue = [];
+  if (badges.length) showBadgePopup(badges);
+}
+
 document.getElementById('feedList')?.addEventListener('click', (e) => {
   unlockAudio();
   const btn = e.target.closest('.shop-btn[data-action="feed"]');
@@ -1189,12 +1224,17 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
   commitState(withBadges);           // 保存 + ホーム再描画（なかよし反映）
   renderShop();                      // ショップのコイン・なかよし・ボタン更新
   playSound('record', state);        // もぐもぐ（やわらかいチャイム）
-  showFeedPopup(foodById(id));
-  // MAX到達（#309後追い）は playCelebrate に一本化（features.md 設計判断）。
-  pendingFeedFx = gainedBadges.some((b) => b.id === 'affinity_max')
-    ? 'celebrate'
-    : { food: foodById(id) };
-  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 1800);
+  // バッジ告知はえさやりポップアップ（クリップ再生中はその終わり）を閉じきってから出す。連打で
+  // 前回のポップアップが張り替えられても取りこぼさないよう、告知はキューに積んで最後に閉じた側が吐く。
+  feedBadgeQueue.push(...gainedBadges);
+  showFeedPopup(foodById(id), flushFeedBadges);
+  // MAX到達（#309後追い）はホームへ戻った瞬間に playCelebrate（features.md 設計判断）。
+  if (gainedBadges.some((b) => b.id === 'affinity_max')) pendingFeedCelebrate = true;
+});
+// クリップ表示中はポップアップのどこをタップしてもスキップ（クリップ本体のタップは cat-video.js 側で拾う）
+document.getElementById('feedPopup')?.addEventListener('click', (e) => {
+  const host = document.getElementById('feedClip');
+  if (host && !host.contains(e.target)) catVideoPromise?.then((m) => m?.stopClip(host));
 });
 
 // ===== 猫とのインタラクション（#79） =====

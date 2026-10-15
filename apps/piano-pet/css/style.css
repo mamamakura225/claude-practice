@@ -1646,6 +1646,31 @@ body {
   100%    { transform: translateY(-12px) scale(1.1); color: var(--pink-deep); }
 }
 
+/* えさやりクリップ（#294・理由は features.md） */
+.feed-clip {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(300px, 72vw, 70vh);
+  aspect-ratio: 1 / 1;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: 16px;
+}
+.coin-popup--clip { pointer-events: auto; }
+.coin-popup--clip .coin-popup__card { padding: 14px 14px 18px; }
+.coin-popup--clip .feed-clip {
+  position: static;
+  transform: none;
+  opacity: 1;
+  pointer-events: auto;
+}
+.coin-popup--clip .coin-popup__icon,
+.coin-popup--clip .badge-popup__name { display: none; }
+.coin-popup--clip .coin-popup__label { margin-top: 16px; }
+
 @media (prefers-reduced-motion: reduce) {
   .coin-popup,
   .coin-popup__card {
