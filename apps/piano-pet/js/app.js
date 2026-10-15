@@ -828,8 +828,8 @@ function setSessionMark(kind, index, id) {
 // 連続日数の節目（このどれかに到達したら特別演出）。日常のお祝いと差をつける（#81）。
 const STREAK_CELEBRATIONS = new Set([3, 7, 14, 30, 50, 100]);
 
-// 記録演出の動画モジュール（./cat-video.js・#227）。記録ビューへ入ったとき idle で読み込み、
-// 現スタイルのクリップを prefetch する。押されるまで＝記録が確定するまで不要なので動的 import（#284）。
+// 記録・えさやり演出の動画モジュール（./cat-video.js・#227/#294）。記録ビューかショップへ入ったとき
+// idle で読み込み、現スタイルのクリップを prefetch する。押されるまで＝記録が確定するまで不要なので動的 import（#284）。
 // celebrateRecord は import 結果（or null）を待ってから再生判定するので、素早く記録しても取りこぼさない。
 let catVideoPromise = null;
 function primeCatVideo(kind = 'record') {
@@ -941,18 +941,17 @@ function showFeedPopup(food, onHidden) {
   if (!host || !catVideoPromise) return;
   let hide = null;
   catVideoPromise
-    .then((m) => m?.playFeedClip(host, state.pet.catStyle, food.id, () => hide?.()))
-    .then((ok) => {
+    .then((m) => m?.playFeedClip(host, state.pet.catStyle, food.id, () => hide?.()).then((ok) => {
       if (!ok) return;
       // モジュール読み込みが遅く、静止カードが閉じきってから再生が始まったら出さずに畳む
       // （開き直すと onHidden＝バッジ告知が2回走る）
-      if (closed) { host.click(); return; }
+      if (closed) { m.stopClip(host); return; }
       popup.classList.add('coin-popup--clip');
       hide = showPopup(popup, FEED_CLIP_MAX_MS, () => {
         popup.classList.remove('coin-popup--clip');
         onHidden?.();
       });
-    })
+    }))
     .catch(() => {});
 }
 // クリップ（8秒）の ended／保険タイマーで閉じるので、これは両方が来なかったときの上限。
@@ -1235,7 +1234,7 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
 // クリップ表示中はポップアップのどこをタップしてもスキップ（クリップ本体のタップは cat-video.js 側で拾う）
 document.getElementById('feedPopup')?.addEventListener('click', (e) => {
   const host = document.getElementById('feedClip');
-  if (host && !host.contains(e.target)) host.click();
+  if (host && !host.contains(e.target)) catVideoPromise?.then((m) => m?.stopClip(host));
 });
 
 // ===== 猫とのインタラクション（#79） =====

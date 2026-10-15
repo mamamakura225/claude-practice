@@ -47,8 +47,8 @@ export function listAssets() {
 }
 
 // SW の precache（APP_SHELL）にも perf-budget のカテゴリにも入れないが、差し替えでキャッシュ名が
-// 変わるようハッシュにだけ載せるアセット（#318）。precache に入れない理由は #227（1.37 MiB を
-// install 時に全部落とすと初回起動が重い）、予算に入れない理由も同じ（判定対象は起動をブロック
+// 変わるようハッシュにだけ載せるアセット（#318）。precache に入れない理由は #227（全クリップ＝#294 後は
+// 3.76 MiB を install 時に全部落とすと初回起動が重い）、予算に入れない理由も同じ（判定対象は起動をブロック
 // するテキスト資産）。perf-budget.mjs の orphan 検知（js/ だけが対象）には混ぜないこと。
 export function listHashOnlyAssets() {
   const out = [];

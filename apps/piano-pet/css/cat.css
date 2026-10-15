@@ -49,13 +49,14 @@
   transition: opacity 0.25s ease;
 }
 .cat-video--show { opacity: 1; pointer-events: auto; }   /* タップでスキップを受け取る */
-.cat-video video { width: 100%; height: 100%; display: block; object-fit: cover; }
+.cat-video video,
+.feed-clip video { width: 100%; height: 100%; display: block; object-fit: cover; }
 
 /* クリップ再生中はコインポップアップ等（すべて .coin-popup・z-index:50・全画面暗幕）を
    クリップの前に出さない（#227）。クリップが主役で、コイン総額はホームのカードに即反映される
    ので被っても情報は失われない。wrap を stacking context に上げ、暗幕だけ透明化する。 */
 body.cat-clip-playing .cat-stage-wrap { position: relative; z-index: 55; }
-body.cat-clip-playing .coin-popup { background: transparent; }
+body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
 
 /* レイヤー共通：コンテナ全体に絶対配置で重ねる */
 .cat__body,

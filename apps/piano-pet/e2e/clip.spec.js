@@ -141,6 +141,29 @@ test.describe('記録の動画クリップ演出（#227）', () => {
     await expect(page.locator('body')).not.toHaveClass(/cat-clip-playing/);
   });
 
+  // #294：えさやりクリップは記録クリップと startClip／teardown を共有する。えさやり側の後片付けが
+  // 記録クリップの body.cat-clip-playing を外すと、ホームへ戻ったときポップアップがクリップの上に出る。
+  test('記録クリップの再生中にショップでえさをあげても、記録クリップの状態を壊さない（#294）', async ({ page }) => {
+    await seedPracticed(page);
+    await page.addInitScript(() => { Math.random = () => 0; });   // 必ず当たり
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+
+    await page.click('#goRecordBtn');
+    await addSong(page, 'きらきらぼし');
+    await page.click('#stampCard');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#catVideo')).toHaveClass(/cat-video--show/);
+
+    await page.click('.nav-btn[data-nav="shop"]');
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
+    const popup = page.locator('#feedPopup');
+    await expect(popup).toHaveClass(/coin-popup--clip/);
+    await popup.click({ position: { x: 10, y: 10 } });   // えさやりクリップを畳む（teardown が走る）
+    await expect(popup).toBeHidden();
+    await expect(page.locator('body')).toHaveClass(/cat-clip-playing/);
+  });
+
   test('抽選に外れると動画は出ず、既存のCSS演出にフォールバックする', { tag: '@compat' }, async ({ page }) => {
     await seedPracticed(page);
     await page.addInitScript(() => { Math.random = () => 0.99; });  // 目標未達の通常記録は必ず外れ

@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { CLIPS, FEED_CLIPS, feedClipSrc, pickClip, peekClip, resetClipBags } from '../js/cat-video.js';
 import { FOODS } from '../js/feed.js';
 
-// 再生（tryPlay / prime）は DOM・<video> 依存なので e2e（clip.spec.js）側で通す。
+// 再生（tryPlay / prime / playFeedClip / primeFeed）は DOM・<video> 依存なので e2e（記録は clip.spec.js、えさやりは shop.spec.js）側で通す。
 // ここは純粋なクリップ選択だけを検証する。
 
 /** 指定した値を順に返す rng。使い切ったら最後の値を返し続ける。 */
@@ -88,6 +88,15 @@ describe('feedClipSrc（#294）', () => {
         expect(existsSync(fileURLToPath(new URL(src, new URL('../index.html', import.meta.url))))).toBe(true);
       }
       expect(Object.keys(FEED_CLIPS[style]).sort()).toEqual(FOODS.map((f) => f.id).sort());
+    }
+  });
+
+  it('えさ id とファイル名が1対1で対応する（treat はケーキ＝cake）', () => {
+    const file = { fish: 'fish', milk: 'milk', treat: 'cake' };
+    for (const style of Object.keys(CLIPS)) {
+      for (const [foodId, name] of Object.entries(file)) {
+        expect(feedClipSrc(style, foodId)).toBe(`./video/cat_${style}_feed_${name}.mp4`);
+      }
     }
   });
 

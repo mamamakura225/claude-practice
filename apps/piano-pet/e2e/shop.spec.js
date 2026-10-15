@@ -149,10 +149,20 @@ test.describe('ショップ', () => {
   // えさやりクリップ（#294）：ショップ内のポップアップで、えさの種類・猫スタイルに合ったクリップを
   // その場で再生する。従来の静止ポップアップ（1800ms）より長く出し続け、タップでスキップできる。
   // 再生の positive 確認は Chromium のみ（WebKit は playing を出さない・clip.spec.js 冒頭参照）。
-  test('えさをあげるとショップ内でえさ別の動画クリップが出て、タップで閉じる（#294）', async ({ page }) => {
+  // クリップを有効にしてショップを開き、モジュール読込＋先読み（primeFeed の3本）が済むまで待つ。
+  // 待たずに押すと、遅い環境では静止カードが閉じた後に再生が始まる分岐（＝クリップを出さない）に入る。
+  async function openShopWithClips(page, coins = '200') {
     await page.unroute(FEED_CLIP_URL);
+    const feedRequests = new Set();
+    page.on('request', (req) => { if (/_feed_/.test(req.url())) feedRequests.add(new URL(req.url()).pathname); });
     await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+    await expect(page.locator('#shopCoins')).toHaveText(coins, { timeout: 10000 });
+    await expect.poll(() => feedRequests.size, { timeout: 8000 }).toBeGreaterThanOrEqual(3);
+    return feedRequests;
+  }
+
+  test('えさをあげるとショップ内でえさ別の動画クリップが出て、タップで閉じる（#294）', async ({ page }) => {
+    await openShopWithClips(page);
 
     await page.click('.shop-btn[data-action="feed"][data-id="treat"]');
     const popup = page.locator('#feedPopup');
@@ -169,6 +179,92 @@ test.describe('ショップ', () => {
     await popup.click({ position: { x: 10, y: 10 } });
     await expect(popup).toBeHidden();
     await expect(page.locator('#feedClip')).toBeHidden();
+  });
+
+  test('ショップに入ると現スタイルのえさやりクリップ3本だけを先読みし、そのスタイルのクリップを出す（#294）', async ({ page }) => {
+    await page.addInitScript(() => {
+      const s = JSON.parse(localStorage.getItem('piano-pet'));
+      s.pet.catStyle = 'shiro';
+      localStorage.setItem('piano-pet', JSON.stringify(s));
+    });
+    const feedRequests = await openShopWithClips(page);
+    await page.waitForTimeout(500);
+    expect([...feedRequests].map((u) => u.split('/').pop()).sort()).toEqual([
+      'cat_shiro_feed_cake.mp4', 'cat_shiro_feed_fish.mp4', 'cat_shiro_feed_milk.mp4',
+    ]);
+
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
+    await expect(page.locator('#feedPopup')).toHaveClass(/coin-popup--clip/);
+    await expect(page.locator('#feedClip video')).toHaveAttribute('src', /cat_shiro_feed_fish.mp4$/);
+  });
+
+  test('クリップを最後まで見ると（ended）ポップアップが閉じる（#294）', async ({ page }) => {
+    await openShopWithClips(page);
+    await page.click('.shop-btn[data-action="feed"][data-id="milk"]');
+    const popup = page.locator('#feedPopup');
+    await expect(popup).toHaveClass(/coin-popup--clip/);
+    // 実尺（8秒）を待つと保険タイマー（尺+1秒）でも閉じてしまい ended 経路を区別できないので、ended を直接撃つ
+    await page.$eval('#feedClip video', (v) => v.dispatchEvent(new Event('ended')));
+    await expect(popup).toBeHidden({ timeout: 1500 });
+  });
+
+  test('クリップ再生中に成立したバッジは、クリップが閉じてから告知する（#294）', async ({ page }) => {
+    await page.addInitScript(() => {
+      const s = JSON.parse(localStorage.getItem('piano-pet'));
+      s.pet.affinity = 41;   // おさかな（+1）で42＝なかよしMAX（affinity_max）
+      localStorage.setItem('piano-pet', JSON.stringify(s));
+    });
+    await openShopWithClips(page);
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
+    const popup = page.locator('#feedPopup');
+    await expect(popup).toHaveClass(/coin-popup--clip/);
+    // 旧実装（1800ms 固定で告知）ならこの時点で出ている。toBeHidden は消えるまで待って偽緑になるので瞬間値で見る
+    await page.waitForTimeout(2600);
+    expect(await page.locator('#badgePopup').isVisible()).toBe(false);
+
+    await popup.click({ position: { x: 10, y: 10 } });
+    await expect(page.locator('#badgePopupName')).toHaveText('ねこと だいの なかよし', { timeout: 3000 });
+  });
+
+  test('モジュール読込が遅れ、静止カードが閉じてから再生できるようになっても開き直さない（#294）', async ({ page }) => {
+    await page.unroute(FEED_CLIP_URL);
+    await page.route('**/js/cat-video.js*', async (route) => {
+      await new Promise((r) => setTimeout(r, 4000));
+      await route.continue();
+    });
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+    await page.evaluate(() => {
+      window.__clipSeen = false;
+      const el = document.getElementById('feedPopup');
+      new MutationObserver(() => { if (el.classList.contains('coin-popup--clip')) window.__clipSeen = true; })
+        .observe(el, { attributes: true, attributeFilter: ['class'] });
+    });
+
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
+    const popup = page.locator('#feedPopup');
+    await expect(popup).toBeHidden({ timeout: 3000 });   // 静止カードは通常どおり閉じる
+    await page.waitForTimeout(4000);                      // その後にモジュールが届き再生が始まりうる
+    await expect(popup).toBeHidden();
+    expect(await page.evaluate(() => window.__clipSeen)).toBe(false);
+    await expect(page.locator('#feedClip')).toBeHidden();
+  });
+
+  test('reduced-motion ではえさやりクリップを先読みも再生もしない（#294）', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.unroute(FEED_CLIP_URL);
+    const feedRequests = [];
+    page.on('request', (req) => { if (/_feed_/.test(req.url())) feedRequests.push(req.url()); });
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+    await page.waitForTimeout(2500);   // primeCatVideo の idle 読込（上限2秒）を越える
+
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
+    const popup = page.locator('#feedPopup');
+    await expect(popup).toBeVisible();
+    await expect(popup).toBeHidden({ timeout: 4000 });
+    await expect(popup).not.toHaveClass(/coin-popup--clip/);
+    expect(feedRequests).toEqual([]);
   });
 
   test('クリップが読めないときは従来の静止ポップアップで閉じる（#294）', { tag: '@compat' }, async ({ page }) => {

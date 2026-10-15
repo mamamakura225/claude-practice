@@ -1,4 +1,4 @@
-// 練習記録の短尺動画クリップ演出（#227）。記録ビューに入ったとき app.js から動的 import される
+// 練習記録（#227）とえさやり（#294）の短尺動画クリップ演出。記録ビューかショップに入ったとき app.js から動的 import される
 // （#284 の js-lazy 側）。動画は SW の precache 対象外・初回再生時に取得（→ features.md）。
 
 // video/*.mp4 は gen-sw のハッシュ入力に入っている（scripts/piano-pet-assets.mjs の
@@ -25,7 +25,7 @@ export const CLIPS = {
 };
 
 // えさやりクリップ（#294）。えさの種類ごとに1本・確率なしで毎回出すので bag shuffle は不要。
-// 素材は8秒1周（記録クリップのような2周ループはしない）。
+// 素材が8秒あり記録クリップの2周後と同じ視聴尺なので、1周だけ再生する。
 const FEED_FOODS = ['fish', 'milk', 'treat'];
 const FEED_FILE = { fish: 'fish', milk: 'milk', treat: 'cake' };
 export const FEED_CLIPS = Object.fromEntries(Object.keys(CLIPS).map((style) => [
@@ -41,6 +41,7 @@ export function feedClipSrc(style, foodId) {
 // 再生できないと判定するまでの上限。prefetch 済みなら数十msで playing が来る。詰めすぎると
 // 目標達成の「必ず再生」を低速回線で取りこぼす。
 const PLAY_TIMEOUT_MS = 1000;
+const FEED_PLAY_TIMEOUT_MS = 1600;
 
 // キーは解決後のスタイル。未知スタイルに別バッグを持たせると prime の先読みと実再生がズレる。
 const styleKey = (style) => (CLIPS[style] ? style : 'tora');
@@ -153,10 +154,11 @@ function release(host, gen) {
 }
 
 // host に <video> を張って再生を始める。上限内に playing が来たら { video, gen }、出せなければ null
-// （reduced-motion / mp4 非対応 / play() 拒否 / 上限内に playing 不着）。動画中に次が来たら
-// 世代トークンで前のクリップを畳んで張り替える。タップで即スキップ。
-async function startClip(host, src) {
-  if (!host || !src || reducedMotion()) return null;
+// （reduced-motion / mp4 非対応 / src 無し / play() 拒否 / 上限内に playing 不着）。動画中に次が来たら
+// 世代トークンで前のクリップを畳んで張り替える（src 無しでも畳む）。タップで即スキップ。
+// src は関数で受け、出せると分かってから解決する（記録クリップのバッグを無駄に消費しない）。
+async function startClip(host, getSrc, timeoutMs = PLAY_TIMEOUT_MS) {
+  if (!host || reducedMotion()) return null;
 
   const video = document.createElement('video');
   if (!video.canPlayType('video/mp4')) return null;
@@ -166,6 +168,8 @@ async function startClip(host, src) {
   host._clipSettled = false;
   host._clipDone = null;
   host.textContent = '';
+  const src = getSrc();
+  if (!src) return null;
 
   video.src = src;
   video.autoplay = true;
@@ -178,7 +182,7 @@ async function startClip(host, src) {
   host.hidden = false;
 
   const started = await new Promise((resolve) => {
-    const to = setTimeout(() => resolve(false), PLAY_TIMEOUT_MS);
+    const to = setTimeout(() => resolve(false), timeoutMs);
     const stop = (ok) => { clearTimeout(to); resolve(ok); };
     video.addEventListener('playing', () => stop(true), { once: true });
     video.addEventListener('error', () => stop(false), { once: true });
@@ -187,7 +191,6 @@ async function startClip(host, src) {
   if (gen !== host._clipGen) return null;        // 待つ間に次のクリップが始まった
   if (!started) { release(host, gen); return null; }
 
-  host.classList.add('cat-video--show');
   host._clipSkip = () => release(host, gen);
   host.addEventListener('click', host._clipSkip);
   return { video, gen };
@@ -202,11 +205,11 @@ const clipDuration = (video, fallback) =>
  */
 export async function tryPlay(style) {
   const host = overlay();
-  if (!host || reducedMotion()) return false;        // reduced-motion ではバッグを消費しない
-  const clip = await startClip(host, pickClip(style).src);
+  const clip = await startClip(host, () => pickClip(style).src);
   if (!clip) return false;
   const { video, gen } = clip;
 
+  host.classList.add('cat-video--show');
   document.body.classList.add('cat-clip-playing');   // 再生中はコインポップアップ等をクリップの前に出さない
   // #296: 1本が短くて見逃すので、2回ループしてから畳む。video.loop は使わない
   // （ended が飛ばず終了検知・世代管理が崩れる）。明示的に1回だけ巻き戻す。
@@ -234,12 +237,18 @@ export async function tryPlay(style) {
  * 再生できたら true を返し、見終わる／タップでスキップされたときに onDone を1回呼ぶ。
  * false なら onDone は呼ばない（呼び出し側が静止ポップアップへフォールバック）。
  */
+// 上限は記録より長い：待つ間も静止カード（1800ms）が出ているので、低速回線でも見せられるだけ待つ。
 export async function playFeedClip(host, style, foodId, onDone) {
-  const clip = await startClip(host, feedClipSrc(style, foodId));
+  const clip = await startClip(host, () => feedClipSrc(style, foodId), FEED_PLAY_TIMEOUT_MS);
   if (!clip) return false;
   const { video, gen } = clip;
   host._clipDone = onDone;
   video.addEventListener('ended', () => release(host, gen));
   host._clipTimer = setTimeout(() => release(host, gen), (clipDuration(video, 8) + 1) * 1000);  // ended 不着の保険
   return true;
+}
+
+/** 再生中のクリップをタップと同じ経路で畳む（えさやりポップアップのタップ・閉じた後の再生開始）。 */
+export function stopClip(host) {
+  host?._clipSkip?.();
 }
