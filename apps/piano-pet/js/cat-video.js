@@ -127,7 +127,7 @@ function teardown(host) {
   host._clipSkip = host._clipFade = null;
   host.querySelector('video')?.pause();
   host.classList.remove('cat-video--show');
-  document.body.classList.remove('cat-clip-playing');
+  if (host === overlay()) document.body.classList.remove('cat-clip-playing');   // えさやり側は記録クリップの状態に触らない
 }
 
 // クリップを畳んでオーバーレイを解放する。gen が古ければ（次のクリップが始まっていれば）何もしない。
@@ -202,7 +202,7 @@ const clipDuration = (video, fallback) =>
  */
 export async function tryPlay(style) {
   const host = overlay();
-  if (!host || reducedMotion()) return false;        // 出せないときはバッグを消費しない
+  if (!host || reducedMotion()) return false;        // reduced-motion ではバッグを消費しない
   const clip = await startClip(host, pickClip(style).src);
   if (!clip) return false;
   const { video, gen } = clip;

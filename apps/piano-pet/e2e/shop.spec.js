@@ -289,6 +289,30 @@ test.describe('ショップ', () => {
     await expect(page.locator('#badgePopupName')).toHaveText('ねこと だいの なかよし', { timeout: 5000 });
   });
 
+  // #294 のレビューで発覚：バッジ告知をえさやりポップアップの onHidden に結び付けると、静止カードの
+  // 表示中に次のえさを押したとき前回の onHidden ごと張り替えられ、なかよしMAXの告知が二度と出ない。
+  test('なかよしMAXのえさの直後に次のえさを押しても、バッジ告知は出る（#294）', async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'piano-pet',
+        JSON.stringify({
+          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 41, foodSpent: 0 },
+          inventory: [],
+          streak: { current: 0, best: 0, lastPracticeDate: null },
+          badges: [],
+          sessions: [],
+        }),
+      );
+    });
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');   // 41→42＝MAX（affinity_max 成立）
+    await expect(page.locator('#feedAffinity')).toHaveText('42');
+    await page.click('.shop-btn[data-action="feed"][data-id="milk"]');   // 静止カードの表示中に次のえさ
+    await expect(page.locator('#badgePopupName')).toHaveText('ねこと だいの なかよし', { timeout: 6000 });
+  });
+
   test('コイン不足のアイテムは購入ボタンが無効', async ({ page }) => {
     // 王冠は unlockLevel 8（#126・#216）。解放はクリアしコイン不足だけを検証するため affinity を盛る。
     // 値下げ後（#250）の王冠は150コインなので、既定シードの200では足りてしまう→100で始める

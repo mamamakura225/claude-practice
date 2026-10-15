@@ -1646,13 +1646,17 @@ body {
   100%    { transform: translateY(-12px) scale(1.1); color: var(--pink-deep); }
 }
 
-/* えさやりクリップ（#294）。読み込み中（再生開始まで最大1秒）は静止カードのまま、host は
-   1px・透明で裏に置く（display:none だとブラウザによっては再生が始まらない）。再生が始まったら
-   .coin-popup--clip でカードをクリップ表示に切り替え、ポップアップ全体でタップを受けてスキップする。 */
+/* えさやりクリップ（#294）。読み込み中は静止カードのまま、host は実寸・透明でカードの裏に置く
+   （display:none や極小サイズだとブラウザによっては再生が始まらない。記録クリップの #catVideo と
+   同じく実寸＋opacity:0）。再生が始まったら .coin-popup--clip でカードをクリップ表示に切り替え、
+   ポップアップ全体でタップを受けてスキップする。 */
 .feed-clip {
   position: absolute;
-  width: 1px;
-  height: 1px;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(300px, 72vw);
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   opacity: 0;
   pointer-events: none;
@@ -1663,9 +1667,7 @@ body {
 .coin-popup--clip .coin-popup__card { padding: 14px 14px 18px; }
 .coin-popup--clip .feed-clip {
   position: static;
-  width: min(300px, 72vw);
-  height: auto;
-  aspect-ratio: 1 / 1;
+  transform: none;
   opacity: 1;
   pointer-events: auto;
 }

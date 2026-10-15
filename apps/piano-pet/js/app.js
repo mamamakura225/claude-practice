@@ -927,7 +927,8 @@ function showCoinPopup({ coins, leveled, newLevel }) {
 
 // えさやりのポップアップ（なかよし上昇）。まず従来の静止カード（もぐもぐ）を出し、えさやり
 // クリップ（#294）の再生が始まったらカードをクリップ表示に切り替えて、見終わる／タップまで出し続ける。
-// クリップが出せなければ従来どおり 1800ms で閉じる。onHidden は閉じきった後に1回だけ呼ぶ。
+// クリップが出せなければ従来どおり 1800ms で閉じる。onHidden は閉じきった後に呼ぶ（連打で前回の
+// サイクルが張り替えられると前回分は呼ばれないので、呼び出し側は冪等なコールバックを渡す）。
 function showFeedPopup(food, onHidden) {
   const popup = document.getElementById('feedPopup');
   const host = document.getElementById('feedClip');
@@ -935,13 +936,17 @@ function showFeedPopup(food, onHidden) {
   setText('feedPopupIcon', food.icon);
   setText('feedPopupGain', `+${food.affinity}`);
   popup.classList.remove('coin-popup--clip');
-  showPopup(popup, 1800, onHidden);
+  let closed = false;
+  showPopup(popup, 1800, () => { closed = true; onHidden?.(); });
   if (!host || !catVideoPromise) return;
   let hide = null;
   catVideoPromise
     .then((m) => m?.playFeedClip(host, state.pet.catStyle, food.id, () => hide?.()))
     .then((ok) => {
       if (!ok) return;
+      // モジュール読み込みが遅く、静止カードが閉じきってから再生が始まったら出さずに畳む
+      // （開き直すと onHidden＝バッジ告知が2回走る）
+      if (closed) { host.click(); return; }
       popup.classList.add('coin-popup--clip');
       hide = showPopup(popup, FEED_CLIP_MAX_MS, () => {
         popup.classList.remove('coin-popup--clip');
@@ -1198,6 +1203,13 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
 });
 
 // ===== えさやり（#80・コインの使い道） =====
+let feedBadgeQueue = [];
+function flushFeedBadges() {
+  const badges = feedBadgeQueue;
+  feedBadgeQueue = [];
+  if (badges.length) showBadgePopup(badges);
+}
+
 document.getElementById('feedList')?.addEventListener('click', (e) => {
   unlockAudio();
   const btn = e.target.closest('.shop-btn[data-action="feed"]');
@@ -1213,8 +1225,10 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
   commitState(withBadges);           // 保存 + ホーム再描画（なかよし反映）
   renderShop();                      // ショップのコイン・なかよし・ボタン更新
   playSound('record', state);        // もぐもぐ（やわらかいチャイム）
-  // バッジ告知はえさやりポップアップ（クリップ再生中はその終わり）を閉じきってから出す。
-  showFeedPopup(foodById(id), gainedBadges.length ? () => showBadgePopup(gainedBadges) : undefined);
+  // バッジ告知はえさやりポップアップ（クリップ再生中はその終わり）を閉じきってから出す。連打で
+  // 前回のポップアップが張り替えられても取りこぼさないよう、告知はキューに積んで最後に閉じた側が吐く。
+  feedBadgeQueue.push(...gainedBadges);
+  showFeedPopup(foodById(id), flushFeedBadges);
   // MAX到達（#309後追い）はホームへ戻った瞬間に playCelebrate（features.md 設計判断）。
   if (gainedBadges.some((b) => b.id === 'affinity_max')) pendingFeedCelebrate = true;
 });
