@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+const FEED_CLIP_URL = '**/video/*_feed_*.mp4';
+
 // ショップ：購入 → 装備 → ホームの猫に反映
 test.describe('ショップ', () => {
   test.beforeEach(async ({ page }) => {
@@ -9,6 +11,9 @@ test.describe('ショップ', () => {
     await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
     await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+    // えさやりクリップ（#294）は再生中ポップアップが全画面でタップを受けるので、クリップ自体を
+    // 検証するテスト以外は読めなくして静止ポップアップ（フォールバック）の経路に固定する。
+    await page.route(FEED_CLIP_URL, (route) => route.abort());
 
     // コインを持った状態で開始（記録を経由せずショップ単体を検証するため）
     await page.addInitScript(() => {
@@ -141,32 +146,41 @@ test.describe('ショップ', () => {
     await expect(page.locator('#statAffinity')).toHaveText('1');
   });
 
-  // #347 の退行ガード：節目限定の playCelebrate とは別に、毎回の給餌そのものへ専用演出
-  // （playFeed・cat--nom）が出ることを確認する。affinity_max と衝突しないよう通常値で検証。
-  // 給餌操作は #catStage が hidden（display:none）なショップタブで行うため、その場ではなく
-  // ホームへ戻った瞬間に再生されることまで確認する（#347：直後に再生すると display:none 中は
-  // CSSアニメが一切走らず、クラスだけ付いて消える「見えない演出」になっていた）。
-  test('えさやりのたびに専用演出（もぐもぐ）が出る。ホームへ戻った瞬間に再生される（#347）', async ({ page }) => {
+  // えさやりクリップ（#294）：ショップ内のポップアップで、えさの種類・猫スタイルに合ったクリップを
+  // その場で再生する。従来の静止ポップアップ（1800ms）より長く出し続け、タップでスキップできる。
+  // 再生の positive 確認は Chromium のみ（WebKit は playing を出さない・clip.spec.js 冒頭参照）。
+  test('えさをあげるとショップ内でえさ別の動画クリップが出て、タップで閉じる（#294）', async ({ page }) => {
+    await page.unroute(FEED_CLIP_URL);
     await page.goto('/#/shop');
     await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
 
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');   // この時点ではまだ再生しない
-    // ショップに留まったまま、旧実装のアニメ総尺（150+1200ms）より長く待つ。即時再生する
-    // 実装だと、ここで非表示のまま一連のクラス付与・除去が終わってしまい後で何も出ない。
-    await page.waitForTimeout(1500);
-    await page.click('.nav-btn[data-nav="home"]');                       // ホームへ戻った瞬間に再生
+    await page.click('.shop-btn[data-action="feed"][data-id="treat"]');
+    const popup = page.locator('#feedPopup');
+    await expect(popup).toHaveClass(/coin-popup--clip/);
+    await expect(page.locator('#feedClip video')).toHaveAttribute('src', /cat_tora_feed_cake.mp4$/);
+    await expect(page.locator('#feedPopupGain')).toHaveText('+3');
 
-    const cat = page.locator('#catStage .cat');
-    await expect(cat).toHaveClass(/cat--nom/, { timeout: 2000 });
-    // クラスが付くだけでなく、実際にCSSアニメが走っていることまで見る
-    // （display:none の要素はクラスが付いてもアニメは走らない＝クラスだけでは「見えない演出」を検知できない）。
-    await expect.poll(
-      () => cat.evaluate((el) => el.querySelector('.cat__body').getAnimations().length),
-    ).toBeGreaterThan(0);
-    await expect(cat).not.toHaveClass(/cat--nom/, { timeout: 3000 });
+    // 静止ポップアップの尺（1800ms＋フェード）を過ぎても、クリップ再生中は閉じない
+    await page.waitForTimeout(2600);
+    await expect(popup).toBeVisible();
+    await expect(popup).toHaveClass(/coin-popup--clip/);
 
-    // 飛翔演出の一時DOMも後片付けされ、居残らない（居残ると後で無関係なタイミングに再生される幽霊アニメになる）。
-    await expect(page.locator('#catStage .cat__food-fly')).toHaveCount(0, { timeout: 2000 });
+    // ポップアップのどこをタップしてもスキップして閉じる
+    await popup.click({ position: { x: 10, y: 10 } });
+    await expect(popup).toBeHidden();
+    await expect(page.locator('#feedClip')).toBeHidden();
+  });
+
+  test('クリップが読めないときは従来の静止ポップアップで閉じる（#294）', { tag: '@compat' }, async ({ page }) => {
+    await page.goto('/#/shop');   // beforeEach でクリップは abort 済み
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+
+    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
+    const popup = page.locator('#feedPopup');
+    await expect(popup).toBeVisible();
+    await expect(popup).not.toHaveClass(/coin-popup--clip/);
+    await expect(popup).toBeHidden({ timeout: 4000 });
+    await expect(page.locator('#feedClip')).toBeHidden();
   });
 
   // #261 の退行ガード（#323）：showPopup は要素ごとにタイマー・transitionend リスナーを

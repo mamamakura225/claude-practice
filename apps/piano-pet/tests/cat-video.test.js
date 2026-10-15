@@ -1,5 +1,8 @@
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach } from 'vitest';
-import { CLIPS, pickClip, peekClip, resetClipBags } from '../js/cat-video.js';
+import { CLIPS, FEED_CLIPS, feedClipSrc, pickClip, peekClip, resetClipBags } from '../js/cat-video.js';
+import { FOODS } from '../js/feed.js';
 
 // 再生（tryPlay / prime）は DOM・<video> 依存なので e2e（clip.spec.js）側で通す。
 // ここは純粋なクリップ選択だけを検証する。
@@ -73,5 +76,23 @@ describe('pickClip（#227・#300）', () => {
     const toraFirst = pickClip('tora', () => 0);
     expect(pickClip('shiro', () => 0).src).toContain('shiro');
     expect(pickClip('tora', () => 0)).not.toBe(toraFirst);
+  });
+});
+
+describe('feedClipSrc（#294）', () => {
+  it('全スタイル×全えさ（FOODS）にクリップがあり、実ファイルが存在する', () => {
+    for (const style of Object.keys(CLIPS)) {
+      for (const food of FOODS) {
+        const src = feedClipSrc(style, food.id);
+        expect(src).toContain(style);
+        expect(existsSync(fileURLToPath(new URL(src, new URL('../index.html', import.meta.url))))).toBe(true);
+      }
+      expect(Object.keys(FEED_CLIPS[style]).sort()).toEqual(FOODS.map((f) => f.id).sort());
+    }
+  });
+
+  it('未知スタイルは tora、未知のえさは null', () => {
+    expect(feedClipSrc('ぐれー', 'fish')).toBe(feedClipSrc('tora', 'fish'));
+    expect(feedClipSrc('tora', 'pizza')).toBeNull();
   });
 });
