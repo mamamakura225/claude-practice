@@ -25,8 +25,12 @@ export const SHOP_ITEMS = [
   { id: 'sunglasses', name: 'サングラス', price: 70, slot: 'face', icon: '😎', unlockLevel: 4 },
   { id: 'gradCap', name: 'そつぎょうぼう', price: 70, slot: 'head', icon: '🎓', unlockLevel: 4 },
   { id: 'cape', name: 'ミニマント', price: 75, slot: 'back', icon: '🧥', unlockLevel: 6 },
+  { id: 'heartGlasses', name: 'ハートめがね', price: 75, slot: 'face', icon: '😍', unlockLevel: 6 },
   { id: 'balloon', name: 'ふうせん', price: 80, slot: 'back', icon: '🎈', unlockLevel: 6 },
   { id: 'backpack', name: 'リュック', price: 85, slot: 'back', icon: '🎒', unlockLevel: 6 },
+  { id: 'tophat', name: 'シルクハット', price: 90, slot: 'head', icon: '🎩', unlockLevel: 6 },
+  { id: 'beeWings', name: 'はちのはね', price: 90, slot: 'back', icon: '🐝', unlockLevel: 6 },
+  { id: 'medal', name: 'きんメダル', price: 100, slot: 'neck', icon: '🏅', unlockLevel: 6 },
   { id: 'wings', name: 'てんしのはね', price: 110, slot: 'back', icon: '🪽', unlockLevel: 6 },
   { id: 'butterflyWings', name: 'ちょうのはね', price: 120, slot: 'back', icon: '🦋', unlockLevel: 8 },
   { id: 'flowerCrown', name: 'はなかんむり', price: 130, slot: 'head', icon: '💮', unlockLevel: 8 },
@@ -40,6 +44,7 @@ export const SHOP_ITEMS = [
   { id: 'teddy', name: 'くまのぬいぐるみ', price: 60, slot: 'scene', icon: '🧸', unlockLevel: 2 },
   { id: 'window', name: 'まど', price: 65, slot: 'scene', icon: '🪟', unlockLevel: 4 },
   { id: 'miniPiano', name: 'ミニピアノ', price: 70, slot: 'scene', icon: '🎹', unlockLevel: 4 },
+  { id: 'present', name: 'プレゼントばこ', price: 75, slot: 'scene', icon: '🎁', unlockLevel: 4 },
 ];
 
 export function itemById(id) {
