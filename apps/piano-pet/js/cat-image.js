@@ -100,6 +100,16 @@ const ITEM_BOX = {
   sunglasses:  { x: -44, y: -16, w: 88,  h: 34 },   // 色付きレンズのサングラス（めがねと差別化）#210
   bell:        { x: -38, y: -18, w: 76,  h: 46 },   // 鈴つきの首輪（星の首輪と差別化）#210
   wings:       { x: -60, y: -34, w: 120, h: 92 },   // 左右に広がる天使のはね（マントより横長）#210
+  // #299 追加（head=下端中央 / neck=上端中央 / face=中央 / back=上端中央を原点に置く）
+  cap:            { x: -32, y: -50, w: 64,  h: 63 },
+  headphones:     { x: -46, y: -38, w: 92,  h: 87 },   // 頭頂のバンド＋左右のイヤーカップ
+  gradCap:        { x: -40, y: -36, w: 80,  h: 50 },
+  partyHat:       { x: -26, y: -62, w: 52,  h: 80 },   // 円すい形のとんがり帽
+  roundGlasses:   { x: -42, y: -17, w: 84,  h: 34 },   // 丸レンズ（めがね＝角型と形で差別化）
+  bandana:        { x: -24, y: -12, w: 48,  h: 76 },
+  balloon:        { x: 36,  y: -60, w: 48,  h: 112 },   // ひも付き風船。顔に被らないよう猫の右脇に浮かせる
+  backpack:       { x: -34, y: -22, w: 68,  h: 76 },
+  butterflyWings: { x: -62, y: -36, w: 124, h: 96 },
 };
 
 function itemImage(id) {
@@ -147,6 +157,15 @@ const ITEM_ANCHOR_TYPE = {
   sunglasses: 'face',
   bell: 'neck',
   wings: 'back',
+  cap: 'head',
+  headphones: 'head',
+  gradCap: 'head',
+  partyHat: 'head',
+  roundGlasses: 'face',
+  bandana: 'neck',
+  balloon: 'back',
+  backpack: 'back',
+  butterflyWings: 'back',
 };
 
 export const ITEM_IDS = Object.keys(ITEMS);
@@ -165,6 +184,12 @@ const ACCESSORY_TYPES = ['neck', 'head', 'face'];
 const SCENE_BOX = {
   cushion:  { x: -40, y: -25, w: 80, h: 50, layer: 'back'  },  // 背後に置く座布団（くつろぎ構図）
   yarnBall: { x: -30, y: -30, w: 60, h: 60, layer: 'front' },  // 足元に転がす毛糸玉（前面 z5 の実証）
+  // #299 追加
+  plant:     { x: -30, y: -42, w: 60, h: 74, layer: 'back'  },
+  miniPiano: { x: -33, y: -36, w: 66, h: 71, layer: 'front' },
+  teddy:     { x: -28, y: -30, w: 56, h: 59, layer: 'front' },
+  window:    { x: -34, y: -35, w: 68, h: 69, layer: 'back'  },
+  lantern:   { x: -20, y: -37, w: 40, h: 75, layer: 'front' },
 };
 
 // 置物の既定配置（%・.cat 正方枠基準）。装着アンカーが無いため、dressup の掴み開始位置と
