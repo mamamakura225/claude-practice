@@ -178,7 +178,7 @@ describe('catMarkup の style', () => {
 // 置物・小物系（シーン配置型・#226）：ステージ正方枠に置く新カテゴリ。
 describe('置物アイテム（#226）', () => {
   it('isSceneItem / SCENE_IDS', () => {
-    expect(SCENE_IDS).toEqual(['cushion', 'yarnBall']);
+    expect([...SCENE_IDS].sort()).toEqual(['cushion', 'lantern', 'miniPiano', 'plant', 'teddy', 'window', 'yarnBall']);
     expect(isSceneItem('cushion')).toBe(true);
     expect(isSceneItem('crown')).toBe(false);   // 装着系は置物でない
     expect(isSceneItem('bogus')).toBe(false);

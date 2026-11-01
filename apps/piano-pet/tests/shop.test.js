@@ -25,8 +25,8 @@ function makeState(overrides = {}) {
 }
 
 describe('カタログ', () => {
-  it('16種類のアイテムを持つ', () => {
-    expect(SHOP_ITEMS).toHaveLength(16);
+  it('30種類のアイテムを持つ', () => {
+    expect(SHOP_ITEMS).toHaveLength(30);
   });
 
   // #210: 追加アイテムが各スロットに割り当てられている
@@ -41,6 +41,22 @@ describe('カタログ', () => {
   it('置物アイテム（#226）の slot が scene', () => {
     expect(itemById('yarnBall').slot).toBe('scene');
     expect(itemById('cushion').slot).toBe('scene');
+  });
+
+  // #299: 追加アイテムの slot と、重複IDなし・装着系が価格昇順で並ぶこと
+  it('追加アイテム（#299）の slot が正しい', () => {
+    const want = { cap: 'head', headphones: 'head', gradCap: 'head', partyHat: 'head', roundGlasses: 'face',
+      bandana: 'neck', balloon: 'back', backpack: 'back', butterflyWings: 'back',
+      plant: 'scene', miniPiano: 'scene', teddy: 'scene', window: 'scene', lantern: 'scene' };
+    for (const [id, slot] of Object.entries(want)) expect(itemById(id)?.slot).toBe(slot);
+  });
+
+  it('IDは重複せず、装着系・置物系それぞれ価格昇順で並ぶ', () => {
+    expect(new Set(SHOP_ITEMS.map((i) => i.id)).size).toBe(SHOP_ITEMS.length);
+    for (const scene of [false, true]) {
+      const prices = SHOP_ITEMS.filter((i) => (i.slot === 'scene') === scene).map((i) => i.price);
+      expect(prices).toEqual([...prices].sort((a, b) => a - b));
+    }
   });
 
   it('itemById で取得・未知IDは null', () => {
