@@ -239,7 +239,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 > **設計判断（#216）**: 5→8段階に細分化し刻みも詰めた（えさやりの成果がすぐ見えるように）。番号で報酬を判定する消費側（`unlockLevel` / `bondCelebrateChance` / `tierFromBond` / エンブレム）は旧しきい値と**等価な affinity 値の新レベルへ再マップ**済みで、既存ユーザーの解放状態は退行しない。
 
-### きせかえ アイテム（装備型・全23種）
+### きせかえ アイテム（装備型・全27種）
 
 実装は [shop.js](../js/shop.js)（ロジック）と [cat-image.js](../js/cat-image.js)（描画・アンカー）。価格順に**なかよしレベル**で購入が段階解放される（#126・`unlockLevel`）。
 
@@ -262,8 +262,12 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 | 😎 サングラス | face | 70 | 4 |
 | 🎓 そつぎょうぼう | head | 70 | 4 |
 | 🧥 ミニマント | back | 75 | 6 |
+| 😍 ハートめがね | face | 75 | 6 |
 | 🎈 ふうせん | back | 80 | 6 |
 | 🎒 リュック | back | 85 | 6 |
+| 🎩 シルクハット | head | 90 | 6 |
+| 🐝 はちのはね | back | 90 | 6 |
+| 🏅 きんメダル | neck | 100 | 6 |
 | 🪽 てんしのはね | back | 110 | 6 |
 | 🦋 ちょうのはね | back | 120 | 8 |
 | 💮 はなかんむり | head | 130 | 8 |
@@ -345,6 +349,10 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 | `balloon` | 36, -60, 48, 112 | 上端寄り | ひも付き赤い風船（#299） |
 | `backpack` | -34, -22, 68, 76 | 上端中央 | ミントグリーンのリュック（#299） |
 | `butterflyWings` | -62, -36, 124, 96 | 上端中央 | 左右対称のちょうのはね（#299） |
+| `tophat` | -34, -50, 68, 60 | 下端中央 | 赤帯のシルクハット（#299） |
+| `heartGlasses` | -42, -17, 84, 35 | 中央 | ピンクのハート型・レンズ透明（#299） |
+| `medal` | -14, -10, 28, 86 | 上端中央 | 首から下がるリボン付き金メダル（#299） |
+| `beeWings` | -56, -30, 112, 56 | 上端中央 | 小さく透ける黄色のはね（#299） |
 
 アセットは `img/cat/items/{id}.webp`（透過・mood/tier 非依存で1 id 1枚）。移行時は `cat-image.js` の `ITEMS[id]()` を `<image>` 返却へ置換し `sw.js` のプリキャッシュへ追加した（`gen-sw`）。box は移行前の手書きSVGの実描画範囲を踏襲して見た目を維持する。**画像未納品の間は `<image>` が代替表示になるため、全枚数が揃ってから `gen-sw` 再生成＋マージする**（#196・#210 も同手順）。
 
@@ -354,7 +362,8 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 > - 結果 **4.82 MiB → 3.60 MiB**。解像度を上げつつ約25%削減
 > - WebP は iOS Safari 14+（2020〜）対応で 2026 時点の旧版シェアが実質消滅のため `<picture>` フォールバックは設けない（#167 の PNG統一判断を反転）。全61枚のデコードを実測確認。演出・グラフSVGは対象外
 
-> **設計判断（#299・アイテム14点追加）**
+> **設計判断（#299・アイテム19点追加。1回目14点＋2回目5点）**
+> - 2回目は `tophat`/`heartGlasses`/`medal`/`beeWings`（装着）と `present`（置物）。手薄だった face・neck・back と高価格帯（Lv6）を補強した
 > - 装着9点（`cap`/`headphones`/`gradCap`/`partyHat`/`roundGlasses`/`bandana`/`balloon`/`backpack`/`butterflyWings`）と置物5点を追加。コードは `SHOP_ITEMS`・`ITEM_BOX`/`ITEM_ANCHOR_TYPE`/`SCENE_BOX` への追記のみで、購入・装備・配置・同期ロジックは無改修。**価格は新規追加なので既存ユーザーのコインに影響しない**（上記⚠️の対象外）
 > - 画像は Google Flow（Nano Banana 2.1・1:1）で水彩の単体画像を生成→白背景を端から塗りつぶして透過化→**box×3** の WebP（quality85）。**box は想定寸法ではなく生成画像の縦横比に合わせて確定**した（先に箱を決めると画像が箱内で小さく縮む）。環状でない領域の内側（首元・取っ手・レンズ）は透過に抜いた
 > - `partyHat` は issue 原案の「ケーキぼうし 🍰」から**円すいの🥳パーティぼうし**に変更（絵文字一致＝品質基準1を優先）。`bandana` は同じ 🧢 を使う `cap` と重ならないよう 🔺
@@ -440,7 +449,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 
 ### 置物・小物系 アイテム（シーン配置型・#226）
 
-装着型（猫アンカー基準・slot排他）とは別カテゴリの、**着せずに猫の前後シーンへ置く装飾**。実装は [shop.js](../js/shop.js)（`slot:'scene'`＋配置ロジック）と [cat-image.js](../js/cat-image.js)（`SCENE_BOX`／前後2層）。MVPは2点：🧶 けいとだま（前面）・🛋️ クッション（背面）。#299 で5点を追加し計7点（下表）。
+装着型（猫アンカー基準・slot排他）とは別カテゴリの、**着せずに猫の前後シーンへ置く装飾**。実装は [shop.js](../js/shop.js)（`slot:'scene'`＋配置ロジック）と [cat-image.js](../js/cat-image.js)（`SCENE_BOX`／前後2層）。MVPは2点：🧶 けいとだま（前面）・🛋️ クッション（背面）。#299 で6点を追加し計8点（下表）。
 
 | id | 名前 | 価格 | 解放 Lv | 既定 layer | box (x, y, w, h) |
 |---|---|---|---|---|---|
@@ -451,6 +460,7 @@ home / きろく の両ヘッダに `renderChildAvatar` が `.child-avatar` を�
 | `teddy` | 🧸 くまのぬいぐるみ | 60 | 2 | front | -28, -30, 56, 59 |
 | `window` | 🪟 まど | 65 | 4 | back | -34, -35, 68, 69 |
 | `miniPiano` | 🎹 ミニピアノ | 70 | 4 | front | -33, -36, 66, 71 |
+| `present` | 🎁 プレゼントばこ | 75 | 4 | front | -28, -28, 56, 57 |
 
 - **データ**：配置中IDは `pet.placedItems`（`equippedItems` とは別配列・排他なし複数配置）。購入は装着と共通（`buyItem`・slot非依存）
 - **描画（前後2層）**：`catMarkup` が `.cat` 正方枠に `cat__scene--back`(z1) と `cat__scene--front`(z5) を最初から持ち、`SCENE_BOX[id].layer` を**既定**として振り分ける（#270 でユーザーが上書き可）。画像は `img/cat/scene/{id}.webp`（透過・box×3・中心原点）

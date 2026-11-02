@@ -25,8 +25,8 @@ function makeState(overrides = {}) {
 }
 
 describe('カタログ', () => {
-  it('30種類のアイテムを持つ', () => {
-    expect(SHOP_ITEMS).toHaveLength(30);
+  it('35種類のアイテムを持つ', () => {
+    expect(SHOP_ITEMS).toHaveLength(35);
   });
 
   // #210: 追加アイテムが各スロットに割り当てられている
@@ -47,7 +47,8 @@ describe('カタログ', () => {
   it('追加アイテム（#299）の slot が正しい', () => {
     const want = { cap: 'head', headphones: 'head', gradCap: 'head', partyHat: 'head', roundGlasses: 'face',
       bandana: 'neck', balloon: 'back', backpack: 'back', butterflyWings: 'back',
-      plant: 'scene', miniPiano: 'scene', teddy: 'scene', window: 'scene', lantern: 'scene' };
+      plant: 'scene', miniPiano: 'scene', teddy: 'scene', window: 'scene', lantern: 'scene',
+      tophat: 'head', heartGlasses: 'face', medal: 'neck', beeWings: 'back', present: 'scene' };
     for (const [id, slot] of Object.entries(want)) expect(itemById(id)?.slot).toBe(slot);
   });
 

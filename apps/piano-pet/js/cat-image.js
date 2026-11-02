@@ -110,6 +110,11 @@ const ITEM_BOX = {
   balloon:        { x: 36,  y: -60, w: 48,  h: 112 },   // ひも付き風船。顔に被らないよう猫の右脇に浮かせる
   backpack:       { x: -34, y: -22, w: 68,  h: 76 },
   butterflyWings: { x: -62, y: -36, w: 124, h: 96 },
+  // #299 追加（2回目）
+  tophat:         { x: -34, y: -50, w: 68,  h: 60 },
+  heartGlasses:   { x: -42, y: -17, w: 84,  h: 35 },   // ピンクのハート型レンズ（サングラス・まるめがねと形で差別化）
+  medal:          { x: -14, y: -10, w: 28,  h: 86 },   // 首から下がるリボン付き金メダル
+  beeWings:       { x: -56, y: -30, w: 112, h: 56 },   // 小さく透ける黄色のはね（天使・ちょうと差別化）
 };
 
 function itemImage(id) {
@@ -166,6 +171,10 @@ const ITEM_ANCHOR_TYPE = {
   balloon: 'back',
   backpack: 'back',
   butterflyWings: 'back',
+  tophat: 'head',
+  heartGlasses: 'face',
+  medal: 'neck',
+  beeWings: 'back',
 };
 
 export const ITEM_IDS = Object.keys(ITEMS);
@@ -190,6 +199,7 @@ const SCENE_BOX = {
   teddy:     { x: -28, y: -30, w: 56, h: 59, layer: 'front' },
   window:    { x: -34, y: -35, w: 68, h: 69, layer: 'back'  },
   lantern:   { x: -20, y: -37, w: 40, h: 75, layer: 'front' },
+  present:   { x: -28, y: -28, w: 56, h: 57, layer: 'front' },   // #299（2回目）
 };
 
 // 置物の既定配置（%・.cat 正方枠基準）。装着アンカーが無いため、dressup の掴み開始位置と
