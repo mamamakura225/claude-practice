@@ -466,4 +466,28 @@ test.describe('ショップ', () => {
       page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-btn[data-action="buy"]'),
     ).toBeVisible();
   });
+
+  // カテゴリ絞り込み（#299）：件数が増えた一覧を種類で絞れる。切替後も購入できる
+  test('カテゴリで絞り込める（#299）', async ({ page }) => {
+    await page.goto('/#/shop');
+    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
+    const cards = page.locator('#shopList .shop-card');
+    const all = await cards.count();
+
+    await page.click('.shop-cat[data-cat="head"]');
+    await expect(page.locator('.shop-cat[data-cat="head"]')).toHaveAttribute('aria-pressed', 'true');
+    const head = await cards.count();
+    expect(head).toBeGreaterThan(0);
+    expect(head).toBeLessThan(all);
+    await expect(page.locator('#shopList .shop-card', { hasText: 'むぎわら ぼうし' })).toBeVisible();
+    await expect(page.locator('#shopList .shop-card', { hasText: 'あかい リボン' })).toHaveCount(0);
+
+    // 絞り込み中でも購入でき、購入後に一覧が「ぜんぶ」へ戻らない
+    await page.click('.shop-btn[data-action="buy"][data-id="hat"]');
+    await expect(page.locator('#shopCoins')).toHaveText('160');
+    expect(await cards.count()).toBe(head);
+
+    await page.click('.shop-cat[data-cat="all"]');
+    expect(await cards.count()).toBe(all);
+  });
 });

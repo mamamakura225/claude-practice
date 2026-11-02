@@ -1440,6 +1440,30 @@ body {
   color: var(--gold-ink);
 }
 
+/* ----- カテゴリ絞り込み（#299）: 横に並べて折り返す。320px でも1行目が潰れない ----- */
+.shop-cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.shop-cat {
+  border: 2px solid var(--pink-soft);
+  border-radius: 999px;
+  padding: 8px 12px;
+  background: var(--surface, #fff);
+  color: var(--pink-ink);
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.78rem;
+  cursor: pointer;
+}
+
+.shop-cat--on {
+  background: var(--pink-fill);
+  border-color: var(--pink-fill);
+  color: #fff;
+}
+
 .shop-btn {
   flex: 0 1 auto;
   border: none;

@@ -11,7 +11,8 @@ import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSong
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import {
-  SHOP_ITEMS,
+  SHOP_CATEGORIES,
+  itemsInCategory,
   isOwned,
   isEquipped,
   isPlaced,
@@ -381,6 +382,9 @@ function bondRewardMarkup(r) {
   </li>`;
 }
 
+// きせかえアイテムの絞り込み（#299）。リロードで「ぜんぶ」へ戻る（永続化しない）
+let shopCategory = 'all';
+
 export function renderShop() {
   setText('shopCoins', state.pet.coins);
   setText('feedAffinity', affinity(state));
@@ -390,7 +394,14 @@ export function renderShop() {
   const rewardsEl = document.getElementById('bondRewards');
   if (rewardsEl) rewardsEl.innerHTML = affinityRewards(affinity(state)).map(bondRewardMarkup).join('');
   const listEl = document.getElementById('shopList');
-  if (listEl) listEl.innerHTML = SHOP_ITEMS.map(shopCardMarkup).join('');
+  if (listEl) listEl.innerHTML = itemsInCategory(shopCategory).map(shopCardMarkup).join('');
+  const catsEl = document.getElementById('shopCats');
+  if (catsEl) catsEl.innerHTML = SHOP_CATEGORIES.map(shopCategoryMarkup).join('');
+}
+
+function shopCategoryMarkup(c) {
+  const on = c.id === shopCategory;
+  return `<button type="button" class="shop-cat${on ? ' shop-cat--on' : ''}" data-cat="${c.id}" aria-pressed="${on}"><span aria-hidden="true">${c.icon}</span> ${c.name}</button>`;
 }
 
 // ===== バッジ画面（Epic 9） =====
@@ -1177,6 +1188,15 @@ document.getElementById('historyList')?.addEventListener('click', (e) => {
     const list = e.currentTarget;
     renderHistory().then(() => list.children[from]?.querySelector('button')?.focus());
   }
+});
+
+// ===== ショップのカテゴリ絞り込み（#299） =====
+document.getElementById('shopCats')?.addEventListener('click', (e) => {
+  const btn = e.target.closest('.shop-cat[data-cat]');
+  if (!btn || btn.dataset.cat === shopCategory) return;
+  shopCategory = btn.dataset.cat;
+  renderShop();
+  document.querySelector(`#shopCats .shop-cat[data-cat="${shopCategory}"]`)?.focus();   // 組み直しで落ちるフォーカスを戻す
 });
 
 // ===== ショップの購入・装備操作 =====
