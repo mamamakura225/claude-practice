@@ -47,6 +47,22 @@ export const SHOP_ITEMS = [
   { id: 'present', name: 'プレゼントばこ', price: 75, slot: 'scene', icon: '🎁', unlockLevel: 4 },
 ];
 
+// ショップの絞り込みカテゴリ（#299）。id は slot と一致させ、'all' だけ全件。
+// 追加アイテムの slot が既知（head/face/neck/back/scene）でさえあれば、カテゴリ側の改修は要らない。
+export const SHOP_CATEGORIES = [
+  { id: 'all', name: 'ぜんぶ', icon: '🛍️' },
+  { id: 'head', name: 'あたま', icon: '👒' },
+  { id: 'face', name: 'かお', icon: '👓' },
+  { id: 'neck', name: 'くび', icon: '🎀' },
+  { id: 'back', name: 'せなか', icon: '🧥' },
+  { id: 'scene', name: 'おきもの', icon: '🧸' },
+];
+
+// 未知のカテゴリidは 'all' と同じ（全件）に落とす＝一覧が空になって買えなくなる事故を避ける。
+export function itemsInCategory(categoryId) {
+  return SHOP_ITEMS.filter((it) => categoryId === 'all' || it.slot === categoryId || !SHOP_CATEGORIES.some((c) => c.id === categoryId));
+}
+
 export function itemById(id) {
   return SHOP_ITEMS.find((it) => it.id === id) ?? null;
 }

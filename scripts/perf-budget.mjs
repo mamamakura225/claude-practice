@@ -66,7 +66,9 @@ const BUDGETS_KIB = {
   // #324: history.js を js-lazy へ移して total は 93.7 まで戻ったが、枠はそのまま据え置き
   // （次の機能追加の余白として残す）。同issueで .gitattributes を追加し、CRLF 水増しによる
   // ローカル Windows での偽陽性（本コメントが警告していたもの）自体を解消した。
-  total: 96,       // html + css + js-entry（＝起動をブロックするクリティカルパス）
+  // #299: ショップのカテゴリ絞り込み（チップ生成・絞り込み・選択保持／css・html 込み）で 95.2→96.3。
+  // 宣言のみの最小構成で圧縮の余地がないため 97 へ。
+  total: 97,       // html + css + js-entry（＝起動をブロックするクリティカルパス）
 };
 
 const KIB = 1024;

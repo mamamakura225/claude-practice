@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   SHOP_ITEMS,
+  SHOP_CATEGORIES,
+  itemsInCategory,
   itemById,
   isOwned,
   isEquipped,
@@ -23,6 +25,29 @@ function makeState(overrides = {}) {
     inventory: overrides.inventory ?? [],
   };
 }
+
+describe('カテゴリ絞り込み（#299）', () => {
+  it('全アイテムのslotがカテゴリのどれかに属する（所属先のない商品が出ない）', () => {
+    const ids = new Set(SHOP_CATEGORIES.map((c) => c.id));
+    for (const item of SHOP_ITEMS) expect(ids.has(item.slot)).toBe(true);
+  });
+
+  it("'all' は全件、各カテゴリは slot 一致のみ。合計は全件に一致する", () => {
+    expect(itemsInCategory('all')).toHaveLength(SHOP_ITEMS.length);
+    let sum = 0;
+    for (const c of SHOP_CATEGORIES.filter((c) => c.id !== 'all')) {
+      const list = itemsInCategory(c.id);
+      expect(list.length).toBeGreaterThan(0);          // 空のカテゴリを作らない
+      expect(list.every((it) => it.slot === c.id)).toBe(true);
+      sum += list.length;
+    }
+    expect(sum).toBe(SHOP_ITEMS.length);
+  });
+
+  it('未知のカテゴリidは全件へ落とす', () => {
+    expect(itemsInCategory('bogus')).toHaveLength(SHOP_ITEMS.length);
+  });
+});
 
 describe('カタログ', () => {
   it('35種類のアイテムを持つ', () => {
