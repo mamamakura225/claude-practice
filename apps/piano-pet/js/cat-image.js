@@ -114,7 +114,15 @@ const ITEM_BOX = {
   tophat:         { x: -34, y: -50, w: 68,  h: 60 },
   heartGlasses:   { x: -42, y: -17, w: 84,  h: 35 },   // ピンクのハート型レンズ（サングラス・まるめがねと形で差別化）
   medal:          { x: -14, y: -10, w: 28,  h: 86 },   // 首から下がるリボン付き金メダル
-  beeWings:       { x: -56, y: -30, w: 112, h: 56 },   // 小さく透ける黄色のはね（天使・ちょうと差別化）
+  beeWings:       { x: -56, y: -30, w: 112, h: 56 },
+  // #299 追加（3回目）
+  sailorHat:      { x: -38, y: -38, w: 76,  h: 52 },
+  monocle:        { x: 4,   y: -14, w: 36,  h: 44 },   // 片目だけにかけるレンズ＋チェーン（face 中央から右目へ寄せる）
+  bowTieBlue:     { x: -26, y: -8,  w: 52,  h: 30 },
+  pearls:         { x: -32, y: -12, w: 64,  h: 81 },   // U字に垂れる真珠（前面の弧のみ）
+  stars:          { x: -58, y: -34, w: 116, h: 82 },
+  dragonWings:    { x: -60, y: -20, w: 120, h: 46 },
+   // 小さく透ける黄色のはね（天使・ちょうと差別化）
 };
 
 function itemImage(id) {
@@ -175,6 +183,12 @@ const ITEM_ANCHOR_TYPE = {
   heartGlasses: 'face',
   medal: 'neck',
   beeWings: 'back',
+  sailorHat: 'head',
+  monocle: 'face',
+  bowTieBlue: 'neck',
+  pearls: 'neck',
+  stars: 'back',
+  dragonWings: 'back',
 };
 
 export const ITEM_IDS = Object.keys(ITEMS);
@@ -200,6 +214,11 @@ const SCENE_BOX = {
   window:    { x: -34, y: -35, w: 68, h: 69, layer: 'back'  },
   lantern:   { x: -20, y: -37, w: 40, h: 75, layer: 'front' },
   present:   { x: -28, y: -28, w: 56, h: 57, layer: 'front' },   // #299（2回目）
+  // #299（3回目）
+  fishToy:   { x: -30, y: -21, w: 60, h: 42, layer: 'front' },
+  sofa:      { x: -36, y: -34, w: 72, h: 69, layer: 'back'  },
+  tree:      { x: -24, y: -40, w: 48, h: 80, layer: 'back'  },
+  lamp:      { x: -17, y: -50, w: 34, h: 100, layer: 'back' },
 };
 
 // 置物の既定配置（%・.cat 正方枠基準）。装着アンカーが無いため、dressup の掴み開始位置と

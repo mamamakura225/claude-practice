@@ -50,8 +50,8 @@ describe('カテゴリ絞り込み（#299）', () => {
 });
 
 describe('カタログ', () => {
-  it('35種類のアイテムを持つ', () => {
-    expect(SHOP_ITEMS).toHaveLength(35);
+  it('45種類のアイテムを持つ', () => {
+    expect(SHOP_ITEMS).toHaveLength(45);
   });
 
   // #210: 追加アイテムが各スロットに割り当てられている
@@ -73,7 +73,9 @@ describe('カタログ', () => {
     const want = { cap: 'head', headphones: 'head', gradCap: 'head', partyHat: 'head', roundGlasses: 'face',
       bandana: 'neck', balloon: 'back', backpack: 'back', butterflyWings: 'back',
       plant: 'scene', miniPiano: 'scene', teddy: 'scene', window: 'scene', lantern: 'scene',
-      tophat: 'head', heartGlasses: 'face', medal: 'neck', beeWings: 'back', present: 'scene' };
+      tophat: 'head', heartGlasses: 'face', medal: 'neck', beeWings: 'back', present: 'scene',
+      sailorHat: 'head', monocle: 'face', bowTieBlue: 'neck', pearls: 'neck', stars: 'back', dragonWings: 'back',
+      fishToy: 'scene', sofa: 'scene', tree: 'scene', lamp: 'scene' };
     for (const [id, slot] of Object.entries(want)) expect(itemById(id)?.slot).toBe(slot);
   });
 
