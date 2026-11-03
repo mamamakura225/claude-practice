@@ -539,6 +539,8 @@ const router = createRouter({
     // 画面を移ったら削除の取り消し猶予は終わり（#398）。保留のまま記録画面を開くと、消した当日分が
     // フォームと下書きに復元され、送信でその日ごと消える・二重に記録される
     applyPendingDelete();
+    // ホームを離れたら記録クリップを畳む（見えないまま保険タイマーまで待って、移った先にポップアップが出る・#400）
+    if (view !== 'home') catVideoPromise?.then((m) => m?.stopClip(document.getElementById('catVideo'))).catch(() => {});
     render(view);
     if (view === 'record') primeCatVideo();   // 記録演出の動画モジュール＋クリップを先読み（#227・#284）
     if (view === 'shop') primeCatVideo('feed');   // えさやりクリップを先読み（#294）
@@ -671,7 +673,7 @@ function stampCellStyle(c) {
 }
 
 // スタンプカードを描画。最低「目標マス」ぶん、超過時は常に1マス余分に出して押し続けられるようにする。
-function renderStampCard() {
+function renderStampCard(fresh = false) {
   if (!stampCardEl) return;
   const goal = currentGoal();                 // 目標回数（#238・可変）に追従
   const colors = formSongColors();
@@ -683,7 +685,9 @@ function renderStampCard() {
     const isGoal = i === goal - 1;
     // 押したマスは、その押下時に選ばれていた曲の色で塗る（曲ごとに色が変わる・#122）
     const style = isFilled ? ` style="${stampCellStyle(colors.get(stamps[i]) ?? songColor(stamps[i]))}"` : '';
-    html += `<span class="stamp-cell${isFilled ? ' is-filled' : ''}${isGoal ? ' is-goal' : ''}"${style} aria-hidden="true">${isFilled ? '🐾' : ''}</span>`;
+    // 登場の演出は いま押したマスだけ（毎回作り直すので、全マスに付けるとカード全体が点滅する・#400）
+    const isNew = fresh && i === filled - 1;
+    html += `<span class="stamp-cell${isFilled ? ' is-filled' : ''}${isNew ? ' is-new' : ''}${isGoal ? ' is-goal' : ''}"${style} aria-hidden="true">${isFilled ? '🐾' : ''}</span>`;
   }
   stampCardEl.innerHTML = html;
   stampCardEl.classList.toggle('is-complete', filled >= goal);
@@ -709,7 +713,7 @@ function addStamp() {
   const reachedGoal = stamps.length + 1 === goal;
   stamps.push(selectedSong);
   saveStampDraft();
-  renderStampCard();
+  renderStampCard(true);
   // 押したマスのindexでドレミ…と音程が上がり、目標マスは高いドに解決する(#139・目標可変#238)
   playStamp(stamps.length - 1, state, goal);
   if (reachedGoal) {
@@ -989,11 +993,20 @@ function celebrateRecord({ leveled, badgeCount, streakCurrent, streakAdvanced, g
   };
   const level = affinityLevel(affinity(state)).level;
   const wantVideo = goalReached || (!milestone && Math.random() < recordClipChance(level));
-  if (!wantVideo || !catVideoPromise) { fallback(); return; }
-  catVideoPromise.then((m) => {
-    if (!m) { fallback(); return; }
-    return m.tryPlay(state.pet.catStyle).then((ok) => { if (!ok) fallback(); });
-  }).catch(() => fallback());
+  // 戻り値＝ポップアップを出してよい合図。動画のときは見終わるまで待つ（#400）
+  if (!wantVideo || !catVideoPromise) { fallback(); return Promise.resolve(); }
+  return new Promise((resolve) => {
+    const noClip = () => { fallback(); resolve(); };
+    catVideoPromise.then((m) => {
+      if (!m) { noClip(); return; }
+      return m.tryPlay(state.pet.catStyle, resolve).then((ok) => { if (!ok) noClip(); });
+    }).catch(noClip);
+  });
+}
+
+// ごほうびのポップアップを 2.2秒おきに順番に出す
+function playRewardPopups(steps) {
+  steps.filter(Boolean).forEach((show, i) => setTimeout(show, i * 2200));
 }
 
 // ポップアップ共通の単発表示。duration 後にフェードアウトし、transitionend で hidden に戻す。
@@ -1064,6 +1077,7 @@ function showPopup(popup, duration, onHidden) {
   };
   cycle.timer = setTimeout(hide, duration);
   popupCycles.set(popup, cycle);
+  popup.onclick = hide;   // タップで次へ送る（#400）
   return hide;   // duration を待たずに閉じる（えさやりクリップの終了・スキップ・#294）
 }
 
@@ -1081,6 +1095,7 @@ function showCoinPopup({ coins, leveled, newLevel, fixed = false }) {
     levelUpEl.hidden = !leveled;
     levelUpEl.textContent = leveled ? `レベル ${newLevel} に アップ！🎉` : '';
   }
+  if (leveled) playSound('levelup', state);   // 表示と同時に鳴らす（動画のあとに出るので・#400）
   showPopup(popup, 2000);
 }
 
@@ -1120,6 +1135,11 @@ const FEED_CLIP_MAX_MS = 12000;
 function showBadgePopup(badges) {
   const popup = document.getElementById('badgePopup');
   if (!popup || !badges.length) return;
+  // 3つ以上は2つ目以降を1枚にまとめる（#400）
+  if (badges.length > 2) {
+    const rest = badges.slice(1);
+    badges = [badges[0], { icon: rest.slice(0, 3).map((b) => b.icon).join(''), name: rest.map((b) => b.name).join('・') }];
+  }
   let i = 0;
   const showNext = () => {
     if (i >= badges.length) return;
@@ -1170,19 +1190,20 @@ function commitRecordedSessions(sessions, totalCount, { increased = true } = {})
   const gainedCoins = Math.max(0, newState.pet.coins - prevCoins);
   const streakAdvanced = newState.streak.current !== prevStreak;
   // 何も増えていない（同じ内容の再送信・回数を減らした修正）ときは、お祝いの演出を出さない（#396）
-  if (increased || leveled || gainedBadges.length || goalReached || streakAdvanced) {
-    celebrateRecord({
+  const ready = (increased || leveled || gainedBadges.length || goalReached || streakAdvanced)
+    ? celebrateRecord({
       leveled,
       badgeCount: gainedBadges.length,
       streakCurrent: newState.streak.current,
       streakAdvanced,
       goalReached,
-    });
-  }
-  showCoinPopup({ coins: gainedCoins, leveled, newLevel: newState.pet.level, fixed: !increased && !leveled });
+    })
+    : Promise.resolve();
   playSound('record', state);
-  if (leveled) playSound('levelup', state);
-  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 2200);
+  ready.then(() => playRewardPopups([
+    () => showCoinPopup({ coins: gainedCoins, leveled, newLevel: newState.pet.level, fixed: !increased && !leveled }),
+    gainedBadges.length && (() => showBadgePopup(gainedBadges)),
+  ]));
   resetRecordForm();
 }
 
@@ -1273,25 +1294,21 @@ function submitRecord(event) {
   // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）。
   // 今日の目標にはじめて届いた記録は動画演出を必ず（#227）。
   const goalReached = crossedDailyGoal(prevSessions, newState.sessions, todayStr(), goal);
-  celebrateRecord({
+  const ready = celebrateRecord({
     leveled: rewards.leveled,
     badgeCount: gainedBadges.length,
     streakCurrent: newState.streak.current,
     streakAdvanced: newState.streak.current !== prevStreak,
     goalReached,
   });
-  showCoinPopup(rewards);         // 獲得コインのポップアップ
-  // 効果音：記録完了 →（レベルアップ時のみ）レベルアップ音
-  playSound('record', state);
-  if (rewards.leveled) playSound('levelup', state);
-  // コインポップアップの後に、おまけ→お休み券→新規バッジの順で表示
-  let nextDelay = 2200;
-  if (rewards.bonus > 0) { setTimeout(() => showBonusPopup(rewards.bonus), nextDelay); nextDelay += 2200; }
-  if (rewards.frozeDays > 0) {
-    setTimeout(showFreezePopup, nextDelay);
-    nextDelay += 2200;
-  }
-  if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), nextDelay);
+  playSound('record', state);   // 記録完了（レベルアップ音はコインのポップアップと一緒に鳴る）
+  // コイン→おまけ→お休み券→バッジの順（#400）
+  ready.then(() => playRewardPopups([
+    () => showCoinPopup(rewards),
+    rewards.bonus > 0 && (() => showBonusPopup(rewards.bonus)),
+    rewards.frozeDays > 0 && showFreezePopup,
+    gainedBadges.length && (() => showBadgePopup(gainedBadges)),
+  ]));
   resetRecordForm();
 }
 

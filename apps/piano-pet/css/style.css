@@ -714,7 +714,14 @@ body {
   background: var(--pink-soft);
   border-style: solid;
   border-color: var(--pink);
+}
+
+.stamp-cell.is-new {
   animation: stamp-pop 0.18s ease-out;
+}
+
+@keyframes stamp-fade {
+  from { opacity: 0.35; }
 }
 
 @keyframes stamp-pop {
@@ -1641,6 +1648,9 @@ body {
 }
 
 /* 上の display:flex が UA既定の [hidden]{display:none} を上書きしてしまうため明示（理由・実測は features.md「ポップアップ演出」参照）。 */
+/* 表示中はタップで次へ送れる（#400）。消えかけ（--show が外れた後）は下の画面へ通す */
+.coin-popup.coin-popup--show { pointer-events: auto; }
+
 .coin-popup[hidden] {
   display: none;
 }
@@ -1755,10 +1765,13 @@ body {
   .coin-popup--feed.coin-popup--show .coin-popup__label {
     animation: none;
   }
-  /* スタンプ/オンボーディングの登場アニメと、各種バーの伸び演出を止める（#151） */
-  .stamp-cell.is-filled,
+  /* オンボーディングの登場アニメと、各種バーの伸び演出を止める（#151） */
   .onboarding__card {
     animation: none;
+  }
+  /* ハンコは動かさず、色が濃くなるだけの短い変化で「押した」手応えを残す（#400） */
+  .stamp-cell.is-new {
+    animation: stamp-fade 0.2s ease-out;
   }
   .xpbar-fill,
   .bondbar-fill,
