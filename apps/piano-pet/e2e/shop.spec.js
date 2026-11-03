@@ -456,7 +456,8 @@ test.describe('ショップ', () => {
     const scarfBtn = scarfCard.locator('.shop-btn');
     await expect(scarfBtn).toBeDisabled();
     await expect(scarfBtn).toHaveText('なかよしLv4で あえる');
-    await expect(scarfCard.locator('.shop-card__badge--locked')).toBeVisible();
+    // ロックはボタンだけで示し、カード内に重ねて書かない（#399）
+    await expect(scarfCard.locator('.shop-card__badge--locked')).toHaveCount(0);
 
     // ロック中は buy アクションのボタン自体が存在しない（誤購入できない）
     await expect(scarfCard.locator('.shop-btn[data-action="buy"]')).toHaveCount(0);

@@ -1361,7 +1361,15 @@ body {
   font-size: 0.9rem;
   color: var(--ink);
   margin: 4px 0 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
+.bond-rewards-heading::-webkit-details-marker { display: none; }
+.bond-rewards-heading::after { content: ' ▾'; }
+.bond-rewards-box[open] .bond-rewards-heading::after { content: ' ▴'; }
 
 .bond-rewards {
   list-style: none;
@@ -1473,9 +1481,6 @@ body {
   color: var(--pink-ink);
 }
 
-.shop-card__badge--locked {
-  color: var(--gold-ink);
-}
 
 /* ----- カテゴリ絞り込み（#299）: 横に並べて折り返す。320px でも1行目が潰れない ----- */
 .shop-cats {
@@ -2199,4 +2204,49 @@ body {
   font-size: 0.85rem;
   font-weight: 700;
   color: var(--pink-ink);
+}
+
+/* ----- 導線（#399） ----- */
+/* ホームの「きろくする」は下ナビの上に固定して、スクロールしなくても見えるようにする。
+   低い画面（320x568・横向き）では きせかえ／しゃしん に重なるので固定しない。きせかえ中も外す */
+@media (min-height: 600px) {
+  .view-body--home:not(.is-dressup) > .btn-record {
+    position: sticky;
+    bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
+    z-index: 5;
+  }
+}
+.shop-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: var(--cream);
+  color: var(--ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.shop-hint[hidden] { display: none; }
+.shop-hint__btn,
+.layer-panel__shop {
+  min-height: 44px;
+  padding: 0 18px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pink-fill);
+  color: #fff;
+  font-family: 'Mochiy Pop One', sans-serif;
+  cursor: pointer;
+}
+.layer-panel__hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+.stamp-song {
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 1.05rem;
+  color: var(--pink-ink);
+  overflow-wrap: anywhere;
 }
