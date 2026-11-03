@@ -3,7 +3,7 @@
 // app.js の setLessonDates が担い、ここは一覧の描画と入力の受け口だけ。
 
 // 戻り値は再描画関数（設定を開くたびに最新の登録日で描き直す）。
-export function initLessonSettings({ getDates, setDates, today }) {
+export function initLessonSettings({ getDates, setDates, today, onRemoved }) {
   const listEl = document.getElementById('lessonList');
   const inputEl = document.getElementById('lessonDateInput');
 
@@ -41,6 +41,7 @@ export function initLessonSettings({ getDates, setDates, today }) {
     if (!btn) return;
     setDates(getDates().filter((d) => d !== btn.dataset.date));
     render();
+    onRemoved?.(btn.dataset.date);   // 取り消しトースト（#398）
   });
 
   return render;

@@ -58,6 +58,8 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     await openHistory(page);
     page.once('dialog', (d) => d.accept());
     await page.locator('#historyList .history-card').first().locator('[data-action="delete-session"]').click();
+    // 削除は取り消しの猶予（5秒）のあとに確定する（#398）
+    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });
 
     await expect(page.locator('#historyList .history-card')).toHaveCount(2);
     const st = await readLocal(page);
@@ -69,6 +71,8 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     await openHistory(page);
     page.once('dialog', (d) => d.accept());
     await page.locator('#historyList .history-card').last().locator('[data-action="delete-session"]').click();
+    // 削除は取り消しの猶予（5秒）のあとに確定する（#398）
+    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });
 
     const st = await readLocal(page);
     expect(st.sessions.map((s) => s.date)).toEqual(['2026-01-02', '2026-01-03']);
@@ -190,9 +194,10 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     await page.click('.nav-btn[data-nav="history"]');
     for (let i = 0; i < 3; i += 1) {
       page.once('dialog', (d) => d.accept());
-      await page.locator('#historyList .history-card').first().locator('[data-action="delete-session"]').click();
-      await expect(page.locator('#historyList .history-card')).toHaveCount(2 - i);
+      await page.locator('#historyList .history-card:visible').first().locator('[data-action="delete-session"]').click();
+      await expect(page.locator('#historyList .history-card:visible')).toHaveCount(2 - i);
     }
+    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });   // 最後の削除の確定（#398）
     await page.click('.nav-btn[data-nav="badges"]');
     await expect(page.locator('#badgeGrid .badge-card').first()).toHaveClass(/badge-card--locked/);
     await expect(page.locator('#badgesCount')).toHaveText('0 / 24 こ ゲット！');

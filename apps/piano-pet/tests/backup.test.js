@@ -6,6 +6,8 @@ import {
   importErrorMessage,
   makeGateProblem,
   RESTORE_BACKUP_KEY,
+  stashBeforeOverwrite,
+  readStash,
 } from '../js/backup.js';
 import { normalizeState, SCHEMA_VERSION } from '../js/storage.js';
 
@@ -140,5 +142,41 @@ describe('makeGateProblem', () => {
 describe('RESTORE_BACKUP_KEY', () => {
   it('退避用キーが定義されている', () => {
     expect(RESTORE_BACKUP_KEY).toBe('piano-pet-backup-before-restore');
+  });
+});
+
+describe('stashBeforeOverwrite / readStash（ひとつ まえの データに もどす・#398）', () => {
+  const mem = () => {
+    const m = new Map();
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
+  };
+  const cur = JSON.stringify({ pet: { coins: 42 } });
+
+  it('退避したアカウント・がぞくコードでだけ読み戻せ、退避の日時も返す', () => {
+    const s = mem();
+    s.setItem('piano-pet', cur);
+    stashBeforeOverwrite(s, 'piano-pet', { account: 'data', doc: 'X' }, 1000);
+    expect(s.getItem(RESTORE_BACKUP_KEY)).toBe(cur);
+    const got = readStash(s, { account: 'data', doc: 'X' });
+    expect(got.state.pet.coins).toBe(42);
+    expect(got.at).toBe(1000);
+    expect(readStash(s, { account: 'test', doc: 'X' })).toBeNull();   // 別アカウント
+    expect(readStash(s, { account: 'data', doc: 'Y' })).toBeNull();   // 取り込みで保存先が変わった
+    expect(readStash(s, { account: 'data' })).toBeNull();
+  });
+
+  it('保存が無ければ退避しない・壊れた退避は null', () => {
+    const s = mem();
+    stashBeforeOverwrite(s, 'piano-pet', { account: 'data' });
+    expect(s.getItem(RESTORE_BACKUP_KEY)).toBeNull();
+    s.setItem(RESTORE_BACKUP_KEY, '{broken');
+    s.setItem(`${RESTORE_BACKUP_KEY}:meta`, JSON.stringify({ account: 'data', doc: null, at: 1 }));
+    expect(readStash(s, { account: 'data' })).toBeNull();
+  });
+
+  it('素性の記録が無い旧い退避は出さない', () => {
+    const s = mem();
+    s.setItem(RESTORE_BACKUP_KEY, cur);
+    expect(readStash(s, { account: 'data' })).toBeNull();
   });
 });

@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=62ec660a">
-  <link rel="stylesheet" href="css/cat.css?v=62ec660a">
+  <link rel="stylesheet" href="css/style.css?v=1fc37684">
+  <link rel="stylesheet" href="css/cat.css?v=1fc37684">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -130,6 +130,7 @@
             <span class="field-label">ひづけ</span>
             <input type="date" id="recordDate" class="field-input" required>
           </label>
+          <p class="record-date-note" id="recordDateNote" role="status" aria-live="polite" hidden></p>
 
           <!-- きろくの ほうほう（スタンプ / まとめて）の切替 -->
           <div class="record-mode" role="group" aria-label="きろくの ほうほう">
@@ -307,6 +308,12 @@
       </button>
     </nav>
 
+    <!-- 取り消しトースト（購入・記録の削除・レッスン日・#398） -->
+    <div id="undoToast" class="undo-toast" role="status" aria-live="polite" hidden>
+      <span id="undoToastMsg" class="undo-toast__msg"></span>
+      <button type="button" id="undoToastBtn" class="undo-toast__btn">もとに もどす</button>
+    </div>
+
     <!-- ===== 獲得コインのポップアップ ===== -->
     <div id="coinPopup" class="coin-popup" role="status" aria-live="polite" hidden>
       <div class="coin-popup__card">
@@ -468,6 +475,7 @@
         <button type="button" class="settings-btn settings-btn--block" id="exportBtn">📥 データを ほぞん</button>
         <button type="button" class="settings-btn settings-btn--block" id="importBtn">📂 データを よみこむ</button>
         <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <button type="button" class="settings-btn settings-btn--block settings-btn--ghost" id="restorePrevBtn" hidden>↩️ ひとつ まえの データに もどす</button>
         <p class="settings-menu__note" id="importStatus" role="status" aria-live="polite" hidden></p>
 
         <hr class="settings-divider">
@@ -502,6 +510,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=62ec660a"></script>
+  <script type="module" src="js/app.js?v=1fc37684"></script>
 </body>
 </html>

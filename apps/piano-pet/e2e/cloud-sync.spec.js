@@ -346,6 +346,7 @@ test.describe('クラウド同期の取り込み', () => {
     page.once('dialog', (d) => d.accept());
     await page.locator('#historyList .history-card').filter({ hasText: '9月1日' })
       .locator('[data-action="delete-session"]').click();
+    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });   // 猶予のあとに確定（#398）
     await expect
       .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(1);
 
