@@ -11,6 +11,7 @@ import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSong
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import {
+  SHOP_ITEMS,
   SHOP_CATEGORIES,
   itemsInCategory,
   isOwned,
@@ -412,7 +413,7 @@ function shopCardMarkup(item) {
 
   const badge = active
     ? `<span class="shop-card__badge">${scene ? 'おうちに あるよ ✓' : 'みにつけてる ✓'}</span>`
-    : (locked ? `<span class="shop-card__badge shop-card__badge--locked">🔒 なかよしLv${item.unlockLevel}</span>` : '');
+    : '';   // ロック中はボタンが「なかよしLv○で あえる」と示すので、カード内では重ねて書かない（#399）
   return `<div class="shop-card${active ? ' shop-card--equipped' : ''}${locked ? ' shop-card--locked' : ''}">
     <span class="shop-card__icon" aria-hidden="true">${item.icon}</span>
     <div class="shop-card__info">
@@ -463,7 +464,16 @@ export function renderShop() {
   const rewardsEl = document.getElementById('bondRewards');
   if (rewardsEl) rewardsEl.innerHTML = affinityRewards(affinity(state)).map(bondRewardMarkup).join('');
   const listEl = document.getElementById('shopList');
-  if (listEl) listEl.innerHTML = itemsInCategory(shopCategory).map(shopCardMarkup).join('');
+  // 買える／買った品を先に、なかよしLv未到達のロック品は後ろへ（序盤はロックが大半で買える物が埋もれる・#399）
+  const items = itemsInCategory(shopCategory);
+  const sorted = [...items.filter((it) => isOwned(state, it.id) || isUnlocked(state, it.id)),
+    ...items.filter((it) => !isOwned(state, it.id) && !isUnlocked(state, it.id))];
+  if (listEl) listEl.innerHTML = sorted.map(shopCardMarkup).join('');
+  // ごはんも まだ持っていない品も1つも買えないときは、コインの増やし方を案内する（#399）
+  const prices = [...FOODS.map((f) => f.price),
+    ...SHOP_ITEMS.filter((it) => !isOwned(state, it.id) && isUnlocked(state, it.id)).map((it) => it.price)];
+  const hintEl = document.getElementById('shopHint');
+  if (hintEl) hintEl.hidden = (state.pet.coins ?? 0) >= Math.min(...prices);
   const catsEl = document.getElementById('shopCats');
   if (catsEl) catsEl.innerHTML = SHOP_CATEGORIES.map(shopCategoryMarkup).join('');
 }
@@ -548,6 +558,8 @@ navButtons.forEach((btn) => {
 });
 
 document.getElementById('goRecordBtn')?.addEventListener('click', () => router.go('record'));
+// 空状態の案内から各画面へ（ショップのコイン不足→記録・#399）
+document.querySelector('.shop-hint__btn')?.addEventListener('click', () => router.go('record'));
 document.getElementById('recordBackBtn')?.addEventListener('click', () => router.go('home'));
 document.getElementById('calPrevBtn')?.addEventListener('click', () => moveCalendar(-1));  // 練習カレンダー 前月（#236）
 document.getElementById('calNextBtn')?.addEventListener('click', () => moveCalendar(1));   // 練習カレンダー 翌月
@@ -618,6 +630,12 @@ function loadStampDraft() {
 }
 
 function renderChips() {
+  // いま どの曲に押しているかを大きく出す（前回の曲が選ばれたまま別の曲に押してしまう・#399）
+  const songEl = document.getElementById('stampSong');
+  if (songEl) {
+    songEl.hidden = !selectedSong;
+    songEl.textContent = selectedSong ? `🎵 いまは「${selectedSong}」` : '';
+  }
   if (!songChipsEl) return;
   const colors = formSongColors();
   songChipsEl.innerHTML = chipNames
@@ -680,7 +698,11 @@ function updateProgress() {
 
 function addStamp() {
   if (!selectedSong) {
-    if (stampHintEl) stampHintEl.hidden = false;
+    if (stampHintEl) {
+      // 曲がまだ1つもないと「えらんでね」と言われても選べない（初回・#399）
+      stampHintEl.textContent = chipNames.length ? 'きょくを えらんでね' : 'おうちの ひとと、うえの らんに きょくの なまえを いれてね';
+      stampHintEl.hidden = false;
+    }
     return;
   }
   const goal = currentGoal();
@@ -690,7 +712,11 @@ function addStamp() {
   renderStampCard();
   // 押したマスのindexでドレミ…と音程が上がり、目標マスは高いドに解決する(#139・目標可変#238)
   playStamp(stamps.length - 1, state, goal);
-  if (reachedGoal) playSound('levelup', state);
+  if (reachedGoal) {
+    playSound('levelup', state);
+    // 目標に届いたら送信ボタンを見える位置へ（押したあと下ナビの陰で、次に何を押すか分からない・#399）
+    document.getElementById('recordSubmitBtn')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }
 }
 
 function undoStamp() {
@@ -1464,6 +1490,7 @@ async function toggleDressup() {
     if (btn) { btn.textContent = '✅ できた！'; btn.setAttribute('aria-pressed', 'true'); }
     if (picker) { renderStylePicker(); picker.hidden = false; }   // 猫スタイル選択（#66）
     if (layerPanel) { layerPanel.hidden = false; renderLayerPanel(); }   // まえ／うしろ（#270）
+    stage.closest('.view-body')?.classList.add('is-dressup');   // 記録ボタンの固定を外す（#399）
   } else {
     stage.classList.remove('cat-stage--editing');
     dressupDisable?.();
@@ -1471,6 +1498,7 @@ async function toggleDressup() {
     if (btn) { btn.textContent = '👗 きせかえ'; btn.setAttribute('aria-pressed', 'false'); }
     if (picker) picker.hidden = true;
     if (layerPanel) layerPanel.hidden = true;
+    stage.closest('.view-body')?.classList.remove('is-dressup');
   }
 }
 document.getElementById('dressupToggle')?.addEventListener('click', toggleDressup);
@@ -1514,6 +1542,12 @@ function renderLayerPanel() {
   // 任意文字列が入りうるが、猫の描画側（cat-image.js）は allowlist で弾いている。ここも揃える。
   const ids = [...(state.pet.equippedItems ?? []), ...(state.pet.placedItems ?? [])]
     .filter((id) => itemById(id) || isSceneItem(id));
+  // 何もつけていないと「まえ なし／うしろ なし」だけで何をすればいいか分からない（#399）
+  if (!ids.length) {
+    el.innerHTML = '<p class="layer-panel__hint">まだ なにも つけていないよ。ショップで かってね</p>' +
+      '<button type="button" class="layer-panel__shop" data-go="shop">🛍️ ショップへ</button>';
+    return;
+  }
   el.innerHTML = LAYER_ROWS.map(([layer, label]) => {
     const chips = ids.filter((id) => itemLayer(id, layout) === layer).map((id) => {
       const item = itemById(id);
@@ -1524,10 +1558,15 @@ function renderLayerPanel() {
     }).join('');
     return `<div class="layer-panel__row"><span class="layer-panel__label">${label}</span>`+
       `${chips || '<span class="layer-panel__empty">なし</span>'}</div>`;
-  }).join('');
+  }).join('') + '<p class="layer-panel__hint">タップすると まえ／うしろ が かわるよ</p>';
 }
 
 document.getElementById('layerPanel')?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-go="shop"]')) {
+    toggleDressup();   // 編集モードを終えてから移る（残すと戻ったとき なでられない・#399）
+    router.go('shop');
+    return;
+  }
   const chip = e.target.closest('.layer-panel__chip');
   if (!chip) return;
   const id = chip.dataset.item;

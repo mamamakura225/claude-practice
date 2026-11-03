@@ -107,10 +107,7 @@ test.describe('UI点検の不具合（#396）', () => {
     await page.goto('/#/shop');
     const buy = page.locator('.shop-btn[data-action="buy"][data-id="ribbon"]');
     await expect(buy).toBeVisible({ timeout: 10000 });
-    await buy.scrollIntoViewIfNeeded();
-    const box = await buy.boundingBox();
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await buy.dblclick();   // 同じ場所をすばやく2回（2打目は替わったボタンに当たる）
     const st = await page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')));
     expect(st.inventory).toContain('ribbon');
     expect(st.pet.equippedItems).not.toContain('ribbon');
