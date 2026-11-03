@@ -39,6 +39,10 @@ test.describe('レッスン日の登録（#393）', () => {
     await page.fill('#lessonDateInput', today);
     await page.click('#lessonAddBtn');
     await expect(page.locator('#lessonList li')).toHaveCount(1);
+    // 枠だけが別スクロールにならず（settings-panel の二重化）、×は押しやすい固定幅で並ぶ
+    await expect(page.locator('section.settings-panel')).toHaveCount(0);
+    const delBox = await page.locator('#lessonList .lesson-del').boundingBox();
+    expect(delBox.width).toBeLessThanOrEqual(60);
     await page.click('#settingsMenu [data-action="close-settings"]');
 
     await expect(page.locator('#statLessonToday')).toBeVisible();

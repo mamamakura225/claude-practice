@@ -1022,9 +1022,9 @@ body {
 .cal-cell--pad { background: transparent; }
 
 /* せってい：レッスンびの リスト（#393） */
-.lesson-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.lesson-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; width: 100%; }
 .lesson-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.lesson-del { min-width: 44px; min-height: 44px; }
+.lesson-list .lesson-del { flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; }
 .lesson-today { margin: 4px 0 0; font-weight: 700; color: var(--pink-deep); }
 .cal-cell[data-level="1"] { background: #ffc9d5; }
 .cal-cell[data-level="2"] { background: var(--pink); }
