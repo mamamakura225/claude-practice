@@ -102,8 +102,9 @@ export function monthLabel(year, month) {
 
 // 月間カレンダーの週配列を返す（日曜起点・前後は null 埋め）。各セルは
 // { date:'YYYY-MM-DD', day, count, level, isToday, isFuture }。sessions 導出のみ。
-export function monthGrid(year, month, sessions, { today = todayStr(), goal = 10 } = {}) {
+export function monthGrid(year, month, sessions, { today = todayStr(), goal = 10, lessonDates = [] } = {}) {
   const counts = dailyCountMap(sessions);
+  const lessons = new Set(lessonDates);
   const startPad = new Date(Date.UTC(year, month - 1, 1)).getUTCDay(); // 0=日
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
   const cells = [];
@@ -111,7 +112,7 @@ export function monthGrid(year, month, sessions, { today = todayStr(), goal = 10
   for (let d = 1; d <= daysInMonth; d += 1) {
     const date = `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     const count = counts.get(date) || 0;
-    cells.push({ date, day: d, count, level: heatLevel(count, goal), isToday: date === today, isFuture: date > today });
+    cells.push({ date, day: d, count, level: heatLevel(count, goal), isToday: date === today, isFuture: date > today, isLesson: lessons.has(date) });
   }
   while (cells.length % 7 !== 0) cells.push(null);
   const weeks = [];

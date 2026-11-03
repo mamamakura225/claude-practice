@@ -17,6 +17,10 @@ import {
   checkBadges,
   GOAL_BONUS_THRESHOLD,
   DAILY_GOAL,
+  LESSON_COINS,
+  LESSON_XP,
+  lessonDaysUpTo,
+  hasUncreditedLesson,
 } from '../js/game.js';
 
 function baseState(overrides = {}) {
@@ -755,5 +759,87 @@ describe('checkBadges（#309・11種追加）', () => {
 
     const after = recomputeState({ ...live, sessions: sessions.slice(0, 2) }, 0);
     expect(after.badges).not.toContain('comeback');
+  });
+});
+
+describe('レッスン日（#393）', () => {
+  const sess = (date, count) => ({ date, songs: [{ name: 'A', count }], totalCount: count, bonusCoins: 0 });
+  const withLessons = (sessions, lessonDates) =>
+    baseState({ sessions, pet: { ...baseState().pet, lessonDates } });
+  const TODAY = '2026-11-05';
+
+  it('練習の間のレッスン日は練習日として連続+1・おやすみけんは減らない', () => {
+    const s = recomputeState(withLessons([sess('2026-11-02', 5), sess('2026-11-04', 5)], ['2026-11-03']), 0, TODAY);
+    expect(s.streak.current).toBe(3);
+    expect(s.streak.lastPracticeDate).toBe('2026-11-04');
+    expect(s.streak.freezes).toBe(1);   // 3日目の節目で付与されるだけ。消費はしない
+  });
+
+  it('レッスン日は固定のコイン/XPが付き、連続の節目ボーナスは練習した日だけに付く', () => {
+    const s = recomputeState(withLessons([sess('2026-11-02', 5), sess('2026-11-04', 5)], ['2026-11-03']), 0, TODAY);
+    // 5 + レッスン10 + (5 + 3日目ボーナス10)
+    expect(s.pet.coins).toBe(5 + LESSON_COINS + 15);
+    expect(s.pet.xp).toBe(5 + LESSON_XP + 5);
+  });
+
+  it('レッスン日に練習も記録したら上乗せで、連続は二重に数えない', () => {
+    const s = recomputeState(withLessons([sess('2026-11-02', 5)], ['2026-11-02']), 0, TODAY);
+    expect(s.pet.coins).toBe(5 + LESSON_COINS);
+    expect(s.streak.current).toBe(1);
+  });
+
+  it('先の日付は対象外で、解除すると元に戻る', () => {
+    const base = recomputeState(withLessons([sess('2026-11-02', 5)], []), 0, TODAY);
+    const future = recomputeState(withLessons([sess('2026-11-02', 5)], ['2026-11-10']), 0, TODAY);
+    expect(future.pet.coins).toBe(base.pet.coins);
+    const credited = recomputeState(withLessons([sess('2026-11-02', 5)], ['2026-11-03']), 0, TODAY);
+    expect(credited.pet.coins).toBe(base.pet.coins + LESSON_COINS);
+    const removed = recomputeState({ ...credited, pet: { ...credited.pet, lessonDates: [] } }, 0, TODAY);
+    expect(removed.pet.coins).toBe(base.pet.coins);
+    expect(removed.streak.current).toBe(base.streak.current);
+  });
+
+  it('記録が1件も無くてもレッスン日だけで連続が始まる', () => {
+    const s = recomputeState(withLessons([], ['2026-11-03']), 0, TODAY);
+    expect(s.streak.current).toBe(1);
+    expect(s.pet.coins).toBe(LESSON_COINS);
+  });
+
+  it('レッスン日と練習日の間に空き日があれば、お休み券が消費される', () => {
+    // 練習 11/1, 11/2, 11/3（3日目でお休み券1枚）→ 11/4 空き → レッスン 11/5
+    const s = recomputeState(
+      withLessons([sess('2026-11-01', 5), sess('2026-11-02', 5), sess('2026-11-03', 5)], ['2026-11-05']), 0, '2026-11-05');
+    expect(s.streak.current).toBe(4);   // 11/1・2・3 と 11/5 のレッスン。空いた11/4はお休み券で救済
+    expect(s.streak.freezes).toBe(0);
+  });
+
+  it('lessonDaysUpTo は不正値・先の日付・重複を除いて昇順に返す', () => {
+    expect(lessonDaysUpTo(['2026-11-03', 'x', '2026-11-01', '2026-11-03', '2026-12-01', 5], TODAY))
+      .toEqual(['2026-11-01', '2026-11-03']);
+    expect(lessonDaysUpTo(undefined, TODAY)).toEqual([]);
+  });
+
+  it('hasUncreditedLesson は最終練習日より後で記録日以前のレッスン日があるときだけ true', () => {
+    const st = (last, lessonDates) => ({ streak: { lastPracticeDate: last }, pet: { lessonDates } });
+    expect(hasUncreditedLesson(st('2026-11-02', ['2026-11-03']), '2026-11-04')).toBe(true);
+    expect(hasUncreditedLesson(st('2026-11-03', ['2026-11-03']), '2026-11-04')).toBe(false);
+    expect(hasUncreditedLesson(st('2026-11-02', ['2026-11-09']), '2026-11-04')).toBe(false);
+    expect(hasUncreditedLesson(st(null, ['2026-11-01']), '2026-11-04')).toBe(true);
+    expect(hasUncreditedLesson(st(null, []), '2026-11-04')).toBe(false);
+  });
+
+  it('レッスン反映済みの当日に applySession すると券が二重に付く（app.js は全再計算で確定する）', () => {
+    // 11/1・11/2 練習 → 11/3 がレッスン日で反映済み（lastPracticeDate=11/3・当日の記録なし）
+    const reflected = recomputeState(
+      withLessons([sess('2026-11-01', 5), sess('2026-11-02', 5)], ['2026-11-03']), 0, '2026-11-03');
+    expect(reflected.streak.freezes).toBe(1);
+    const date = '2026-11-03';
+    // 逐次更新は節目判定が再び立ち、券が2枚になる＝全再計算とずれる（これが app.js で逐次更新を避ける理由）
+    const live = applySession(reflected, { date, songs: [{ name: 'A', count: 5 }], totalCount: 5 }).state;
+    expect(live.streak.freezes).toBe(2);
+    const replayed = recomputeState(
+      { ...reflected, sessions: [sess(date, 5), ...reflected.sessions] }, 0, date);
+    expect(replayed.streak.freezes).toBe(1);
+    expect(replayed.streak.current).toBe(3);
   });
 });

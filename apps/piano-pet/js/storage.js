@@ -37,6 +37,11 @@ const DEFAULTS = {
     // childAvatar は絵文字ID（child-profile.js）。未設定・未知IDは表示側が既定にフォールバック。
     childName: '',
     childAvatar: 'chick',
+    // ピアノのレッスン日（#393）。YYYY-MM-DD の昇順・重複なし。sessions には入れず、
+    // recomputeState が練習記録と並べて再生する（連続+1・固定コイン/XP）。
+    lessonDates: [],
+    // 解除したレッスン日（墓標）。初回マージの union で解除が復活しないようにする（#393）。
+    lessonRemoved: [],
   },
   inventory: [],
   streak: {
@@ -96,6 +101,11 @@ function asObject(value) {
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// レッスン日の矯正（#393）。日付形式だけ残し、重複を除いて昇順にそろえる。
+export function normalizeLessonDates(value) {
+  return [...new Set(asArray(value).filter((v) => typeof v === 'string' && DATE_RE.test(v)))].sort();
+}
+
 // 文字列 'abc' はスプレッドで ['a','b','c'] に化けるので name:'' として弾く。
 function normalizeSong(v) {
   const o = asObject(v);
@@ -138,6 +148,8 @@ export function normalizeState(saved) {
       equippedItems: asArray(pet.equippedItems),
       placedItems: asArray(pet.placedItems),
       itemLayout: asObject(pet.itemLayout),
+      lessonDates: normalizeLessonDates(pet.lessonDates),
+      lessonRemoved: normalizeLessonDates(pet.lessonRemoved),
     },
     streak: { ...DEFAULTS.streak, ...asObject(s.streak) },
     settings: { ...DEFAULTS.settings, ...asObject(s.settings) },
@@ -209,6 +221,17 @@ export function mergeSessionsKeepLarger(localSessions, cloudSessions, deletedDat
 //   - pet.affinity / pet.foodSpent: sessions から導出されない累積値なので max
 // pet.coins/xp/level・streak・badges は sessions から導出されるため、呼び出し側で
 // recomputeState を通して再計算する（このモジュールは game ロジックに依存しない）。
+// レッスン日の初回マージ：登録は union、解除は墓標の union で引く。同じ日が登録と墓標の両方にある
+// ときは「どちらの端末にも登録が残っている」ことは無いので墓標を勝たせる（再登録は墓標を外して保存される）。
+function mergeLessonDates(l, c) {
+  const removed = normalizeLessonDates([...(l.lessonRemoved ?? []), ...(c.lessonRemoved ?? [])]);
+  const gone = new Set(removed);
+  return {
+    lessonDates: normalizeLessonDates([...(l.lessonDates ?? []), ...(c.lessonDates ?? [])]).filter((d) => !gone.has(d)),
+    lessonRemoved: removed,
+  };
+}
+
 export function mergeCloudInitial(local, cloud) {
   const l = normalizeState(local);
   if (!cloud) return l;
@@ -238,6 +261,8 @@ export function mergeCloudInitial(local, cloud) {
       // itemLayout をローカル固定にすると、他端末が置いた置物が既定位置に戻ってしまうため（#242）。
       // 初回同期でも他端末の配置座標を取り込める（従来はローカルのみ参照で既定位置に落ちていた）。
       itemLayout: { ...(c.pet.itemLayout ?? {}), ...(l.pet.itemLayout ?? {}) },
+      // レッスン日は登録の union − 解除の墓標の union（#393）
+      ...mergeLessonDates(l.pet, c.pet),
       affinity: Math.max(l.pet.affinity ?? 0, c.pet.affinity ?? 0),
       foodSpent: Math.max(l.pet.foodSpent ?? 0, c.pet.foodSpent ?? 0),
     },

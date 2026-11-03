@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=a11a4f40">
-  <link rel="stylesheet" href="css/cat.css?v=a11a4f40">
+  <link rel="stylesheet" href="css/style.css?v=a96cd5c4">
+  <link rel="stylesheet" href="css/cat.css?v=a96cd5c4">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -64,6 +64,7 @@
               <div class="goalbar-fill" id="statGoalFill"></div>
             </div>
             <p class="goal-msg" id="statGoalMsg">あと 10 かい！</p>
+            <p class="lesson-today" id="statLessonToday" hidden>🎹 きょうは レッスンび！</p>
           </div>
 
           <div class="level-block">
@@ -409,6 +410,16 @@
           </div>
         </section>
 
+        <section class="settings-panel" aria-labelledby="lessonTitle">
+          <h2 class="settings-panel__title" id="lessonTitle">ピアノの レッスンび</h2>
+          <p class="settings-menu__desc">レッスンの ひを いれると、その ひは れんしゅうした ひに なります（れんぞく＋1・コイン10・XP5）。おやすみけんは つかいません。</p>
+          <div class="settings-goal__row">
+            <input type="date" id="lessonDateInput" class="field-input" aria-label="レッスンの ひ">
+            <button type="button" class="settings-btn" id="lessonAddBtn">いれる</button>
+          </div>
+          <ul class="lesson-list" id="lessonList" aria-label="とうろく ずみの レッスンび"></ul>
+        </section>
+
         <hr class="settings-divider">
 
         <!-- がめんの あかるさ（ダークモード・夜配慮・#151） -->
@@ -489,6 +500,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=a11a4f40"></script>
+  <script type="module" src="js/app.js?v=a96cd5c4"></script>
 </body>
 </html>

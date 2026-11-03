@@ -15,7 +15,7 @@ import {
 describe('normalizeState', () => {
   it('空入力で DEFAULTS を返す', () => {
     const s = normalizeState();
-    expect(s.pet).toEqual({ name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], placedItems: [], itemLayout: {}, affinity: 0, foodSpent: 0, dailyGoal: 10, catStyle: 'tora', childName: '', childAvatar: 'chick' });
+    expect(s.pet).toEqual({ name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], placedItems: [], itemLayout: {}, affinity: 0, foodSpent: 0, dailyGoal: 10, catStyle: 'tora', childName: '', childAvatar: 'chick', lessonDates: [], lessonRemoved: [] });
     expect(s.inventory).toEqual([]);
     expect(s.streak).toEqual({ current: 0, best: 0, lastPracticeDate: null, freezes: 0 });
     expect(s.badges).toEqual([]);
@@ -385,5 +385,33 @@ describe('mergeCloudInitial', () => {
     expect([...m.pet.placedItems].sort()).toEqual(['cushion', 'yarnBall']); // A の置物が消えない
     expect(m.pet.itemLayout.yarnBall).toEqual({ x_pct: 70, y_pct: 55 });    // A の座標を取り込む
     expect(m.pet.itemLayout.cushion).toEqual({ x_pct: 40, y_pct: 60 });     // 競合はローカル優先
+  });
+});
+
+describe('レッスン日 pet.lessonDates（#393）', () => {
+  it('既定は空配列。不正値・重複は矯正され、昇順にそろう', () => {
+    expect(normalizeState({}).pet.lessonDates).toEqual([]);
+    expect(normalizeState({ pet: { lessonDates: 'abc' } }).pet.lessonDates).toEqual([]);
+    expect(normalizeState({ pet: { lessonDates: ['2026-11-05', 'x', '2026-11-03', '2026-11-05', 7, null] } }).pet.lessonDates)
+      .toEqual(['2026-11-03', '2026-11-05']);
+  });
+
+  it('初回マージは両側の union（取りこぼさない）', () => {
+    const local = normalizeState({ pet: { lessonDates: ['2026-11-03'] } });
+    const cloud = { pet: { lessonDates: ['2026-11-10', '2026-11-03'] } };
+    expect(mergeCloudInitial(local, cloud).pet.lessonDates).toEqual(['2026-11-03', '2026-11-10']);
+  });
+
+  it('realtime（cloud-wins）では解除も伝わる', () => {
+    const local = normalizeState({ pet: { lessonDates: ['2026-11-03'] } });
+    expect(mergeCloud(local, { pet: { lessonDates: [] } }).pet.lessonDates).toEqual([]);
+  });
+
+  it('初回マージでは解除の墓標が効き、もう1台に残った登録が復活しない', () => {
+    const local = normalizeState({ pet: { lessonDates: [], lessonRemoved: ['2026-11-03'] } });
+    const cloud = { pet: { lessonDates: ['2026-11-03', '2026-11-10'], lessonRemoved: [] } };
+    const m = mergeCloudInitial(local, cloud);
+    expect(m.pet.lessonDates).toEqual(['2026-11-10']);
+    expect(m.pet.lessonRemoved).toEqual(['2026-11-03']);
   });
 });
