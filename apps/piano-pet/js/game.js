@@ -144,6 +144,26 @@ export function calcRewards(totalCount, streakCurrent) {
   return { coins, xp };
 }
 
+// ----- レッスン日（#393） -----
+
+// レッスン日の固定報酬。自宅練習の報酬（calcRewards）とは独立で、練習も記録した日は上乗せ。
+export const LESSON_COINS = 10;
+export const LESSON_XP = 5;
+
+// 今日以前の有効なレッスン日（YYYY-MM-DD・昇順・重複なし）。先の予定は対象外で、その日が来たら加算される。
+export function lessonDaysUpTo(lessonDates, today) {
+  const valid = (Array.isArray(lessonDates) ? lessonDates : [])
+    .filter((d) => typeof d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d) && d <= today);
+  return [...new Set(valid)].sort();
+}
+
+// まだ連続に反映されていないレッスン日が、記録しようとする日付までにあるか。
+// あれば applySession の逐次更新ではなく全再計算で確定する（app.js submitRecord）。
+export function hasUncreditedLesson(state, date) {
+  const last = state.streak?.lastPracticeDate ?? null;
+  return lessonDaysUpTo(state.pet?.lessonDates, date).some((d) => last === null || d > last);
+}
+
 // ----- きょうのおまけ（#148） -----
 
 // 練習した日だけ低確率で猫がくれるプチ報酬コイン。
@@ -309,7 +329,7 @@ export function applySession(state, { date, songs, totalCount }, bonusCoins = 0)
 // sessions を唯一の正として、XP・レベル・コイン・ストリーク・バッジを
 // ゼロから再計算する。記録を日付昇順で再生し applySession と同じ規則を辿る。
 // spent は購入済みアイテムに使ったコイン総額（所持コイン = 獲得総額 - spent）。
-export function recomputeState(state, spent = 0) {
+export function recomputeState(state, spent = 0, today = todayStr()) {
   // 同日1件を入口で保証（運ばれてきた重複の二重清算を防ぐ・#316。重複なしなら元配列参照が返る）
   const sessions = mergeSameDaySessions(state.sessions ?? []);
 
@@ -317,15 +337,20 @@ export function recomputeState(state, spent = 0) {
   const order = sessions.map((_, i) => i)
     .sort((a, b) => String(sessions[a].date).localeCompare(String(sessions[b].date)));
 
+  // 日付ごとの再生。練習記録の無いレッスン日も1日分の「練習した日」として並べる（#393）。
+  const bySessionDate = new Map(order.map((i) => [sessions[i].date, i]));
+  const lessons = new Set(lessonDaysUpTo(state.pet?.lessonDates, today));
+  const dates = [...new Set([...bySessionDate.keys(), ...lessons])].sort();
+
   let streak = { current: 0, best: 0, lastPracticeDate: null, freezes: 0 };
   let totalXp = 0;
   let earned = 0;
   const recomputed = sessions.slice();
 
-  for (const i of order) {
-    const s = sessions[i];
-    const updated = updateStreak(streak, s.date);
-    const { coins, xp } = calcRewards(s.totalCount, updated.current);
+  for (const date of dates) {
+    const i = bySessionDate.get(date);
+    const s = i === undefined ? null : sessions[i];
+    const updated = updateStreak(streak, date);
     const granted = isFreezeMilestone(updated.current) ? 1 : 0;
     streak = {
       current: updated.current,
@@ -333,9 +358,17 @@ export function recomputeState(state, spent = 0) {
       lastPracticeDate: updated.lastPracticeDate,
       freezes: Math.min(MAX_FREEZES, updated.freezes + granted),
     };
-    totalXp += xp;
-    earned += coins + (s.bonusCoins || 0); // きょうのおまけ（#148）は保存値を保持
-    recomputed[i] = { ...s, coinsEarned: coins, xpEarned: xp };
+    if (s) {
+      const { coins, xp } = calcRewards(s.totalCount, updated.current);
+      totalXp += xp;
+      earned += coins + (s.bonusCoins || 0); // きょうのおまけ（#148）は保存値を保持
+      recomputed[i] = { ...s, coinsEarned: coins, xpEarned: xp };
+    }
+    // レッスン日は記録の有無によらず固定報酬を上乗せ（#393。coinsEarned には含めない）
+    if (lessons.has(date)) {
+      totalXp += LESSON_XP;
+      earned += LESSON_COINS;
+    }
   }
 
   const partial = {

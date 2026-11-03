@@ -1010,7 +1010,22 @@ body {
   padding: 2px 3px;
 }
 
+.cal-cell { position: relative; }
+.cal-cell__lesson {
+  position: absolute;
+  left: 2px;
+  bottom: 1px;
+  font-size: 0.6rem;
+  line-height: 1;
+}
+
 .cal-cell--pad { background: transparent; }
+
+/* せってい：レッスンびの リスト（#393） */
+.lesson-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.lesson-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.lesson-del { min-width: 44px; min-height: 44px; }
+.lesson-today { margin: 4px 0 0; font-weight: 700; color: var(--pink-deep); }
 .cal-cell[data-level="1"] { background: #ffc9d5; }
 .cal-cell[data-level="2"] { background: var(--pink); }
 .cal-cell[data-level="3"] { background: var(--pink-fill); }

@@ -101,7 +101,8 @@ export function calendarCellsMarkup(weeks, month) {
   return weeks.map((week) => week.map((cell) => {
     if (!cell) return '<span class="cal-cell cal-cell--pad" aria-hidden="true"></span>';
     const cls = `cal-cell${cell.isToday ? ' cal-cell--today' : ''}${cell.isFuture ? ' cal-cell--future' : ''}`;
-    const title = `${month}/${cell.day}：${cell.count}かい`;
-    return `<span class="${cls}" data-level="${cell.level}" title="${title}"><span class="cal-cell__day">${cell.day}</span></span>`;
+    const title = `${month}/${cell.day}：${cell.count}かい${cell.isLesson ? '・レッスン' : ''}`;
+    const lesson = cell.isLesson ? '<span class="cal-cell__lesson" aria-hidden="true">🎹</span>' : '';
+    return `<span class="${cls}" data-level="${cell.level}" title="${title}"><span class="cal-cell__day">${cell.day}</span>${lesson}</span>`;
   }).join('')).join('');
 }

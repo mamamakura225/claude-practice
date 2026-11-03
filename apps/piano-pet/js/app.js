@@ -1,11 +1,11 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { escapeHtml } from './html.js';
-import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, activeStorageKey } from './storage.js';
+import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, normalizeLessonDates, activeStorageKey } from './storage.js';
 import {
   getAccounts, getActiveAccountId, setActiveAccount,
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
-import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges } from './game.js';
+import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges, hasUncreditedLesson } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
 import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
@@ -195,6 +195,8 @@ function renderDailyGoal() {
 
   setText('statGoalMsg', goal.achieved ? 'もくひょう たっせい！🎉' : `あと ${goal.remaining} かい！`);
   document.getElementById('goalBlock')?.classList.toggle('goal-block--done', goal.achieved);
+  const lessonEl = document.getElementById('statLessonToday');   // レッスン日の表示（#393）
+  if (lessonEl) lessonEl.hidden = !state.pet.lessonDates?.includes(todayStr());
 }
 
 // なかよしレベルと次レベルへの進捗（#124）
@@ -249,7 +251,7 @@ function renderCalendar() {
   if (!grid) return;
   ensureCalMonth();
   setText('calTitle', historyMod.monthLabel(calYear, calMonth));
-  const weeks = historyMod.monthGrid(calYear, calMonth, state.sessions, { today: todayStr(), goal: currentGoal() });
+  const weeks = historyMod.monthGrid(calYear, calMonth, state.sessions, { today: todayStr(), goal: currentGoal(), lessonDates: state.pet.lessonDates });
   grid.innerHTML = historyMod.calendarCellsMarkup(weeks, calMonth);
 }
 
@@ -1095,12 +1097,21 @@ function submitRecord(event) {
     return;
   }
 
+  // 連続に未反映のレッスン日（#393）が間にあるときも、逐次更新ではなく全再計算で確定する
+  // （レッスン日を練習日として挟んでから、この記録の連続・報酬を数える）。おまけは通常どおり抽選。
+  const bonus = rollDailyBonus(Math.random());
+  // 当日のレッスンだけが反映済み（lastPracticeDate===date・当日の記録なし）の場合も含む。逐次更新だと
+  // updateStreak が current を動かさないのに節目判定が再び立ち、おやすみけんが二重に付く。
+  if (date === state.streak.lastPracticeDate || hasUncreditedLesson(state, date)) {
+    commitRecordedSessions([{ date, songs, totalCount, bonusCoins: bonus }, ...state.sessions], totalCount);
+    return;
+  }
+
   const prevBadges = state.badges;
   const prevSessions = state.sessions;         // 目標到達判定は commitState より前に取る（#227）
   const prevStreak = state.streak.current;     // 連続日数の節目は「この記録で伸びたか」で見る（#305）
   const goal = currentGoal();
-  // きょうのおまけ（#148）：その日の初回記録（同日既存なし）でのみ低確率で抽選
-  const bonus = rollDailyBonus(Math.random());
+  // きょうのおまけ（#148）：その日の初回記録（同日既存なし）でのみ低確率で抽選（上で抽選済み）
   const { state: newState, rewards } = applySession(state, { date, songs, totalCount }, bonus);
   const gainedBadges = newlyEarned(prevBadges, newState.badges);
   commitState(newState);          // 保存 + ホーム再描画
@@ -1427,6 +1438,45 @@ document.getElementById('goalTargetInput')?.addEventListener('change', (e) => se
 document.getElementById('goalMinusBtn')?.addEventListener('click', () => setDailyGoal(currentGoal() - 1));
 document.getElementById('goalPlusBtn')?.addEventListener('click', () => setDailyGoal(currentGoal() + 1));
 
+// ===== せってい：ピアノのレッスンび（#393） =====
+// pet.lessonDates を recomputeState で連続・コイン・XP に反映する（今日以前の登録日だけが対象）。
+// 追加・解除どちらも全再計算なので、増減は常に sessions と登録日から導かれる。
+// 解除した日は pet.lessonRemoved に残す（墓標）。初回マージの union で、もう1台に残った古い登録が
+// 復活しないようにするため（sessions の deletedDates と同じ考え方・#319）。再登録すれば墓標は外す。
+function setLessonDates(dates, { announce = false, onlyIfChanged = false } = {}) {
+  const prevCoins = state.pet.coins;
+  const lessonDates = normalizeLessonDates(dates);
+  const lessonRemoved = normalizeLessonDates([...state.pet.lessonDates.filter((d) => !lessonDates.includes(d)),
+    ...state.pet.lessonRemoved.filter((d) => !lessonDates.includes(d))]);
+  const next = recomputeState({ ...state, pet: { ...state.pet, lessonDates, lessonRemoved } }, spentTotal(state));
+  // 起動時の取りこみは、数値が動かなければ保存も送信もしない
+  if (onlyIfChanged && next.pet.coins === state.pet.coins && next.pet.xp === state.pet.xp
+      && next.streak.current === state.streak.current && next.streak.freezes === state.streak.freezes
+      && next.streak.lastPracticeDate === state.streak.lastPracticeDate) return;
+  commitState(next);
+  const gained = next.pet.coins - prevCoins;
+  if (announce && gained > 0) showCoinPopup({ coins: gained, leveled: false, newLevel: next.pet.level });
+}
+
+// 一覧の描画と入力の受け口は設定を開くまで不要なので遅延読込（lesson-settings.js・#284）
+let renderLessonList = null;
+async function showLessonSettings() {
+  const mod = await import('./lesson-settings.js').catch(() => null);
+  if (!mod) return;
+  renderLessonList ??= mod.initLessonSettings({
+    getDates: () => state.pet.lessonDates,
+    setDates: setLessonDates,
+    today: todayStr,
+  });
+  renderLessonList();
+}
+
+// 起動時：日付をまたいで「きょう」になったレッスン日が未反映なら取りこむ（モジュール評価の完了後に実行）
+// 旧版の端末が落とした分（最終練習日以前のレッスン日）も拾えるよう、登録日があれば毎回再計算する。
+setTimeout(() => {
+  if (state.pet.lessonDates.length) setLessonDates(state.pet.lessonDates, { announce: true, onlyIfChanged: true });
+}, 0);
+
 // ===== せってい：データのバックアップ/復元（#140） =====
 const settingsOverlayEl = document.getElementById('settingsOverlay');
 const settingsGateEl = document.getElementById('settingsGate');
@@ -1450,6 +1500,7 @@ async function openSettings() {
     return null;
   });
   if (!mod) return;
+  showLessonSettings();
   const p = mod.makeGateProblem();
   gateExpected = p.answer;
   setText('gateA', p.a);

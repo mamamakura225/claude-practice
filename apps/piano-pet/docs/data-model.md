@@ -54,7 +54,7 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 
 ### Session
 
-1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。
+1件＝「ある日付の練習記録」。XP・レベル・コイン・ストリーク・バッジの**唯一の計算元**で、編集・削除時は `recomputeState` がこの配列（と、練習した日として並べるレッスン日 `pet.lessonDates`・#393）だけから全状態を再構築する。生成は [game.js](../js/game.js) `applySession`、曲の集約は [record-form.js](../js/record-form.js) `collectSongs`。
 
 > ⚠️ ここが崩れると全部が崩れる。sessions を直接書き換える処理を足すときは必ず `recomputeState` を通すこと。
 >
@@ -104,6 +104,8 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | `dailyGoal` | number | `10` | 1日の練習目標回数（#238）。親が **5〜20** で調整（`clampDailyGoal`）。ホームの進捗メーター・スタンプのマス数/分母/音程にのみ反映。**達成ボーナス閾値（`GOAL_BONUS_THRESHOLD=10`）とは分離**＝可変にしても `recomputeState` が過去の記録のコインを動かさない。未設定の旧データは `normalizeState` が 10 で補完 |
 | `catStyle` | string | `'tora'` | 猫スタイル（#66）。`'tora'` / `'shiro'` / `'russianblue'`。未知値は表示側（`normalizeStyle`）が tora にフォールバック |
 | `childName` | string | `''` | こども本人の名前（#121）。前後空白を落とし12文字に丸める（`normalizeChildName`）。**PII規約**：analytics には送らない。空なら名前ラベルは非表示 |
+| `lessonDates` | string[] | `[]` | ピアノのレッスン日（#393）。`YYYY-MM-DD` の昇順・重複なし（`normalizeLessonDates` が入口で矯正）。`sessions` には入れず、`recomputeState` が今日以前の登録日を練習記録と日付順に並べて再生する（連続+1・コイン `LESSON_COINS`/XP `LESSON_XP` を固定付与）。初回マージは「登録の union − `lessonRemoved` の union」、realtime は `pet` ごと cloud-wins。**PII**：通っている日のパターンになるので analytics には送らない。設計判断は [features.md](./features.md) |
+| `lessonRemoved` | string[] | `[]` | 解除したレッスン日の墓標（#393）。形式は `lessonDates` と同じ。初回マージで他端末に残った古い登録を復活させないために持つ。再登録すると外す |
 | `childAvatar` | string | `'chick'` | こどものアイコン絵文字ID（#121・[child-profile.js](../js/child-profile.js) `CHILD_AVATARS`）。**顔写真は使わない**（認証なしの共有 Firestore に置くため）。未知・未設定は `normalizeChildAvatar` が 🐥 にフォールバック |
 
 `pet` 配下は CLOUD_FIELDS にまとめて乗るため、フィールド追加時にマージ規則の追加は不要（realtime は pet ごと cloud-wins、初回マージは下表の規則）。
