@@ -11,6 +11,29 @@ const APP_MARKER = 'piano-pet';
 // 端末内に直前の状態が残るため、最後の手段として復旧できる（設計レビュー D1）。
 export const RESTORE_BACKUP_KEY = 'piano-pet-backup-before-restore';
 
+// 退避と、その素性（アカウント・がぞくコード・日時）の記録（「ひとつ まえの データに もどす」#398）。
+// 別アカウントや別のクラウド保存先へ古いデータを戻して上書きしないよう、戻すときに素性を突き合わせる。
+// storage は localStorage 相当（テストで差し替えられるよう引数で受ける）。
+const STASH_META_KEY = `${RESTORE_BACKUP_KEY}:meta`;
+export function stashBeforeOverwrite(storage, storageKey, { account, doc = null }, now = Date.now()) {
+  try {
+    const cur = storage.getItem(storageKey);
+    if (!cur) return;
+    storage.setItem(RESTORE_BACKUP_KEY, cur);
+    storage.setItem(STASH_META_KEY, JSON.stringify({ account, doc, at: now }));
+  } catch { /* 退避失敗は致命的でないので無視 */ }
+}
+
+// 素性が一致する退避があれば { state, at } を返す。無い・不一致・壊れていれば null。
+export function readStash(storage, { account, doc = null }) {
+  try {
+    const meta = JSON.parse(storage.getItem(STASH_META_KEY) ?? 'null');
+    if (!meta || meta.account !== account || (meta.doc ?? null) !== doc) return null;
+    const raw = storage.getItem(RESTORE_BACKUP_KEY);
+    return raw ? { state: normalizeState(migrate(JSON.parse(raw))), at: Number(meta.at) || null } : null;
+  } catch { return null; }
+}
+
 // 現在の state を、アプリ識別マーカー＋スキーマ版＋書き出し日時でラップした pretty JSON にする。
 // cloudDocId（がぞくコード・#233）を渡すと同梱し、別端末での復元時にそのまま同じクラウド保存先へ
 // つなげられる（コードの手入力なしで合流できる導線）。未移行なら省略。

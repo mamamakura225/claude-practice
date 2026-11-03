@@ -49,6 +49,7 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | `piano-pet:accounts` | `{ active, accounts: [{id,name}] }` | マルチアカウント（#182）の有効アカウントと一覧（[account.js](../js/account.js)）。壊れていれば既定2アカウント（娘=`data`／テスト用=`test`）にフォールバック |
 | `piano-pet:cloud-ids` | `{ [アカウントID]: コード }` | がぞくコード（#233・上記） |
 | `piano-pet-backup-before-restore` | State JSON | 復元・初期化の直前に現行 state を退避（`RESTORE_BACKUP_KEY`・#140/#183） |
+| `piano-pet-backup-before-restore:meta` | JSON `{account, doc, at}` | 上の退避の素性（アカウント・がぞくコード・退避日時）。「ひとつ まえの データに もどす」はアカウントとがぞくコードが今と一致するときだけ出す（#398） |
 | `pp-theme` | `'light'` \| `'dark'` | 画面のあかるさ（#151）。`auto` は保存せず属性を付けない |
 | `<アカウントキー>:stamp-draft` | `{ date, stamps: string[] }` | 当日のスタンプ下書き。ホーム戻り→記録再開でカードを引き継ぐ（#164）。打鍵ごとに保存。**初回記録前のみの引き継ぎ用**で、記録確定後は当日セッションが正となり記録画面はセッションから復元する（#186）。読み出し時に `date !== todayStr()` なら破棄。**記録画面のひづけ欄が今日以外を指している間は書き込まない**（過去日の入力で当日の下書きを潰さない・#273）。**アカウントごとに分離** |
 

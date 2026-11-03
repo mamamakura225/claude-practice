@@ -2160,3 +2160,43 @@ body {
   min-width: 44px;
   min-height: 44px;
 }
+
+/* ----- 取り消しトースト（#398）。せってい（z60）の上・下ナビの上に出す ----- */
+.undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 12px);
+  transform: translateX(-50%);
+  z-index: 75;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: max-content;
+  max-width: calc(100% - 24px);
+  padding: 8px 8px 8px 16px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  box-shadow: 0 6px 18px var(--shadow);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.undo-toast[hidden] { display: none; }
+.undo-toast__btn {
+  flex-shrink: 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 999px;
+  background: var(--pink-fill);
+  color: #fff;
+  font-family: 'Mochiy Pop One', sans-serif;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+.record-date-note {
+  margin: -4px 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--pink-ink);
+}

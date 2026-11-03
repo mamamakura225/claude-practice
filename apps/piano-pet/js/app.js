@@ -81,6 +81,54 @@ function cleanItemLayout(pet) {
 // オフライン中の未送信変更の印＝立っている間の realtime は union（#358）
 let offlineDirty = false;
 
+// ===== 取り消しトースト（購入・記録の削除・レッスン日・#398） =====
+// 1つだけ出す。次のトーストが出たら前のものは期限切れ扱い（onExpire を呼ぶ）にする。
+const UNDO_MS = 5000;
+let undoCycle = null;
+function dismissUndoToast(expire = true) {
+  const c = undoCycle;
+  if (!c) return;
+  undoCycle = null;
+  clearTimeout(c.timer);
+  const el = document.getElementById('undoToast');
+  if (el) el.hidden = true;
+  if (expire) c.onExpire?.();
+}
+function showUndoToast(message, label, onUndo, { onExpire } = {}) {
+  dismissUndoToast(true);
+  const el = document.getElementById('undoToast');
+  if (!el) { onExpire?.(); return; }
+  setText('undoToastMsg', message);
+  setText('undoToastBtn', label);
+  el.hidden = false;
+  undoCycle = { onUndo, onExpire, timer: setTimeout(() => dismissUndoToast(true), UNDO_MS) };
+}
+document.getElementById('undoToastBtn')?.addEventListener('click', () => {
+  const c = undoCycle;
+  if (!c) return;
+  undoCycle = null;
+  clearTimeout(c.timer);
+  document.getElementById('undoToast').hidden = true;
+  c.onUndo();
+});
+
+// 記録の削除は取り消しの猶予（5秒）のあいだ確定しない（#398）。クラウド送信の待ち（2秒）より長いので、
+// 先に確定すると墓標（deletedDates）が他端末へ届き、取り消しても union で消し直されるため。
+// 期限切れ・別の保存（commitState）・アプリが裏へ回ったときに確定する。
+let pendingDelete = null;
+function withSessionDeleted(s, date) {
+  const sessions = s.sessions.filter((x) => x.date !== date);
+  const deletedDates = [...new Set([...(s.deletedDates ?? []), date])];   // 墓標（#319）
+  return recomputeState({ ...s, sessions, deletedDates }, spentTotal(s));
+}
+function applyPendingDelete() {
+  if (!pendingDelete) return;
+  commitState(state);   // commitState が pendingDelete を重ねて確定する
+  if (router.current === 'history') renderHistory();
+}
+window.addEventListener('pagehide', applyPendingDelete);
+document.addEventListener('visibilitychange', () => { if (document.hidden) applyPendingDelete(); });
+
 // 取り込み前・印の間は送らない（#374・data-model.md）
 function queueCloudPush() {
   if (!cloud || !initialSyncDone) return;
@@ -88,7 +136,25 @@ function queueCloudPush() {
   if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty || overwriting ? null : cloudFields(state)));
 }
 
+// 取り消せる操作（購入・レッスン日の解除）は、猶予が終わるまでクラウドへ送らない（#398）。先に届くと
+// 取り消しても他端末の union（inventory・lessonRemoved）で買い直し／消し直しになる（削除の保留と同じ理由）。
+function holdCloudPush() {
+  if (!cloud || !initialSyncDone || offlineDirty) return;
+  cloud.pushCloudDebounced(() => (offlineDirty || overwriting ? null : cloudFields(state)), UNDO_MS + 500);
+}
+
 export function commitState(newState) {
+  // 取り消し待ちの削除（#398）があれば、この保存に重ねて確定する（別の操作で保存が走ったら猶予は終わり）
+  if (pendingDelete) {
+    const { date } = pendingDelete;
+    pendingDelete = null;
+    dismissUndoToast(false);
+    newState = withSessionDeleted(newState, date);
+    // 当日分を消したら下書きも消す。残すと次に記録画面を開いたとき消した回数が戻り、二重に記録される
+    if (date === todayStr()) clearStampDraft();
+  }
+  // 別の保存が走ったら、出ている取り消し（購入・レッスン日）は巻き戻すと他の変更まで消えるので閉じる
+  if (undoCycle) dismissUndoToast(true);
   state = { ...newState, pet: { ...newState.pet, itemLayout: cleanItemLayout(newState.pet) } };
   saveState(state);                 // ローカルキャッシュ（オフライン用）
   queueCloudPush();
@@ -302,7 +368,8 @@ export async function renderHistory() {
   const listEl = document.getElementById('historyList');
   if (listEl) {
     // 元配列のインデックスを保持したまま新しい順に並べる（編集・削除の参照用）
-    const indexed = state.sessions.map((s, i) => ({ s, i }));
+    // 取り消し待ちの削除（#398）は一覧から除く（元のインデックスは保つので編集・削除の参照はずれない）
+    const indexed = state.sessions.map((s, i) => ({ s, i })).filter(({ s }) => s.date !== pendingDelete?.date);
     indexed.sort((a, b) => String(b.s.date).localeCompare(String(a.s.date)));
     const rest = indexed.length - historyShown;
     listEl.innerHTML = indexed.length
@@ -459,6 +526,9 @@ function render(view) {
 
 const router = createRouter({
   onChange(view) {
+    // 画面を移ったら削除の取り消し猶予は終わり（#398）。保留のまま記録画面を開くと、消した当日分が
+    // フォームと下書きに復元され、送信でその日ごと消える・二重に記録される
+    applyPendingDelete();
     render(view);
     if (view === 'record') primeCatVideo();   // 記録演出の動画モジュール＋クリップを先読み（#227・#284）
     if (view === 'shop') primeCatVideo('feed');   // えさやりクリップを先読み（#294）
@@ -752,7 +822,19 @@ function syncRecordInputs() {
 
 // 日付が変わったら、その日付が本来始まるべき内容へフォームを戻す（→ features.md #273）。
 // 今日=当日セッション/下書きから復元、今日以外=空。持ち越すと当日ぶんが二重計上される。
+// 記録済みの過去日を選んだら、既存の回数と「たしざん」になることを出す（二重記録の防止・#398）。
+// 今日は当日ぶんがフォームに復元されるので出さない。編集中は対象の記録そのものなので出さない。
+function updateRecordDateNote() {
+  const el = document.getElementById('recordDateNote');
+  if (!el) return;
+  const date = formDate();
+  const existing = editingDate == null && date !== todayStr() ? state.sessions.find((x) => x.date === date) : null;
+  el.hidden = !existing;
+  if (existing) el.textContent = `この ひは もう ${Number(existing.totalCount) || 0}かい きろく してあるよ。いれた ぶんは たしざん されるよ。`;
+}
+
 function onRecordDateChange() {
+  updateRecordDateNote();
   if (editingDate != null) return;   // 編集中は対象セッションの内容が正
   stamps = formDate() === todayStr() ? todayStamps() : [];
   saveStampDraft();                   // 過去日は saveStampDraft 側のガードで no-op
@@ -761,6 +843,8 @@ function onRecordDateChange() {
 }
 
 function resetRecordForm() {
+  const noteEl = document.getElementById('recordDateNote');
+  if (noteEl) noteEl.hidden = true;
   editingDate = null;
   setRecordMode(false);
   recordMode = 'stamp';
@@ -811,12 +895,16 @@ async function deleteSession(index) {
   if (!session) return;
   const date = session.date;   // await をまたぐ前に同一性へ解決（#314 と同じ理由・#324）
   await loadHistory();
-  if (!window.confirm(`${historyMod.formatDateJa(date)} の きろくを けしますか？`)) return;
-  const sessions = state.sessions.filter((s) => s.date !== date);
-  // 削除を墓標に残す（他端末の古いコピーから union マージで復活しない・#319）
-  const deletedDates = [...new Set([...(state.deletedDates ?? []), date])];
-  commitState(recomputeState({ ...state, sessions, deletedDates }, spentTotal(state)));
+  // 何が減るかも書く（全再計算でコイン・XP・れんぞくも戻る・#398）
+  if (!window.confirm(`${historyMod.formatDateJa(date)} の きろくを けしますか？
+コイン・レベル・れんぞく にちすうも その ぶん へります。`)) return;
+  applyPendingDelete();            // 前の取り消し待ちは確定してから
+  pendingDelete = { date };        // 確定は猶予のあと（墓標の扱いは withSessionDeleted の上のコメント）
   renderHistory();
+  showUndoToast(`${historyMod.formatDateJa(date)} の きろくを けしたよ`, 'もとに もどす', () => {
+    pendingDelete = null;
+    renderHistory();
+  }, { onExpire: applyPendingDelete });
 }
 
 // スタンプ（praise #145 / tempo #239）を付与／解除。報酬に影響しないので再計算は不要。
@@ -1270,9 +1358,19 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
   const prevBadges = state.badges;
   const withBadges = action === 'buy' ? { ...next, badges: checkBadges(next) } : next;
   const gainedBadges = action === 'buy' ? newlyEarned(prevBadges, withBadges.badges) : [];
+  const beforeBuy = state;
   commitState(withBadges);          // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
   if (action === 'buy') {
+    // 誤タップの取り消し（#398）。所持コインは inventory からの導出なので、買う前の state へ戻せば返る。
+    // そのあと別の操作で state が動いていたら、巻き戻すと他の変更まで消えるので取り消さない。
+    const afterBuy = state;
+    holdCloudPush();
+    showUndoToast(`${itemById(id)?.name ?? ''} を かったよ`, 'やっぱり やめる', () => {
+      if (state !== afterBuy) return;
+      commitState(beforeBuy);
+      renderShop();
+    });
     const after = document.querySelector(`#shopList .shop-btn[data-id="${id}"]`);
     if (after) {
       after.disabled = true;
@@ -1517,6 +1615,14 @@ async function showLessonSettings() {
     getDates: () => state.pet.lessonDates,
     setDates: setLessonDates,
     today: todayStr,
+    // スクロール中の誤タップで連続日数が切れないよう、解除は取り消せる（#398）
+    onRemoved: (d) => {
+      holdCloudPush();
+      showUndoToast(`${d.slice(5).replace('-', '/')} の レッスンびを とりけしたよ`, 'もとに もどす', () => {
+        setLessonDates([...state.pet.lessonDates, d]);
+        renderLessonList?.();
+      });
+    },
   });
   renderLessonList();
 }
@@ -1548,6 +1654,8 @@ const loadDialog = async () => (dialogMod ??= await import('./dialog.js'));
 let gateExpected = null;
 
 async function openSettings() {
+  // アカウント切替・読み込み・初期化は reload を伴い、pagehide で別アカウントの保存先へ確定してしまう（#398）
+  applyPendingDelete();
   const mod = await loadBackup().catch((err) => {   // 未キャッシュ＋回線断でだけ起きる
     console.warn('せっていを ひらけません（バックアップ機能の よみこみに しっぱい）', err);
     return null;
@@ -1584,6 +1692,7 @@ function submitGate() {
     const goalInput = document.getElementById('goalTargetInput');
     if (goalInput) goalInput.value = String(currentGoal());  // 目標回数の現在値を反映（#238）
     renderCloudSection();                  // クラウド保存先（がぞくコード）の現在値を反映（#233）
+    renderRestorePrev();                   // 読み込み・初期化の前へ戻す（#398）
     if (settingsMenuEl) dialogMod?.focusIn(settingsMenuEl);   // ゲートが消えてフォーカスが body に落ちないように（#397）
   } else if (gateErrorEl) {
     gateErrorEl.hidden = false;
@@ -1680,12 +1789,27 @@ function stopCloudForOverwrite() {
   }
 }
 
-async function applyImportedState(imported, docId = null) {
-  const { RESTORE_BACKUP_KEY } = await loadBackup();
-  try {
-    const cur = localStorage.getItem(activeStorageKey());
-    if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤読込からの復旧用に退避
-  } catch { /* 退避失敗は致命的でないので無視 */ }
+// 読み込み・初期化の直前のデータを退避し、「ひとつ まえの データに もどす」で戻せるようにする（#398）
+async function stashBeforeOverwrite() {
+  (await loadBackup()).stashBeforeOverwrite(localStorage, activeStorageKey(), stashOwner());
+}
+const stashOwner = () => ({ account: getActiveAccountId(), doc: getCloudDocId(getActiveAccountId()) ?? null });
+const readStashedState = () => backupMod?.readStash(localStorage, stashOwner()) ?? null;
+function renderRestorePrev() {
+  const btn = document.getElementById('restorePrevBtn');
+  if (btn) btn.hidden = !readStashedState();
+}
+async function restorePrevData() {
+  const prev = readStashedState();
+  if (!prev) return;
+  const when = prev.at ? new Date(prev.at) : null;
+  const label = when ? `${when.getMonth() + 1}がつ${when.getDate()}にち ${when.getHours()}:${String(when.getMinutes()).padStart(2, '0')} の` : 'まえの';
+  if (!window.confirm(`${label} じょうたいに もどします（データを よみこむ・けす まえ）。そのあとに つけた きろくは きえます。いまの データと いれかわるので、もういちど おすと もどせます。よろしいですか？`)) return;
+  applyImportedState(prev.state);   // いまの データは退避されるので、もう一度押せば行き来できる
+}
+
+async function applyImportedState(imported, docId = null, { stash = true } = {}) {
+  if (stash) await stashBeforeOverwrite();   // 誤読込からの復旧用に退避
   stopCloudForOverwrite();
   state = imported;
   saveState(state);
@@ -1766,11 +1890,7 @@ async function clearLegacyCloudDoc() {
 // 取り込み先が「新品の DEFAULTS」になるだけ。古いスナップショットの巻き戻しを断つ。
 async function resetData() {
   if (!window.confirm('ねこの じょうたい・アイテム・れんしゅうきろくが ぜんぶ きえて、さいしょから になります。よろしいですか？')) return;
-  const { RESTORE_BACKUP_KEY } = await loadBackup();
-  try {
-    const cur = localStorage.getItem(activeStorageKey());
-    if (cur) localStorage.setItem(RESTORE_BACKUP_KEY, cur);   // 誤操作からの復旧用に退避
-  } catch { /* 退避失敗は致命的でないので無視 */ }
+  await stashBeforeOverwrite();   // 誤操作からの復旧用に退避
   stopCloudForOverwrite();
   state = normalizeState({});            // 新品の DEFAULTS へ
   saveState(state);
@@ -1790,8 +1910,10 @@ function handleImportFile(file) {
     }
     if (!window.confirm('いまの データは きえて、ファイルの データに なります。よろしいですか？')) return;
     // バックアップに がぞくコード（#233）が入っていれば、同じクラウド保存先へ合流させる。
+    // 退避はがぞくコードを切り替える前に（退避の素性を元の保存先で残す・#398）
+    await stashBeforeOverwrite();
     const docId = res.cloudDocId && setCloudDocId(getActiveAccountId(), res.cloudDocId) ? res.cloudDocId : null;
-    applyImportedState(res.state, docId);
+    applyImportedState(res.state, docId, { stash: false });
   };
   reader.onerror = async () => showImportStatus((await loadBackup()).importErrorMessage('parse'), true);
   reader.readAsText(file);
@@ -1908,6 +2030,7 @@ document.getElementById('cloudCopyBtn')?.addEventListener('click', async () => {
 
 document.getElementById('importBtn')?.addEventListener('click', () => importFileEl?.click());
 document.getElementById('resetBtn')?.addEventListener('click', resetData);
+document.getElementById('restorePrevBtn')?.addEventListener('click', restorePrevData);
 importFileEl?.addEventListener('change', (e) => {
   const file = e.target.files?.[0];
   if (file) handleImportFile(file);
