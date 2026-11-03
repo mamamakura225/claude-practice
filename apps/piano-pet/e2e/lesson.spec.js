@@ -10,6 +10,8 @@ test.describe('レッスン日の登録（#393）', () => {
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
     await page.addInitScript(() => {
       try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+      // きょうのおまけ（確率で +コイン）が当たるとコイン数の検証が揺れるので、抽選を外れに固定する
+      Math.random = () => 0.999;
     });
   });
 

@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=26e0482e">
-  <link rel="stylesheet" href="css/cat.css?v=26e0482e">
+  <link rel="stylesheet" href="css/style.css?v=ba7a1c17">
+  <link rel="stylesheet" href="css/cat.css?v=ba7a1c17">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -310,9 +310,9 @@
     <!-- ===== 獲得コインのポップアップ ===== -->
     <div id="coinPopup" class="coin-popup" role="status" aria-live="polite" hidden>
       <div class="coin-popup__card">
-        <span class="coin-popup__icon" aria-hidden="true">🪙</span>
+        <span class="coin-popup__icon" id="coinPopupIcon" aria-hidden="true">🪙</span>
         <span class="coin-popup__amount" id="coinPopupAmount">+0</span>
-        <span class="coin-popup__label">コイン ゲット！</span>
+        <span class="coin-popup__label" id="coinPopupLabel">コイン ゲット！</span>
         <span class="coin-popup__levelup" id="coinPopupLevelUp" hidden>レベルアップ！🎉</span>
       </div>
     </div>
@@ -502,6 +502,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=26e0482e"></script>
+  <script type="module" src="js/app.js?v=ba7a1c17"></script>
 </body>
 </html>

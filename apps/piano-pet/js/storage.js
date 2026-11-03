@@ -23,7 +23,7 @@ const DEFAULTS = {
     // 別管理で排他なし複数配置。座標は itemLayout を共用（置物IDは装着IDと重複しない）。
     placedItems: [],
     // 衣装・置物の自由配置座標（#168/#226）。{ itemId: { x_pct, y_pct } }。
-    // 未登録のアイテムは cat-image.js が既定位置で描く（装着=アンカー / 置物=SCENE_DEFAULT_PCT）。
+    // 未登録のアイテムは cat-image.js が既定位置で描く（装着=アンカー / 置物=SCENE_DEFAULT_PCT の置物ごとの位置）。
     itemLayout: {},
     affinity: 0,
     foodSpent: 0,

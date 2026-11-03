@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, itemLayer, defaultItemLayer, tierToPrefetch } from '../js/cat-image.js';
+import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, SCENE_BOX, itemLayer, defaultItemLayer, tierToPrefetch } from '../js/cat-image.js';
 import { FOODS } from '../js/feed.js';
 
 // 日常のお祝い演出のバリエーション選択（#81）。
@@ -184,9 +184,34 @@ describe('置物アイテム（#226）', () => {
     expect(isSceneItem('bogus')).toBe(false);
   });
 
-  it('itemAnchorPct/Scale は置物の既定（足元寄り・等倍）を返す', () => {
-    expect(itemAnchorPct('cushion')).toEqual({ x_pct: 50, y_pct: 64 });  // SCENE_DEFAULT_PCT
+  it('itemAnchorPct/Scale は置物ごとの既定（等倍）を返す', () => {
+    expect(itemAnchorPct('cushion')).toEqual({ x_pct: 28, y_pct: 62 });  // SCENE_DEFAULT_PCT
     expect(itemAnchorScale('yarnBall')).toBe(1);
+  });
+
+  it('置物の既定位置は枠内に収まり、外接矩形どうしの重なりが小さい（1個しか見えない退行の防止・#396）', () => {
+    const rect = (id) => {
+      const b = SCENE_BOX[id];
+      const p = itemAnchorPct(id);
+      return { x: p.x_pct * 2 + b.x, y: p.y_pct * 2 + b.y, w: b.w, h: b.h };
+    };
+    for (const id of SCENE_IDS) {
+      const r = rect(id);
+      expect(r.x, id).toBeGreaterThanOrEqual(0);
+      expect(r.y, id).toBeGreaterThanOrEqual(0);
+      expect(r.x + r.w, id).toBeLessThanOrEqual(200);
+      expect(r.y + r.h, id).toBeLessThanOrEqual(200);
+    }
+    for (let i = 0; i < SCENE_IDS.length; i += 1) {
+      for (let j = i + 1; j < SCENE_IDS.length; j += 1) {
+        const a = rect(SCENE_IDS[i]);
+        const b = rect(SCENE_IDS[j]);
+        const ix = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x));
+        const iy = Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+        // 小さいほうの面積に対する重なり。透過部分を含む上限値なので見た目はこれより軽い
+        expect(ix * iy / Math.min(a.w * a.h, b.w * b.h), `${SCENE_IDS[i]}×${SCENE_IDS[j]}`).toBeLessThanOrEqual(0.45);
+      }
+    }
   });
 
   it('placedItems を layer 別の scene SVG に振り分けて描く', () => {
@@ -205,9 +230,9 @@ describe('置物アイテム（#226）', () => {
     expect(html).not.toContain('img/cat/scene/');
   });
 
-  it('置物の座標は itemLayout を共用（既定位置 50,64→100,128 / 指定座標も反映）', () => {
+  it('置物の座標は itemLayout を共用（既定位置 28,62→56,124 / 指定座標も反映）', () => {
     const def = catMarkup({ placedItems: ['cushion'] });
-    expect(def).toContain('translate(100 128)');                                   // 既定: 50%,64% → ×2
+    expect(def).toContain('translate(56 124)');                                    // 既定: 28%,62% → ×2
     const moved = catMarkup({ placedItems: ['cushion'], itemLayout: { cushion: { x_pct: 30, y_pct: 80 } } });
     expect(moved).toContain('translate(60 160)');                                  // 指定座標 ×2
   });
