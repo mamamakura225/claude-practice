@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=ba7a1c17">
-  <link rel="stylesheet" href="css/cat.css?v=ba7a1c17">
+  <link rel="stylesheet" href="css/style.css?v=62ec660a">
+  <link rel="stylesheet" href="css/cat.css?v=62ec660a">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -132,9 +132,9 @@
           </label>
 
           <!-- きろくの ほうほう（スタンプ / まとめて）の切替 -->
-          <div class="record-mode" role="tablist" aria-label="きろくの ほうほう">
-            <button type="button" id="modeStampBtn" class="record-mode__btn is-active" role="tab" aria-selected="true" data-mode="stamp">🐾 スタンプ</button>
-            <button type="button" id="modeBatchBtn" class="record-mode__btn" role="tab" aria-selected="false" data-mode="batch">📝 まとめて</button>
+          <div class="record-mode" role="group" aria-label="きろくの ほうほう">
+            <button type="button" id="modeStampBtn" class="record-mode__btn is-active" aria-pressed="true" data-mode="stamp">🐾 スタンプ</button>
+            <button type="button" id="modeBatchBtn" class="record-mode__btn" aria-pressed="false" data-mode="batch">📝 まとめて</button>
           </div>
 
           <datalist id="songSuggestions"></datalist>
@@ -502,6 +502,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=ba7a1c17"></script>
+  <script type="module" src="js/app.js?v=62ec660a"></script>
 </body>
 </html>
