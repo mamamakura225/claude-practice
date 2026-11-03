@@ -222,7 +222,7 @@ body {
 /* ----- アイコン選択グリッド（#121） ----- */
 .avatar-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));   /* 320px では4列（#397） */
   gap: 10px;
   margin: 4px 0 8px;
 }
@@ -462,7 +462,7 @@ body {
 
 .account-row__badge {
   font-size: 0.85rem;
-  color: var(--accent, #ff7a93);
+  color: var(--pink-ink);   /* #397: 2.33:1 → AA */
   font-weight: 700;
 }
 
@@ -1855,7 +1855,7 @@ body {
 
 .settings-menu__desc {
   font-size: 0.9rem;
-  color: #8a7a7a;
+  color: var(--text-muted);   /* #397: 4.08:1 → AA */
   text-align: center;
   line-height: 1.6;
 }
@@ -2136,4 +2136,27 @@ body {
 .nav-btn.active .nav-icon {
   filter: none;
   transform: translateY(-2px) scale(1.1);
+}
+
+/* ----- 押せる大きさを 44px 以上に（#397） ----- */
+.btn-sound,
+.btn-settings {
+  width: 44px;
+  height: 44px;
+}
+.child-avatar,
+.btn-back,
+.btn-dressup,
+.btn-photo,
+.history-action,
+.shop-cat,
+.shop-btn,
+.praise-stamp,
+.tempo-stamp {
+  min-height: 44px;
+}
+.calendar__nav,
+.avatar-grid__btn {
+  min-width: 44px;
+  min-height: 44px;
 }

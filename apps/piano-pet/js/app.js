@@ -707,7 +707,7 @@ function applyRecordModeUI() {
   for (const btn of document.querySelectorAll('.record-mode__btn[data-mode]')) {
     const active = btn.dataset.mode === recordMode;
     btn.classList.toggle('is-active', active);
-    btn.setAttribute('aria-selected', String(active));
+    btn.setAttribute('aria-pressed', String(active));   // タブではなくトグル（矢印キー操作を約束しない・#397）
   }
   if (recordErrorEl) {
     recordErrorEl.textContent = isBatch ? '1かい いじょう にゅうりょくしてね' : '1かい いじょう おしてね';
@@ -1540,6 +1540,9 @@ const importStatusEl = document.getElementById('importStatus');
 // import() の解決はブラウザがキャッシュするので、2回目以降は待ちなしで返る。
 let backupMod = null;
 const loadBackup = async () => (backupMod ??= await import('./backup.js'));
+// モーダル共通の操作（#397）も開くときまで要らないので遅延読込。閉じる側は開いた後なので読込済み。
+let dialogMod = null;
+const loadDialog = async () => (dialogMod ??= await import('./dialog.js'));
 
 // ゲートの正解（openSettings のたびに作り直す）。
 let gateExpected = null;
@@ -1550,6 +1553,7 @@ async function openSettings() {
     return null;
   });
   if (!mod) return;
+  const dlg = await loadDialog().catch(() => null);
   showLessonSettings();
   const p = mod.makeGateProblem();
   gateExpected = p.answer;
@@ -1560,12 +1564,15 @@ async function openSettings() {
   if (importStatusEl) importStatusEl.hidden = true;
   if (settingsGateEl) settingsGateEl.hidden = false;   // 毎回ゲートから
   if (settingsMenuEl) settingsMenuEl.hidden = true;
-  if (settingsOverlayEl) settingsOverlayEl.hidden = false;
-  gateAnswerEl?.focus();
+  if (!settingsOverlayEl) return;
+  if (dlg) dlg.openDialog(settingsOverlayEl, { onClose: closeSettings, initial: gateAnswerEl });
+  else { settingsOverlayEl.hidden = false; gateAnswerEl?.focus(); }
 }
 
 function closeSettings() {
-  if (settingsOverlayEl) settingsOverlayEl.hidden = true;
+  if (!settingsOverlayEl) return;
+  if (dialogMod) dialogMod.closeDialog(settingsOverlayEl);
+  else settingsOverlayEl.hidden = true;
 }
 
 // 親ゲートの解答チェック。正解でメニューを開き、誤りなら再入力させる。
@@ -1577,6 +1584,7 @@ function submitGate() {
     const goalInput = document.getElementById('goalTargetInput');
     if (goalInput) goalInput.value = String(currentGoal());  // 目標回数の現在値を反映（#238）
     renderCloudSection();                  // クラウド保存先（がぞくコード）の現在値を反映（#233）
+    if (settingsMenuEl) dialogMod?.focusIn(settingsMenuEl);   // ゲートが消えてフォーカスが body に落ちないように（#397）
   } else if (gateErrorEl) {
     gateErrorEl.hidden = false;
     if (gateAnswerEl) gateAnswerEl.value = '';
@@ -1830,13 +1838,16 @@ function renderAvatarGrid() {
   if (!grid) return;
   const current = normalizeChildAvatar(state.pet.childAvatar);
   grid.innerHTML = CHILD_AVATARS.map((a) => `
-    <button type="button" class="avatar-grid__btn" role="option" data-avatar="${a.id}" aria-selected="${a.id === current}" aria-pressed="${a.id === current}">${a.emoji}</button>`).join('');
+    <button type="button" class="avatar-grid__btn" role="option" data-avatar="${a.id}" aria-label="${a.label}" aria-selected="${a.id === current}" aria-pressed="${a.id === current}">${a.emoji}</button>`).join('');
 }
 
-function openAvatarPicker() {
+async function openAvatarPicker() {
+  const dlg = await loadDialog().catch(() => null);
   if (childNameInputEl) childNameInputEl.value = normalizeChildName(state.pet.childName);
   renderAvatarGrid();
-  if (avatarOverlayEl) avatarOverlayEl.hidden = false;
+  if (!avatarOverlayEl) return;
+  if (dlg) dlg.openDialog(avatarOverlayEl, { onClose: closeAvatarPicker });
+  else avatarOverlayEl.hidden = false;
 }
 
 // アバター/名前の変更を確定保存する。入力中の名前も一緒に正規化して載せるので、
@@ -1850,7 +1861,9 @@ function commitChildProfile(avatarId) {
 
 function closeAvatarPicker() {
   commitChildProfile();
-  if (avatarOverlayEl) avatarOverlayEl.hidden = true;
+  if (!avatarOverlayEl) return;
+  if (dialogMod) dialogMod.closeDialog(avatarOverlayEl);
+  else avatarOverlayEl.hidden = true;
 }
 
 document.querySelector('.app')?.addEventListener('click', (e) => {

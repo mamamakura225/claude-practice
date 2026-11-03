@@ -2,18 +2,18 @@
 // ヘッダ隅に出す「自分のアイコン」。顔写真は使わず絵文字から選ぶ
 // （認証なしの共有 Firestore に保存するためプライバシー配慮・PIIを増やさない）。
 
-// 選べるアイコン（絵文字）。id はクラウド同期する安定キー、emoji は表示。
+// 選べるアイコン（絵文字）。id はクラウド同期する安定キー、emoji は表示、label は読み上げ（#397）。
 export const CHILD_AVATARS = [
-  { id: 'chick', emoji: '🐥' },
-  { id: 'rabbit', emoji: '🐰' },
-  { id: 'bear', emoji: '🐻' },
-  { id: 'panda', emoji: '🐼' },
-  { id: 'fox', emoji: '🦊' },
-  { id: 'frog', emoji: '🐸' },
-  { id: 'star', emoji: '⭐' },
-  { id: 'flower', emoji: '🌸' },
-  { id: 'unicorn', emoji: '🦄' },
-  { id: 'crown', emoji: '👑' },
+  { id: 'chick', emoji: '🐥', label: 'ひよこ' },
+  { id: 'rabbit', emoji: '🐰', label: 'うさぎ' },
+  { id: 'bear', emoji: '🐻', label: 'くま' },
+  { id: 'panda', emoji: '🐼', label: 'パンダ' },
+  { id: 'fox', emoji: '🦊', label: 'きつね' },
+  { id: 'frog', emoji: '🐸', label: 'かえる' },
+  { id: 'star', emoji: '⭐', label: 'ほし' },
+  { id: 'flower', emoji: '🌸', label: 'おはな' },
+  { id: 'unicorn', emoji: '🦄', label: 'ユニコーン' },
+  { id: 'crown', emoji: '👑', label: 'おうかん' },
 ];
 
 // 未設定・未知IDのフォールバック先。

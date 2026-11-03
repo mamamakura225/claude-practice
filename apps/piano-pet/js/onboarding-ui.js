@@ -2,6 +2,7 @@
 // 紙芝居の文面・ステップ送り・DOM。初回起動の1回しか使わないので、app.js は
 // 「まだ見ていない」ときだけ動的 import する（見た端末では一度も読まない）。
 import { setOnboarded } from './onboarding.js';
+import { openDialog, closeDialog } from './dialog.js';
 
 // 紙芝居の3画面。ひらがな主体・短文。emoji は吹き出しの見出しアイコン（新規画像を持たない方針）。
 export const ONBOARD_STEPS = [
@@ -53,7 +54,7 @@ function renderStep() {
 function finish() {
   setOnboarded();
   const el = document.getElementById('onboardingOverlay');
-  if (el) el.hidden = true;
+  if (el) closeDialog(el);
 }
 
 // catHtml はホームと同じ猫描画（新規アセットなし）。app.js が catMarkup で組んで渡す。
@@ -70,5 +71,5 @@ export function showOnboarding(catHtml) {
     renderStep();
   });
   document.getElementById('onboardingSkip')?.addEventListener('click', finish);
-  el.hidden = false;
+  openDialog(el, { onClose: finish, initial: document.getElementById('onboardingNext') });   // Esc＝スキップ（#397）
 }
