@@ -59,7 +59,7 @@ function anchorFor(style, type) {
 // アイテムの既定アンカー位置（%・.catコンテナ basis）。#168 のスナップ吸着点に使う。
 // viewBox は 0 0 200 200 なので %換算は座標/2。
 export function itemAnchorPct(id, style = 'tora') {
-  if (isSceneItem(id)) return { ...SCENE_DEFAULT_PCT };  // 置物は装着アンカー非依存（#226）
+  if (isSceneItem(id)) return sceneDefaultPct(id);  // 置物は装着アンカー非依存（#226）
   const type = ITEM_ANCHOR_TYPE[id];
   if (!type) return null;
   const a = anchorFor(style, type);
@@ -204,7 +204,7 @@ const ACCESSORY_TYPES = ['neck', 'head', 'face'];
 // box は中心原点（配置点へ translate して中央に描く）。layer で猫本体の前後どちらに描くかを振り分ける
 // （back=cat__body より背面 / front=演出より手前）。viewBox は装着系と同じ 0 0 200 200・.cat 正方枠基準で、
 // dressup のドラッグ／ピンチ（#168/#205）をそのまま流用する。画像は img/cat/scene/{id}.webp（透過・box×3＝#229・WebP＝#234）。
-const SCENE_BOX = {
+export const SCENE_BOX = {
   cushion:  { x: -40, y: -25, w: 80, h: 50, layer: 'back'  },  // 背後に置く座布団（くつろぎ構図）
   yarnBall: { x: -30, y: -30, w: 60, h: 60, layer: 'front' },  // 足元に転がす毛糸玉（前面 z5 の実証）
   // #299 追加
@@ -222,8 +222,23 @@ const SCENE_BOX = {
 };
 
 // 置物の既定配置（%・.cat 正方枠基準）。装着アンカーが無いため、dressup の掴み開始位置と
-// 描画の初期位置をこの一点に揃えて初回ドラッグ時のジャンプを防ぐ。猫の足元寄り。
-const SCENE_DEFAULT_PCT = { x_pct: 50, y_pct: 64 };
+// 描画の初期位置をこの値に揃えて初回ドラッグ時のジャンプを防ぐ。全部を1点に置くと重なって
+// 1個しか見えない（#396）ので、置物ごとに猫の周りへ散らす（窓は上・ほかは床・前面は顔と胴を避ける）。
+const SCENE_DEFAULT_PCT = {
+  cushion:   { x_pct: 28, y_pct: 62 },
+  yarnBall:  { x_pct: 26, y_pct: 84 },
+  plant:     { x_pct: 85, y_pct: 25 },
+  miniPiano: { x_pct: 82, y_pct: 80 },
+  teddy:     { x_pct: 86, y_pct: 57 },
+  window:    { x_pct: 50, y_pct: 18 },
+  lantern:   { x_pct: 10, y_pct: 78 },
+  present:   { x_pct: 62, y_pct: 85 },
+  fishToy:   { x_pct: 44, y_pct: 89 },
+  sofa:      { x_pct: 72, y_pct: 40 },
+  tree:      { x_pct: 18, y_pct: 20 },
+  lamp:      { x_pct: 9, y_pct: 48 },
+};
+const sceneDefaultPct = (id) => ({ ...(SCENE_DEFAULT_PCT[id] ?? { x_pct: 50, y_pct: 64 }) });
 
 export const SCENE_IDS = Object.keys(SCENE_BOX);
 
@@ -258,8 +273,9 @@ function sceneSvg(placedItems, layer, layout = {}) {
     .map((id) => {
       const pos = layout[id];
       const hasPos = pos && pos.x_pct != null;
-      const x = (hasPos ? pos.x_pct : SCENE_DEFAULT_PCT.x_pct) * 2;
-      const y = (hasPos ? pos.y_pct : SCENE_DEFAULT_PCT.y_pct) * 2;
+      const d = sceneDefaultPct(id);
+      const x = (hasPos ? pos.x_pct : d.x_pct) * 2;
+      const y = (hasPos ? pos.y_pct : d.y_pct) * 2;
       const sc = pos?.scale ?? 1;
       return `<g class="cat__item" data-item="${id}" data-scale="${n(sc, 3)}" `+
         `transform="translate(${n(x)} ${n(y)}) scale(${n(sc, 3)})">${hitRectMarkup(SCENE_BOX[id], sc)}${sceneImage(id)}</g>`;

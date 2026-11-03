@@ -703,7 +703,8 @@ function applyRecordModeUI() {
   const isBatch = recordMode === 'batch';
   if (stampModeEl) stampModeEl.hidden = isBatch;
   if (batchModeEl) batchModeEl.hidden = !isBatch;
-  for (const btn of document.querySelectorAll('.record-mode__btn')) {
+  // [data-mode] に限定：同じ見た目の「がめんの あかるさ」ボタンの選択表示を消さない（#396）
+  for (const btn of document.querySelectorAll('.record-mode__btn[data-mode]')) {
     const active = btn.dataset.mode === recordMode;
     btn.classList.toggle('is-active', active);
     btn.setAttribute('aria-selected', String(active));
@@ -886,9 +887,33 @@ function celebrateRecord({ leveled, badgeCount, streakCurrent, streakAdvanced, g
 // 表示アニメの transitionend で新しいポップアップを途中で hidden にしてしまう（#261 バグ修正）。
 // 要素ごとに前回のタイマー・リスナーを張り替えて競合を断つ。onHidden は完全に消えた後に呼ぶ。
 const popupCycles = new WeakMap();
+// 別のポップアップが出るときは、残っている前のもの（購入時のバッジ等）を即座に畳む。
+// 半透明で重なると両方とも読めない（#396）。畳んだものの onHidden（バッジ連鎖・えさやり後の
+// バッジ告知）は捨てずに返し、新しく出したものが閉じたあとに回す。
+// クリップ再生中のえさやりカードは動画ごと消えてしまうので畳まない。
+function dismissOtherPopups(popup) {
+  const carried = [];
+  for (const other of document.querySelectorAll('.coin-popup.coin-popup--show')) {
+    if (other === popup || other.classList.contains('coin-popup--clip')) continue;
+    const c = popupCycles.get(other);
+    if (c) {
+      clearTimeout(c.timer);
+      clearTimeout(c.fadeTimer);
+      other.removeEventListener('transitionend', c.onEnd);
+      popupCycles.delete(other);
+      if (c.onHidden) carried.push(c.onHidden);
+      carried.push(...c.deferred);
+    }
+    other.classList.remove('coin-popup--show');
+    other.hidden = true;
+  }
+  return carried;
+}
 function showPopup(popup, duration, onHidden) {
+  const carried = dismissOtherPopups(popup);
   const prev = popupCycles.get(popup);
   if (prev) {
+    if (!prev.finished) carried.push(...prev.deferred);
     clearTimeout(prev.timer);
     clearTimeout(prev.fadeTimer);
     popup.removeEventListener('transitionend', prev.onEnd);
@@ -896,15 +921,18 @@ function showPopup(popup, duration, onHidden) {
   popup.hidden = false;
   void popup.getBoundingClientRect();   // リフローを挟んでアニメーションを確実に再生
   popup.classList.add('coin-popup--show');
-  const cycle = {};
-  let finished = false;
+  const cycle = { onHidden, deferred: carried, finished: false };
   const finish = () => {
-    if (finished) return;
-    finished = true;
+    if (cycle.finished) return;
+    cycle.finished = true;
     popup.removeEventListener('transitionend', cycle.onEnd);
     clearTimeout(cycle.fadeTimer);
     popup.hidden = true;
     onHidden?.();
+    // onHidden が同じポップアップで続きを出した（バッジの連鎖）なら、回ってきた分はその後ろへ
+    const next = popupCycles.get(popup);
+    if (next && next !== cycle && !next.finished) next.deferred.push(...cycle.deferred);
+    else cycle.deferred.forEach((f) => f());
   };
   cycle.onEnd = finish;
   const hide = () => {
@@ -925,10 +953,14 @@ function showPopup(popup, duration, onHidden) {
   return hide;   // duration を待たずに閉じる（えさやりクリップの終了・スキップ・#294）
 }
 
-function showCoinPopup({ coins, leveled, newLevel }) {
+function showCoinPopup({ coins, leveled, newLevel, fixed = false }) {
   const popup = document.getElementById('coinPopup');
   if (!popup) return;
-  playSound('coin', state);       // コイン獲得音（ポップアップ表示に同期）
+  // 回数が増えていない再記録・減らした記録では「+0 コイン ゲット！」と祝わない（#396）
+  if (!fixed) playSound('coin', state);       // コイン獲得音（ポップアップ表示に同期）
+  setText('coinPopupIcon', fixed ? '✏️' : '🪙');
+  setText('coinPopupLabel', fixed ? 'きろくを なおしたよ' : 'コイン ゲット！');
+  document.getElementById('coinPopupAmount').hidden = fixed;
   document.getElementById('coinPopupAmount').textContent = `+${coins}`;
   const levelUpEl = document.getElementById('coinPopupLevelUp');
   if (levelUpEl) {
@@ -1005,7 +1037,8 @@ function showFreezePopup() {
 
 // 変更後 sessions を全再計算して確定する共通経路（同日統合 #186・過去日挿入 #260）。
 // applySession と違い報酬情報が返らないため、前後の diff から演出（コイン・レベル・バッジ）を出す。
-function commitRecordedSessions(sessions, totalCount) {
+// increased: その日の回数が増えた記録か（同じ内容の再送信・減らした修正は false・#396）
+function commitRecordedSessions(sessions, totalCount, { increased = true } = {}) {
   const prevCoins = state.pet.coins;
   const prevLevel = state.pet.level;
   const prevBadges = state.badges;
@@ -1020,14 +1053,19 @@ function commitRecordedSessions(sessions, totalCount) {
   router.go('home');
   const leveled = newState.pet.level > prevLevel;
   const goalReached = crossedDailyGoal(prevSessions, newState.sessions, todayStr(), goal);
-  celebrateRecord({
-    leveled,
-    badgeCount: gainedBadges.length,
-    streakCurrent: newState.streak.current,
-    streakAdvanced: newState.streak.current !== prevStreak,
-    goalReached,
-  });
-  showCoinPopup({ coins: Math.max(0, newState.pet.coins - prevCoins), leveled, newLevel: newState.pet.level });
+  const gainedCoins = Math.max(0, newState.pet.coins - prevCoins);
+  const streakAdvanced = newState.streak.current !== prevStreak;
+  // 何も増えていない（同じ内容の再送信・回数を減らした修正）ときは、お祝いの演出を出さない（#396）
+  if (increased || leveled || gainedBadges.length || goalReached || streakAdvanced) {
+    celebrateRecord({
+      leveled,
+      badgeCount: gainedBadges.length,
+      streakCurrent: newState.streak.current,
+      streakAdvanced,
+      goalReached,
+    });
+  }
+  showCoinPopup({ coins: gainedCoins, leveled, newLevel: newState.pet.level, fixed: !increased && !leveled });
   playSound('record', state);
   if (leveled) playSound('levelup', state);
   if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 2200);
@@ -1084,7 +1122,7 @@ function submitRecord(event) {
     const mergedCount = isToday ? totalCount : existing.totalCount + totalCount;
     const sessions = state.sessions.map((s, i) =>
       i === existingIndex ? { ...s, songs: mergedSongs, totalCount: mergedCount } : s);
-    commitRecordedSessions(sessions, mergedCount);
+    commitRecordedSessions(sessions, mergedCount, { increased: mergedCount > existing.totalCount });
     return;
   }
 
@@ -1211,6 +1249,9 @@ document.getElementById('shopCats')?.addEventListener('click', (e) => {
 });
 
 // ===== ショップの購入・装備操作 =====
+// 購入直後は同じ位置のボタンが「みにつける／おく」に替わるので、連打の2打目で着替え・配置まで
+// 進まないよう、しばらく押せなくする（#396）
+const BUY_GUARD_MS = 700;
 document.getElementById('shopList')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.shop-btn[data-action]');
   if (!btn) return;
@@ -1221,7 +1262,9 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
     : action === 'place' ? togglePlace(state, id)
     : toggleEquip(state, id);
   if (next === state) return;       // 変化なし（買えない等）
-  if (action === 'buy') playSound('purchase', state);  // 購入音
+  if (action === 'buy') {
+    playSound('purchase', state);  // 購入音
+  }
   // first_outfit（#309）は inventory（購入）から判定するため、購入直後だけ再判定する
   // （device/place/equip は inventory を変えないので対象外）。次の記録まで待たせない。
   const prevBadges = state.badges;
@@ -1229,6 +1272,13 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
   const gainedBadges = action === 'buy' ? newlyEarned(prevBadges, withBadges.badges) : [];
   commitState(withBadges);          // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
+  if (action === 'buy') {
+    const after = document.querySelector(`#shopList .shop-btn[data-id="${id}"]`);
+    if (after) {
+      after.disabled = true;
+      setTimeout(() => { after.disabled = false; }, BUY_GUARD_MS);
+    }
+  }
   if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 300);
 });
 
