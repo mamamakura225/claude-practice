@@ -40,8 +40,8 @@ export function weeklyChartSvg(bars) {
 // 記録カードのワンタップ・スタンプ行（はなまる #145 / 練習の質メモ #239）。
 // 同型（Session の単一フィールドに id を1つ・再タップで解除）なので設定駆動で共通化する。
 const SESSION_MARKS = {
-  praise: { stamps: PRAISE_STAMPS, normalize: normalizePraise, cls: 'praise-stamp', row: 'praise-row', label: 'はなまるスタンプ' },
-  tempo: { stamps: TEMPO_STAMPS, normalize: normalizeTempo, cls: 'tempo-stamp', row: 'tempo-row', label: 'れんしゅうの ようす' },
+  praise: { stamps: PRAISE_STAMPS, normalize: normalizePraise, cls: 'praise-stamp', row: 'praise-row', label: 'はなまるスタンプ', heading: 'はなまる' },
+  tempo: { stamps: TEMPO_STAMPS, normalize: normalizeTempo, cls: 'tempo-stamp', row: 'tempo-row', label: 'れんしゅうの ようす', heading: 'ようす' },
 };
 
 // スタンプ行のマークアップ：選択中のものを強調。タップで付与／同じものを再タップで解除。
@@ -54,7 +54,7 @@ function markRowMarkup(kind, session, index) {
       ` data-action="set-mark" data-mark="${kind}" data-index="${index}" data-id="${p.id}"` +
       ` aria-pressed="${on}" title="${p.label}" aria-label="${p.label}">${p.emoji}</button>`;
   }).join('');
-  return `<div class="${m.row}" role="group" aria-label="${m.label}">${buttons}</div>`;
+  return `<div class="${m.row}" role="group" aria-label="${m.label}"><span class="mark-label" aria-hidden="true">${m.heading}</span>${buttons}</div>`;
 }
 
 export function historyCardMarkup(session, index) {
@@ -63,7 +63,7 @@ export function historyCardMarkup(session, index) {
     .map((s) => `<li><span class="song-title">${escapeHtml(s.name)}</span>` +
       `<span class="song-times">${Number(s.count) || 0}かい</span></li>`)
     .join('');
-  return `<div class="history-card">
+  return `<div class="history-card" data-date="${escapeHtml(session.date)}">
     <div class="history-card__date">
       <span class="history-card__day">${formatDateJa(session.date)}</span>
       <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
@@ -103,6 +103,10 @@ export function calendarCellsMarkup(weeks, month) {
     const cls = `cal-cell${cell.isToday ? ' cal-cell--today' : ''}${cell.isFuture ? ' cal-cell--future' : ''}`;
     const title = `${month}/${cell.day}：${cell.count}かい${cell.isLesson ? '・レッスン' : ''}`;
     const lesson = cell.isLesson ? '<span class="cal-cell__lesson" aria-hidden="true">🎹</span>' : '';
-    return `<span class="${cls}" data-level="${cell.level}" title="${title}"><span class="cal-cell__day">${cell.day}</span>${lesson}</span>`;
+    const inner = `<span class="cal-cell__day">${cell.day}</span>${lesson}`;
+    // 記録のある日は押すと その日の記録カードへ移る（#401）
+    return cell.count > 0
+      ? `<button type="button" class="${cls}" data-level="${cell.level}" data-date="${cell.date}" title="${title}" aria-label="${title}">${inner}</button>`
+      : `<span class="${cls}" data-level="${cell.level}" title="${title}">${inner}</span>`;
   }).join('')).join('');
 }

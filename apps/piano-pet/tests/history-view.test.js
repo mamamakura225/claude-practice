@@ -31,9 +31,12 @@ describe('songCollectionMarkup', () => {
 
 describe('calendarCellsMarkup / weeklyChartSvg', () => {
   it('空きセルはパディング、今日と未来日にクラスが付く', () => {
-    const html = calendarCellsMarkup([[null, { day: 1, count: 10, level: 3, isToday: true, isFuture: false }, { day: 2, count: 0, level: 0, isToday: false, isFuture: true }]], 9);
+    const html = calendarCellsMarkup([[null, { date: '2026-09-01', day: 1, count: 10, level: 3, isToday: true, isFuture: false }, { date: '2026-09-02', day: 2, count: 0, level: 0, isToday: false, isFuture: true }]], 9);
     expect(html).toContain('cal-cell--pad');
-    expect(html).toContain('class="cal-cell cal-cell--today" data-level="3" title="9/1：10かい"');
+    expect(html).toContain('class="cal-cell cal-cell--today" data-level="3" data-date="2026-09-01" title="9/1：10かい"');
+    // 記録のある日だけ押せる（#401）
+    expect(html).toContain('<button type="button" class="cal-cell cal-cell--today"');
+    expect(html).toContain('<span class="cal-cell cal-cell--future"');
     expect(html).toContain('cal-cell--future');
   });
 

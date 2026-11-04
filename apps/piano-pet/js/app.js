@@ -331,12 +331,17 @@ async function moveCalendar(delta) {
   renderCalendar();
 }
 
+const SONGS_SHOWN = 5;
+let songsOpen = false;
 function renderSongCollection() {
   const el = document.getElementById('songCollection');
   if (!el) return;
   const totals = songTotals(state.sessions);
+  // 上位5曲だけ出す（#401）
+  const rest = songsOpen ? 0 : Math.max(0, totals.length - SONGS_SHOWN);
   el.innerHTML = totals.length
-    ? `<ul class="song-collection__list">${historyMod.songCollectionMarkup(totals, buildSongColors())}</ul>`
+    ? `<ul class="song-collection__list">${historyMod.songCollectionMarkup(totals.slice(0, totals.length - rest), buildSongColors())}</ul>`
+      + (rest > 0 ? `<button type="button" class="settings-btn settings-btn--ghost settings-btn--block" data-action="more-songs">もっと みる（あと ${rest}きょく）</button>` : '')
     : '<p class="history-empty">まだ きょくが ないよ。</p>';
 }
 
@@ -554,7 +559,10 @@ const router = createRouter({
 
 navButtons.forEach((btn) => {
   btn.addEventListener('click', () => {
-    if (btn.dataset.nav === 'history') historyShown = HISTORY_PAGE;   // ナビから入り直したら直近へ（#360）
+    if (btn.dataset.nav === 'history') {   // ナビから入り直したら直近へ（#360/#401）
+      historyShown = HISTORY_PAGE;
+      songsOpen = false;
+    }
     router.go(btn.dataset.nav);
   });
 });
@@ -562,7 +570,10 @@ navButtons.forEach((btn) => {
 document.getElementById('goRecordBtn')?.addEventListener('click', () => router.go('record'));
 // 空状態の案内から各画面へ（ショップのコイン不足→記録・#399）
 document.querySelector('.shop-hint__btn')?.addEventListener('click', () => router.go('record'));
-document.getElementById('recordBackBtn')?.addEventListener('click', () => router.go('home'));
+document.getElementById('recordBackBtn')?.addEventListener('click', () => {
+  if (editingDate != null) backToHistory();   // 「なおす」から来たら きろく の元の位置へ（#401）
+  else router.go('home');
+});
 document.getElementById('calPrevBtn')?.addEventListener('click', () => moveCalendar(-1));  // 練習カレンダー 前月（#236）
 document.getElementById('calNextBtn')?.addEventListener('click', () => moveCalendar(1));   // 練習カレンダー 翌月
 document.getElementById('photoBtn')?.addEventListener('click', shareCatPhoto);             // 写真モード（#237）
@@ -911,12 +922,27 @@ function fillRecordForm(session) {
 
 // 履歴から編集を開始：record 画面へ切り替えてからフォームを埋める。
 // 一覧のチップは元配列 index を載せているが、ここで date に解決して持つ（#314）。
+// 「なおす」から きろく の元の位置へ戻る（#401）
+let editReturnY = 0;
+function backToHistory() {
+  const y = editReturnY;
+  router.go('history');
+  renderHistory().then(() => window.scrollTo(0, y));
+}
+
 function startEditSession(index) {
   const session = state.sessions[index];
   if (!session) return;
+  editReturnY = window.scrollY;
   router.go('record');     // render() 内の resetRecordForm が editingDate を一旦 null に戻す
   editingDate = session.date;
   fillRecordForm(session);
+  // 編集中はナビも「きろく」を選択状態に（#401）
+  for (const b of navButtons) {
+    const on = b.dataset.nav === 'history';
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-current', on ? 'page' : 'false');
+  }
 }
 
 // 履歴から削除：確認のうえ該当セッションを除き、全再計算して保存
@@ -1231,8 +1257,7 @@ function submitRecord(event) {
         recordErrorEl.textContent = 'この きろくは ほかの ところで けされたみたい';
         recordErrorEl.hidden = false;
       }
-      editingDate = null;
-      return;
+      return;   // editingDate は残す（#401）
     }
     const sessions = state.sessions.map((s, i) =>
       i === idx ? { ...s, date, songs, totalCount } : s);
@@ -1240,8 +1265,13 @@ function submitRecord(event) {
     const deletedDates = date === editingDate ? state.deletedDates
       : [...new Set([...(state.deletedDates ?? []), editingDate])];
     commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions), deletedDates }, spentTotal(state)));
+    const moved = date !== editingDate;
     resetRecordForm();
-    router.go('history');
+    // 日付を変えたら直した記録へ（#401）
+    if (moved) {
+      router.go('history');
+      jumpToRecord(date);
+    } else backToHistory();
     return;
   }
 
@@ -1368,6 +1398,28 @@ document.getElementById('historyList')?.addEventListener('click', (e) => {
     const list = e.currentTarget;
     renderHistory().then(() => list.children[from]?.querySelector('button')?.focus());
   }
+});
+
+// カレンダーの日からその日の記録カードへ（#401）
+async function jumpToRecord(date) {
+  const order = state.sessions.map((x) => x.date).sort().reverse();
+  historyShown = Math.max(historyShown, order.indexOf(date) + 1);
+  await renderHistory();
+  const card = document.querySelector(`#historyList .history-card[data-date="${date}"]`);
+  card?.scrollIntoView({ block: 'center' });
+  // 「なおす」へ。取り消し待ちでカードが無ければ押した日へ
+  (card?.querySelector('[data-action="edit-session"]') ?? document.querySelector(`#calGrid [data-date="${date}"]`))?.focus({ preventScroll: true });
+}
+document.getElementById('calGrid')?.addEventListener('click', (e) => {
+  const cell = e.target.closest('.cal-cell[data-date]');
+  if (cell) jumpToRecord(cell.dataset.date);
+});
+document.getElementById('songCollection')?.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-action="more-songs"]')) return;
+  songsOpen = true;
+  renderSongCollection();
+  const list = e.currentTarget.querySelector('.song-collection__list');
+  if (list) { list.tabIndex = -1; list.focus({ preventScroll: true }); }
 });
 
 // ===== ショップのカテゴリ絞り込み（#299） =====
@@ -1680,7 +1732,7 @@ async function showLessonSettings() {
       });
     },
   });
-  renderLessonList();
+  renderLessonList(true);   // 開くたびに畳む
 }
 
 // 起動時：日付をまたいで「きょう」になったレッスン日が未反映なら取りこむ（モジュール評価の完了後に実行）

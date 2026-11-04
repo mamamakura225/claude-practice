@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=5d7becc8">
-  <link rel="stylesheet" href="css/cat.css?v=5d7becc8">
+  <link rel="stylesheet" href="css/style.css?v=68fae27e">
+  <link rel="stylesheet" href="css/cat.css?v=68fae27e">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -155,7 +155,7 @@
               <button type="button" id="stampCard" class="stamp-card" aria-label="ハンコを おす"></button>
               <p id="stampHint" class="stamp-hint" role="status" hidden>きょくを えらんでね</p>
               <div class="stamp-progress" aria-live="polite">
-                <span id="recordTotal">0</span> こ / もくひょう <span id="recordGoalTarget">10</span>こ
+                <span id="recordTotal">0</span> かい / もくひょう <span id="recordGoalTarget">10</span>かい
               </div>
               <button type="button" id="undoStampBtn" class="btn-undo-stamp">↩ ひとつ もどす</button>
             </div>
@@ -224,7 +224,7 @@
             <div class="calendar__weekdays" aria-hidden="true">
               <span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span>
             </div>
-            <div class="calendar__grid" id="calGrid" role="img" aria-label="つきごとの れんしゅうりょう ヒートマップ"></div>
+            <div class="calendar__grid" id="calGrid" role="group" aria-label="つきごとの れんしゅうりょう。れんしゅうした ひを おすと その きろくへ"></div>
             <div class="calendar__legend" aria-hidden="true">
               <span class="calendar__legend-label">すくない</span>
               <span class="cal-cell" data-level="0"></span>
@@ -406,6 +406,7 @@
 
       <!-- 親メニュー：ゲート通過後にアカウント切替・目標回数・テーマ・がぞくコード・バックアップ/復元・初期化を表示 -->
       <div class="settings-panel" id="settingsMenu" hidden>
+        <button type="button" class="settings-panel__close" data-action="close-settings" aria-label="とじる">×</button>
         <!-- アカウント切替（マルチアカウント・#182） -->
         <section class="settings-account">
           <h2 class="settings-panel__title">アカウント</h2>
@@ -519,6 +520,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=5d7becc8"></script>
+  <script type="module" src="js/app.js?v=68fae27e"></script>
 </body>
 </html>
