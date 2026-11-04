@@ -7,12 +7,16 @@ export function initLessonSettings({ getDates, setDates, today, onRemoved }) {
   const listEl = document.getElementById('lessonList');
   const inputEl = document.getElementById('lessonDateInput');
 
-  const render = () => {
+  let showMore = false;
+  const render = (collapse = false) => {
+    if (collapse) showMore = false;
     if (!listEl) return;
     const t = today();
-    // 先の予定は全部、過去日は新しい順に12件（予定が多くても誤登録した過去日を解除できる）
+    // 先の予定は全部、過去日は新しい順に3件（「もっと みる」で12件・一覧が画面を占めないように #401）
     const all = [...getDates()].reverse();
-    const shown = [...all.filter((d) => d > t), ...all.filter((d) => d <= t).slice(0, 12)];
+    const past = all.filter((d) => d <= t);
+    const pastLimit = showMore ? 12 : 3;
+    const shown = [...all.filter((d) => d > t), ...past.slice(0, pastLimit)];
     listEl.replaceChildren(...shown.map((d) => {
       const li = document.createElement('li');
       const label = document.createElement('span');
@@ -27,6 +31,15 @@ export function initLessonSettings({ getDates, setDates, today, onRemoved }) {
       li.append(label, del);
       return li;
     }));
+    if (!showMore && past.length > 3) {
+      const li = document.createElement('li');
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'settings-btn settings-btn--ghost settings-btn--block lesson-more';
+      more.textContent = `もっと みる（あと ${Math.min(past.length, 12) - 3}けん）`;
+      li.append(more);
+      listEl.append(li);
+    }
   };
 
   document.getElementById('lessonAddBtn')?.addEventListener('click', () => {
@@ -34,9 +47,17 @@ export function initLessonSettings({ getDates, setDates, today, onRemoved }) {
     if (!d || getDates().includes(d)) return;
     setDates([...getDates(), d], { announce: true });
     inputEl.value = '';
+    if (d <= today()) showMore = true;   // 古い入れ忘れを足しても一覧に出ないと失敗に見える
     render();
   });
   listEl?.addEventListener('click', (e) => {
+    if (e.target.closest('.lesson-more')) {
+      const shown = listEl.querySelectorAll('.lesson-del').length;
+      showMore = true;
+      render();
+      listEl.querySelectorAll('.lesson-del')[shown]?.focus();   // 足した先頭へ
+      return;
+    }
     const btn = e.target.closest('.lesson-del');
     if (!btn) return;
     setDates(getDates().filter((d) => d !== btn.dataset.date));

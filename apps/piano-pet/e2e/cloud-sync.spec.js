@@ -321,6 +321,13 @@ test.describe('クラウド同期の取り込み', () => {
     const st = await readLocal(page);
     expect(st.sessions.map((s) => s.date)).toEqual(['2026-09-03']);
     expect(st.sessions[0].totalCount).toBe(5);            // 残った記録は無傷
+
+    // もう一度送っても新規記録にならず、もどるは きろく へ（#401）
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#recordError')).toBeVisible();
+    expect((await readLocal(page)).sessions.map((s) => s.date)).toEqual(['2026-09-03']);
+    await page.click('#recordBackBtn');
+    await expect(page.locator('#view-history')).toBeVisible();
   });
 
   // #319: 端末Aで削除 → 端末Bの古いスナップショットが降ってきても記録は復活しない
