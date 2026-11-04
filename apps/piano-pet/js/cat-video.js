@@ -164,9 +164,12 @@ async function startClip(host, getSrc, timeoutMs = PLAY_TIMEOUT_MS) {
   if (!video.canPlayType('video/mp4')) return null;
 
   const gen = host._clipGen = (host._clipGen || 0) + 1;
+  // 前のクリップの「見終わった」通知は捨てずに流す（捨てると前の記録のポップアップが出ない・#400）
+  const prevDone = host._clipSettled ? null : host._clipDone;
   teardown(host);
   host._clipSettled = false;
   host._clipDone = null;
+  prevDone?.();
   host.textContent = '';
   const src = getSrc();
   if (!src) return null;
@@ -201,16 +204,17 @@ const clipDuration = (video, fallback) =>
 
 /**
  * 猫の上に記録クリップを重ねて再生する。再生できたら true、出せなければ false（呼び出し側が既存CSS
- * 演出へフォールバック）。
+ * 演出へフォールバック）。true のときは畳んだあとに onDone を1回呼ぶ。
  */
-export async function tryPlay(style) {
+export async function tryPlay(style, onDone) {
   const host = overlay();
   const clip = await startClip(host, () => pickClip(style).src);
   if (!clip) return false;
   const { video, gen } = clip;
+  host._clipDone = onDone ?? null;   // 見終わる／スキップで呼ぶ（ごほうびのポップアップはその後に出す・#400）
 
   host.classList.add('cat-video--show');
-  document.body.classList.add('cat-clip-playing');   // 再生中はコインポップアップ等をクリップの前に出さない
+  document.body.classList.add('cat-clip-playing');   // 前の記録のポップアップが重なったときはクリップの裏へ（#400）
   // #296: 1本が短くて見逃すので、2回ループしてから畳む。video.loop は使わない
   // （ended が飛ばず終了検知・世代管理が崩れる）。明示的に1回だけ巻き戻す。
   let looped = false;
