@@ -222,7 +222,8 @@ body {
 /* ----- アイコン選択グリッド（#121） ----- */
 .avatar-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));   /* 320px では4列（#397） */
+  width: 100%;   /* 無いと1列に縮む */
+  grid-template-columns: repeat(auto-fit, minmax(44px, 1fr));
   gap: 10px;
   margin: 4px 0 8px;
 }

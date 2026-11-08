@@ -61,17 +61,22 @@ test.describe('モーダルの操作（#397）', () => {
     expect(await page.evaluate(() => document.activeElement?.dataset.action)).toBe('open-avatar');
   });
 
-  test('320px でも じぶんの アイコンの選択肢（44px）が枠からはみ出さない', async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 640 });
-    await boot(page);
-    await page.goto('/');
-    const opener = page.locator('#view-home [data-action="open-avatar"]');
-    await expect(opener).toBeVisible({ timeout: 10000 });
-    await opener.click();
-    await expect(page.locator('#avatarOverlay')).toBeVisible();
-    const panel = await page.locator('#avatarOverlay .settings-panel').evaluate((el) => el.scrollWidth - el.clientWidth);
-    expect(panel).toBeLessThanOrEqual(0);
-  });
+  // 枠に収まり、かつ横に並ぶ（1列に縮んで縦に並ばない）。375px は5列・320px は4列
+  for (const [width, cols] of [[375, 5], [320, 4]]) {
+    test(`${width}px で じぶんの アイコンの選択肢（44px）が枠からはみ出さず ${cols}列に並ぶ`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 640 });
+      await boot(page);
+      await page.goto('/');
+      const opener = page.locator('#view-home [data-action="open-avatar"]');
+      await expect(opener).toBeVisible({ timeout: 10000 });
+      await opener.click();
+      await expect(page.locator('#avatarOverlay')).toBeVisible();
+      const panel = await page.locator('#avatarOverlay .settings-panel').evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(panel).toBeLessThanOrEqual(0);
+      const tops = await page.locator('.avatar-grid__btn').evaluateAll((els) => els.map((el) => Math.round(el.getBoundingClientRect().top)));
+      expect(tops.filter((t) => t === tops[0])).toHaveLength(cols);
+    });
+  }
 
   test('名前の入力で日本語変換中の Esc では、じぶんの アイコンが閉じない', async ({ page }) => {
     await boot(page);
