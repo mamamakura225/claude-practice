@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync } from 'node:fs';
 import {
   STAMP_DESIGNS, STAMP_INKS, designForDate, eligibleDates, cardStatus, pressStamp,
   saveCard, redeemCard, nextStartDate, clampCardSize, normalizeRewardEmoji, normalizeReward,
@@ -132,6 +133,12 @@ describe('絵柄（#409）', () => {
     expect(STAMP_DESIGNS).toHaveLength(16);
     expect(new Set(STAMP_DESIGNS.map((d) => d.ink)).size).toBe(5);
     for (const d of STAMP_DESIGNS) expect(STAMP_INKS[d.ink]).toBeTruthy();
+  });
+
+  it('どの絵柄にも画像がある（#410。id とファイル名がずれると絵が出ない）', () => {
+    for (const id of [...STAMP_DESIGNS.map((d) => d.id), 'paw']) {
+      expect(existsSync(new URL(`../img/stamp/${id}.webp`, import.meta.url)), id).toBe(true);
+    }
   });
 
   it('日付だけで決まり、16日のまとまりの中では同じ絵が出ない', () => {

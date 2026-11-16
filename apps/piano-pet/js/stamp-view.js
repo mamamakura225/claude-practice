@@ -1,17 +1,14 @@
 // ねこスタンプちょう（#409）の画面（遅延読込）
 import { escapeHtml } from './html.js';
-import { STAMP_INKS, STAMP_THRESHOLD, cardStatus, normalizeRewardEmoji } from './stamp-book.js';
+import { STAMP_THRESHOLD, cardStatus, normalizeRewardEmoji } from './stamp-book.js';
 
 export * from './stamp-book.js';
 
 const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
 const rewardText = (c) => `${normalizeRewardEmoji(c.emoji)} ${escapeHtml(c.reward || 'ごほうび')}`;
 
-// 仮絵柄。#410 の水彩画像はここで差し替える
-export function stampFace(design, date) {
-  return `<span class="sb-stamp" role="img" aria-label="${design.name}（${md(date)}）" style="--sb-ink:${STAMP_INKS[design.ink]}">`
-    + `<span class="sb-stamp__cat" aria-hidden="true">🐱</span><span class="sb-stamp__mark" aria-hidden="true">${design.mark}</span></span>`;
-}
+export const stampFace = (design, date) =>
+  `<img class="sb-stamp" src="img/stamp/${design.id}.webp" alt="${design.name}（${md(date)}）">`;
 
 function cellMarkup(slot, i, card) {
   if (slot?.pressed) return `<li class="sb-cell sb-cell--done">${stampFace(slot.design, slot.date)}</li>`;
@@ -69,6 +66,6 @@ export function animatePress(btn, design, date) {
   const cell = btn.closest('.sb-cell');
   if (!cell) return Promise.resolve();
   cell.className = 'sb-cell sb-cell--done sb-cell--peta';
-  cell.innerHTML = `${stampFace(design, date)}<span class="sb-paw" aria-hidden="true">🐾</span>`;
+  cell.innerHTML = `${stampFace(design, date)}<img class="sb-paw" src="img/stamp/paw.webp" alt="">`;
   return new Promise((resolve) => setTimeout(resolve, 750));
 }
