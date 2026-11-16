@@ -191,6 +191,7 @@ export function renderHome() {
 
   renderChildAvatar();
   renderStats();
+  renderStampHome();
   renderSoundToggle();
   renderLayerPanel();   // きせかえ編集中だけ中身を描き直す（非表示なら即 return・#270）
 }
@@ -503,6 +504,63 @@ export function renderBadges() {
   if (grid) grid.innerHTML = badgesWithStatus(state).map(badgeCardMarkup).join('');
 }
 
+// ===== ねこスタンプちょう（#409） =====
+// 画面とロジックは使うときだけ読む（#284）
+let stampMod = null;
+const loadStamp = async () => (stampMod ??= await import('./stamp-view.js'));
+const setStampBook = (stampBook) => commitState({ ...state, pet: { ...state.pet, stampBook } });
+
+async function renderStampBook() {
+  const el = document.getElementById('stampBook');
+  const mod = await loadStamp().catch(() => null);
+  if (!el) return;
+  if (mod) el.innerHTML = mod.bookMarkup(state, todayStr());
+  else el.textContent = 'よみこめませんでした。アプリを ひらきなおしてね';
+}
+
+function renderStampHome() {
+  const link = document.getElementById('stampHomeLink');
+  if (!link) return;
+  if (!state.pet.stampBook.card) { link.hidden = true; return; }
+  loadStamp().then((mod) => {
+    const sum = mod.homeSummary(state, todayStr());
+    link.hidden = !sum;
+    if (!sum) return;
+    link.textContent = sum.text;
+    link.classList.toggle('stamp-home--ready', sum.ready);
+  }).catch(() => {});
+}
+
+let stampPressing = false;
+document.getElementById('stampBook')?.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.sb-press');
+  if (!btn || stampPressing || !stampMod) return;
+  stampPressing = true;
+  const { date } = btn.dataset;
+  try {
+    setStampBook(stampMod.pressStamp(state.pet.stampBook, date));
+    playSound('peta', state);
+    await stampMod.animatePress(btn, stampMod.designForDate(date), date);
+  } finally {
+    stampPressing = false;   // 例外で押せないまま固まらないように
+  }
+  const full = stampMod.cardStatus(state, todayStr()).full;
+  await renderStampBook();
+  if (full) {
+    document.getElementById('sbGoal')?.classList.add('sb-goal--new');
+    playSound('levelup', state);
+  }
+});
+document.getElementById('stampHomeLink')?.addEventListener('click', () => router.go('stamp'));
+
+let renderStampSettings = null;
+async function showStampSettings() {
+  const mod = await import('./stamp-settings.js').catch(() => null);
+  if (!mod) return;
+  renderStampSettings ??= mod.initStampSettings({ getState: () => state, today: todayStr, save: setStampBook });
+  renderStampSettings();
+}
+
 // ===== ナビゲーション =====
 const views = Array.from(document.querySelectorAll('.view'));
 const navButtons = Array.from(document.querySelectorAll('.nav-btn'));
@@ -535,6 +593,7 @@ function render(view) {
   if (view === 'history') renderHistory();
   if (view === 'shop') renderShop();
   if (view === 'badges') renderBadges();
+  if (view === 'stamp') renderStampBook();
   if (view === 'home') flushPendingFeedFx();
   window.scrollTo(0, 0);
 }
@@ -1771,6 +1830,7 @@ async function openSettings() {
   if (!mod) return;
   const dlg = await loadDialog().catch(() => null);
   showLessonSettings();
+  showStampSettings();
   const p = mod.makeGateProblem();
   gateExpected = p.answer;
   setText('gateA', p.a);
@@ -2178,6 +2238,7 @@ function applyRemoteState(cloudData) {
   if (router.current === 'history') renderHistory();
   else if (router.current === 'shop') renderShop();
   else if (router.current === 'badges') renderBadges();
+  else if (router.current === 'stamp' && !stampPressing) renderStampBook();
 }
 
 // ローカルに引き継ぐ価値のあるデータがあるか（初回クラウド移行の判定用）。
@@ -2231,6 +2292,7 @@ function reconcileInitialCloud(cloudData) {
     if (router.current === 'history') renderHistory();
     else if (router.current === 'shop') renderShop();
     else if (router.current === 'badges') renderBadges();
+    else if (router.current === 'stamp' && !stampPressing) renderStampBook();
   }
   // ローカルだけが持っていた記録（起動直後に記録した分など）でクラウドが古ければ確定保存する。
   if (reconciledCloud !== JSON.stringify(cloudFields(normalizeState(cloudData)))) {

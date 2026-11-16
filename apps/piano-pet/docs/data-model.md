@@ -88,6 +88,7 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | なかよしレベルとご褒美解放（#124） | `pet.affinity` のしきい値 | [feed.js](../js/feed.js) `affinityLevel` / `affinityRewards`。`recomputeState` は affinity を保持するため全再計算でも矛盾しない |
 | きせかえ購入の解放ゲート（#126） | `affinityLevel(pet.affinity).level >= unlockLevel` | [shop.js](../js/shop.js) `SHOP_ITEMS` の静的カタログ値 `unlockLevel` と比較（`isUnlocked`）。判定は購入時（`canBuy`）のみで、装備・描画は inventory/equippedItems の所属だけを見る＝affinity 低下で再ロックされても所持品は保持される |
 | 月間ヒートマップ（#236） | `sessions` の日別集計 | [history.js](../js/history.js) `monthGrid`/`heatLevel`/`dailyCountMap` |
+| スタンプちょうの「もらえる日」と絵柄（#409） | `sessions` の日別合計 ≥ 10・`pet.stampBook.card` の開始日と個数／日付 | [stamp-book.js](../js/stamp-book.js) `eligibleDates`/`cardStatus`/`designForDate`。保存するのは押した日（`pressed`）だけ。記録を直して10回を下回ればスタンプも消える |
 
 ### Pet
 
@@ -108,6 +109,7 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | `lessonDates` | string[] | `[]` | ピアノのレッスン日（#393）。`YYYY-MM-DD` の昇順・重複なし（`normalizeLessonDates` が入口で矯正）。`sessions` には入れず、`recomputeState` が今日以前の登録日を練習記録と日付順に並べて再生する（連続+1・コイン `LESSON_COINS`/XP `LESSON_XP` を固定付与）。初回マージは「登録の union − `lessonRemoved` の union」、realtime は `pet` ごと cloud-wins。**PII**：通っている日のパターンになるので analytics には送らない。設計判断は [features.md](./features.md) |
 | `lessonRemoved` | string[] | `[]` | 解除したレッスン日の墓標（#393）。形式は `lessonDates` と同じ。初回マージで他端末に残った古い登録を復活させないために持つ。再登録すると外す |
 | `childAvatar` | string | `'chick'` | こどものアイコン絵文字ID（#121・[child-profile.js](../js/child-profile.js) `CHILD_AVATARS`）。**顔写真は使わない**（認証なしの共有 Firestore に置くため）。未知・未設定は `normalizeChildAvatar` が 🐥 にフォールバック |
+| `stampBook` | object | `{ card: null, pressed: [], done: [] }` | ねこスタンプちょう（#409）。`card`＝いまのカード `{ id, startDate, size, reward, emoji }`（`id` は作成時刻 ms・`size` 5〜60・`reward` 20文字）か `null`。`pressed`＝子が押した日（`YYYY-MM-DD` の昇順）。`done`＝ごほうびを あげた カード（`card` の項目＋`dates`＝その時点のスタンプの日付・`redeemedOn`）。もらえる日は保存せず `sessions` から導出（上表）。**PII**：ごほうびの文字は analytics に送らない。仕様と設計判断は [features.md](./features.md) |
 
 `pet` 配下は CLOUD_FIELDS にまとめて乗るため、フィールド追加時にマージ規則の追加は不要（realtime は pet ごと cloud-wins、初回マージは下表の規則）。
 
@@ -140,6 +142,7 @@ state は localStorage に JSON で保存する。保存キーは**有効アカ�
 | `sessions[].totalCount`（#311） | `Number(v) \|\| 0` で数値へ矯正して残す（安全な既定値 0 がある） |
 | `sessions[].songs`（#311） | 配列でなければ空配列へ。各要素は `{ name: String, count: Number }` に矯正し、`name` が空（文字列 `'abc'` の展開 `['a','b','c']` を含む）の曲は除去 |
 | `pet` / `streak` / `settings` / `pet.itemLayout` | プレーンオブジェクトでなければ既定へ（配列も弾く） |
+| `pet.stampBook`（#409） | オブジェクトでなければ既定へ。カード（`card`・`done` の各要素）は `id` が数値でない／`startDate` が日付でなければ**捨てる**（既定で埋めると、どの日から数えるかを捏造することになる）。`size` は 5〜60・`reward` は文字列20文字へ丸め、`pressed`・`dates` は日付だけ残す。`emoji` は文字列のまま8文字で保存し、表示するたびに候補8種（`REWARD_EMOJIS`）以外を🎁にする。実在しない日付（`2026-11-00` 等）は書式だけでは弾けないので、判定側（[stamp-book.js](../js/stamp-book.js)）で捨てる |
 | `saved` 自体 | プレーンオブジェクトでなければ `DEFAULTS` |
 
 > **設計判断（#311）**: session 要素は「落とす」と「矯正して残す」を値の性質で分ける。`date` は「いつの記録か」であり既定値で捏造できない（連続日数・ヒートマップが破綻する）ので形式不正なら要素ごと落とす。`totalCount` / `songs` は 0・空配列という安全な既定値があるので矯正して残す。多層防御として `game.js` の `checkBadges` 側でも `totalCount` を `Number()` ガードする（欠損セッション1件で `challenge_*` バッジが無言で永久に取れなくなるのを防ぐ）。
@@ -232,6 +235,7 @@ const MIGRATIONS = [
 | `pet.placedItems` | 同上（#226） | 未所持の置物の配置を残さない |
 | `pet.itemLayout` | **union**（cloud 土台にローカル上書き・#242） | placedItems だけ union して座標をローカル固定だと、他端末で置いた置物が既定位置に戻る |
 | `pet.affinity` / `pet.foodSpent` | **max** | sessions から導出されない累積値 |
+| `pet.stampBook`（#409） | `done` は `id` の **union**、`pressed` は **union**。`card` は相手側で `done` に入っていれば捨て、両側にあれば `id`（作成時刻）の新しい方、同じ `id` ならローカル | 押した・ごほうびを あげた、はどちらも取り消さない操作なので union で失わない。終わったカードを `card` として復活させると、同じごほうびを二度もらうことになる |
 | `pet.coins` / `pet.xp` / `pet.level` / `streak` / `badges` | マージ後の `sessions` から `recomputeState` で再計算 | sessions が唯一の正。`spent = spentCoins(merged inventory) + pet.foodSpent` を第2引数に渡す |
 
 マージ結果がクラウドと異なれば（ローカルだけが持つ記録があった等）`pushCloud` で確定する。

@@ -42,6 +42,8 @@ const DEFAULTS = {
     lessonDates: [],
     // 解除したレッスン日（墓標）。初回マージの union で解除が復活しないようにする（#393）。
     lessonRemoved: [],
+    // ねこスタンプちょう（#409・docs/data-model.md）
+    stampBook: { card: null, pressed: [], done: [] },
   },
   inventory: [],
   streak: {
@@ -106,6 +108,45 @@ export function normalizeLessonDates(value) {
   return [...new Set(asArray(value).filter((v) => typeof v === 'string' && DATE_RE.test(v)))].sort();
 }
 
+// スタンプちょうのカード（#409）。id・開始日が壊れていれば捨てる。5/60/10/20 は stamp-book.js の
+// CARD_MIN/CARD_MAX/既定/REWARD_MAX_LEN と同じ値（entry を軽くするため import しない）
+function normalizeStampCard(v) {
+  const o = asObject(v);
+  const id = Number(o.id);
+  if (!Number.isFinite(id) || typeof o.startDate !== 'string' || !DATE_RE.test(o.startDate)) return null;
+  return {
+    id,
+    startDate: o.startDate,
+    size: Math.min(60, Math.max(5, Math.round(Number(o.size)) || 10)),
+    reward: String(o.reward ?? '').trim().slice(0, 20),
+    emoji: typeof o.emoji === 'string' ? o.emoji.slice(0, 8) : '',
+  };
+}
+
+function normalizeStampBook(v) {
+  const o = asObject(v);
+  return {
+    card: normalizeStampCard(o.card),
+    pressed: normalizeLessonDates(o.pressed),
+    done: asArray(o.done).map((c) => {
+      const card = normalizeStampCard(c);
+      return card && { ...card, dates: normalizeLessonDates(c.dates), redeemedOn: typeof c.redeemedOn === 'string' && DATE_RE.test(c.redeemedOn) ? c.redeemedOn : null };
+    }).filter(Boolean),
+  };
+}
+
+// 初回マージ（#409）。規則は docs/data-model.md
+function mergeStampBook(l, c) {
+  const done = [...new Map([...c.done, ...l.done].map((x) => [x.id, x])).values()].sort((a, b) => a.id - b.id);
+  const ended = new Set(done.map((x) => x.id));
+  const cards = [l.card, c.card].filter((x) => x && !ended.has(x.id));
+  return {
+    card: cards.reduce((a, b) => (b.id > a.id ? b : a), cards[0] ?? null),
+    pressed: normalizeLessonDates([...l.pressed, ...c.pressed]),
+    done,
+  };
+}
+
 // 文字列 'abc' はスプレッドで ['a','b','c'] に化けるので name:'' として弾く。
 function normalizeSong(v) {
   const o = asObject(v);
@@ -150,6 +191,7 @@ export function normalizeState(saved) {
       itemLayout: asObject(pet.itemLayout),
       lessonDates: normalizeLessonDates(pet.lessonDates),
       lessonRemoved: normalizeLessonDates(pet.lessonRemoved),
+      stampBook: normalizeStampBook(pet.stampBook),
     },
     streak: { ...DEFAULTS.streak, ...asObject(s.streak) },
     settings: { ...DEFAULTS.settings, ...asObject(s.settings) },
@@ -263,6 +305,7 @@ export function mergeCloudInitial(local, cloud) {
       itemLayout: { ...(c.pet.itemLayout ?? {}), ...(l.pet.itemLayout ?? {}) },
       // レッスン日は登録の union − 解除の墓標の union（#393）
       ...mergeLessonDates(l.pet, c.pet),
+      stampBook: mergeStampBook(l.pet.stampBook, c.pet.stampBook),
       affinity: Math.max(l.pet.affinity ?? 0, c.pet.affinity ?? 0),
       foodSpent: Math.max(l.pet.foodSpent ?? 0, c.pet.foodSpent ?? 0),
     },
