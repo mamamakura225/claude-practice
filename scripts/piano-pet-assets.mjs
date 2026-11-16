@@ -42,6 +42,7 @@ export function listAssets() {
   collectInto(assets, 'img/cat', ['.webp']);         // 猫本体は WebP（#234）
   collectInto(assets, 'img/cat/items', ['.webp']);   // 装着アイテム
   collectInto(assets, 'img/cat/scene', ['.webp']);   // 置物・小物系（#226）
+  collectInto(assets, 'img/stamp', ['.webp']);       // ねこスタンプちょうの絵柄と肉球（#410）
   collectInto(assets, 'sounds', ['.mp3', '.ogg', '.wav']);
   return assets;
 }

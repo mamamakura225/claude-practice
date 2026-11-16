@@ -79,6 +79,9 @@ test.describe('ねこスタンプちょう（#409）', () => {
     await page.locator('.sb-press').first().click();
     await expect(page.locator('.sb-cell--done')).toHaveCount(1);
     await expect(page.locator('.sb-paw')).toHaveCount(1);     // ぺたっの肉球
+    // 絵柄・肉球の画像が実際に読めている（#410）
+    await expect.poll(() => page.locator('.sb-cell--done img').evaluateAll((els) => els.map((e) => e.naturalWidth)))
+      .toEqual([192, 192]);
     await expect(page.locator('.sb-press')).toHaveCount(1);
     expect((await saved(page)).pet.stampBook.pressed).toEqual([ymd(2)]);   // 古い日から並ぶ
 

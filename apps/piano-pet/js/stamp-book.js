@@ -7,26 +7,27 @@ export const CARD_MAX = 60;
 export const REWARD_EMOJIS = ['🎁', '🍦', '🧸', '📚', '🎡', '🍰', '🚗', '🦁'];
 export const REWARD_MAX_LEN = 20;
 
-// 猫の姿16種（色は姿ごとに固定）。#410 で水彩画像へ差し替える
-export const STAMP_INKS = { red: '#d8434b', blue: '#3b6fd8', green: '#2f8a52', purple: '#8a55c9', brown: '#93622f' };
+// 猫の姿16種（色は姿ごとに固定）。絵は img/stamp/{id}.webp に色ごと焼き込み済み（#410）。
+// STAMP_INKS は画像の色の記録で描画には使わない。並び順は designForDate の結果を決めるので変えない
+export const STAMP_INKS = { red: '#e0574f', blue: '#3d86d4', green: '#3a9e68', purple: '#9563cc', brown: '#b5793f' };
 export const STAMP_DESIGNS = [
-  ['nenne', 'ねんね', '💤', 'red'],
-  ['nobi', 'のび〜', '✨', 'blue'],
-  ['piano', 'ピアノ', '🎹', 'green'],
-  ['sakana', 'おさかな', '🐟', 'purple'],
-  ['keito', 'けいとだま', '🧶', 'brown'],
-  ['hako', 'はこ', '📦', 'red'],
-  ['banzai', 'ばんざい', '🙌', 'blue'],
-  ['ojigi', 'おじぎ', '🎀', 'green'],
-  ['fumifumi', 'ふみふみ', '🐾', 'purple'],
-  ['marui', 'まるくなる', '🌙', 'brown'],
-  ['punch', 'ねこパンチ', '💥', 'red'],
-  ['onpu', 'おんぷ', '🎵', 'blue'],
-  ['kaoarai', 'かおあらい', '🫧', 'green'],
-  ['osuwari', 'おすわり', '⭐', 'purple'],
-  ['heart', 'しっぽハート', '💗', 'brown'],
-  ['jump', 'ジャンプ', '🌈', 'red'],
-].map(([id, name, mark, ink]) => ({ id, name, mark, ink }));
+  ['nenne', 'ねんね', 'blue'],
+  ['nobi', 'のび〜', 'green'],
+  ['piano', 'ピアノ', 'purple'],
+  ['sakana', 'おさかな', 'brown'],
+  ['keito', 'けいとだま', 'brown'],
+  ['hako', 'はこ', 'brown'],
+  ['banzai', 'ばんざい', 'red'],
+  ['ojigi', 'おじぎ', 'purple'],
+  ['fumifumi', 'ふみふみ', 'green'],
+  ['marui', 'まるくなる', 'blue'],
+  ['punch', 'ねこパンチ', 'red'],
+  ['onpu', 'おんぷ', 'purple'],
+  ['kaoarai', 'かおあらい', 'blue'],
+  ['osuwari', 'おすわり', 'green'],
+  ['heart', 'しっぽハート', 'red'],
+  ['jump', 'ジャンプ', 'red'],
+].map(([id, name, ink]) => ({ id, name, ink }));
 
 export const clampCardSize = (v) => Math.min(CARD_MAX, Math.max(CARD_MIN, Math.round(Number(v)) || 10));
 export const normalizeRewardEmoji = (e) => (REWARD_EMOJIS.includes(e) ? e : REWARD_EMOJIS[0]);
