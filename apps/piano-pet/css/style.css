@@ -1631,6 +1631,110 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   color: var(--text-muted);
 }
 
+/* ===== ねこスタンプちょう（#409） ===== */
+.view-body--stamp { justify-content: flex-start; gap: 18px; }
+.sb-card {
+  width: 100%;
+  max-width: 360px;
+  background: var(--surface);
+  border-radius: 18px;
+  padding: 16px 12px;
+  box-shadow: 0 4px 12px var(--shadow);
+}
+.sb-empty__icon { font-size: 3rem; margin: 0; }
+.sb-head { margin: 0; font-family: 'Mochiy Pop One', sans-serif; font-size: 1.2rem; color: var(--pink-ink); }
+.sb-count { margin: 4px 0; font-weight: 700; }
+.sb-count b { font-size: 1.4rem; color: var(--pink-ink); }
+.sb-msg { margin: 0 0 12px; font-weight: 700; color: var(--text-muted); }
+.sb-goal { margin: 0 0 12px; font-weight: 700; font-size: 1.1rem; color: var(--coin-ink); }
+.sb-goal--new { animation: sb-goal 0.8s ease-out; }
+.sb-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.sb-cell {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: var(--surface-soft);
+  box-shadow: inset 0 0 0 2px var(--pink-soft);
+  display: grid;
+  place-items: center;
+}
+.sb-num { font-weight: 700; color: var(--text-muted); font-size: 0.9rem; }
+.sb-cell--goal .sb-num { font-size: 1.4rem; }
+.sb-cell--done { background: none; box-shadow: none; }
+.sb-stamp {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 3px solid var(--sb-ink);
+  color: var(--sb-ink);
+  display: grid;
+  place-items: center;
+  position: relative;
+  transform: rotate(-8deg);
+}
+.sb-stamp__cat { font-size: 1.5rem; line-height: 1; }
+.sb-stamp__mark { position: absolute; right: 0; bottom: 0; font-size: 0.9rem; }
+.sb-press {
+  width: 100%;
+  height: 100%;
+  border: none;
+  border-radius: 50%;
+  background: var(--pink-fill);
+  color: #fff;
+  font: 700 0.62rem 'Noto Sans JP', sans-serif;
+  display: grid;
+  place-content: center;
+  cursor: pointer;
+  animation: sb-glow 1.2s ease-in-out infinite;
+}
+.sb-press__paw { font-size: 1.2rem; }
+.sb-paw { position: absolute; font-size: 2.4rem; animation: sb-paw 0.7s ease-in forwards; }
+.sb-cell--peta .sb-stamp { animation: sb-in 0.7s ease-out; }
+.sb-done { width: 100%; max-width: 360px; text-align: left; font-weight: 700; }
+.sb-done ul { padding-left: 1.2em; }
+.stamp-home {
+  margin-top: 8px;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  padding: 8px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font: 700 0.85rem 'Noto Sans JP', sans-serif;
+}
+.stamp-home--ready { background: var(--pink-soft); color: var(--pink-ink); }
+.stamp-emoji { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.stamp-emoji__btn {
+  width: 44px;
+  height: 44px;
+  font-size: 1.4rem;
+  border-radius: 12px;
+  border: 2px solid var(--pink-soft);
+  background: var(--surface);
+}
+.stamp-emoji__btn[aria-pressed="true"] { border-color: var(--pink-deep); background: var(--pink-soft); }
+@keyframes sb-glow { 50% { box-shadow: 0 0 0 5px var(--pink); } }
+@keyframes sb-paw {
+  0% { transform: translateY(-60px) scale(1.4); opacity: 0; }
+  35% { transform: translateY(0) scale(1); opacity: 1; }
+  60% { transform: scale(0.9); opacity: 1; }
+  100% { transform: translateY(-30px); opacity: 0; }
+}
+@keyframes sb-in {
+  0%, 35% { transform: rotate(-8deg) scale(0); }
+  50% { transform: rotate(-8deg) scale(1.25); }
+  100% { transform: rotate(-8deg) scale(1); }
+}
+@keyframes sb-goal { 0% { transform: scale(0.6); } 60% { transform: scale(1.15); } }
+@media (prefers-reduced-motion: reduce) { .sb-press, .sb-goal--new { animation: none; } }
+
 .badge-popup__name {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1.1rem;
