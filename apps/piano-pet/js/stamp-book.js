@@ -7,25 +7,19 @@ export const CARD_MAX = 60;
 export const REWARD_EMOJIS = ['🎁', '🍦', '🧸', '📚', '🎡', '🍰', '🚗', '🦁'];
 export const REWARD_MAX_LEN = 20;
 
-// 猫の姿16種（色は姿ごとに固定）。絵は img/stamp/{id}.webp に色ごと焼き込み済み（#410）。
-// STAMP_INKS は画像の色の記録で描画には使わない。並び順は designForDate の結果を決めるので変えない
+// 猫の姿10種（色は姿ごとに固定・5色×2）。絵は img/stamp/{id}.webp に色ごと焼き込み済み（#410）。
+// STAMP_INKS は画像の色の記録で描画には使わない。並び順は designForDate の結果を決める
 export const STAMP_INKS = { red: '#e0574f', blue: '#3d86d4', green: '#3a9e68', purple: '#9563cc', brown: '#b5793f' };
 export const STAMP_DESIGNS = [
-  ['nenne', 'ねんね', 'blue'],
   ['nobi', 'のび〜', 'green'],
-  ['piano', 'ピアノ', 'purple'],
-  ['sakana', 'おさかな', 'brown'],
+  ['sakana', 'おさかな', 'blue'],
   ['keito', 'けいとだま', 'brown'],
   ['hako', 'はこ', 'brown'],
-  ['banzai', 'ばんざい', 'red'],
   ['ojigi', 'おじぎ', 'purple'],
   ['fumifumi', 'ふみふみ', 'green'],
-  ['marui', 'まるくなる', 'blue'],
+  ['nabe', 'なべねこ', 'blue'],
   ['punch', 'ねこパンチ', 'red'],
-  ['onpu', 'おんぷ', 'purple'],
-  ['kaoarai', 'かおあらい', 'blue'],
-  ['osuwari', 'おすわり', 'green'],
-  ['heart', 'しっぽハート', 'red'],
+  ['heart', 'しっぽハート', 'purple'],
   ['jump', 'ジャンプ', 'red'],
 ].map(([id, name, ink]) => ({ id, name, ink }));
 
@@ -50,7 +44,7 @@ function rng(seed) {
   };
 }
 
-// 日付→絵柄（保存しない）。16日ごとのブロック内では同じ絵が出ない
+// 日付→絵柄（保存しない）。種類数ぶんの日ごとのブロック内では同じ絵が出ない
 export function designForDate(date) {
   const n = dayNumber(date);
   const N = STAMP_DESIGNS.length;
