@@ -129,9 +129,10 @@ describe('カードの作成・ごほうび・持ち越し（#409）', () => {
 });
 
 describe('絵柄（#409）', () => {
-  it('16種・色は5色のどれか', () => {
-    expect(STAMP_DESIGNS).toHaveLength(16);
-    expect(new Set(STAMP_DESIGNS.map((d) => d.ink)).size).toBe(5);
+  it('10種・5色を2種ずつ', () => {
+    expect(STAMP_DESIGNS).toHaveLength(10);
+    const count = (ink) => STAMP_DESIGNS.filter((d) => d.ink === ink).length;
+    for (const ink of Object.keys(STAMP_INKS)) expect(count(ink), ink).toBe(2);
     for (const d of STAMP_DESIGNS) expect(STAMP_INKS[d.ink]).toBeTruthy();
   });
 
@@ -141,12 +142,12 @@ describe('絵柄（#409）', () => {
     }
   });
 
-  it('日付だけで決まり、16日のまとまりの中では同じ絵が出ない', () => {
+  it('日付だけで決まり、10日のまとまりの中では同じ絵が出ない', () => {
     expect(designForDate('2026-11-03')).toBe(designForDate('2026-11-03'));
     const base = Date.UTC(2026, 0, 1) / 86400000;
-    const start = Math.ceil(base / 16) * 16;
-    const ids = Array.from({ length: 16 }, (_, i) => designForDate(new Date((start + i) * 86400000).toISOString().slice(0, 10)).id);
-    expect(new Set(ids).size).toBe(16);
+    const start = Math.ceil(base / 10) * 10;
+    const ids = Array.from({ length: 10 }, (_, i) => designForDate(new Date((start + i) * 86400000).toISOString().slice(0, 10)).id);
+    expect(new Set(ids).size).toBe(10);
   });
 });
 
