@@ -62,10 +62,25 @@ export function homeSummary(state, today) {
   return { text: `🐾 スタンプ ${count} ・ ${reward}`, ready: false };
 }
 
+// 画面いっぱいに押してから、マスへ縮んで収まる（features.md #ねこスタンプちょう）
 export function animatePress(btn, design, date) {
   const cell = btn.closest('.sb-cell');
   if (!cell) return Promise.resolve();
-  cell.className = 'sb-cell sb-cell--done sb-cell--peta';
-  cell.innerHTML = `${stampFace(design, date)}<img class="sb-paw" src="img/stamp/paw.webp" alt="">`;
-  return new Promise((resolve) => setTimeout(resolve, 750));
+  cell.className = 'sb-cell sb-cell--done';
+  cell.innerHTML = stampFace(design, date);
+  cell.style.visibility = 'hidden';
+  const veil = document.createElement('div');
+  veil.style.cssText = 'position:fixed;inset:0;z-index:80;display:grid;place-items:center;pointer-events:none;background:rgb(0 0 0/.35)';
+  veil.innerHTML = `<div class="sb-cell--peta" style="position:relative;display:grid;place-items:center;width:min(80vw,60vh)">`
+    + `${stampFace(design, date)}<img class="sb-paw" src="img/stamp/paw.webp" alt=""></div>`;
+  document.body.append(veil);
+  const big = veil.firstChild;
+  return new Promise((resolve) => setTimeout(() => {
+    const to = cell.getBoundingClientRect();
+    const from = big.getBoundingClientRect();
+    const move = `translate(${to.x + to.width / 2 - from.x - from.width / 2}px,${to.y + to.height / 2 - from.y - from.height / 2}px) scale(${to.width / from.width})`;
+    big.animate([{ transform: 'none' }, { transform: move }], { duration: 300, easing: 'ease-in', fill: 'forwards' });
+    veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' });
+    setTimeout(() => { veil.remove(); cell.style.visibility = ''; resolve(); }, 300);
+  }, 750));
 }
