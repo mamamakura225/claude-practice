@@ -79,6 +79,10 @@ test.describe('ねこスタンプちょう（#409）', () => {
     await page.locator('.sb-press').first().click();
     await expect(page.locator('.sb-cell--done')).toHaveCount(1);
     await expect(page.locator('.sb-paw')).toHaveCount(1);     // ぺたっの肉球
+    // 画面いっぱいに「ぽんっ」と押す（マスの中だけで済ませない）。終わればマスへ収まって消える
+    expect(await page.locator('.sb-cell--peta').evaluate((e) => e.getBoundingClientRect().width / innerWidth)).toBeGreaterThan(0.6);
+    await expect(page.locator('.sb-cell--peta')).toHaveCount(0);
+    await expect(page.locator('.sb-cell--done')).toBeVisible();
     // 絵柄の画像が実際に読めている（#410）。肉球は演出後に消えるので、描き直し後のスタンプだけを見る
     // （肉球の画像があることはユニットテストで確認）
     await expect(page.locator('.sb-paw')).toHaveCount(0);
