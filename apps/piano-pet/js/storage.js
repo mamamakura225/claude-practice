@@ -22,7 +22,7 @@ const DEFAULTS = {
     // 置物・小物系（シーン配置型・#226）。配置中の置物IDの配列。装備（equippedItems・slot排他）とは
     // 別管理で排他なし複数配置。座標は itemLayout を共用（置物IDは装着IDと重複しない）。
     placedItems: [],
-    // 衣装・置物の自由配置座標（#168/#226）。{ itemId: { x_pct, y_pct } }。
+    // 衣装・置物の自由配置（#168/#205/#226/#270）。{ itemId: { x_pct, y_pct, scale?, layer? } }。
     // 未登録のアイテムは cat-image.js が既定位置で描く（装着=アンカー / 置物=SCENE_DEFAULT_PCT の置物ごとの位置）。
     itemLayout: {},
     affinity: 0,
