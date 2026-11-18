@@ -87,7 +87,7 @@ export function animatePress(btn, design, date) {
   }, 1250));
 }
 
-// ごほうび ゲット：全画面で絵文字が跳ねて紙吹雪が降る。どこをタップしても閉じる（features.md）
+// ごほうび ゲット：全画面で文字が跳ねて紙吹雪が降る。どこをタップしても閉じる（features.md）
 const CONFETTI = ['#e0574f', '#3d86d4', '#3a9e68', '#9563cc', '#f2b33d'];
 export function celebrateGoal(card) {
   const veil = document.createElement('div');
@@ -97,11 +97,10 @@ export function celebrateGoal(card) {
   veil.setAttribute('aria-label', 'ごほうび ゲット');
   veil.style.cssText = 'position:fixed;inset:0;z-index:80;display:grid;place-content:center;justify-items:center;gap:10px;overflow:hidden;'
     + 'background:rgb(0 0 0/.6);color:#fff;text-align:center;font-weight:700;padding:16px';
-  veil.innerHTML = `<p style="margin:0;font-size:min(36vw,28vh);line-height:1">${normalizeRewardEmoji(card.emoji)}</p>`
-    + `<p style="margin:0;font:1.9rem 'Mochiy Pop One',sans-serif">ごほうび ゲット！</p>`
+  veil.innerHTML = `<p style="margin:0;font:2.4rem 'Mochiy Pop One',sans-serif">ごほうび ゲット！</p>`
     + `<p style="margin:0;font-size:1.2rem">${escapeHtml(card.reward || 'ごほうび')}<br>おうちの ひとに みせてね</p>`
     + '<button type="button" style="margin-top:8px;padding:12px 32px;border:none;border-radius:999px;background:var(--pink-fill);color:#fff;font:700 1.1rem sans-serif">やったね！</button>';
-  veil.firstChild.animate([{ transform: 'scale(0) rotate(-30deg)' }, { transform: 'scale(1.25) rotate(8deg)', offset: 0.6 }, { transform: 'none' }],
+  veil.firstChild.animate([{ transform: 'scale(0)' }, { transform: 'scale(1.25)', offset: 0.6 }, { transform: 'none' }],
     { duration: 800, easing: 'ease-out' });
   for (let i = 0; i < 40; i++) {
     const bit = document.createElement('i');
