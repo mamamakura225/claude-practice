@@ -82,7 +82,7 @@ function cleanItemLayout(pet) {
 // オフライン中の未送信変更の印＝立っている間の realtime は union（#358）
 let offlineDirty = false;
 
-// ===== 取り消しトースト（購入・記録の削除・レッスン日・#398） =====
+// ===== 取り消しトースト（記録の削除・レッスン日・#398。購入は買う前の確認に替えた・#421） =====
 // 1つだけ出す。次のトーストが出たら前のものは期限切れ扱い（onExpire を呼ぶ）にする。
 const UNDO_MS = 5000;
 let undoCycle = null;
@@ -137,7 +137,7 @@ function queueCloudPush() {
   if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty || overwriting ? null : cloudFields(state)));
 }
 
-// 取り消せる操作（購入・レッスン日の解除）は、猶予が終わるまでクラウドへ送らない（#398）。先に届くと
+// 取り消せる操作（レッスン日の解除）は、猶予が終わるまでクラウドへ送らない（#398）。先に届くと
 // 取り消しても他端末の union（inventory・lessonRemoved）で買い直し／消し直しになる（削除の保留と同じ理由）。
 function holdCloudPush() {
   if (!cloud || !initialSyncDone || offlineDirty) return;
@@ -154,7 +154,7 @@ export function commitState(newState) {
     // 当日分を消したら下書きも消す。残すと次に記録画面を開いたとき消した回数が戻り、二重に記録される
     if (date === todayStr()) clearStampDraft();
   }
-  // 別の保存が走ったら、出ている取り消し（購入・レッスン日）は巻き戻すと他の変更まで消えるので閉じる
+  // 別の保存が走ったら、出ている取り消し（レッスン日）は巻き戻すと他の変更まで消えるので閉じる
   if (undoCycle) dismissUndoToast(true);
   state = { ...newState, pet: { ...newState.pet, itemLayout: cleanItemLayout(newState.pet) } };
   saveState(state);                 // ローカルキャッシュ（オフライン用）
@@ -1495,11 +1495,15 @@ document.getElementById('shopCats')?.addEventListener('click', (e) => {
 // 購入直後は同じ位置のボタンが「みにつける／おく」に替わるので、連打の2打目で着替え・配置まで
 // 進まないよう、しばらく押せなくする（#396）
 const BUY_GUARD_MS = 700;
+// 「かう」は確認（#421）のあとに applyShopAction('buy') で買う。それ以外はすぐ反映
 document.getElementById('shopList')?.addEventListener('click', (e) => {
   const btn = e.target.closest('.shop-btn[data-action]');
   if (!btn) return;
-  const id = btn.dataset.id;
-  const action = btn.dataset.action;
+  if (btn.dataset.action === 'buy') askBuy(btn.dataset.id);
+  else applyShopAction(btn.dataset.action, btn.dataset.id);
+});
+
+function applyShopAction(action, id) {
   // buy=購入 / place=置物の配置トグル（#226） / toggle=装備トグル
   const next = action === 'buy' ? buyItem(state, id)
     : action === 'place' ? togglePlace(state, id)
@@ -1513,19 +1517,9 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
   const prevBadges = state.badges;
   const withBadges = action === 'buy' ? { ...next, badges: checkBadges(next) } : next;
   const gainedBadges = action === 'buy' ? newlyEarned(prevBadges, withBadges.badges) : [];
-  const beforeBuy = state;
   commitState(withBadges);          // 保存 + ホームの猫へ即反映
   renderShop();                     // ショップ表示を更新
   if (action === 'buy') {
-    // 誤タップの取り消し（#398）。所持コインは inventory からの導出なので、買う前の state へ戻せば返る。
-    // そのあと別の操作で state が動いていたら、巻き戻すと他の変更まで消えるので取り消さない。
-    const afterBuy = state;
-    holdCloudPush();
-    showUndoToast(`${itemById(id)?.name ?? ''} を かったよ`, 'やっぱり やめる', () => {
-      if (state !== afterBuy) return;
-      commitState(beforeBuy);
-      renderShop();
-    });
     const after = document.querySelector(`#shopList .shop-btn[data-id="${id}"]`);
     if (after) {
       after.disabled = true;
@@ -1533,6 +1527,35 @@ document.getElementById('shopList')?.addEventListener('click', (e) => {
     }
   }
   if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 300);
+}
+
+// ===== かう の確認（#421）=====
+// 買ったあとでは取り消しに気づかない（#398 の「やっぱり やめる」）ので、買う前に のこりコインを見せて決めさせる
+const buyOverlayEl = document.getElementById('buyOverlay');
+let buyPendingId = null;
+async function askBuy(id) {
+  const item = itemById(id);
+  if (!item || !buyOverlayEl) return;
+  buyPendingId = id;
+  setText('buyTitle', `${item.name} を かう？`);
+  setText('buyIcon', item.icon);
+  setText('buyCoins', `🪙 ${state.pet.coins} → のこり ${state.pet.coins - item.price}`);
+  const dlg = await loadDialog().catch(() => null);
+  if (dlg) dlg.openDialog(buyOverlayEl, { onClose: closeBuy });
+  else buyOverlayEl.hidden = false;
+}
+function closeBuy() {
+  buyPendingId = null;
+  if (dialogMod) dialogMod.closeDialog(buyOverlayEl);
+  else buyOverlayEl.hidden = true;
+}
+buyOverlayEl?.addEventListener('click', (e) => {
+  if (e.target.closest('[data-action="close-buy"]')) closeBuy();
+  else if (e.target.closest('#buyOkBtn') && buyPendingId) {
+    const id = buyPendingId;
+    closeBuy();
+    applyShopAction('buy', id);
+  }
 });
 
 // ===== えさやり（#80・コインの使い道） =====

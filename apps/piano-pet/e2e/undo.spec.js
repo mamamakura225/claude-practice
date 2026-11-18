@@ -44,18 +44,24 @@ async function passGate(page) {
 }
 
 test.describe('取り消し（#398）', () => {
-  test('ショップで買った直後に「やっぱり やめる」でコインが戻る', async ({ page }) => {
+  test('「かう」は のこりコインを見せて確認し、やめるなら買わない。かうなら取り消しは出さない（#421）', async ({ page }) => {
     await boot(page, base());
     await page.goto('/#/shop');
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
-    await expect(page.locator('#undoToast')).toBeVisible();
-    await expect(page.locator('#undoToastMsg')).toHaveText('あかい リボン を かったよ');
-    await page.click('#undoToastBtn');
+    const ask = page.getByRole('dialog', { name: 'あかい リボン を かう？' });
+    await expect(ask).toBeVisible();
+    await expect(page.locator('#buyCoins')).toHaveText('🪙 200 → のこり 175');
+    await expect(ask.getByRole('button', { name: 'やめる' })).toBeFocused();   // 既定は安全なほう
+    await ask.getByRole('button', { name: 'やめる' }).click();
+    await expect(ask).toBeHidden();
+    expect((await saved(page)).inventory).toEqual([]);
+
+    await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
+    await page.click('#buyOkBtn');
+    await expect(ask).toBeHidden();
+    await expect(page.locator('#shopCoins')).toHaveText('175');
+    expect((await saved(page)).inventory).toEqual(['ribbon']);
     await expect(page.locator('#undoToast')).toBeHidden();
-    const st = await saved(page);
-    expect(st.inventory).toEqual([]);
-    expect(st.pet.coins).toBe(200);
-    await expect(page.locator('.shop-btn[data-action="buy"][data-id="ribbon"]')).toBeVisible();
   });
 
   test('記録を けしても「もとに もどす」で戻り、取り消しの間は保存も墓標も変わらない', async ({ page }) => {
@@ -100,6 +106,7 @@ test.describe('取り消し（#398）', () => {
     await page.locator('.history-card').first().locator('[data-action="delete-session"]').click();
     await page.goto('/#/shop');
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     const st = await saved(page);
     expect(st.sessions).toHaveLength(1);
     expect(st.inventory).toContain('ribbon');
@@ -179,32 +186,6 @@ test.describe('取り消し（#398）', () => {
     const st = await saved(page);
     expect(st.sessions).toHaveLength(0);
     expect(st.deletedDates).toContain(ymd(0));
-  });
-
-  test('記録を消したあと、ショップで買って取り消しても、削除は巻き戻らない', async ({ page }) => {
-    const sessions = [{ date: ymd(5), songs: [{ name: 'かえるのうた', count: 100 }], totalCount: 100 }, { date: ymd(1), songs: [{ name: 'きらきらぼし', count: 3 }], totalCount: 3 }];
-    await boot(page, base({ sessions }));
-    page.on('dialog', (d) => d.accept());
-    await page.goto('/#/history');
-    await expect(page.locator('.history-card')).toHaveCount(2, { timeout: 10000 });
-    await page.locator('.history-card').first().locator('[data-action="delete-session"]').click();
-    await page.click('.nav-btn[data-nav="shop"]');
-    await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
-    await page.click('#undoToastBtn');
-    const st = await saved(page);
-    expect(st.inventory).toEqual([]);
-    expect(st.sessions).toHaveLength(1);
-    expect(st.deletedDates).toContain(ymd(1));
-  });
-
-  test('購入のあとに別の操作で保存が走ったら、取り消しのトーストは閉じる', async ({ page }) => {
-    await boot(page, base());
-    await page.goto('/#/shop');
-    await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
-    await expect(page.locator('#undoToast')).toBeVisible();
-    await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');   // ガード（700ms）明けに みにつける
-    await expect(page.locator('#undoToast')).toBeHidden();
-    expect((await saved(page)).pet.equippedItems).toContain('ribbon');
   });
 
   test('ファイルを読み込むと前のデータが退避され、「ひとつ まえ」で戻せる', async ({ page }) => {
