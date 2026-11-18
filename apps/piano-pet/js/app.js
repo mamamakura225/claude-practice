@@ -545,11 +545,11 @@ document.getElementById('stampBook')?.addEventListener('click', async (e) => {
   } finally {
     stampPressing = false;   // 例外で押せないまま固まらないように
   }
-  const full = stampMod.cardStatus(state, todayStr()).full;
+  const st = stampMod.cardStatus(state, todayStr());
   await renderStampBook();
-  if (full) {
-    document.getElementById('sbGoal')?.classList.add('sb-goal--new');
-    playSound('levelup', state);
+  if (st.full) {
+    stampMod.celebrateGoal(st.card);
+    playSound('fanfare', state);
   }
 });
 document.getElementById('stampHomeLink')?.addEventListener('click', () => router.go('stamp'));

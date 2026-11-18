@@ -1,5 +1,6 @@
 // ねこスタンプちょう（#409）の画面（遅延読込）
 import { escapeHtml } from './html.js';
+import { openDialog, closeDialog } from './dialog.js';
 import { STAMP_THRESHOLD, cardStatus, normalizeRewardEmoji } from './stamp-book.js';
 
 export * from './stamp-book.js';
@@ -84,4 +85,33 @@ export function animatePress(btn, design, date) {
     veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, fill: 'forwards' });
     setTimeout(() => { veil.remove(); cell.style.visibility = ''; resolve(); }, 350);
   }, 1250));
+}
+
+// ごほうび ゲット：全画面で絵文字が跳ねて紙吹雪が降る。どこをタップしても閉じる（features.md）
+const CONFETTI = ['#e0574f', '#3d86d4', '#3a9e68', '#9563cc', '#f2b33d'];
+export function celebrateGoal(card) {
+  const veil = document.createElement('div');
+  veil.className = 'sb-party';
+  veil.setAttribute('role', 'dialog');
+  veil.setAttribute('aria-modal', 'true');
+  veil.setAttribute('aria-label', 'ごほうび ゲット');
+  veil.style.cssText = 'position:fixed;inset:0;z-index:80;display:grid;place-content:center;justify-items:center;gap:10px;overflow:hidden;'
+    + 'background:rgb(0 0 0/.6);color:#fff;text-align:center;font-weight:700;padding:16px';
+  veil.innerHTML = `<p style="margin:0;font-size:min(36vw,28vh);line-height:1">${normalizeRewardEmoji(card.emoji)}</p>`
+    + `<p style="margin:0;font:1.9rem 'Mochiy Pop One',sans-serif">ごほうび ゲット！</p>`
+    + `<p style="margin:0;font-size:1.2rem">${escapeHtml(card.reward || 'ごほうび')}<br>おうちの ひとに みせてね</p>`
+    + '<button type="button" style="margin-top:8px;padding:12px 32px;border:none;border-radius:999px;background:var(--pink-fill);color:#fff;font:700 1.1rem sans-serif">やったね！</button>';
+  veil.firstChild.animate([{ transform: 'scale(0) rotate(-30deg)' }, { transform: 'scale(1.25) rotate(8deg)', offset: 0.6 }, { transform: 'none' }],
+    { duration: 800, easing: 'ease-out' });
+  for (let i = 0; i < 40; i++) {
+    const bit = document.createElement('i');
+    bit.style.cssText = `position:absolute;top:-24px;left:${Math.random() * 100}%;width:10px;height:16px;border-radius:2px;background:${CONFETTI[i % 5]}`;
+    veil.append(bit);
+    bit.animate([{ transform: 'none' }, { transform: `translateY(${innerHeight + 48}px) rotate(${(Math.random() - 0.5) * 1080}deg)` }],
+      { duration: 2400 + Math.random() * 1600, delay: Math.random() * 1500, iterations: Infinity });
+  }
+  const close = () => { closeDialog(veil); veil.remove(); };
+  veil.addEventListener('click', close);
+  document.body.append(veil);
+  openDialog(veil, { onClose: close, initial: veil.querySelector('button') });
 }

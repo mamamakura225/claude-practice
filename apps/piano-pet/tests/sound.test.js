@@ -52,7 +52,7 @@ describe('toggleSound', () => {
 
 describe('SOUND_SPECS', () => {
   it('必要な効果音が定義されている', () => {
-    for (const name of ['coin', 'levelup', 'record', 'purchase']) {
+    for (const name of ['coin', 'levelup', 'record', 'purchase', 'peta', 'fanfare']) {
       expect(Array.isArray(SOUND_SPECS[name])).toBe(true);
       expect(SOUND_SPECS[name].length).toBeGreaterThan(0);
     }
