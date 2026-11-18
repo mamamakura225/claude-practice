@@ -540,7 +540,7 @@ document.getElementById('stampBook')?.addEventListener('click', async (e) => {
   try {
     setStampBook(stampMod.pressStamp(state.pet.stampBook, date));
     unlockAudio();
-    setTimeout(() => playSound('peta', state), 400);   // 肉球が着地する瞬間に合わせる
+    setTimeout(() => playSound('peta', state), 160);   // 音の頭の0.25秒と合わせて着地（約0.41秒）に鳴らす
     await stampMod.animatePress(btn, stampMod.designForDate(date), date);
   } finally {
     stampPressing = false;   // 例外で押せないまま固まらないように
