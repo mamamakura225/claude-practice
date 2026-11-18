@@ -539,7 +539,8 @@ document.getElementById('stampBook')?.addEventListener('click', async (e) => {
   const { date } = btn.dataset;
   try {
     setStampBook(stampMod.pressStamp(state.pet.stampBook, date));
-    playSound('peta', state);
+    unlockAudio();
+    setTimeout(() => playSound('peta', state), 160);   // 音の頭の0.25秒と合わせて着地（約0.41秒）に鳴らす
     await stampMod.animatePress(btn, stampMod.designForDate(date), date);
   } finally {
     stampPressing = false;   // 例外で押せないまま固まらないように
