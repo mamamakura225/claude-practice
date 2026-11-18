@@ -43,6 +43,7 @@ test.describe('ショップ', () => {
 
     // 赤いリボン（25コイン）を買う → 残175
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     await expect(page.locator('#shopCoins')).toHaveText('175');
 
     // 装備する → 「みにつけてる」バッジが出る
@@ -63,6 +64,7 @@ test.describe('ショップ', () => {
 
     // けいとだま（40コイン・前面）を買う → 残160
     await page.click('.shop-btn[data-action="buy"][data-id="yarnBall"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     await expect(page.locator('#shopCoins')).toHaveText('160');
 
     // 「おく」（配置トグル）→ 「おうちに あるよ」バッジ
@@ -96,6 +98,7 @@ test.describe('ショップ', () => {
 
     // リボン購入＆装備
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');
     await expect(
       page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-card__badge'),
@@ -103,6 +106,7 @@ test.describe('ショップ', () => {
 
     // 星の首輪購入＆装備（どちらも首スロット）
     await page.click('.shop-btn[data-action="buy"][data-id="collar"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     await page.click('.shop-btn[data-action="toggle"][data-id="collar"]');
 
     // 星の首輪が装備中、リボンは外れて「みにつける」に戻る
@@ -485,6 +489,7 @@ test.describe('ショップ', () => {
 
     // 絞り込み中でも購入でき、購入後に一覧が「ぜんぶ」へ戻らない
     await page.click('.shop-btn[data-action="buy"][data-id="hat"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     await expect(page.locator('#shopCoins')).toHaveText('160');
     expect(await cards.count()).toBe(head);
 

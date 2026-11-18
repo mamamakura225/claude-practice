@@ -16,8 +16,8 @@
       if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
     } catch (e) {}
   </script>
-  <link rel="stylesheet" href="css/style.css?v=c9c9b2ea">
-  <link rel="stylesheet" href="css/cat.css?v=c9c9b2ea">
+  <link rel="stylesheet" href="css/style.css?v=72c08907">
+  <link rel="stylesheet" href="css/cat.css?v=72c08907">
   <link href="https://fonts.googleapis.com/css2?family=Mochiy+Pop+One&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
 </head>
 <body>
@@ -401,6 +401,20 @@
       </div>
     </div>
 
+    <!-- ショップの「かう」の確認（#421）。買ったあとの のこりコインを見せてから決める -->
+    <div id="buyOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-labelledby="buyTitle" hidden>
+      <div class="settings-overlay__backdrop" data-action="close-buy"></div>
+      <div class="settings-panel">
+        <h2 class="settings-panel__title" id="buyTitle"></h2>
+        <p id="buyIcon" style="margin:0;font-size:3.5rem;line-height:1" aria-hidden="true"></p>
+        <p id="buyCoins" class="settings-gate__problem" style="margin:0;font-size:1.3rem"></p>
+        <div class="settings-panel__actions">
+          <button type="button" class="settings-btn settings-btn--ghost" data-action="close-buy">やめる</button>
+          <button type="button" class="settings-btn" id="buyOkBtn">かう</button>
+        </div>
+      </div>
+    </div>
+
     <div id="settingsOverlay" class="settings-overlay" role="dialog" aria-modal="true" aria-label="おうちのひとへ" hidden>
       <div class="settings-overlay__backdrop" data-action="close-settings"></div>
 
@@ -538,6 +552,6 @@
 
   </div>
 
-  <script type="module" src="js/app.js?v=c9c9b2ea"></script>
+  <script type="module" src="js/app.js?v=72c08907"></script>
 </body>
 </html>

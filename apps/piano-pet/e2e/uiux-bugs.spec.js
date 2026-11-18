@@ -107,7 +107,8 @@ test.describe('UI点検の不具合（#396）', () => {
     await page.goto('/#/shop');
     const buy = page.locator('.shop-btn[data-action="buy"][data-id="ribbon"]');
     await expect(buy).toBeVisible({ timeout: 10000 });
-    await buy.dblclick();   // 同じ場所をすばやく2回（2打目は替わったボタンに当たる）
+    await buy.click();
+    await page.locator('#buyOkBtn').dblclick();   // 確認の「かう」をすばやく2回（2打目は閉じたあとの画面に当たる）
     const st = await page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')));
     expect(st.inventory).toContain('ribbon');
     expect(st.pet.equippedItems).not.toContain('ribbon');
@@ -118,6 +119,7 @@ test.describe('UI点検の不具合（#396）', () => {
     await boot(page, seed());
     await page.goto('/#/shop');
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     await expect(page.locator('#badgePopup')).toBeVisible();   // はじめての おきがえ
     await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
     await expect(page.locator('#feedPopup')).toBeVisible();
@@ -131,6 +133,7 @@ test.describe('UI点検の不具合（#396）', () => {
     await page.goto('/#/shop');
     // 購入のバッジ（300ms 後）が、直後のえさやりカードを畳む
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
+    await page.click('#buyOkBtn');   // かう？ の確認（#421）
     await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
     await expect(page.locator('#badgePopupName')).toHaveText('おきがえ じょうず');
     await expect(page.locator('#badgePopupName')).toHaveText('ねこと だいの なかよし', { timeout: 8000 });
