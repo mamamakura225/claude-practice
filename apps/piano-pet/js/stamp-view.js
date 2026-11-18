@@ -75,12 +75,13 @@ export function animatePress(btn, design, date) {
     + `${stampFace(design, date)}<img class="sb-paw" src="img/stamp/paw.webp" alt=""></div>`;
   document.body.append(veil);
   const big = veil.firstChild;
+  veil.getAnimations({ subtree: true }).forEach((a) => { a.playbackRate = 0.6; });   // ゆっくり押す
   return new Promise((resolve) => setTimeout(() => {
     const to = cell.getBoundingClientRect();
     const from = big.getBoundingClientRect();
     const move = `translate(${to.x + to.width / 2 - from.x - from.width / 2}px,${to.y + to.height / 2 - from.y - from.height / 2}px) scale(${to.width / from.width})`;
-    big.animate([{ transform: 'none' }, { transform: move }], { duration: 300, easing: 'ease-in', fill: 'forwards' });
-    veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 300, fill: 'forwards' });
-    setTimeout(() => { veil.remove(); cell.style.visibility = ''; resolve(); }, 300);
-  }, 750));
+    big.animate([{ transform: 'none' }, { transform: move }], { duration: 350, easing: 'ease-in', fill: 'forwards' });
+    veil.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 350, fill: 'forwards' });
+    setTimeout(() => { veil.remove(); cell.style.visibility = ''; resolve(); }, 350);
+  }, 1250));
 }
