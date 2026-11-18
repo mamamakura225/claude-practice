@@ -105,6 +105,12 @@ test.describe('ねこスタンプちょう（#409）', () => {
     await page.goto('/#/stamp');
     await page.locator('.sb-press').click();
     await expect(page.locator('#sbGoal')).toContainText('ごほうび ゲット！');
+    // 全画面のお祝い（#419）。ごほうびの中身が出て、「やったね！」で閉じる
+    const party = page.getByRole('dialog', { name: 'ごほうび ゲット' });
+    await expect(party).toContainText('どうぶつえん');
+    await expect(party.getByRole('button', { name: 'やったね！' })).toBeFocused();
+    await party.getByRole('button', { name: 'やったね！' }).click();
+    await expect(party).toHaveCount(0);
 
     await passGate(page);
     await page.click('#stampRedeemBtn');
