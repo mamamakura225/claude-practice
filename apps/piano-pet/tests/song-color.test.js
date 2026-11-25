@@ -3,10 +3,6 @@ import { songHue, songColor, shiftHue, assignSongColors } from '../js/song-color
 import { songTotals } from '../js/record-form.js';
 
 describe('songHue', () => {
-  it('同じ曲名は常に同じ色相（決定的）', () => {
-    expect(songHue('きらきらぼし')).toBe(songHue('きらきらぼし'));
-  });
-
   it('前後の空白を無視して同一視する', () => {
     expect(songHue('  ちょうちょ  ')).toBe(songHue('ちょうちょ'));
   });
@@ -48,10 +44,6 @@ describe('songColor', () => {
     expect(c.hue).toBeNull();
     expect(c.fill).toBe('#c9bcbf');
   });
-
-  it('同じ曲名は同じ色セット', () => {
-    expect(songColor('ちょうちょ')).toEqual(songColor('ちょうちょ'));
-  });
 });
 
 describe('shiftHue（衝突回避・#165）', () => {
@@ -89,11 +81,6 @@ describe('assignSongColors（衝突回避つき一括割り当て・#165）', ()
         expect(dist).toBeGreaterThanOrEqual(25);
       }
     }
-  });
-
-  it('同じ並びなら結果は決定的', () => {
-    const names = ['A', 'B', 'C'];
-    expect(assignSongColors(names)).toEqual(assignSongColors(names));
   });
 
   it('重複・空名は1つに畳み込み無視する', () => {

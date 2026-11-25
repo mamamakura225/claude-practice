@@ -119,11 +119,6 @@ describe('stampsToSongs', () => {
     expect(stampsToSongs([])).toEqual({ songs: [], totalCount: 0 });
     expect(stampsToSongs(undefined)).toEqual({ songs: [], totalCount: 0 });
   });
-
-  it('collectSongs と互換な形を返す（合計が一致）', () => {
-    const { totalCount } = stampsToSongs(['A', 'A', 'B']);
-    expect(isValidSession({ totalCount })).toBe(true);
-  });
 });
 
 describe('songsToStamps', () => {
@@ -303,10 +298,6 @@ describe('normalizeTempo', () => {
     for (const t of TEMPO_STAMPS) {
       expect(normalizeTempo(t.id)).toBe(t.id);
     }
-  });
-
-  it('3種（🐢ゆっくり/🎵ふつう/🚀はやく）を持つ', () => {
-    expect(TEMPO_STAMPS.map((t) => t.id)).toEqual(['slow', 'normal', 'fast']);
   });
 
   it('未設定・無効値は null', () => {

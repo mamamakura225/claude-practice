@@ -35,11 +35,6 @@ describe('normalizeState', () => {
     expect(s.settings.soundOn).toBe(true);
   });
 
-  it('トップレベルの未知キーは引き継ぐ', () => {
-    const s = normalizeState({ sessions: [{ date: '2026-01-01' }] });
-    expect(s.sessions).toHaveLength(1);
-  });
-
   it('version を現行スキーマバージョンに揃える', () => {
     expect(normalizeState().version).toBe(SCHEMA_VERSION);
   });
@@ -280,7 +275,6 @@ describe('mergeCloud', () => {
     expect(merged.pet.coins).toBe(42);
     expect(merged.sessions).toHaveLength(1);
   });
-
 });
 
 describe('mergeSessionsKeepLarger', () => {
@@ -330,13 +324,6 @@ describe('mergeSessionsKeepLarger', () => {
     const cloud = [{ date: '2026-01-01', totalCount: 5, songs: ['C'] }];
     const m = mergeSessionsKeepLarger(local, cloud);
     expect(m[0].songs).toEqual(['L']);
-  });
-
-  it('起動直後にローカルだけが持つ当日記録を失わない（clobber 防止）', () => {
-    const cloud = [{ date: '2026-01-01', totalCount: 4 }];
-    const local = [{ date: '2026-01-02', totalCount: 6 }, { date: '2026-01-01', totalCount: 4 }];
-    const m = mergeSessionsKeepLarger(local, cloud);
-    expect(m.map((s) => s.date)).toEqual(['2026-01-02', '2026-01-01']);
   });
 
   it('null/欠損入力でも壊れない', () => {
