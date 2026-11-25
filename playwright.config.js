@@ -15,7 +15,8 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // ローカルの既定（コア数の半分）だと webServer を奪い合って落ちるので上限を置く（#325）
+  workers: process.env.CI ? 1 : 4,
   reporter: 'list',
 
   use: {
