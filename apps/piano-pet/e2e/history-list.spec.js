@@ -41,7 +41,7 @@ test.describe('きろく一覧の件数上限', () => {
     expect(await page.evaluate(() => document.activeElement.closest('.history-card')?.textContent ?? '')).toContain('1月6日');
     await expect(cards.last()).toContainText('1月1日');
 
-    // 足したあとの行でも操作は正しい記録に当たる（data-index は元配列のまま）
+    // 足したあとの行でも操作は正しい記録に当たる
     await cards.last().locator('[data-action="set-mark"][data-mark="praise"]').first().click();
     const st = await page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')));
     expect(st.sessions.find((s) => s.date === '2026-01-01').praise).toBe('hanamaru');
