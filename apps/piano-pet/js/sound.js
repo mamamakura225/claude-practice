@@ -2,8 +2,7 @@
 // 多くのSEは音声ファイル不要のシンセ（SOUND_SPECS：周波数/タイミングのデータ）。
 // なでた時の鳴き声だけは本物の猫の録音サンプル（MEOW_SOUNDS / playMeow）を使う。
 // 再生は AudioContext を遅延生成して鳴らし、AudioContext はユーザー操作後に
-// 初期化される（自動再生ポリシー対策）。テストからは pure な
-// isSoundOn / toggleSound のみ利用する（AudioContext には触れない）。
+// 初期化される（自動再生ポリシー対策）。
 
 // ----- 設定（pure） -----
 export function isSoundOn(state) {
@@ -102,7 +101,7 @@ function getCtx() {
   const AC = window.AudioContext || window.webkitAudioContext;
   if (!AC) return null;
   if (!ctx) ctx = new AC();
-  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  resumeAudio();
   return ctx;
 }
 
@@ -113,14 +112,12 @@ export function unlockAudio() {
 
 // 効果音が鳴り終わってからアイドルで AudioContext を suspend するまでの猶予(ms)。
 // running のままだと音声ハードウェアが起きっぱなしでモバイルのバッテリを食うため、
-// 最後の再生からこの時間で自動 suspend する。次の再生で getCtx() が resume するので
+// 最後に起こしてからこの時間で自動 suspend する。次の再生で getCtx() が resume するので
 // 体感の遅延はない（#146）。
 const IDLE_SUSPEND_MS = 3000;
 let idleTimer = null;
 
-// 再生のたびに呼び、アイドルが続いたら AudioContext を休ませる。
 function scheduleIdleSuspend() {
-  if (typeof window === 'undefined') return;
   clearTimeout(idleTimer);
   idleTimer = setTimeout(suspendAudio, IDLE_SUSPEND_MS);
 }
@@ -131,10 +128,13 @@ export function suspendAudio() {
   if (ctx && ctx.state === 'running') ctx.suspend().catch(() => {});
 }
 
-// 休止中の AudioContext を起こす（タブ復帰時に呼ぶ）。解錠済み（一度ユーザー操作で
+// 休止中の AudioContext を起こす（再生のたび・タブ復帰時）。解錠済み（一度ユーザー操作で
 // 生成済み）の ctx を resume するだけなので自動再生ポリシーには抵触しない。
+// 何も鳴らさずに起こしたとき（タブ復帰・音OFFでのなで）も必ず休ませる（#428）。
 export function resumeAudio() {
-  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+  if (!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+  scheduleIdleSuspend();
 }
 
 // note 配列（SOUND_SPECS の1エントリ形式）をオシレータで鳴らす。
@@ -155,7 +155,6 @@ function playNotes(audio, notes) {
     osc.start(start);
     osc.stop(end + 0.02);
   }
-  scheduleIdleSuspend();   // 鳴り終わったらアイドルで休ませる（#146）
 }
 
 // name の効果音を鳴らす。サウンドOFF・未対応環境では何もしない。
@@ -204,7 +203,8 @@ export function playStamp(index, state, goal = 10) {
 }
 
 // デコード済み AudioBuffer のキャッシュ（URL -> Promise<AudioBuffer>）。
-// 初回だけ fetch + デコードし、2回目以降は即再生できるようにする。
+// 初回だけ fetch + デコードし、2回目以降は即再生できるようにする。失敗は残さない
+// （オフラインで1回失敗しただけで、開き直すまで鳴かなくなる・#428）。
 const sampleCache = new Map();
 
 function loadSample(url, audio) {
@@ -212,7 +212,8 @@ function loadSample(url, audio) {
   if (!p) {
     p = fetch(url)
       .then((res) => res.arrayBuffer())
-      .then((buf) => audio.decodeAudioData(buf));
+      .then((buf) => audio.decodeAudioData(buf))
+      .catch((err) => { sampleCache.delete(url); throw err; });
     sampleCache.set(url, p);
   }
   return p;
@@ -232,12 +233,10 @@ export function rollCatVoice() {
 // 呼び出し側が rollCatVoice の戻り値で判断する。
 export function playCatVoice(state, kind) {
   if (!isSoundOn(state)) return;
-  if (typeof fetch !== 'function') return;
   const audio = getCtx();
-  if (!audio || typeof audio.decodeAudioData !== 'function') return;
+  if (!audio) return;
 
   const pool = kind === 'hiss' ? HISS_SOUNDS : MEOW_SOUNDS;
-  if (pool.length === 0) return;
   const url = pool[Math.floor(Math.random() * pool.length)];
   loadSample(url, audio)
     .then((buffer) => {

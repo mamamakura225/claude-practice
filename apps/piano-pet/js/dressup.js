@@ -73,16 +73,11 @@ export function enableDressup(stageEl, getLayout, onCommit) {
     }
 
     // 掴み中に2本目の指 → ピンチ開始（初期距離 d0・開始scale s0 を記録、デッドゾーン未通過）。
+    // 掴んだ指が先に離れていても、いま触れている2本で始める（掴んだ指で決め打つと座標が無く throw・#428）。
     if (!drag.pinch && pointers.size >= 2) {
-      const idB = [...pointers.keys()].find((id) => id !== drag.pointerId);
-      if (idB != null) {
-        drag.pinch = {
-          idA: drag.pointerId, idB,
-          d0: dist2(pointers.get(drag.pointerId), pointers.get(idB)),
-          s0: drag.curScale, active: false,
-        };
-        e.preventDefault();
-      }
+      const [idA, idB] = pointers.keys();
+      drag.pinch = { idA, idB, d0: dist2(pointers.get(idA), pointers.get(idB)), s0: drag.curScale, active: false };
+      e.preventDefault();
     }
   }
 
@@ -146,12 +141,14 @@ export function enableDressup(stageEl, getLayout, onCommit) {
   stageEl.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
+  // OS のジェスチャ等で指が取り上げられると pointerup は来ない。放置すると消えた指が残り、次の
+  // 1本指ドラッグがピンチ扱いになって以後ずっと離せない（#428）。
+  window.addEventListener('pointercancel', onUp);
 
   return function disable() {
     stageEl.removeEventListener('pointerdown', onDown);
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
-    pointers.clear();
-    drag = null;
+    window.removeEventListener('pointercancel', onUp);
   };
 }

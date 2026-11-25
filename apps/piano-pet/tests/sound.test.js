@@ -199,3 +199,49 @@ describe('MEOW_SOUNDS / HISS_SOUNDS', () => {
     }
   });
 });
+
+// 再生エンジンは AudioContext を偽物に差し替えて確かめる（モジュールが ctx を持つので毎回読み直す）。
+describe('再生エンジン（#428）', () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  let ctx;
+  async function load() {
+    vi.resetModules();
+    class FakeAudioContext {
+      constructor() { ctx = this; this.state = 'running'; this.destination = {}; }
+      suspend() { this.state = 'suspended'; return Promise.resolve(); }
+      resume() { this.state = 'running'; return Promise.resolve(); }
+      decodeAudioData() { return Promise.resolve({}); }
+      createGain() { return { gain: {}, connect: (n) => n }; }
+      createBufferSource() { return { connect: (n) => n, start() {} }; }
+    }
+    vi.stubGlobal('window', { AudioContext: FakeAudioContext });
+    return import('../js/sound.js');
+  }
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllGlobals(); });
+
+  it('鳴き声の取得に失敗しても次は取り直す（失敗を覚え込まない）', async () => {
+    const { playCatVoice } = await load();
+    const fetchMock = vi.fn().mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue({ arrayBuffer: () => Promise.resolve(new ArrayBuffer(1)) });
+    vi.stubGlobal('fetch', fetchMock);
+    playCatVoice({}, 'hiss');   // hiss は1本なので必ず同じ URL
+    await flush();
+    playCatVoice({}, 'hiss');
+    await flush();
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('何も鳴らさずに起こした AudioContext も、しばらくすると休む', async () => {
+    const { unlockAudio, suspendAudio, resumeAudio } = await load();
+    vi.useFakeTimers();
+    unlockAudio();              // 音OFFのまま なでた
+    vi.advanceTimersByTime(3000);
+    expect(ctx.state).toBe('suspended');
+
+    resumeAudio();              // タブへ戻った
+    expect(ctx.state).toBe('running');
+    vi.advanceTimersByTime(3000);
+    expect(ctx.state).toBe('suspended');
+    suspendAudio();
+  });
+});
