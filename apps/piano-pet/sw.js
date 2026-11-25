@@ -4,7 +4,7 @@
 //   - メディア（画像・音・アイコン・動画）: cache-first。中身が変わると MEDIA_CACHE の名前が変わる
 // 下の4つの定数は gen-sw が生成する（手で直さない）。
 const CODE_CACHE = 'piano-pet-code-26a09b86';
-const MEDIA_CACHE = 'piano-pet-media-b879623f';
+const MEDIA_CACHE = 'piano-pet-media-3fc607ef';
 
 const APP_SHELL = [
   './',
