@@ -3,6 +3,7 @@
   "scripts": {
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "build": "node scripts/build.mjs",
     "gen-sw": "node scripts/gen-sw.mjs",
     "gen-sw:check": "node scripts/gen-sw.mjs --check",
     "gen-config": "node scripts/gen-firebase-config.mjs",
@@ -12,6 +13,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
+    "esbuild": "0.28.2",
     "http-server": "^14.1.1",
     "vitest": "^4.1.9"
   }

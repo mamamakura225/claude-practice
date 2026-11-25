@@ -1,5 +1,9 @@
 {
   "git": { "deploymentEnabled": false },
+  "framework": null,
+  "installCommand": "npm ci",
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
   "trailingSlash": true,
   "rewrites": [
     { "source": "/dtask/(.*)", "destination": "/apps/dtask/$1" },

@@ -6,6 +6,7 @@
 //   node scripts/perf-budget.mjs           レポート表示のみ（常に成功）
 //   node scripts/perf-budget.mjs --check    予算超過があれば非ゼロ終了（CI用）
 //
+// 測るのは**最小化後**（minify.mjs ＝ 本番の dist/ と同じ変換・#430）の大きさ。コメントは数字に乗らない。
 // 計測対象は gen-sw の precache と同一の列挙（scripts/piano-pet-assets.mjs の listAssets()）
 // ＝ SW がプリキャッシュする配信アセット全部を仕分けたもの。gen-sw のキャッシュハッシュは
 // これに加えて listHashOnlyAssets()（video/*.mp4・#318）も見るが、そちらは判定対象外（下記）。
@@ -16,88 +17,22 @@
 import { readFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 import path from 'node:path';
+import { minifyFile } from './minify.mjs';
 import { APP_DIR, INDEX, classifyJs, listAssets } from './piano-pet-assets.mjs';
 
 const CHECK = process.argv.includes('--check');
 
-// 予算（gzip 後の KiB）。「肥大化の回帰」を捕まえるための上限であって、細かなサイズを縛る
-// 目的ではない。機能追加で超えたら、本当に必要な増加か見直すか、根拠とともに引き上げる。
-//
-// #284: js を **初回ロード（js-entry）と遅延読込（js-lazy）** に分けた。以前は js/ を丸ごと
-// 合計していたため、動的 import へ移しても数字が 1 バイトも動かず、「起動を軽くする」対応が
-// 予算の上でまったく報われなかった。厳しく縛るのは**起動をブロックするぶん**だけにする。
-// 注意: js-lazy には「操作するまで読まない」ものと「idle で必ず読む」もの（cloud.js）が
-// 混在する。後者は無操作でも通信が発生するが、起動はブロックしないので total には入れない。
+// 予算（最小化後の gzip KiB）。「肥大化の回帰」を捕まえるための上限で、細かなサイズを縛る目的ではない。
+// 値は 2026-11 の実測に 1 割ほどの余白を足したもの。過去の引き上げの経緯は git の履歴を見る。
+// 超えたら、本当に必要な増加か見直すか、根拠とともに引き上げる（CLAUDE.md ④）。
+// 厳しく縛るのは起動をブロックするぶん（html + css + js-entry = total）。js-lazy には操作するまで読まない
+// ものと idle で必ず読むもの（cloud.js）が混ざるが、どちらも起動はブロックしないので total に入れない（#284）。
 const BUDGETS_KIB = {
-  // #275 で manifest.json を html カテゴリに算入（従来は列挙の説明にだけ載っていて計測漏れ）。
-  // #409: スタンプタブ・ナビ5つめ・ホームの進捗行・せっていの枠で 8.0（中身は JS で描く）。9 へ（2026-11-16 ユーザー了承）。
-  html: 9,
-  // #227: 記録演出の動画オーバーレイ（.cat-stage-wrap / .cat-video / clip 再生中の調整）で
-  // 11.7→12.1 KiB。宣言のみの最小構成で、これ以上圧縮すると可読性を損なう（CLAUDE.md ④）ため 13 へ。
-  // #396〜#401: UI/UX 総点検の修正シリーズ（320px の崩れ・横向き・ボタン寸法ほか）。#396 で
-  // 12.96→13.1。コメントは docs へ逃がし済み。シリーズで css 15 / js-entry 84（#400 で 86 へ拡大）/ total 107 までの
-  // 引き上げをユーザー了承済み（2026-11-03）。各 PR で実測＋余白 1 KiB 程度ずつ上げる。
-  // #400: ハンコの手応え（reduced-motion）・ポップアップのタップで 14.1。15 へ。
-  css: 15,
-  // 2026-07 の機能追加ラッシュで js は 73→82 まで積み上がり、#284 時点で残り 1.4 KiB だった。
-  // dressup / cat-snapshot / backup を動的 import へ移して初回ロードを 70.5 KiB まで下げ、
-  // 上限をそこへ置き直した（cloud は #142 で先行して遅延化済み）。#309: バッジを13→24種に
-  // 増やす判定ロジック（tempo/praise/affinity/曲マスター/所持品の新軸5つ・app.js の即時再判定
-  // 込み）で 72.7→74.15 KiB。#311〜#320: データ健全性修正群（下記 total のコメント参照）の
-  // ガードで 74.15→76.2。識別子は既出で gzip 済み・コメントは docs へ逃がし済みで圧縮の余地が
-  // ないため 77 へ。#324: history.js（きろくビュー専用）を js-lazy へ移し 74.3 まで戻ったが、
-  // 枠はそのまま据え置き（次の機能追加の余白として残す）。
-  // #393: レッスン日（recomputeState の再生・未反映判定・起動時の取りこみ・ホーム/カレンダー表示）で
-  // 76.8→78.9（レビュー対応の墓標・当日の再計算を含む）。設定画面の部分は lesson-settings.js へ遅延読込にしたうえでの実測。宣言のみの最小構成で
-  // 圧縮の余地がないため 80 へ。
-  // #396: ポップアップの後続の付け替え・購入ガード・再記録の判定で 78.9→80.1。css のコメント参照
-  // （総点検シリーズで 84 までユーザー了承済み）。81 へ。
-  // #398: 取り消しトースト・記録削除の保留（猶予後に確定）・過去日の案内で 80.4→82.2（退避/復元の
-  // 処理は遅延の backup.js へ移したうえで。レビュー対応後 82.7）。トーストはどの画面からも使うので entry に置く。83 へ。
-  // #399: ショップの並び替え・コイン不足の案内・きせかえの空状態・曲名表示で 83.5。84 へ（了承範囲の上限）。
-  // #400: 動画のあとにポップアップを順に出す・タップで送る・ホームを離れたら動画を畳むで 84.1。
-  // js-entry の了承上限を 86 へ広げた（2026-11-04 ユーザー了承）。85 へ。
-  // #409: ねこスタンプちょう。pet.stampBook の矯正・初回マージ（信頼できない入力の関門なので entry）と
-  // タブ・ホーム・せっていの配線で 84.8→86.0（画面とロジックは遅延読込）。87 へ（2026-11-16 ユーザー了承）。
-  'js-entry': 87,
-  // 遅延ぶんは起動をブロックしないので緩め。#227 の cat-video.js（+2.0 KiB gzip・動的 import）で
-  // 10.1→12.1 KiB になったため 13 へ。#300 で記録クリップを1スタイル1本→3本にし、bag shuffle と
-  // 先読み1本化を入れて 12.6→13.2 になったため 14 へ。起動クリティカルパスの total は 91.8/94 で
-  // 変化していない。ただし青天井にはしない。#313: debounce キューを firebase 非依存の
-  // cloud-queue.js（テスト可能）へ切り出して +1.0 KiB（実測 13.3→14.3）のため 15 へ。
-  // #324: js-entry の残りを確保するため history.js（きろくビュー専用・カレンダー/週次集計/
-  // 記録カードの日付整形）を動的 import へ移した。「きろく」ビューはホーム表示に不要という
-  // #284 の原則どおり。+2.3 KiB で 14.3→16.6 のため 17 へ（total は逆に 2.1 KiB 下がる。
-  // history.js の import 文自体が js-entry から消えるぶんが差し引かれるため js-lazy 側の
-  // 増分と一致しない）。
-  // #365: 初回オンボーディングの文面と画面（onboarding-ui.js・見ていない端末でだけ読む）を
-  // 動的 import へ移し、js-entry 76.1→75.1（total 96.0→95.0）。js-lazy は 16.7→18.2 のため 19 へ。
-  // #382: total が 96.0/96（残り4バイト）で止まったため、「きろく」画面の HTML 組み立て
-  // （history-view.js・history.js を re-export）を動的 import へ移し js-entry 75.8→74.3・total 96.0→94.5。
-  // js-lazy は 18.3→20.9 のため、過去の引き上げと同じく 1 KiB 程度の余白を残して 22 へ（起動をブロックしないので緩め・#284）。
-  // #393: lesson-settings.js の新設ほかで 23.0 のため、同じく 1 KiB 程度の余白で 24 へ。
-  // #397: モーダル共通の dialog.js（開くときだけ読む）で 23.1→24.3。同じく余白 1 KiB 弱で 25 へ。
-  // #398: 退避/復元（backup.js）で 25.1。26 へ。
-  // #409: stamp-book.js（判定・絵柄16種）・stamp-view.js・stamp-settings.js で 25.6→31.1。32 へ（2026-11-16 ユーザー了承）。
-  // #415/#417/#419: 画面いっぱいの押す演出・ごほうび ゲットのお祝い（紙吹雪）で 31.4→32.8。33 へ（2026-11-18 ユーザー了承）。
-  'js-lazy': 33,
-  // #311〜#320 のデータ健全性修正群（壊れ state の入口ガード・属性注入の allowlist+escape・
-  // クラウド debounce の thunk 化・編集参照の同一性化・付与値のマージ救済・同日重複の
-  // 二重清算防止・削除の tombstone・スタンプのバッジ再判定）はいずれも圧縮で削ると
-  // 可読性を損なう（CLAUDE.md ④）。コメントは docs へ逃がしたうえで実測 93.55→95.7 のため 96 へ。
-  // #324: history.js を js-lazy へ移して total は 93.7 まで戻ったが、枠はそのまま据え置き
-  // （次の機能追加の余白として残す）。同issueで .gitattributes を追加し、CRLF 水増しによる
-  // ローカル Windows での偽陽性（本コメントが警告していたもの）自体を解消した。
-  // #299: ショップのカテゴリ絞り込み（チップ生成・絞り込み・選択保持／css・html 込み）で 95.2→96.3。
-  // 宣言のみの最小構成で圧縮の余地がないため 97 へ。
-  // #393: レッスン日（js-entry +1.5・html/css +0.6 ほか）で 96.9→99.4。余白 1 KiB 強で 101 へ。
-  // #397: 44px のボタン寸法・コントラスト（css）と dialog.js の読込口（js-entry）で 101.3。
-  // 総点検シリーズの了承範囲（〜107）で 102 へ。
-  // #398: 上記とレビュー対応で 104.0。了承範囲（〜107）で 105 へ。
-  // #399: 105.2。106 へ。
-  // #400: 106.0。107 へ。
-  // #409: 109.0。110 へ（2026-11-16 ユーザー了承）。
-  total: 110,       // html + css + js-entry（＝起動をブロックするクリティカルパス）
+  html: 7,          // 実測 6.4
+  css: 10,          // 実測 8.7
+  'js-entry': 37,   // 実測 33.5
+  'js-lazy': 18,    // 実測 16.2
+  total: 53,        // 実測 48.5（html + css + js-entry）
 };
 
 const KIB = 1024;
@@ -141,12 +76,12 @@ if (unclassified.length) {
   process.exit(1);
 }
 
-// カテゴリの raw / gzip 合計バイトを求める。
+// カテゴリの最小化後の raw / gzip 合計バイトを求める。
 function measure(files) {
   let raw = 0;
   let gz = 0;
   for (const rel of files) {
-    const buf = readFileSync(path.join(APP_DIR, rel));
+    const buf = minifyFile(rel, readFileSync(path.join(APP_DIR, rel)));
     raw += buf.length;
     gz += gzipSync(buf).length;
   }
@@ -163,7 +98,7 @@ const results = Object.fromEntries(
 const totalGz = results.html.gz + results.css.gz + results['js-entry'].gz;
 
 // ---- レポート ----
-console.log('piano-pet アセットサイズ（raw / gzip）:');
+console.log('piano-pet アセットサイズ（最小化後の raw / gzip）:');
 for (const [name, r] of Object.entries(results)) {
   const budget = BUDGETS_KIB[name];
   const budgetNote = budget ? `  予算 ${budget} KiB` : '';
