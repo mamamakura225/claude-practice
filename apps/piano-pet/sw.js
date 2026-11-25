@@ -1,19 +1,19 @@
 // ===== Service Worker =====
-// キャッシュはコード用とメディア用の2つ（#259）。コードだけのデプロイで画像（約2.7MiB）を取り直さない。
+// キャッシュはコード用とメディア用の2つ（#259）。コードだけのデプロイで画像（約4MiB）を取り直さない。
 //   - コード（html/css/js/manifest）: network-first。取れないときだけキャッシュ
 //   - メディア（画像・音・アイコン・動画）: cache-first。中身が変わると MEDIA_CACHE の名前が変わる
 // 下の4つの定数は gen-sw が生成する（手で直さない）。
-const CODE_CACHE = 'piano-pet-code-26a09b86';
+const CODE_CACHE = 'piano-pet-code-30f016cd';
 const MEDIA_CACHE = 'piano-pet-media-3fc607ef';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=26a09b86',
-  './css/style.css?v=26a09b86',
+  './css/cat.css?v=30f016cd',
+  './css/style.css?v=30f016cd',
   './js/account.js',
   './js/analytics.js',
-  './js/app.js?v=26a09b86',
+  './js/app.js?v=30f016cd',
   './js/backup.js',
   './js/badges.js',
   './js/cat-image.js',

@@ -167,4 +167,42 @@ test.describe('データのバックアップ/復元', () => {
     await page.click('#settingsMenu [data-action="close-settings"]');
     await expect(page.locator('#statCoins')).toHaveText('123');
   });
+
+  test('しょきかしたら、書きかけのスタンプも残らない（#428）', async ({ page }) => {
+    await page.goto('/#/record');
+    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
+    await page.fill('#newSongInput', 'きらきらぼし');
+    await page.click('#addSongBtn');
+    await page.click('#stampCard');
+    await page.click('.nav-btn[data-nav="home"]');
+    await passGate(page);
+    page.on('dialog', (d) => d.accept());
+    const reloaded = page.waitForEvent('load');
+    await page.click('#resetBtn');
+    await reloaded;
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#recordTotal')).toHaveText('0');
+  });
+
+  test('よみこむ：端末に保存できなければ、何も変えずに知らせる（#428）', async ({ page }) => {
+    const prevStash = JSON.stringify({ pet: { coins: 42 } });
+    await page.addInitScript((v) => localStorage.setItem('piano-pet-backup-before-restore', v), prevStash);
+    await page.goto('/');
+    await passGate(page);
+    await page.evaluate(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function setItem(k, v) {
+        if (k === 'piano-pet') throw new DOMException('full', 'QuotaExceededError');
+        return set.call(this, k, v);
+      };
+    });
+    page.on('dialog', (d) => d.accept());
+    const file = { ...JSON.parse(backupJson(999)), cloudDocId: 'pp-0123456789abcdef0123456789abcdef' };
+    await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+    await expect(page.locator('#importStatus')).toContainText('ほぞんできませんでした');
+    expect(await page.evaluate(() => localStorage.getItem('piano-pet:cloud-ids'))).toBeNull();   // 保存先だけ切り替わらない
+    expect(await page.evaluate(() => localStorage.getItem('piano-pet-backup-before-restore'))).toBe(prevStash);   // 前の退避も残る
+    await page.click('#settingsMenu [data-action="close-settings"]');
+    await expect(page.locator('#statCoins')).toHaveText('123');
+  });
 });

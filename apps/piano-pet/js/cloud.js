@@ -36,7 +36,7 @@ export async function fetchCloud() {
 
 // クラウドへ保存（射影済みのデータオブジェクトを受け取る）。
 export async function pushCloud(data) {
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (navigator.onLine === false) return;
   try {
     await setDoc(DATA_DOC, data);
   } catch (err) {

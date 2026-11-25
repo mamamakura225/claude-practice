@@ -8,7 +8,7 @@ export * from './stamp-book.js';
 const md = (d) => `${Number(d.slice(5, 7))}/${Number(d.slice(8))}`;
 const rewardText = (c) => `${normalizeRewardEmoji(c.emoji)} ${escapeHtml(c.reward || 'ごほうび')}`;
 
-export const stampFace = (design, date) =>
+const stampFace = (design, date) =>
   `<img class="sb-stamp" src="img/stamp/${design.id}.webp" alt="${design.name}（${md(date)}）">`;
 
 function cellMarkup(slot, i, card) {

@@ -5,16 +5,17 @@ import { historyCardMarkup, songCollectionMarkup, calendarCellsMarkup, weeklyCha
 describe('historyCardMarkup', () => {
   const session = { date: '2026-09-02', totalCount: 3, songs: [{ name: '<img src=x onerror=alert(1)>', count: 3 }], praise: 'jouzu', tempo: null };
 
-  it('曲名をエスケープし、操作ボタンに元配列の index を載せる', () => {
-    const html = historyCardMarkup(session, 7);
+  it('曲名をエスケープし、操作の対象となる日付を載せる', () => {
+    const html = historyCardMarkup(session);
     expect(html).not.toContain('<img');
     expect(html).toContain('&lt;img');
-    expect(html.match(/data-index="7"/g)).toHaveLength(2 + 3 + 3);   // なおす・けす＋はなまる3＋テンポ3
+    expect(html).toContain('data-date="2026-09-02"');
+    expect(html.match(/data-action=/g)).toHaveLength(2 + 3 + 3);   // なおす・けす＋はなまる3＋テンポ3
     expect(html).toContain(formatDateJa('2026-09-02'));
   });
 
   it('付いているスタンプだけ選択中になる', () => {
-    const html = historyCardMarkup(session, 0);
+    const html = historyCardMarkup(session);
     expect(html).toMatch(/praise-stamp praise-stamp--on"[^>]*data-id="jouzu"/);
     expect(html).not.toContain('tempo-stamp--on');
   });
@@ -38,6 +39,10 @@ describe('calendarCellsMarkup / weeklyChartSvg', () => {
     expect(html).toContain('<button type="button" class="cal-cell cal-cell--today"');
     expect(html).toContain('<span class="cal-cell cal-cell--future"');
     expect(html).toContain('cal-cell--future');
+  });
+
+  it('棒が1本も無いときは空のグラフでなく案内を出す（#432）', () => {
+    expect(weeklyChartSvg([{ total: 0, ratio: 0, label: '9/1' }])).toContain('グラフが でるよ');
   });
 
   it('0回の週は値ラベルを出さない', () => {

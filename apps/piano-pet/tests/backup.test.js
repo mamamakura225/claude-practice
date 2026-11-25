@@ -148,7 +148,7 @@ describe('RESTORE_BACKUP_KEY', () => {
 describe('stashBeforeOverwrite / readStash（ひとつ まえの データに もどす・#398）', () => {
   const mem = () => {
     const m = new Map();
-    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)) };
+    return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
   };
   const cur = JSON.stringify({ pet: { coins: 42 } });
 
@@ -172,6 +172,28 @@ describe('stashBeforeOverwrite / readStash（ひとつ まえの データに �
     s.setItem(RESTORE_BACKUP_KEY, '{broken');
     s.setItem(`${RESTORE_BACKUP_KEY}:meta`, JSON.stringify({ account: 'data', doc: null, at: 1 }));
     expect(readStash(s, { account: 'data' })).toBeNull();
+  });
+
+  it('上書きに失敗したら、戻り値で元の退避（中身と素性）に戻せる（#428）', () => {
+    const s = mem();
+    s.setItem('piano-pet', cur);
+    stashBeforeOverwrite(s, 'piano-pet', { account: 'data' }, 1000);
+    s.setItem('piano-pet', JSON.stringify({ pet: { coins: 7 } }));
+    const revert = stashBeforeOverwrite(s, 'piano-pet', { account: 'data' }, 2000);
+    expect(readStash(s, { account: 'data' }).state.pet.coins).toBe(7);
+    revert();
+    expect(readStash(s, { account: 'data' })).toMatchObject({ at: 1000, state: { pet: { coins: 42 } } });
+  });
+
+  it('素性だけ書けなかったときは、中身と食い違わないよう元の退避のままにする（#428）', () => {
+    const s = mem();
+    s.setItem('piano-pet', cur);
+    stashBeforeOverwrite(s, 'piano-pet', { account: 'data' }, 1000);
+    s.setItem('piano-pet', JSON.stringify({ pet: { coins: 7 } }));
+    const set = s.setItem;
+    s.setItem = (k, v) => { if (v.includes('2000')) throw new Error('QuotaExceededError'); set(k, v); };
+    stashBeforeOverwrite(s, 'piano-pet', { account: 'data' }, 2000);
+    expect(readStash(s, { account: 'data' })).toMatchObject({ at: 1000, state: { pet: { coins: 42 } } });
   });
 
   it('素性の記録が無い旧い退避は出さない', () => {

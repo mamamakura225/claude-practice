@@ -24,7 +24,7 @@
 
 ## ホーム
 
-> Issue: #121 #167 #187 #396 #399 ｜ 実装: [app.js](../js/app.js)・[cat-image.js](../js/cat-image.js)・[child-profile.js](../js/child-profile.js) ｜ テスト: tests/child-profile.test.js・e2e/child-avatar.spec.js・e2e/navigation.spec.js
+> Issue: #121 #167 #187 #396 #399 #432 ｜ 実装: [app.js](../js/app.js)・[cat-image.js](../js/cat-image.js)・[child-profile.js](../js/child-profile.js) ｜ テスト: tests/child-profile.test.js・e2e/child-avatar.spec.js・e2e/navigation.spec.js
 
 **仕様**
 
@@ -42,6 +42,8 @@
 | 記録ボタン | 「れんしゅうを きろくする」を下ナビの上に `position: sticky` で固定（#399） |
 
 - 記録ボタンを固定しないのは、高さ 600px 未満と きせかえ中（`.is-dressup`）。きせかえ・しゃしん・まえ／うしろパネルに重なるため
+- 下ナビは `z-index: 10`（猫の重ね順 2〜6 より上、ポップアップ 50〜 より下）。横向きで猫がタブを覆って押せなかった（#432）
+- 猫の上下の余白を詰め、375×740 で「きょうの もくひょう」が固定ボタンに隠れないようにする（きせかえ中は詰めない・#432）
 - 幅 420px 以下では名前とタイトルを省略記号で縮め、右端の 🔊/⚙️ を押し出さない（#396）
 
 **設計判断**
@@ -86,7 +88,7 @@
 
 ## 練習記録
 
-> Issue: #117 #123 #164 #186 #252 #260 #273 #398 #399 ｜ 実装: [record-form.js](../js/record-form.js)（純粋ロジック）・[app.js](../js/app.js) ｜ テスト: tests/record-form.test.js・tests/game.test.js・e2e/record.spec.js・e2e/record-date.spec.js
+> Issue: #117 #123 #164 #186 #252 #260 #273 #398 #399 ｜ 実装: [record-form.js](../js/record-form.js)（純粋ロジック）・[app.js](../js/app.js) ｜ テスト: tests/record-form.test.js・tests/game.test.js・e2e/record.spec.js・e2e/record-date.spec.js・e2e/day-rollover.spec.js
 
 ### モードの切り替え
 
@@ -111,6 +113,7 @@
 
 - 1行＝曲名（`datalist` 補完）＋回数ステッパー。「＋ ぎょうを ふやす」と各行の「✕」
 - 「ごうけい ○ かい」をその場で表示。集約は `collectSongs`（空名・0以下は除く）
+- 1行は99かいまで（`MAX_ROW_COUNT`・入力欄と集約の両方・#428。桁を打ち間違えた記録は、開くたびにその数のスタンプを並べて固まる）。99を超える曲（押し増し・過去日のたしざん）は行を分けて出し、減らさない（`songsToRows`）
 
 ### 記録の確定（両モード共通）
 
@@ -122,11 +125,12 @@
 
 | ケース | 扱い |
 |---|---|
-| 今日 | 記録画面は「その日ぜんぶ」を表す。submit は追記ではなく**置き換え**（#186） |
+| 今日 | 記録画面は「その日ぜんぶ」を表す。submit は追記ではなく**置き換え**（#186）。判定は「当日ぶんを復元した日」（`restoredDate`）で、開いたまま日付をまたいでも復元した日の記録を置き換える（#428） |
 | 同日に既存の記録がある | 統合して全再計算（`recomputeState`）。目標達成ボーナスの二重取りを防ぐ |
 | 過去日（最終練習日より前） | 挿入＋`recomputeState` で連続日数を保つ（#260）。「きょうのおまけ」は抽選しない |
 | 記録済みの過去日を選んだ | 「この ひは もう Nかい きろく してあるよ。いれた ぶんは たしざん されるよ。」を出し、合算する（#398） |
 | 未来日 | 選べない（`max=今日`）。手入力で入っても submit で今日へ丸める |
+| 日付をまたいで戻った（#428） | 復帰時に描き直す（`refreshOnNewDay`。ホーム・カレンダーの月）。レッスン日の取りこみは保存・送信を伴うので、クラウドを取り込んだ後（`resyncAndSettle`）に回し、取れなければ次の再同期まで待つ（先に送ると #242 と同じく他端末の記録を消す）。記録画面は書きかけ（編集中・まとめ・未送信のスタンプ）があれば触らない |
 | ひづけ欄を変えた（#273） | 今日＝当日の記録／下書きから復元、今日以外＝空のカード（`onRecordDateChange`）。過去日の間は当日の下書きを書き換えない |
 
 - 同日同曲は合算する（`combineSongs`・#186）。既存の分割データも表示時にまとめる
@@ -151,7 +155,7 @@
 **設計判断**
 
 - **同数の並びを `sessions` 内の値で決める（#326）**：配列位置で決めると、並びが経路で変わり同期のたびに色が入れ替わる
-- **端末間で一致しない例外**：記録画面の `formSongColors()` は未保存の曲名を末尾に足すので、記録するまではずれうる（許容）
+- **端末間で一致しない例外**：記録画面の `buildSongColors(chipNames)` は未保存の曲名を末尾に足すので、記録するまではずれうる（許容）
 
 ### スタンプ音（#139 #154 #238）
 
@@ -203,6 +207,7 @@
 | 2回ループ（#296） | 通常は `ended` で巻き戻す。`ended` が来ない端末は `duration + 0.4s` のタイマー、最終保険は `duration * 2 + 1s` |
 | 終了 | タップでスキップ。再記録したら前を畳んで次へ（`teardown`）。ホームを離れたら畳む（#400） |
 | フォールバック | 未ロード／自動再生拒否／1000ms 以内に `playing` が来ない／`prefers-reduced-motion` なら CSS 演出 |
+| ホームを離れた | 畳む（#400）。読み込み中に離れたときも、始まった時点で畳む（#428） |
 | 先読み | 記録ビューかショップに入ったとき idle で `cat-video.js` を動的 import し、**次に出る1本だけ**を読む（`peekClip`） |
 | キャッシュ | SW が cache-first で返す（→ [Service Worker](#service-worker-のキャッシュ戦略)） |
 | 音 | 常に muted（効果音は `sound.js` に任せる） |
@@ -234,7 +239,7 @@
 |---|---|
 | 記録後の順番 | コイン → おまけ → お休み券 → 新しいバッジ。2.2秒おき。全再計算で確定する記録（同日の更新・過去日・レッスン日がらみ）はコインとバッジだけ |
 | クリップとの順番（#400） | クリップが終わる（スキップ含む）まで出さない。`celebrateRecord` が返す Promise を `tryPlay(style, onDone)` が解決する |
-| バッジが複数（#400） | 2つまでは順に、3つ以上は2つ目以降を1枚にまとめる |
+| バッジが複数（#400） | 2つまでは順に、3つ以上は2つ目以降を1枚にまとめる。表示中に次の獲得が来たら後ろに並べる（`badgeQueue`・#428。置き換えると読む前に消え、続きも失われる） |
 | 記録以外のバッジ | 購入・はなまる／テンポの300ms後、えさやりポップアップが閉じた後 |
 | タップで送る（#400） | 表示中（`.coin-popup--show`）だけ `pointer-events: auto`。タップで閉じて次へ。下のボタンには届かない |
 | 前のポップアップ | 残っていれば即座に畳む（`dismissOtherPopups`・#396）。クリップ再生中のえさやりカードは畳まない |
@@ -261,7 +266,7 @@
 |---|---|
 | 連続記録カード | いまの れんぞく / さいこう きろく |
 | こんしゅうの ふりかえり（#144） | 今週（月曜起点）の かいすう／きょく数／日数（`weeklySummary`） |
-| 週次グラフ | 直近8週の合計回数（SVG・`weeklyChartModel`） |
+| 週次グラフ | 直近8週の合計回数（SVG・`weeklyChartModel`）。8週とも0なら案内文だけ（#432） |
 | れんしゅうカレンダー（#236） | 月間ヒートマップ（下記） |
 | きょくべつ コレクション（#122） | 曲ごとの累計を「多い順→新しさ」で。回数0・空名は出さない。上位5曲＋「もっと みる（あと Nきょく）」（#401） |
 | 曲マスター👑（#149） | 累計が `SONG_MASTER_COUNT`(=50) に達した曲 |
@@ -288,7 +293,7 @@
 | なおす中に他端末で消された | `#recordError` に案内を出し編集状態のまま（再送信で新規記録にしない） |
 | けす | 確認（コイン・レベル・れんぞく日数も減ると書く）のうえ削除。日付は `deletedDates`（#319）に残る |
 | けした直後 | 5秒間「もとに もどす」（#398）。その間は一覧から隠すだけで、カレンダー・集計は元のまま |
-| 削除の確定 | 期限切れ／別の `commitState`／画面移動／せっていを開く／`pagehide`・`visibilitychange`。当日分なら下書きも消す |
+| 削除の確定 | 期限切れ／別の `commitState`／画面移動／せっていを開く／`pagehide`・`visibilitychange`。当日分なら下書きも消す。きろく画面は描き直す |
 
 - どちらも `recomputeState` で全再計算する。報酬の演出は出さない
 
@@ -297,8 +302,8 @@
 - **カレンダーは保存しない（#236）**：`sessions` から導出。セルが多いので SVG でなく CSS grid
 - **カレンダーの色（#407）**：白抜きは淡いピンクと見分けるため。先の日を `opacity` で薄くすると 1.75:1 で読めなかった
 - **praise と tempo は同じ作り（#239）**：`setSessionMark`/`markRowMarkup` を共用（#261）。報酬に関係しないので再計算しない。統合・マージでの扱いは [data-model.md](./data-model.md#session)（#315）
-- **一覧は14件ずつ（#360）**：全件だと1件約 290px・14日で 4,500px（実測）。`data-index` は元配列の index のまま
-- **編集対象は日付で持つ（#314）**：index だと、開いている間の同期で並びが変わり**別の日の記録を上書きする**。index を補正する案は並び替え経路が増えるたびに漏れるので不採用
+- **一覧は14件ずつ（#360）**：全件だと1件約 290px・14日で 4,500px（実測）
+- **操作の対象は日付で持つ（#314 #428）**：一覧のボタンも編集中の記録もカードの `data-date` で引く。index だと、開いている間の同期や猶予中の削除の確定で並びが変わり**別の日の記録を開く・上書きする**。index を補正する案は並び替え経路が増えるたびに漏れるので不採用
 - **削除の確定を遅らせる（#398）**：すぐ確定すると、墓標が取り消しの猶予（5秒）より先に他端末へ届き（送信待ち2秒）、戻した記録が union で消し直される
   - 画面移動で確定するのは、記録画面に消した当日分が復元されるため。せっていを開いたら確定するのは、アカウント切替等の reload で別アカウントの保存先へ確定してしまうため
 
@@ -520,7 +525,7 @@
 
 ### 自由配置（ドラッグ #168・ピンチ #205）
 
-> 実装: [dressup.js](../js/dressup.js)（pointer 追跡）・[cat-image.js](../js/cat-image.js) `itemsSvg`/`itemAnchorPct`/`itemAnchorScale` ｜ テスト: tests/cat.test.js・e2e/dressup.spec.js
+> 実装: [dressup.js](../js/dressup.js)（pointer 追跡）・[cat-image.js](../js/cat-image.js) `itemGroup`/`itemAnchorPct`/`itemAnchorScale` ｜ テスト: tests/cat.test.js・tests/dressup.test.js・e2e/dressup.spec.js
 
 ホームの「👗 きせかえ」で編集モードに入り、**1本指ドラッグで移動・2本指ピンチで拡縮**する。「✅ できた！」で抜ける。
 
@@ -531,6 +536,7 @@
 | ピンチ（#205） | `scale` は**絶対値**で `0.3〜3.0`。基準の ±5% 以内なら基準へ吸着。2本指の距離が **10px** 動くまで拡縮しない。ピンチ中は位置を固定 |
 | 押せる大きさ（#215） | 透明なヒット矩形（`.cat__item-hit`）を**逆スケール**で入れ（`MIN_HIT_UNITS`=44）、拡縮後も約66px 以上を保つ |
 | なでとの競合 | 編集中は `petCat` を止め、猫の周りを点線で囲う |
+| 指が取り上げられた（#428） | `pointercancel` も指を離したのと同じに扱う（放置すると消えた指が残り、次のドラッグがピンチになる） |
 | スクロール中のドラッグ（#288） | `pointermove` ごとに `getBoundingClientRect()` を取り直す（キャッシュすると落とす位置がずれる） |
 | 掃除 | `commitState` の `cleanItemLayout` が、付けていないものの座標を消す |
 | 編集モードの開始 | `cat-stage--editing` は `dressup.js` を読み込んでから付ける（#284。クラスが「使える」合図になる） |
@@ -680,7 +686,7 @@
 - **ごほうびの絵文字はお祝いに出さない（#423・ユーザー判断）**：なかみとの結びつきが弱く、大きく出しても意味が伝わらない
 - **`prefers-reduced-motion` で止めるのは明滅だけ**：ぺたっとお祝いは遊びの手応えなので残す
 - **古い せってい画面からは確定しない**：ボタンにカードの `id` を持たせ、押した時点のカードと違えば描き直すだけにする（他端末の新しいカードを終わらせてしまうため）。`redeemCard` も、うまっていないカードは終わらせない
-- **実在しない日付は数えない**：`normalizeState` は書式しか見ないので `2026-11-00` が入りうる。絵柄の計算が NaN になるので判定で捨て、押す処理は `finally` で必ず解除する
+- **実在しない日付は数えない**：入口（`normalizeState`）で落とすほか、絵柄の計算が NaN になるので判定でも捨て、押す処理は `finally` で必ず解除する
 - **個数を減らしたとき**：枠から外れた押印は残り、次のカードで数える
 - **同期**：realtime は `pet` ごと cloud-wins。初回マージは [data-model.md](./data-model.md#63-初回取り込みのマージmergecloudinitialローカル優先)
 
@@ -752,12 +758,12 @@
 **設計判断**
 
 - **`sessions` には入れない**：偽の記録にすると曲別集計・バッジ・同日1件の統合・墓標と干渉する。日付だけ持ち、`recomputeState` が記録と日付順に並べて再生する。報酬は `coinsEarned` に含めない
-- **未反映のレッスン日があるときは全再計算**：`submitRecord` は `hasUncreditedLesson`、または `date === lastPracticeDate`（レッスンだけ反映済みの当日。逐次更新だとおやすみけんが二重に付く）なら `commitRecordedSessions` で確定する
+- **未反映のレッスン日があるときは全再計算**：`submitRecord` は `hasUncreditedLesson`、または `date === lastPracticeDate`（レッスンだけ反映済みの当日。逐次更新だとおやすみけんが二重に付く）なら全再計算で確定する（`finishRecord`）
 - **曜日の固定登録にしない**：補講・休講で崩れ、いつから有効かの版管理も要る
 - **おやすみけんの自動付与は不採用**：上限2枚では毎週のレッスンを賄えない
 - **解除は墓標（`pet.lessonRemoved`）で伝える**：登録は union なので、墓標が無いと他端末の古い登録が戻る
 - **プライバシー**：曜日パターンの推定に使えるので analytics には送らない
-- **既知の限界**：日付をまたいで開いたままだと、連続・コインは次の記録・再読込・復帰時の再同期まで反映されない。全再計算の記録では「つかったよ」（お休み券）と おまけ のポップアップが出ない（コインには含まれる）
+- **既知の限界**：日付をまたいで表示したままだと、連続・コインは次の記録・再読込・復帰（いったん裏へ回して戻る）まで反映されない。全再計算の記録では「つかったよ」（お休み券）と おまけ のポップアップが出ない（コインには含まれる）
 
 ### 猫の見た目（なつき度 tier・#167）
 
@@ -793,9 +799,9 @@
 |---|---|
 | 効果音（シンセ） | Web Audio API で生成（`SOUND_SPECS`）：コイン獲得 / レベルアップ / 記録完了 / 購入 / スタンプの `peta` / ごほうびの `fanfare` |
 | スタンプ音階 | `playStamp(index)` がド=C4（`STAMP_BASE_FREQ`）基準の Cメジャー音階で上げ、目標マスは**主和音**（高いドに長三度・完全五度・1オクターブ下のボディ・`stampNotes`） |
-| 鳴き声（録音） | なでたときだけ。`meow1〜3.mp3`（通常）/ `hiss1.mp3`（威嚇） |
+| 鳴き声（録音） | なでたときだけ。`meow1〜3.mp3`（通常）/ `hiss1.mp3`（威嚇）。取得の失敗は覚えず、次に取り直す（#428） |
 | ON/OFF | ヘッダーのトグル（`settings.soundOn`・端末ローカル）。AudioContext はユーザー操作のあとに解錠 |
-| 自動 suspend（#146） | 鳴り終わって3秒（`IDLE_SUSPEND_MS`）で `suspend()`。タブが非アクティブなら止め、戻ったら再開 |
+| 自動 suspend（#146） | 最後に起こしてから3秒（`IDLE_SUSPEND_MS`）で `suspend()`。何も鳴らさずに起こしたとき（タブ復帰・音OFFでのなで）も休む（#428）。タブが非アクティブなら止め、戻ったら再開 |
 
 **設計判断（#139 #154）**：半音で上げると「ドレミの音程感覚を養う」に合わないので音階にした。目標マスを単音の高いドで解決すると音程が下がる違和感があったので主和音にした（topic_1780484001568）。
 
@@ -845,7 +851,8 @@
 
 | 項目 | 仕様 |
 |---|---|
-| 色の構造 | 構造色は `:root` のセマンティック変数（`--surface`/`--cream`/`--ink`/`--shadow` ほか）。ダークではこの変数だけを上書き。アクセント色は共通 |
+| 色の構造 | 構造色は `:root` のセマンティック変数（`--surface`/`--cream`/`--ink`/`--shadow` ほか）。ダークではこの変数だけを上書き。アクセント色は共通。`color-scheme: dark` で日付アイコンなどもダークにする（#432） |
+| 変数にした面 | 目標達成カード（`--goal-done`）・カレンダーの濃淡（`--heat-1/2`。ダークでも濃いほど多い）・🐾（`--paw-filter`。濃い色の絵文字なのでダークでは反転）（#432） |
 | 切り替え | じどう / あかるい / よる。`じどう` は `data-theme` を外し `@media (prefers-color-scheme: dark)` で OS に追従、他は `data-theme="light"/"dark"` |
 | 保存 | 端末ごと（`localStorage['pp-theme']`） |
 | チラつき防止 | `index.html` の `<head>` のインラインスクリプトで描画前に付ける |
@@ -986,7 +993,7 @@
 - **えさやりクリップの WebKit 実再生**：「読めるが `playing` が来ない」経路と実機 iOS は未検証（#294）
 - **サウンド**：計算は単体テスト、威嚇の出し分けは E2E。鳴った音そのものは未検証
 - **曲の色**：単体テストのみ
-- **ダークモード**：切り替えと保存値は E2E。テーマごとの見た目は未検証
+- **ダークモード**：切り替えと保存値、目標達成カードのコントラストは E2E（`layout-theme`）。ほかの見た目は未検証
 
 ## トレーサビリティ表
 
@@ -997,7 +1004,7 @@
 | ナビゲーション | #235 #399 #401 | [画面とナビゲーション](#画面とナビゲーション) | `router.js`・`app.js` | — | `navigation` |
 | ホーム・アバター | #121 #167 #396 | [ホーム](#ホーム) | `app.js`・`child-profile.js` | `child-profile` | `child-avatar`・`navigation` |
 | 初回オンボーディング | #141 #365 | [初回オンボーディング](#初回オンボーディング141) | `onboarding.js`・`onboarding-ui.js` | `onboarding` | `onboarding` |
-| 練習記録 | #117 #123 #164 #186 #260 #273 | [練習記録](#練習記録) | `record-form.js`・`game.js`・`app.js` | `record-form`・`game` | `record`・`record-date` |
+| 練習記録 | #117 #123 #164 #186 #260 #273 #428 | [練習記録](#練習記録) | `record-form.js`・`game.js`・`app.js` | `record-form`・`game` | `record`・`record-date`・`day-rollover` |
 | 曲の色 | #122 #165 #326 | [曲の色](#曲の色122-165) | `song-color.js`・`record-form.js` | `song-color` | — |
 | スタンプ音・サウンド | #139 #146 #154 | [サウンド](#サウンド) | `sound.js` | `sound` | — |
 | 記録の動画クリップ | #227 #296 #300 #305 | [記録の動画クリップ演出](#記録の動画クリップ演出227) | `cat-video.js`・`feed.js`・`app.js` | `cat-video`・`game`（`crossedDailyGoal`） | `clip`・`streak-milestone`・`reward-sequence` |
@@ -1007,21 +1014,21 @@
 | ショップ（購入・えさやり） | #124 #250 #294 #360 #399 #421 | [ショップ](#ショップ) | `shop.js`・`feed.js`・`cat-video.js` | `shop`・`feed`・`cat-video` | `shop`・`navigation` |
 | なかよしレベル | #124 #216 | [なかよしレベルとご褒美](#なかよしレベルとご褒美124-216) | `feed.js`・`cat-image.js` | `feed`・`cat` | `shop`・`cat-interaction` |
 | きせかえ・置物 | #126 #191 #226 #299 | [きせかえ アイテム](#きせかえ-アイテム装着全33種)・[置物](#置物シーン配置全12種226) | `shop.js`・`cat-image.js` | `shop`・`cat` | `shop`・`dressup` |
-| 自由配置・まえ／うしろ | #168 #205 #214 #215 #270 | [自由配置](#自由配置ドラッグ-168ピンチ-205)・[まえ／うしろ](#まえうしろの切り替え270) | `dressup.js`・`cat-image.js`・`app.js` | `cat` | `dressup`・`navigation` |
+| 自由配置・まえ／うしろ | #168 #205 #214 #215 #270 | [自由配置](#自由配置ドラッグ-168ピンチ-205)・[まえ／うしろ](#まえうしろの切り替え270) | `dressup.js`・`cat-image.js`・`app.js` | `cat`・`dressup` | `dressup`・`navigation` |
 | 猫スタイル | #66 | [猫スタイルの切り替え](#猫スタイルの切り替え66) | `app.js`・`cat-image.js` | `cat` | `cat-interaction` |
 | 写真モード | #237 | [写真モード](#写真モード237) | `cat-snapshot.js`・`app.js` | — | `photo` |
 | 猫の表示・なでなで | #167 #187 #347 | [猫の表示とインタラクション](#猫の表示とインタラクション) | `cat-image.js`・`sound.js`・`app.js` | `cat`・`sound` | `cat-interaction` |
 | バッジ | #298 #309 #320 | [バッジ](#バッジ実績) | `badges.js`・`game.js` | `badges`・`game` | `reward-popup` |
 | ねこスタンプちょう | #409 #410 #413 #415 #419 #423 | [ねこスタンプちょう](#ねこスタンプちょう409) | `stamp-book.js`・`stamp-view.js`・`stamp-settings.js`・`storage.js` | `stamp-book` | `stamp-book` |
 | 報酬・連続・おまけ | #148 #238 | [育成・報酬ロジック](#育成報酬ロジック) | `game.js` | `game` | `record`・`reward-popup`・`daily-goal` |
-| レッスン日 | #393 | [レッスン日](#レッスン日393) | `game.js`・`storage.js`・`lesson-settings.js` | `game`・`storage` | `lesson` |
+| レッスン日 | #393 | [レッスン日](#レッスン日393) | `game.js`・`storage.js`・`lesson-settings.js` | `game`・`storage` | `lesson`・`day-rollover` |
 | せってい・親ゲート | #166 #182 #238 #401 | [せってい](#せってい親ゲートの内側) | `app.js`・`account.js` | `account` | `settings`・`daily-goal`・`history-settings` |
 | バックアップ／復元・初期化 | #140 #183 #381 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js` | `backup` | `backup` |
 | がぞくコード | #233 | [data-model.md 7章](./data-model.md#7-がぞくコードdoc-id-の推測不能化233-段階1) | `account.js`・`cloud.js`・`app.js` | `account` | `cloud-code` |
-| 状態の正規化・移行 | #272 #311 | [data-model.md 4・5章](./data-model.md#4-正規化と型の矯正) | `storage.js` | `storage` | — |
+| 状態の正規化・移行 | #272 #311 #428 | [data-model.md 4・5章](./data-model.md#4-正規化と型の矯正) | `storage.js` | `storage` | — |
 | クラウド同期・マージ | #142 #242 #313 #358 #362 #374 #378 #381 | [data-model.md 6章](./data-model.md#6-クラウド同期) | `storage.js`・`cloud.js`・`cloud-queue.js`・`app.js` | `storage`・`cloud-queue` | `cloud-sync` |
 | エスケープ（XSS 対策） | #274 #312 | [requirements.md 受容しているリスク](./requirements.md#受容しているリスク258) | `html.js` | `html`・`cat` | — |
-| アクセシビリティ・モーダル・テーマ | #151 #359 #397 | [アクセシビリティ](#アクセシビリティ表示テーマ151) | `dialog.js`・`app.js`・`css/` | — | `a11y-dialogs`・`settings`・`uiux-bugs` |
+| アクセシビリティ・モーダル・テーマ | #151 #359 #397 #432 | [アクセシビリティ](#アクセシビリティ表示テーマ151) | `dialog.js`・`app.js`・`css/` | — | `a11y-dialogs`・`layout-theme`・`settings`・`uiux-bugs` |
 | 計測・監視（内容を送らない） | — | [requirements.md 4.2](./requirements.md#42-セキュリティとプライバシー) | `analytics.js`・`sentry.js`・`monitoring-config.js`（生成） | — | — |
 | SW のキャッシュ | #259 #289 #303 #317 #318 | [Service Worker](#service-worker-のキャッシュ戦略) | `sw.js`（生成）・`scripts/gen-sw.mjs` | `assets` | `sw-clip-cache` |
 | アセット列挙・予算・最小化 | #275 #284 #324 #430 | [パフォーマンス予算](#アセット総量とパフォーマンス予算) | `scripts/piano-pet-assets.mjs`・`scripts/perf-budget.mjs`・`scripts/minify.mjs`・`scripts/build.mjs` | `assets` | — |

@@ -10,6 +10,7 @@ export * from './history.js';
 
 // 週ごとの合計回数を SVG の棒グラフにする
 export function weeklyChartSvg(bars) {
+  if (!bars.some((b) => b.total > 0)) return '<p class="history-empty">れんしゅうすると ここに グラフが でるよ。</p>';
   const N = bars.length;
   const W = N * 30;
   const H = 120;
@@ -45,35 +46,36 @@ const SESSION_MARKS = {
 };
 
 // スタンプ行のマークアップ：選択中のものを強調。タップで付与／同じものを再タップで解除。
-function markRowMarkup(kind, session, index) {
+function markRowMarkup(kind, session) {
   const m = SESSION_MARKS[kind];
   const current = m.normalize(session[kind]);
   const buttons = m.stamps.map((p) => {
     const on = p.id === current;
     return `<button type="button" class="${m.cls}${on ? ` ${m.cls}--on` : ''}"` +
-      ` data-action="set-mark" data-mark="${kind}" data-index="${index}" data-id="${p.id}"` +
+      ` data-action="set-mark" data-mark="${kind}" data-id="${p.id}"` +
       ` aria-pressed="${on}" title="${p.label}" aria-label="${p.label}">${p.emoji}</button>`;
   }).join('');
   return `<div class="${m.row}" role="group" aria-label="${m.label}"><span class="mark-label" aria-hidden="true">${m.heading}</span>${buttons}</div>`;
 }
 
-export function historyCardMarkup(session, index) {
+// 操作ボタンの対象は data-date（同日1件が不変条件なので主キーになる・#314）
+export function historyCardMarkup(session) {
   // 同日同曲が複数行に分かれた既存データも1行に合算して表示する（#186）
   const songs = combineSongs(session.songs)
     .map((s) => `<li><span class="song-title">${escapeHtml(s.name)}</span>` +
-      `<span class="song-times">${Number(s.count) || 0}かい</span></li>`)
+      `<span class="song-times">${s.count}かい</span></li>`)
     .join('');
   return `<div class="history-card" data-date="${escapeHtml(session.date)}">
     <div class="history-card__date">
       <span class="history-card__day">${formatDateJa(session.date)}</span>
-      <span class="history-card__total">ごうけい <b>${Number(session.totalCount) || 0}</b> かい</span>
+      <span class="history-card__total">ごうけい <b>${session.totalCount}</b> かい</span>
     </div>
     <ul class="history-songs">${songs}</ul>
-    ${markRowMarkup('praise', session, index)}
-    ${markRowMarkup('tempo', session, index)}
+    ${markRowMarkup('praise', session)}
+    ${markRowMarkup('tempo', session)}
     <div class="history-card__actions">
-      <button type="button" class="history-action" data-action="edit-session" data-index="${index}" aria-label="この きろくを なおす">✏️ なおす</button>
-      <button type="button" class="history-action history-action--del" data-action="delete-session" data-index="${index}" aria-label="この きろくを けす">🗑️ けす</button>
+      <button type="button" class="history-action" data-action="edit-session" aria-label="この きろくを なおす">✏️ なおす</button>
+      <button type="button" class="history-action history-action--del" data-action="delete-session" aria-label="この きろくを けす">🗑️ けす</button>
     </div>
   </div>`;
 }

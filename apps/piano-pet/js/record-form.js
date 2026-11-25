@@ -1,19 +1,32 @@
 // ===== 練習記録フォームの純粋ロジック =====
 
+// まとめモードの1行の上限（入力欄の max と同じ）。桁を打ち間違えた記録は、開くたびにその数のスタンプを
+// 並べようとして固まる（#428）。
+export const MAX_ROW_COUNT = 99;
+
 // 入力行（{ name, count } の配列）を記録用ペイロードに集約する。
 // - 曲名が空、または回数が0以下の行は除外
 // - 曲名は前後の空白を落とす
-// - 回数は整数に丸め、負数は0扱いで除外
+// - 回数は整数に丸め、負数は0扱いで除外、上限は MAX_ROW_COUNT
 export function collectSongs(rows) {
   const songs = [];
   for (const row of rows) {
     const name = String(row?.name ?? '').trim();
     const count = Math.floor(Number(row?.count));
     if (!name || !Number.isFinite(count) || count <= 0) continue;
-    songs.push({ name, count });
+    songs.push({ name, count: Math.min(MAX_ROW_COUNT, count) });
   }
   const totalCount = songs.reduce((sum, s) => sum + s.count, 0);
   return { songs, totalCount };
+}
+
+// まとめの行に出す形へ。1行の上限を超える曲（スタンプの押し増し・過去日のたしざん）は行を分け、丸めで減らさない。
+export function songsToRows(songs) {
+  return songs.flatMap(({ name, count }) => {
+    const rows = [];
+    for (let rest = count; rest > 0; rest -= MAX_ROW_COUNT) rows.push({ name, count: Math.min(MAX_ROW_COUNT, rest) });
+    return rows;
+  });
 }
 
 // 記録可能かどうかの判定。合計0回（有効な行なし）は不可。

@@ -22,6 +22,7 @@
 
 - 読み込み・正規化・クラウド射影は [storage.js](../js/storage.js) に集約する
 - `CLOUD_FIELDS` ＝ `pet, inventory, streak, badges, sessions, deletedDates`。`settings` と `version` は端末ローカル
+- `saveState` は書けなくても（容量超過等）投げず `false` を返す（#428）。画面とクラウド送信は続き、毎回 state 全体を書くので次の保存が通れば追いつく。失敗中は知らせを出し、スタンプ下書きを消さない
 
 ### State 以外の localStorage キー
 
@@ -43,6 +44,7 @@
 - ホームと往復してもスタンプカードを引き継ぐための一時保存（#164）。打鍵ごとに保存する（Firestore へは送らない）
 - **初回の記録前だけ使う**。記録後は当日の Session から復元する（#186）
 - `date !== todayStr()` なら捨てる。編集中と、ひづけ欄が今日以外のあいだは書き込まない（#273）
+- **当日の Session があるあいだは保存せず消す**。復元・初期化でも消す（#428）。残すと、その記録を別の日へ動かした・他端末で消したときに古い回数が戻り、二重に記録される
 
 ## 2. State スキーマ (v2)
 
@@ -172,20 +174,24 @@
 |---|---|
 | `saved` 自体 | プレーンオブジェクトでなければ `DEFAULTS` |
 | `pet` / `streak` / `settings` / `pet.itemLayout` | プレーンオブジェクトでなければ既定（配列も弾く） |
+| `pet` の `level`/`xp`/`coins`/`affinity`/`foodSpent`・`streak` の `current`/`best`/`freezes`（#428） | 有限の数値にする（`asNumber`）。できなければ既定 |
+| `pet.itemLayout` の各エントリ（#428） | 数値でない座標・正の数値でない `scale`・未知の `layer` を落とす |
+| `streak.lastPracticeDate`（#428） | 実在する日付でなければ `null` |
 | `sessions` / `inventory` / `badges` / `pet.equippedItems` / `pet.placedItems` | 配列でなければ空配列 |
-| `deletedDates` / `pet.lessonDates` / `pet.lessonRemoved` | `YYYY-MM-DD` の文字列だけ残し重複を除く |
+| `deletedDates` / `pet.lessonDates` / `pet.lessonRemoved` | 実在する `YYYY-MM-DD` だけ残し重複を除く |
 | `sessions` の各要素 | プレーンオブジェクトでない要素を除く |
-| `sessions[].date`（#311） | `YYYY-MM-DD` でなければ**要素ごと落とす**（件数を `console.warn`） |
-| `sessions[].totalCount`（#311） | `Number(v) \|\| 0` |
+| `sessions[].date`（#311） | 実在する `YYYY-MM-DD` でなければ**要素ごと落とす**（件数を `console.warn`） |
+| `sessions[].totalCount`（#311）・`bonusCoins`（あれば・#428） | 有限の数値にする。できなければ 0 |
 | `sessions[].songs`（#311） | 配列でなければ空配列。各要素を `{ name: String, count: Number }` にし、`name` が空の曲は除く |
 | `pet.stampBook`（#409） | カードは `id` が数値でない／`startDate` が日付でなければ**捨てる**。`size` は 5〜60、`reward` は20文字へ丸める。`pressed`・`dates` は日付だけ残す。`emoji` は8文字までで保存し、表示時に候補8種以外を🎁にする |
 
-- 実在しない日付（`2026-11-00` 等）は書式だけでは弾けないので、判定側（[stamp-book.js](../js/stamp-book.js)）で捨てる
+- 日付は実在するものだけ通す（`isDate`）
 
 **設計判断**
 
 - **信頼できない入力として扱う（#272）**：認証なしの Firestore doc（#258）とバックアップ JSON も入力元。型の不正が通ると app.js のモジュールトップが throw して**画面が真っ白**になり、localStorage に残るのでリロードでも直らない
 - **落とすか直すかは値の性質で決める（#311）**：`date` と stampBook の `startDate` は既定値では捏造になるので落とす。`totalCount` / `songs` は安全な既定値があるので直して残す。多層防御として `checkBadges` でも `totalCount` を `Number()` で守る
+- **中身まで矯正する（#428）**：`2026-11-00` は `recomputeState` を RangeError にして記録の保存ごと止め、文字列の `scale` は起動時の描画を落とし、文字列の数値は加算を連結（`'5'+1`）に化けさせる
 - **バックアップは矯正ではなく拒否する**：黙って空配列に直すと、**壊れた記録が消えたことに親が気づけない**
 
 ## 5. マイグレーション
@@ -236,7 +242,7 @@
 |---|---|---|---|
 | 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別にローカル優先（union） | 同日衝突で回数の**少ない方** |
 | 復帰時 resync（#242 #358） | `visibilitychange`→visible、`online` 復帰 | 同上（`reconcileInitialCloud`） | 同上。加えて**一方で外した装備・置物が戻る**ことがある |
-| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え）。自分のエコーは差分比較でスキップ。`deletedDates` だけは union し、墓標の日付の記録は取り込まない（#319）。**印（`offlineDirty`）が立っている間は union**（#358） | **まだ送っていないローカルの変更**（debounce の待ち・既定2秒） |
+| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え）。自分のエコーはキー順をそろえた差分比較（`cloudDigest`・#428）でスキップ。`deletedDates` だけは union し、墓標の日付の記録は取り込まない（#319）。**印（`offlineDirty`）が立っている間は union**（#358） | **まだ送っていないローカルの変更**（debounce の待ち・既定2秒） |
 
 **設計判断**
 
@@ -349,8 +355,8 @@
 購読中に取り込むと、push が届く前に**古いスナップショットが結果を巻き戻す**ので、次の順で行う（`applyImportedState`・topic_1780530736889）。
 
 1. 今の localStorage を `piano-pet-backup-before-restore` へ退避する
-2. 購読解除（`cloudUnsub`）で **onSnapshot を止める**。復帰時 resync と30秒の再試行も止める（`stopCloudForOverwrite`・#378）
-3. `saveState(imported)` でローカルに反映する
+2. `saveState(imported)` でローカルに反映する。**書けなければ（容量超過等）何も変えずに知らせてやめる**（退避も元に戻す・#428。クラウドやがぞくコードだけ入れ替わるのを防ぐ）
+3. 購読解除（`cloudUnsub`）で **onSnapshot を止める**。復帰時 resync と30秒の再試行も止める（`stopCloudForOverwrite`・#378）。がぞくコードの切替とスタンプ下書きの消去もここ
 4. `await pushCloud(cloudFields(imported))`（**上限10秒**・`pushForOverwrite`・#381）。がぞくコード入りのファイルは `pushCloudDoc(コード, …)` でそのコードの doc へ書く（#358）
 5. `window.location.reload()`
 

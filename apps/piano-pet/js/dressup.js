@@ -57,14 +57,11 @@ export function enableDressup(stageEl, getLayout, onCommit) {
       const style = stageEl.querySelector('.cat')?.dataset.style;
       const id = item.dataset.item;
       const lpos = getLayout()[id];
-      const anchor = itemAnchorPct(id, style);
-      const pos = (lpos && lpos.x_pct != null)
-        ? { x_pct: lpos.x_pct, y_pct: lpos.y_pct }
-        : { ...(anchor ?? { x_pct: 50, y_pct: 50 }) };
-      const baseScale = itemAnchorScale(id, style) ?? 1;
+      const { x_pct, y_pct } = lpos?.x_pct != null ? lpos : itemAnchorPct(id, style);
+      const baseScale = itemAnchorScale(id, style);
       drag = {
         id, el: item, pointerId: e.pointerId,
-        pos, baseScale, curScale: parseFloat(item.dataset.scale) || baseScale,
+        pos: { x_pct, y_pct }, baseScale, curScale: parseFloat(item.dataset.scale) || baseScale,
         dirty: false, pinch: null,
       };
       item.classList.add('cat__item--grabbing');
@@ -73,16 +70,11 @@ export function enableDressup(stageEl, getLayout, onCommit) {
     }
 
     // 掴み中に2本目の指 → ピンチ開始（初期距離 d0・開始scale s0 を記録、デッドゾーン未通過）。
+    // 掴んだ指が先に離れていても、いま触れている2本で始める（掴んだ指で決め打つと座標が無く throw・#428）。
     if (!drag.pinch && pointers.size >= 2) {
-      const idB = [...pointers.keys()].find((id) => id !== drag.pointerId);
-      if (idB != null) {
-        drag.pinch = {
-          idA: drag.pointerId, idB,
-          d0: dist2(pointers.get(drag.pointerId), pointers.get(idB)),
-          s0: drag.curScale, active: false,
-        };
-        e.preventDefault();
-      }
+      const [idA, idB] = pointers.keys();
+      drag.pinch = { idA, idB, d0: dist2(pointers.get(idA), pointers.get(idB)), s0: drag.curScale, active: false };
+      e.preventDefault();
     }
   }
 
@@ -137,7 +129,7 @@ export function enableDressup(stageEl, getLayout, onCommit) {
       // エントリは作り直す（基準サイズに戻したら scale を残さない）が、前後レイヤー（#270）は
       // 位置の確定で失われないよう明示的に引き継ぐ。
       const keep = layout[drag.id]?.layer ? { layer: layout[drag.id].layer } : {};
-      layout[drag.id] = atBase ? { ...keep, ...xy } : { ...keep, ...xy, scale: round3(sc) };
+      layout[drag.id] = atBase ? { ...xy, ...keep } : { ...xy, scale: round3(sc), ...keep };
       onCommit(layout);
     }
     drag = null;
@@ -146,12 +138,14 @@ export function enableDressup(stageEl, getLayout, onCommit) {
   stageEl.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
+  // OS のジェスチャ等で指が取り上げられると pointerup は来ない。放置すると消えた指が残り、次の
+  // 1本指ドラッグがピンチ扱いになって以後ずっと離せない（#428）。
+  window.addEventListener('pointercancel', onUp);
 
   return function disable() {
     stageEl.removeEventListener('pointerdown', onDown);
     window.removeEventListener('pointermove', onMove);
     window.removeEventListener('pointerup', onUp);
-    pointers.clear();
-    drag = null;
+    window.removeEventListener('pointercancel', onUp);
   };
 }

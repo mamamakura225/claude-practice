@@ -252,4 +252,70 @@ test.describe('練習記録', () => {
     await expect(chips.first()).toHaveAttribute('data-song', 'ゆうしゃのぼうけん');
     await expect(page.locator('#songChips .song-chip[data-song="ゆうしゃのぼうけん"]')).toBeVisible();
   });
+
+  test('日本語変換を確定する Enter では曲を追加しない（#428）', async ({ page }) => {
+    await page.goto('/#/record');
+    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
+    await page.fill('#newSongInput', 'きらき');
+    const press = (init) => page.locator('#newSongInput').evaluate((el, i) => {
+      el.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, ...i }));
+    }, init);
+    await press({ isComposing: true });
+    await expect(page.locator('.song-chip')).toHaveCount(0);
+    await press({});
+    await expect(page.locator('.song-chip')).toHaveText(['きらき']);
+  });
+
+  test('まとめモードの回数は99で止まり、99を超える記録は行を分けて減らさない（#428）', async ({ page }) => {
+    await page.goto('/#/record');
+    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
+    await page.click('#modeBatchBtn');
+    const counts = page.locator('.batch-row__count');
+    await page.locator('.batch-row__name').fill('きらきらぼし');
+    await counts.fill('99999999');
+    await expect(counts).toHaveValue('99');
+    await page.click('.stepper__btn[data-step="1"]');
+    await expect(counts).toHaveValue('99');
+
+    await page.click('#addBatchRowBtn');
+    await page.locator('.batch-row__name').nth(1).fill('きらきらぼし');
+    await counts.nth(1).fill('21');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#statGoalCount')).toHaveText('120');
+    await page.click('#goRecordBtn');          // 当日ぶんの復元（120かい）
+    await page.click('#modeBatchBtn');
+    await expect(page.locator('#batchTotal')).toHaveText('120');
+    await expect(counts.nth(0)).toHaveValue('99');
+    await expect(counts.nth(1)).toHaveValue('21');
+  });
+
+  test('端末に保存できないときも記録は画面に反映され、次の保存で書き込まれる（#428）', async ({ page }) => {
+    await page.goto('/#/record');
+    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+      window.__full = true;
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function setItem(k, v) {
+        if (window.__full && k === 'piano-pet') throw new DOMException('full', 'QuotaExceededError');
+        return set.call(this, k, v);
+      };
+    });
+    await page.fill('#newSongInput', 'きらきらぼし');
+    await page.click('#addSongBtn');
+    await page.click('#stampCard');
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator('#view-home')).toBeVisible();
+    await expect(page.locator('#statCoins')).toHaveText('1');
+    await expect(page.locator('#undoToast')).toContainText('ほぞんできなかった');
+    const draft = () => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet:stamp-draft'))?.stamps?.length ?? 0);
+    expect(await draft()).toBe(1);   // 記録を書けていない間は下書きを残す
+    const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet'))?.sessions?.length ?? 0);
+    expect(await stored()).toBe(0);
+
+    await page.evaluate(() => {
+      window.__full = false;                                  // 空きができた
+      document.getElementById('soundToggle').click();         // 別の操作の保存
+    });
+    expect(await stored()).toBe(1);
+  });
 });

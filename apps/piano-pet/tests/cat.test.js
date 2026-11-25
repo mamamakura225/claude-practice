@@ -248,6 +248,13 @@ const backSvg = (html) => html.match(/cat__scene--back[^]*?<\/svg>/)[0];
 const frontSvg = (html) => html.match(/cat__scene--front[^]*?<\/svg>/)[0];
 const wornSvg = (html) => html.match(/cat__front[^]*?<\/svg>/)[0];
 
+describe('組み込みの名前のID（信頼できない入力）', () => {
+  it('constructor / __proto__ は装着・置物として描かない', () => {
+    const ids = ['constructor', '__proto__', 'toString'];
+    expect(catMarkup({ equippedItems: ids, placedItems: ids })).not.toContain('cat__item');
+  });
+});
+
 describe('itemLayer / defaultItemLayer（#270）', () => {
   it('既定は装着＝前面（#211）・置物＝SCENE_BOX の layer', () => {
     expect(defaultItemLayer('cape')).toBe('front');

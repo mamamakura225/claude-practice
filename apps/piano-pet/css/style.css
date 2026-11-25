@@ -13,6 +13,11 @@
   --surface-soft: #fff6ee;  /* やわらかい面（スタンプ枠・入力背景） */
   --surface-mute: #eee0e3;  /* ゴースト/ロックなど控えめなボタン面 */
   --pink-soft: #ffe1e8;     /* 進捗バーの溝・淡ピンクの面/枠線 */
+  --goal-done: linear-gradient(135deg, #fffaf0, #fff3d6);
+  --heat-1: #ffc9d5;        /* カレンダーの濃淡（level 3 は --pink-fill） */
+  --heat-2: #ffb3c1;
+  --heat-ink: #4a3b3b;
+  --paw-filter: none;       /* 🐾 は濃い色の絵文字なのでダークでは反転 */
   --text-muted: #6b5b5e;    /* 補助テキスト */
   /* 文字色（#359・features.md） */
   --pink-ink: #b8324f;
@@ -29,6 +34,7 @@
 /* ダークテーマの変数上書き。手動トグル(data-theme="dark")とOS設定の両対応。
    data-theme="light" のときは OS がダークでもライトを維持する。 */
 :root[data-theme="dark"] {
+  color-scheme: dark;
   --cream: #1f1a1d;
   --ink: #f3e9ec;
   --shadow: rgba(0, 0, 0, 0.45);
@@ -36,6 +42,11 @@
   --surface-soft: #332a2f;
   --surface-mute: #3a3236;
   --pink-soft: #3d2f36;
+  --goal-done: #3d3424;
+  --heat-1: #5c3542;
+  --heat-2: #8a3a52;
+  --heat-ink: #f3e9ec;
+  --paw-filter: invert(0.85);
   --text-muted: #b9a8af;
   --pink-ink: #ff7a93;
   --text-sub: #c9aab3;
@@ -48,6 +59,7 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
     --cream: #1f1a1d;
     --ink: #f3e9ec;
     --shadow: rgba(0, 0, 0, 0.45);
@@ -55,6 +67,11 @@
     --surface-soft: #332a2f;
     --surface-mute: #3a3236;
     --pink-soft: #3d2f36;
+    --goal-done: #3d3424;
+    --heat-1: #5c3542;
+    --heat-2: #8a3a52;
+    --heat-ink: #f3e9ec;
+    --paw-filter: invert(0.85);
     --text-muted: #b9a8af;
     --pink-ink: #ff7a93;
     --text-sub: #c9aab3;
@@ -108,6 +125,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-height: 76px;   /* ボタンの無いビュー（ショップ等）も同じ高さに */
   padding: 16px 20px;
   background: var(--pink);
   color: var(--header-ink);
@@ -176,6 +194,8 @@ body {
 .child-avatar {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 44px;
   gap: 6px;
   max-width: 45%;
   border: none;
@@ -230,7 +250,7 @@ body {
 
 .avatar-grid__btn {
   border: 2px solid transparent;
-  background: var(--cream, #fff7fa);
+  background: var(--cream);
   border-radius: 16px;
   aspect-ratio: 1;
   font-size: 1.6rem;
@@ -244,7 +264,7 @@ body {
 
 .avatar-grid__btn[aria-pressed="true"] {
   border-color: var(--pink);
-  background: var(--pink-soft, #ffe3ea);
+  background: var(--pink-soft);
 }
 
 /* ===== ビュー本文 ===== */
@@ -260,7 +280,12 @@ body {
 }
 
 .view-body--home {
-  gap: 28px;
+  gap: 20px;
+  padding-top: 12px;
+}
+/* 猫画像の下の余白ぶん名前を寄せる（きせかえ中は枠と重なるので外す） */
+.view-body--home:not(.is-dressup) > .cat-stage-wrap {
+  margin-bottom: -20px;
 }
 
 /* ===== ホーム統計パネル ===== */
@@ -421,7 +446,7 @@ body {
 }
 
 .goal-block--done {
-  background: linear-gradient(135deg, #fffaf0, #fff3d6);
+  background: var(--goal-done);
 }
 
 .goal-block--done .goal-msg {
@@ -454,7 +479,7 @@ body {
 
 .account-row--active {
   background: var(--surface-soft);
-  border-color: var(--accent, #ff7a93);
+  border-color: var(--pink-deep);
 }
 
 .account-row__name {
@@ -605,36 +630,27 @@ body {
   padding: 10px 16px;
   min-height: 44px;
   cursor: pointer;
-}
-
-/* 未選択チップの左に曲色のスウォッチ（曲ごとに色が違うことを示す・#122） */
-.song-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
 }
 
+/* チップの左に曲色のスウォッチ（曲ごとに色が違うことを示す・#122）。選択中の地・枠・文字色は app.js が曲の色で付ける */
 .song-chip::before {
   content: '';
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--song-fill, #ddd);
+  background: var(--song-fill);
   flex: 0 0 auto;
 }
 
 .song-chip.is-selected {
-  background: var(--pink-fill);
-  color: #fff;
-  border-color: var(--pink-deep);
   box-shadow: inset 0 0 0 1px var(--song-fill);
 }
 
 .song-chip, .song-title, .song-collection__name { overflow-wrap: anywhere; }
 
-.song-chip.is-selected::before {
-  background: var(--song-fill, var(--surface));
-}
 
 .song-chip:active {
   transform: scale(0.96);
@@ -669,6 +685,7 @@ body {
 
 /* ----- スタンプカード ----- */
 .stamp-area {
+  margin-top: 14px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -712,9 +729,7 @@ body {
 }
 
 .stamp-cell.is-filled {
-  background: var(--pink-soft);
-  border-style: solid;
-  border-color: var(--pink);
+  border-style: solid;   /* 地と枠の色は app.js が曲の色で付ける */
 }
 
 .stamp-cell.is-new {
@@ -800,7 +815,6 @@ body {
 
 .record-mode__btn.is-active {
   background: var(--surface);
-  color: var(--pink-ink);
   box-shadow: 0 2px 6px rgba(240, 138, 160, 0.3);
 }
 
@@ -939,7 +953,6 @@ body {
 .review-card__stats {
   display: flex;
   justify-content: space-around;
-  margin-bottom: 14px;
 }
 
 .review-stat {
@@ -1014,7 +1027,7 @@ body {
 
 .calendar__weekdays {
   margin-bottom: 4px;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   text-align: center;
 }
@@ -1029,7 +1042,7 @@ body {
 }
 
 .cal-cell__day {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
   padding: 2px 3px;
 }
@@ -1050,11 +1063,11 @@ body {
 .lesson-list li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .lesson-list .lesson-del { flex: 0 0 44px; width: 44px; min-height: 44px; padding: 0; }
 .lesson-today { margin: 4px 0 0; font-weight: 700; color: var(--pink-deep); }
-.cal-cell[data-level="1"] { background: #ffc9d5; }
-.cal-cell[data-level="2"] { background: var(--pink); }
+.cal-cell[data-level="1"] { background: var(--heat-1); }
+.cal-cell[data-level="2"] { background: var(--heat-2); }
 .cal-cell[data-level="3"] { background: var(--pink-fill); }
 .cal-cell[data-level="1"] .cal-cell__day,
-.cal-cell[data-level="2"] .cal-cell__day { color: #4a3b3b; }
+.cal-cell[data-level="2"] .cal-cell__day { color: var(--heat-ink); }
 .cal-cell[data-level="3"] .cal-cell__day { color: #fff; }
 .cal-cell--today { outline: 2px solid var(--pink-deep); outline-offset: -2px; }
 /* 練習しなかった日は白抜き（少ない日と見分ける）。先の日は枠なしで日付だけ（#401） */
@@ -1077,7 +1090,7 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
 }
 
 .calendar__legend-label {
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   color: var(--text-muted);
 }
 
@@ -1100,15 +1113,15 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
 
 .weekly-chart .bar-value {
   font-family: 'Mochiy Pop One', sans-serif;
-  font-size: 7px;
+  font-size: 8px;
   fill: var(--ink);
   text-anchor: middle;
 }
 
 .weekly-chart .bar-label {
-  font-size: 7px;
+  font-size: 8px;
   font-weight: 700;
-  fill: #b48a92;
+  fill: var(--text-sub);
   text-anchor: middle;
 }
 
@@ -1282,10 +1295,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   transform: scale(0.96);
 }
 
-.history-action--del {
-  background: var(--pink-soft);
-  color: var(--pink-ink);
-}
 
 .history-empty {
   text-align: center;
@@ -1341,8 +1350,10 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
 .shop-heading {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 1rem;
-  color: var(--ink);
+  color: var(--pink-ink);
   margin: 0;
+  flex-shrink: 0;
+  text-align: left;
 }
 
 .feed-heading {
@@ -1353,6 +1364,7 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
 }
 
 .feed-affinity {
+  text-align: right;
   font-size: 0.8rem;
   font-weight: 700;
   color: var(--pink-ink);
@@ -1370,12 +1382,12 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
 .bond-rewards-heading {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.9rem;
-  color: var(--ink);
+  color: var(--pink-ink);
   margin: 4px 0 0;
   min-height: 44px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   cursor: pointer;
 }
 .bond-rewards-heading::-webkit-details-marker { display: none; }
@@ -1492,7 +1504,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   color: var(--pink-ink);
 }
 
-
 /* ----- カテゴリ絞り込み（#299）: 横に並べて折り返す。320px でも1行目が潰れない ----- */
 .shop-cats {
   display: flex;
@@ -1504,7 +1515,7 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   border: 2px solid var(--pink-soft);
   border-radius: 999px;
   padding: 8px 12px;
-  background: var(--surface, #fff);
+  background: var(--surface);
   color: var(--pink-ink);
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.78rem;
@@ -1556,7 +1567,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   background: var(--surface-mute);
   color: var(--text-muted);
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 .shop-btn--locked:active {
@@ -1741,10 +1751,10 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   transition: opacity 0.25s ease;
 }
 
-/* 上の display:flex が UA既定の [hidden]{display:none} を上書きしてしまうため明示（理由・実測は features.md「ポップアップ演出」参照）。 */
 /* 表示中はタップで次へ送れる（#400）。消えかけ（--show が外れた後）は下の画面へ通す */
 .coin-popup.coin-popup--show { pointer-events: auto; }
 
+/* 上の display:flex が UA既定の [hidden]{display:none} を上書きしてしまうため明示（理由・実測は features.md「ポップアップ演出」参照）。 */
 .coin-popup[hidden] {
   display: none;
 }
@@ -2092,10 +2102,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   height: 120px;
 }
 
-.onboarding__cat svg {
-  width: 100%;
-  height: 100%;
-}
 
 /* 横向き（#396） */
 @media (max-height: 520px) {
@@ -2209,6 +2215,7 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
 /* ===== ボトムナビ ===== */
 .bottom-nav {
   position: fixed;
+  z-index: 10;   /* 猫の重ね順（2〜6）より上、ポップアップ（50〜）より下 */
   left: 0;
   right: 0;
   bottom: 0;
@@ -2230,7 +2237,7 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   justify-content: center;
   gap: 2px;
   color: var(--text-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -2249,6 +2256,9 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   filter: none;
   transform: translateY(-2px) scale(1.1);
 }
+
+.paw,
+.nav-btn .nav-icon.paw { filter: var(--paw-filter); }
 
 /* ----- 押せる大きさを 44px 以上に（#397） ----- */
 .btn-sound,

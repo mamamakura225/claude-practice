@@ -134,6 +134,34 @@ test.describe('報酬ポップアップ群（#323）', () => {
     await expect(levelUp).toBeVisible();
     await expect(levelUp).toContainText('レベル 2 に アップ！');
   });
+
+  test('続けて獲得したバッジは、前のものを置き換えず順に出る（#428）', async ({ page }) => {
+    // はなまる・ようす とも、あと1つで「ぜんぶ」がそろう
+    await page.addInitScript(() => {
+      const session = (date, mark) => ({ date, songs: [{ name: 'きらきらぼし', count: 1 }], totalCount: 1, ...mark });
+      localStorage.setItem('piano-pet', JSON.stringify({
+        pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [] },
+        inventory: [],
+        streak: { current: 1, best: 1, lastPracticeDate: '2026-01-05', freezes: 0 },
+        badges: ['first_practice', 'practice_again'],
+        sessions: [session('2026-01-05', { praise: 'hanamaru', tempo: 'slow' }), session('2026-01-03', { praise: 'jouzu', tempo: 'normal' }), session('2026-01-01')],
+      }));
+    });
+    await page.goto('/#/history');
+    const card = page.locator('.history-card[data-date="2026-01-01"]');
+    await expect(card).toBeVisible({ timeout: 10000 });
+    await page.evaluate(() => {
+      window.__names = [];
+      const el = document.getElementById('badgePopupName');
+      new MutationObserver(() => window.__names.push([el.textContent, performance.now()])).observe(el, { childList: true });
+    });
+    await card.locator('[data-id="ganbatta"]').click();
+    await card.locator('[data-id="fast"]').click();
+    await expect(page.locator('#badgePopupName')).toHaveText('さんしょく テンポ', { timeout: 6000 });
+    const names = await page.evaluate(() => window.__names);
+    expect(names.map(([n]) => n)).toEqual(['いろんな きもち', 'さんしょく テンポ']);
+    expect(names[1][1] - names[0][1]).toBeGreaterThan(2000);   // 1枚目も読める長さで出ている
+  });
 });
 
 // prefers-reduced-motion の退行ガード：`transition: none`（css/style.css）だと opacity 遷移が

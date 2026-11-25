@@ -112,4 +112,15 @@ test.describe('目標回数の調整（#238）', () => {
     // 5回=5コインのみ（+5ボーナスも+3おまけも無い）
     await expect(page.locator('#statCoins')).toHaveText('5');
   });
+
+  test('丸めた結果がいまの目標と同じでも、欄の表示が直る（#428）', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+    await passGate(page);
+    for (const typed of ['5', '2']) {   // 5 にしてから、5 に丸まる 2 を入れる
+      await page.fill('#goalTargetInput', typed);
+      await page.locator('#goalTargetInput').blur();
+      await expect(page.locator('#goalTargetInput')).toHaveValue('5');
+    }
+  });
 });

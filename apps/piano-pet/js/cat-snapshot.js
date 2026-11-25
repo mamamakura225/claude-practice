@@ -18,8 +18,8 @@ function loadImage(src) {
 }
 
 // <g transform="translate(tx ty) scale(sc)"> を数値に分解（未指定は単位変換）。
-export function parseItemTransform(g) {
-  const t = g?.getAttribute?.('transform') || '';
+function parseItemTransform(g) {
+  const t = g.getAttribute('transform') ?? '';
   const tr = /translate\(\s*([-\d.]+)[ ,]+([-\d.]+)\s*\)/.exec(t);
   const sc = /scale\(\s*([-\d.]+)\s*\)/.exec(t);
   return {
@@ -31,25 +31,18 @@ export function parseItemTransform(g) {
 
 // 1つの overlay SVG 内の <image> を、その <g> 変換込みで canvas に描く。
 async function drawSvgImages(ctx, svg, k) {
-  if (!svg) return;
   for (const image of svg.querySelectorAll('image')) {
-    const href = image.getAttribute('href') || image.getAttribute('xlink:href');
-    if (!href) continue;
-    const bx = parseFloat(image.getAttribute('x')) || 0;
-    const by = parseFloat(image.getAttribute('y')) || 0;
-    const bw = parseFloat(image.getAttribute('width')) || 0;
-    const bh = parseFloat(image.getAttribute('height')) || 0;
-    if (bw <= 0 || bh <= 0) continue;
+    const [bx, by, bw, bh] = ['x', 'y', 'width', 'height'].map((k) => parseFloat(image.getAttribute(k)));
     const { tx, ty, sc } = parseItemTransform(image.closest('g'));
     // 画像の縦横比は box と一致（xMidYMid meet で歪みなし）＝box にそのまま描けば画面と一致。
-    const img = await loadImage(href);
+    const img = await loadImage(image.getAttribute('href'));
     ctx.drawImage(img, (tx + sc * bx) * k, (ty + sc * by) * k, sc * bw * k, sc * bh * k);
   }
 }
 
 // catEl（.cat）の現在の見た目を size×size の canvas に合成して返す。
 // 描画順は画面の z 順：背面置物(z1) → 本体(z2) → 装備(z3) → 前面置物(z5)。fx(z4) は除外。
-export async function renderCatCanvas(catEl, size = 600, background = '#fff6ee') {
+export async function renderCatCanvas(catEl, size) {
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
@@ -57,22 +50,20 @@ export async function renderCatCanvas(catEl, size = 600, background = '#fff6ee')
   const k = size / VIEWBOX;
 
   // 透過のまま共有すると環境によって黒背景になるため、アプリのクリーム色で塗る。
-  ctx.fillStyle = background;
+  ctx.fillStyle = '#fff6ee';
   ctx.fillRect(0, 0, size, size);
 
   await drawSvgImages(ctx, catEl.querySelector('.cat__scene--back'), k);
 
   const body = catEl.querySelector('.cat__body');
-  if (body && body.getAttribute('src')) {
-    const bodyImg = body.complete && body.naturalWidth ? body : await loadImage(body.src);
-    ctx.drawImage(bodyImg, 0, 0, size, size); // 本体は正方キャンバス全面
-  }
+  const bodyImg = body.complete && body.naturalWidth ? body : await loadImage(body.src);
+  ctx.drawImage(bodyImg, 0, 0, size, size); // 本体は正方キャンバス全面
 
   await drawSvgImages(ctx, catEl.querySelector('.cat__front'), k);
   await drawSvgImages(ctx, catEl.querySelector('.cat__scene--front'), k);
   return canvas;
 }
 
-export function canvasToBlob(canvas, type = 'image/png') {
-  return new Promise((resolve) => canvas.toBlob(resolve, type));
+export function canvasToBlob(canvas) {
+  return new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
 }

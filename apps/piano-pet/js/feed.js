@@ -19,10 +19,8 @@ export function foodById(id) {
 // 解放状態は affinity から決定的に導出する（専用フラグを持たない）。affinity は
 // recomputeState が pet ごと保持するため、全再計算でも解放状態は矛盾しない。
 //
-// #216: 段階を 5→8 に細分化し、刻みも詰めて「えさやり等の成果がすぐ見える」ようにした。
-// しきい値（min）は前半ほど近く（+3,+4,+5...）、最大は 42（旧 50 より手前）。番号キーで
-// 報酬を判定する消費側（shop.unlockLevel / bondCelebrateChance / tierFromBond / エンブレム）は
-// 既存ユーザーが退行しないよう、旧しきい値と等価な affinity 値の新レベルへ再マップしてある。
+// 刻みは「えさやりの成果がすぐ見える」よう前半ほど近い（#216）。レベル番号で報酬を判定している
+// 消費側: shop.unlockLevel / bondCelebrateChance / recordClipChance / tierFromBond / エンブレム。
 export const AFFINITY_LEVELS = [
   { level: 1, name: 'ともだち',         min: 0,  reward: 'いっしょに あそぼう' },
   { level: 2, name: 'なかよし',         min: 3,  reward: 'ホームの ねこに ハートの しるしが つくよ' },
@@ -43,7 +41,6 @@ export function affinityLevel(value) {
   }
   const cur = AFFINITY_LEVELS[idx];
   const next = AFFINITY_LEVELS[idx + 1] ?? null;
-  const span = next ? next.min - cur.min : 0;
   return {
     level: cur.level,
     name: cur.name,
@@ -52,7 +49,7 @@ export function affinityLevel(value) {
     next,
     isMax: !next,
     toNext: next ? next.min - v : 0,
-    ratio: next ? (span > 0 ? Math.min(1, (v - cur.min) / span) : 1) : 1,
+    ratio: next ? (v - cur.min) / (next.min - cur.min) : 1,
   };
 }
 

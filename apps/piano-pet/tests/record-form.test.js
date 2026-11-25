@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   collectSongs,
+  songsToRows,
   isValidSession,
   stampsToSongs,
   songsToStamps,
@@ -54,6 +55,16 @@ describe('collectSongs', () => {
     const result = collectSongs([{ name: 'A', count: '7' }]);
     expect(result.songs).toEqual([{ name: 'A', count: 7 }]);
     expect(result.totalCount).toBe(7);
+  });
+
+  it('1行の回数は99までに丸める（#428）', () => {
+    expect(collectSongs([{ name: 'A', count: 99999999 }])).toEqual({ songs: [{ name: 'A', count: 99 }], totalCount: 99 });
+  });
+
+  it('songsToRows は99を超える曲を行に分け、集約し直しても合計が減らない（#428）', () => {
+    const rows = songsToRows([{ name: 'A', count: 220 }, { name: 'B', count: 3 }]);
+    expect(rows).toEqual([{ name: 'A', count: 99 }, { name: 'A', count: 99 }, { name: 'A', count: 22 }, { name: 'B', count: 3 }]);
+    expect(collectSongs(rows).totalCount).toBe(223);
   });
 
   it('小数の回数は切り捨てる', () => {

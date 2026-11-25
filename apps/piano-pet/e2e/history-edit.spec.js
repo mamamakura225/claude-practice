@@ -2,9 +2,9 @@ import { test, expect } from '@playwright/test';
 
 // きろく一覧からの編集・削除・スタンプ付与（#145 はなまる / #239 練習の質メモ）。
 //
-// 一覧は日付降順に並べ替えつつ data-index には**元配列のインデックス**を載せている
-// （app.js の renderHistory）。この二重管理を壊すと「別の記録を消す・別の記録にスタンプが付く」
-// という気づきにくい退行になるため、並び順とインデックスがズレていないことをここで固定する。
+// 一覧は日付降順に並べ替えて出し、操作の対象はカードの data-date（同日1件＝主キー）で引く
+// （app.js の renderHistory）。ここを壊すと「別の記録を消す・別の記録にスタンプが付く」
+// という気づきにくい退行になるため、並び順と対象がズレていないことをここで固定する。
 test.describe('きろくの編集・削除・スタンプ', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
@@ -13,7 +13,7 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
     await page.addInitScript(() => {
       try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
-      // 元配列は「日付昇順」で入れる＝表示（降順）とインデックス順が逆になる配置。
+      // 元配列は「日付昇順」で入れる＝表示（降順）と並びが逆になる配置。
       // ここが取り違えの起きやすい形なので、あえてこの並びで検証する。
       const s = {
         version: 2,
@@ -90,7 +90,7 @@ test.describe('きろくの編集・削除・スタンプ', () => {
 
   test('編集すると対象の記録だけが更新され、コインが再計算される', async ({ page }) => {
     await openHistory(page);
-    // 表示の真ん中＝2026-01-02（元配列では index 1）
+    // 表示の真ん中＝2026-01-02
     await page.locator('#historyList .history-card').nth(1).locator('[data-action="edit-session"]').click();
     await expect(page.locator('#view-record')).toBeVisible();
     await expect(page.locator('#recordDate')).toHaveValue('2026-01-02');
@@ -120,7 +120,7 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     let st = await readLocal(page);
     expect(st.sessions.find((s) => s.date === '2026-01-02').praise).toBe('hanamaru');
     expect(st.sessions.find((s) => s.date === '2026-01-02').tempo).toBe('fast');
-    // 他の記録には付いていない（インデックス取り違えの検知）
+    // 他の記録には付いていない（対象の取り違えの検知）
     expect(st.sessions.find((s) => s.date === '2026-01-03').praise ?? null).toBeNull();
     expect(st.sessions.find((s) => s.date === '2026-01-01').praise ?? null).toBeNull();
 

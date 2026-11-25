@@ -1,8 +1,9 @@
 // ===== データのバックアップ/復元（JSON 書き出し・読み込み・#140） =====
 // 認証なし・匿名クラウド同期のため、端末故障やブラウザデータ削除でデータが消えるリスクがある。
 // 親が state を JSON で手元に保存（export）し、いつでも復元（import）できるようにする安全弁。
-// このモジュールは純粋関数のみに保つ（ダウンロード/ファイル選択/クラウドpush/リロードは app.js 側）。
+// ダウンロード/ファイル選択/クラウドpush/リロードは app.js 側。
 import { SCHEMA_VERSION, migrate, normalizeState } from './storage.js';
+import { isValidCloudDocId } from './account.js';
 
 // バックアップファイルが piano-pet のものだと識別するためのマーカー。
 const APP_MARKER = 'piano-pet';
@@ -15,13 +16,24 @@ export const RESTORE_BACKUP_KEY = 'piano-pet-backup-before-restore';
 // 別アカウントや別のクラウド保存先へ古いデータを戻して上書きしないよう、戻すときに素性を突き合わせる。
 // storage は localStorage 相当（テストで差し替えられるよう引数で受ける）。
 const STASH_META_KEY = `${RESTORE_BACKUP_KEY}:meta`;
+// 戻り値は退避する前の退避へ戻す関数（上書きそのものに失敗したとき用・#428）。
 export function stashBeforeOverwrite(storage, storageKey, { account, doc = null }, now = Date.now()) {
+  const keys = [RESTORE_BACKUP_KEY, STASH_META_KEY];
+  const prev = keys.map((k) => storage.getItem(k));
+  const revert = () => {
+    try {
+      keys.forEach((k) => storage.removeItem(k));
+      keys.forEach((k, i) => { if (prev[i] !== null) storage.setItem(k, prev[i]); });
+    } catch { /* 元の退避に戻せなくても致命的でない */ }
+  };
   try {
     const cur = storage.getItem(storageKey);
-    if (!cur) return;
-    storage.setItem(RESTORE_BACKUP_KEY, cur);
-    storage.setItem(STASH_META_KEY, JSON.stringify({ account, doc, at: now }));
-  } catch { /* 退避失敗は致命的でないので無視 */ }
+    if (cur) {
+      storage.setItem(RESTORE_BACKUP_KEY, cur);
+      storage.setItem(STASH_META_KEY, JSON.stringify({ account, doc, at: now }));
+    }
+  } catch { revert(); }   // 片方だけ書けると中身と素性が食い違う。退避失敗そのものは致命的でない
+  return revert;
 }
 
 // 素性が一致する退避があれば { state, at } を返す。無い・不一致・壊れていれば null。
@@ -91,10 +103,8 @@ export function parseBackup(text) {
     return { ok: false, reason: 'future' };
   }
   // がぞくコード（#233）は任意。妥当な形式のときだけ返し、呼び出し側が保存先の合流に使う。
-  const code = typeof obj.cloudDocId === 'string' && /^[A-Za-z0-9_-]{8,120}$/.test(obj.cloudDocId)
-    ? obj.cloudDocId
-    : null;
-  return { ok: true, state: normalizeState(migrate(inner)), cloudDocId: code };
+  const cloudDocId = isValidCloudDocId(obj.cloudDocId) ? obj.cloudDocId : null;
+  return { ok: true, state: normalizeState(migrate(inner)), cloudDocId };
 }
 
 // 復元失敗理由を 5歳児＋親向けのひらがなメッセージにする。

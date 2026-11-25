@@ -1,13 +1,13 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { escapeHtml } from './html.js';
-import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, normalizeLessonDates, activeStorageKey } from './storage.js';
+import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, cloudDigest, normalizeState, normalizeLessonDates, activeStorageKey } from './storage.js';
 import {
   getAccounts, getActiveAccountId, setActiveAccount,
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
 } from './account.js';
-import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, DAILY_GOAL, clampDailyGoal, rollDailyBonus, checkBadges, hasUncreditedLesson } from './game.js';
-import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer, isSceneItem } from './cat-image.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
+import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, clampDailyGoal, rollDailyBonus, checkBadges, hasUncreditedLesson } from './game.js';
+import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
+import { isValidSession, collectSongs, MAX_ROW_COUNT, songsToRows, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import {
@@ -42,15 +42,12 @@ let historyMod = null;
 const loadHistory = async () => (historyMod ??= await import('./history-view.js'));
 
 // ===== 状態管理 =====
-export let state = loadState();
+let state = loadState();
 
-// 旧データに同日重複セッションがある場合は統合して再計算（一回限りのマイグレーション）
-{
-  const migrated = mergeSameDaySessions(state.sessions);
-  if (migrated.length < state.sessions.length) {
-    state = recomputeState({ ...state, sessions: migrated }, spentTotal(state));
-    saveState(state);
-  }
+// 旧データに同日重複セッションがある場合は統合して再計算（統合そのものは recomputeState の入口）
+if (mergeSameDaySessions(state.sessions) !== state.sessions) {
+  state = recomputed({});
+  saveState(state);
 }
 
 // クラウド同期モジュール（./cloud.js）。動的 import が成功したら入る。
@@ -67,16 +64,16 @@ function spentTotal(s) {
   return spentCoins(s) + foodSpent(s);
 }
 
+// いまの state に patch を重ねて全再計算したもの
+function recomputed(patch) {
+  return recomputeState({ ...state, ...patch }, spentTotal(state));
+}
+
 // 装備・配置していないアイテムの座標を itemLayout から除く（#168/#226 ゴーストデータ防止）。
 // itemLayout は装着衣装と置物（#226）で共用するため、装備中 or 配置中のIDだけ残す。
-function cleanItemLayout(pet) {
-  const layout = pet.itemLayout ?? {};
-  const active = new Set([...(pet.equippedItems ?? []), ...(pet.placedItems ?? [])]);
-  const cleaned = {};
-  for (const id of Object.keys(layout)) {
-    if (active.has(id)) cleaned[id] = layout[id];
-  }
-  return cleaned;
+function cleanItemLayout({ itemLayout, equippedItems, placedItems }) {
+  const active = new Set([...equippedItems, ...placedItems]);
+  return Object.fromEntries(Object.entries(itemLayout).filter(([id]) => active.has(id)));
 }
 
 // オフライン中の未送信変更の印＝立っている間の realtime は union（#358）
@@ -119,50 +116,55 @@ document.getElementById('undoToastBtn')?.addEventListener('click', () => {
 let pendingDelete = null;
 function withSessionDeleted(s, date) {
   const sessions = s.sessions.filter((x) => x.date !== date);
-  const deletedDates = [...new Set([...(s.deletedDates ?? []), date])];   // 墓標（#319）
+  const deletedDates = [...new Set([...s.deletedDates, date])];   // 墓標（#319）
   return recomputeState({ ...s, sessions, deletedDates }, spentTotal(s));
 }
 function applyPendingDelete() {
-  if (!pendingDelete) return;
-  commitState(state);   // commitState が pendingDelete を重ねて確定する
-  if (router.current === 'history') renderHistory();
+  if (pendingDelete) commitState(state);   // commitState が pendingDelete を重ねて確定する
 }
-window.addEventListener('pagehide', applyPendingDelete);
-document.addEventListener('visibilitychange', () => { if (document.hidden) applyPendingDelete(); });
 
 // 取り込み前・印の間は送らない（#374・data-model.md）
+const cloudPayload = () => (offlineDirty || overwriting ? null : cloudFields(state));
 function queueCloudPush() {
   if (!cloud || !initialSyncDone) return;
   if (navigator.onLine === false) offlineDirty = true;
-  if (!offlineDirty) cloud.pushCloudDebounced(() => (offlineDirty || overwriting ? null : cloudFields(state)));
+  if (!offlineDirty) cloud.pushCloudDebounced(cloudPayload);
 }
 
 // 取り消せる操作（レッスン日の解除）は、猶予が終わるまでクラウドへ送らない（#398）。先に届くと
 // 取り消しても他端末の union（inventory・lessonRemoved）で買い直し／消し直しになる（削除の保留と同じ理由）。
 function holdCloudPush() {
   if (!cloud || !initialSyncDone || offlineDirty) return;
-  cloud.pushCloudDebounced(() => (offlineDirty || overwriting ? null : cloudFields(state)), UNDO_MS + 500);
+  cloud.pushCloudDebounced(cloudPayload, UNDO_MS + 500);
 }
 
-export function commitState(newState) {
+// 端末への保存に失敗したままか（容量超過等）。次の保存が通れば追いつく
+let unsaved = false;
+function persist() {
+  unsaved = !saveState(state);
+  if (unsaved) showUndoToast('たんまつに ほぞんできなかったよ。あきを ふやしてね', 'わかった', () => {});
+}
+
+function commitState(newState) {
   // 取り消し待ちの削除（#398）があれば、この保存に重ねて確定する（別の操作で保存が走ったら猶予は終わり）
-  if (pendingDelete) {
-    const { date } = pendingDelete;
+  const deleted = pendingDelete?.date;
+  if (deleted) {
     pendingDelete = null;
     dismissUndoToast(false);
-    newState = withSessionDeleted(newState, date);
-    // 当日分を消したら下書きも消す。残すと次に記録画面を開いたとき消した回数が戻り、二重に記録される
-    if (date === todayStr()) clearStampDraft();
+    newState = withSessionDeleted(newState, deleted);
   }
   // 別の保存が走ったら、出ている取り消し（レッスン日）は巻き戻すと他の変更まで消えるので閉じる
   if (undoCycle) dismissUndoToast(true);
   state = { ...newState, pet: { ...newState.pet, itemLayout: cleanItemLayout(newState.pet) } };
-  saveState(state);                 // ローカルキャッシュ（オフライン用）
+  persist();                        // ローカルキャッシュ（オフライン用）
+  // 当日分を消したら下書きも消す。残すと次に記録画面を開いたとき消した回数が戻り、二重に記録される
+  if (deleted === todayStr() && !unsaved) clearStampDraft();
   queueCloudPush();
   renderHome();
+  if (deleted && router.current === 'history') renderHistory();   // 連続日数・カレンダーも消したあとの姿に
 }
 
-// ===== ホームの猫表示（フル機能は Epic 4） =====
+// ===== ホームの猫表示 =====
 function moodForState(s) {
   const last = s.streak.lastPracticeDate;
   if (!last) return 'idle';
@@ -170,7 +172,7 @@ function moodForState(s) {
   return diffDays >= 2 ? 'sleep' : 'idle';
 }
 
-export function renderHome() {
+function renderHome() {
   const stageEl = document.getElementById('catStage');
   if (stageEl) {
     const bond = affinityLevel(affinity(state)).level;
@@ -221,12 +223,6 @@ function buildSongColors(extraNames = []) {
   return assignSongColors(ordered);
 }
 
-// 記録フォーム（チップ／スタンプ）で使う色マップ。候補曲（chipNames）を含めて
-// 1つのマップを共有し、チップとスタンプで同じ曲が同じ色になるようにする。
-function formSongColors() {
-  return buildSongColors(chipNames);
-}
-
 // サウンドON/OFFトグルの表示を state に同期
 function renderSoundToggle() {
   const btn = document.getElementById('soundToggle');
@@ -241,9 +237,9 @@ function setText(id, value) {
   if (el) el.textContent = value;
 }
 
-// 親が設定した1日の目標回数（#238）。未設定の旧データは既定10（normalizeState 補完済み）。
+// 親が設定した1日の目標回数（#238）
 function currentGoal() {
-  return clampDailyGoal(state.pet?.dailyGoal ?? DAILY_GOAL);
+  return clampDailyGoal(state.pet.dailyGoal);
 }
 
 // 今日の目標（○/目標回）の進捗表示
@@ -264,7 +260,7 @@ function renderDailyGoal() {
   setText('statGoalMsg', goal.achieved ? 'もくひょう たっせい！🎉' : `あと ${goal.remaining} かい！`);
   document.getElementById('goalBlock')?.classList.toggle('goal-block--done', goal.achieved);
   const lessonEl = document.getElementById('statLessonToday');   // レッスン日の表示（#393）
-  if (lessonEl) lessonEl.hidden = !state.pet.lessonDates?.includes(todayStr());
+  if (lessonEl) lessonEl.hidden = !state.pet.lessonDates.includes(todayStr());
 }
 
 // なかよしレベルと次レベルへの進捗（#124）
@@ -290,34 +286,30 @@ function renderStats() {
   setText('statToNext', `あと ${toNextLevel} かい で レベルアップ`);
   setText('statCoins', state.pet.coins);
   setText('statStreak', state.streak.current);
-  setText('statFreezes', state.streak.freezes ?? 0);
+  setText('statFreezes', state.streak.freezes);
   setText('statAffinity', affinity(state));
 
-  const pct = xpPerLevel > 0 ? Math.round((xpInLevel / xpPerLevel) * 100) : 0;
+  const pct = Math.round((xpInLevel / xpPerLevel) * 100);
   const fillEl = document.getElementById('statXpFill');
   if (fillEl) fillEl.style.width = `${pct}%`;
   const barEl = document.getElementById('statXpbar');
   if (barEl) barEl.setAttribute('aria-valuenow', String(pct));
 }
 
-// ===== 記録履歴画面（Epic 6） =====
+// ===== 記録履歴画面 =====
 // 表示中の月（練習カレンダー・#236）。初期値は今月。前月/翌月ボタンで移動する。
 let calYear = null;
 let calMonth = null;
 
-function ensureCalMonth() {
-  if (calYear == null || calMonth == null) {
-    const [y, m] = todayStr().split('-');
-    calYear = Number(y);
-    calMonth = Number(m);
-  }
+function showThisMonth() {
+  [calYear, calMonth] = todayStr().split('-').map(Number);
 }
+showThisMonth();
 
 // 月間カレンダー（草式ヒートマップ・#236）。sessions 導出のみ・目標(#238)に濃淡が追従。
 function renderCalendar() {
   const grid = document.getElementById('calGrid');
   if (!grid) return;
-  ensureCalMonth();
   setText('calTitle', historyMod.monthLabel(calYear, calMonth));
   const weeks = historyMod.monthGrid(calYear, calMonth, state.sessions, { today: todayStr(), goal: currentGoal(), lessonDates: state.pet.lessonDates });
   grid.innerHTML = historyMod.calendarCellsMarkup(weeks, calMonth);
@@ -325,7 +317,6 @@ function renderCalendar() {
 
 async function moveCalendar(delta) {
   await loadHistory();
-  ensureCalMonth();
   const next = historyMod.shiftMonth(calYear, calMonth, delta);
   calYear = next.year;
   calMonth = next.month;
@@ -357,7 +348,7 @@ function renderReviewCard() {
 const HISTORY_PAGE = 14;
 let historyShown = HISTORY_PAGE;
 
-export async function renderHistory() {
+async function renderHistory() {
   await loadHistory();
   setText('historyStreakCurrent', state.streak.current);
   setText('historyStreakBest', state.streak.best);
@@ -374,21 +365,20 @@ export async function renderHistory() {
 
   const listEl = document.getElementById('historyList');
   if (listEl) {
-    // 元配列のインデックスを保持したまま新しい順に並べる（編集・削除の参照用）
-    // 取り消し待ちの削除（#398）は一覧から除く（元のインデックスは保つので編集・削除の参照はずれない）
-    const indexed = state.sessions.map((s, i) => ({ s, i })).filter(({ s }) => s.date !== pendingDelete?.date);
-    indexed.sort((a, b) => String(b.s.date).localeCompare(String(a.s.date)));
-    const rest = indexed.length - historyShown;
-    listEl.innerHTML = indexed.length
-      ? indexed.slice(0, historyShown).map(({ s, i }) => historyMod.historyCardMarkup(s, i)).join('')
+    // 取り消し待ちの削除（#398）は一覧から除く
+    const shown = state.sessions.filter((s) => s.date !== pendingDelete?.date)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    const rest = shown.length - historyShown;
+    listEl.innerHTML = shown.length
+      ? shown.slice(0, historyShown).map(historyMod.historyCardMarkup).join('')
         + (rest > 0 ? `<button type="button" class="settings-btn settings-btn--ghost settings-btn--block" data-action="more-history">もっと みる（あと ${rest}けん）</button>` : '')
       : '<p class="history-empty">まだ きろくが ないよ。<br>れんしゅうを きろくしてね！</p>';
   }
 }
 
-// ===== ショップ画面（Epic 7） =====
+// ===== ショップ画面 =====
 // コイン不足は「あと ○ コイン」で次の目標として見せる（1かい＝1コイン・#360）
-const shortBtn = (price) => `<button type="button" class="shop-btn shop-btn--locked" disabled>あと ${price - (state.pet.coins ?? 0)} コイン</button>`;
+const shortBtn = (price) => `<button type="button" class="shop-btn shop-btn--locked" disabled>あと ${price - state.pet.coins} コイン</button>`;
 
 function shopCardMarkup(item) {
   const owned = isOwned(state, item.id);
@@ -461,7 +451,7 @@ function bondRewardMarkup(r) {
 // きせかえアイテムの絞り込み（#299）。リロードで「ぜんぶ」へ戻る（永続化しない）
 let shopCategory = 'all';
 
-export function renderShop() {
+function renderShop() {
   setText('shopCoins', state.pet.coins);
   setText('feedAffinity', affinity(state));
   setText('feedBondName', affinityLevel(affinity(state)).name);
@@ -472,14 +462,14 @@ export function renderShop() {
   const listEl = document.getElementById('shopList');
   // 買える／買った品を先に、なかよしLv未到達のロック品は後ろへ（序盤はロックが大半で買える物が埋もれる・#399）
   const items = itemsInCategory(shopCategory);
-  const sorted = [...items.filter((it) => isOwned(state, it.id) || isUnlocked(state, it.id)),
-    ...items.filter((it) => !isOwned(state, it.id) && !isUnlocked(state, it.id))];
+  const open = (it) => isOwned(state, it.id) || isUnlocked(state, it.id);
+  const sorted = [...items.filter(open), ...items.filter((it) => !open(it))];
   if (listEl) listEl.innerHTML = sorted.map(shopCardMarkup).join('');
   // ごはんも まだ持っていない品も1つも買えないときは、コインの増やし方を案内する（#399）
   const prices = [...FOODS.map((f) => f.price),
     ...SHOP_ITEMS.filter((it) => !isOwned(state, it.id) && isUnlocked(state, it.id)).map((it) => it.price)];
   const hintEl = document.getElementById('shopHint');
-  if (hintEl) hintEl.hidden = (state.pet.coins ?? 0) >= Math.min(...prices);
+  if (hintEl) hintEl.hidden = state.pet.coins >= Math.min(...prices);
   const catsEl = document.getElementById('shopCats');
   if (catsEl) catsEl.innerHTML = SHOP_CATEGORIES.map(shopCategoryMarkup).join('');
 }
@@ -489,7 +479,7 @@ function shopCategoryMarkup(c) {
   return `<button type="button" class="shop-cat${on ? ' shop-cat--on' : ''}" data-cat="${c.id}" aria-pressed="${on}"><span aria-hidden="true">${c.icon}</span> ${c.name}</button>`;
 }
 
-// ===== バッジ画面（Epic 9） =====
+// ===== バッジ画面 =====
 function badgeCardMarkup(b) {
   return `<div class="badge-card${b.earned ? '' : ' badge-card--locked'}">
     <span class="badge-card__icon" aria-hidden="true">${b.earned ? b.icon : '🔒'}</span>
@@ -498,7 +488,7 @@ function badgeCardMarkup(b) {
   </div>`;
 }
 
-export function renderBadges() {
+function renderBadges() {
   setText('badgesCount', `${earnedCount(state)} / ${BADGES.length} こ ゲット！`);
   const grid = document.getElementById('badgeGrid');
   if (grid) grid.innerHTML = badgesWithStatus(state).map(badgeCardMarkup).join('');
@@ -576,20 +566,19 @@ function flushPendingFeedFx() {
   playCelebrate(document.querySelector('#catStage .cat'));
 }
 
-function render(view) {
-  for (const el of views) {
-    el.hidden = el.dataset.view !== view;
-  }
+function markNav(view) {
   for (const btn of navButtons) {
     const active = btn.dataset.nav === view;
     btn.classList.toggle('active', active);
     btn.setAttribute('aria-current', active ? 'page' : 'false');
   }
-  // record はナビに無いので、ナビ上は home を選択状態に保つ
-  if (!NAV_VIEWS.includes(view)) {
-    const homeBtn = navButtons.find((b) => b.dataset.nav === 'home');
-    if (homeBtn) homeBtn.classList.add('active');
+}
+
+function render(view) {
+  for (const el of views) {
+    el.hidden = el.dataset.view !== view;
   }
+  markNav(NAV_VIEWS.includes(view) ? view : 'home');   // record はナビに無いので、ナビ上は home を選択状態に保つ
   if (view === 'record') resetRecordForm();
   if (view === 'history') renderHistory();
   if (view === 'shop') renderShop();
@@ -676,9 +665,13 @@ const STAMP_DRAFT_KEY = `${activeStorageKey()}:stamp-draft`;
 
 // 現在の stamps を当日の下書きとして保存。編集中（既存セッションの修正）と、
 // 日付欄が今日以外を指しているとき（#273）は、当日の下書きを汚さないよう保存しない。
+// 当日の記録があるなら復元元は記録（todayStamps）。下書きも残すと、その記録を別の日へ動かした・
+// 他の端末で消したときに古い回数が戻り、二重に記録される（#428）。
 function saveStampDraft() {
   if (editingDate != null) return;
-  if (recordDateEl && formDate() !== todayStr()) return;
+  if (formDate() !== todayStr()) return;
+  if (unsaved) return;   // 記録を端末に書けていない間は、確定前の下書きを残す（閉じると記録ごと失うため・#428）
+  if (state.sessions.some((s) => s.date === todayStr())) { clearStampDraft(); return; }
   try {
     localStorage.setItem(STAMP_DRAFT_KEY, JSON.stringify({ date: todayStr(), stamps }));
   } catch { /* 保存できなくても致命的でないため無視 */ }
@@ -710,7 +703,7 @@ function renderChips() {
     songEl.textContent = selectedSong ? `🎵 いまは「${selectedSong}」` : '';
   }
   if (!songChipsEl) return;
-  const colors = formSongColors();
+  const colors = buildSongColors(chipNames);
   songChipsEl.innerHTML = chipNames
     .map((name) => {
       const selected = name === selectedSong;
@@ -747,7 +740,7 @@ function stampCellStyle(c) {
 function renderStampCard(fresh = false) {
   if (!stampCardEl) return;
   const goal = currentGoal();                 // 目標回数（#238・可変）に追従
-  const colors = formSongColors();
+  const colors = buildSongColors(chipNames);
   const filled = stamps.length;
   const cells = Math.max(goal, filled + 1);
   let html = '';
@@ -820,7 +813,7 @@ function batchRowMarkup(row) {
     <input type="text" class="field-input batch-row__name" list="songSuggestions" placeholder="きょくめい" aria-label="きょくめい" maxlength="40" autocomplete="off" value="${name}">
     <div class="stepper">
       <button type="button" class="stepper__btn" data-step="-1" aria-label="かいすうを へらす">−</button>
-      <input type="number" class="stepper__value batch-row__count" min="0" max="99" inputmode="numeric" aria-label="かいすう" value="${count}">
+      <input type="number" class="stepper__value batch-row__count" min="0" max="${MAX_ROW_COUNT}" inputmode="numeric" aria-label="かいすう" value="${count}">
       <button type="button" class="stepper__btn" data-step="1" aria-label="かいすうを ふやす">＋</button>
     </div>
     <button type="button" class="batch-row__del" aria-label="この ぎょうを けす">✕</button>
@@ -852,18 +845,13 @@ function switchRecordMode(mode) {
   if (mode === 'batch') {
     // スタンプ → まとめ：押した順スタンプを曲ごとに集約して行へ
     const { songs } = stampsToSongs(stamps);
-    renderBatchRows(songs);
+    renderBatchRows(songsToRows(songs));
   } else {
     // まとめ → スタンプ：行を曲ごとに集約してスタンプ列へ展開
-    const { songs } = collectSongs(readBatchRows());
-    stamps = songsToStamps(songs);
-    chipNames = [...new Set(songs.map((s) => s.name)),
-      ...pastSongNames(state.sessions).filter((n) => !songs.some((s) => s.name === n))];
-    selectedSong = songs.length ? songs[songs.length - 1].name : (chipNames[0] ?? null);
+    stamps = songsToStamps(collectSongs(readBatchRows()).songs);
     saveStampDraft();
     if (stampHintEl) stampHintEl.hidden = true;
-    renderChips();
-    renderStampCard();
+    syncRecordInputs();
   }
   recordMode = mode;
   applyRecordModeUI();
@@ -891,11 +879,15 @@ function applyRecordModeUI() {
 // recomputeState / 過去日 prepend で並びが変わり、別の日の記録を破壊する。
 let editingDate = null;
 
+// フォームが「その日ぜんぶ」を表している日付（当日ぶんを復元した日・#186）。それ以外の日付は足し算になる。
+// 送信時の「今日」で判断すると、開いたまま日付をまたいだ送信で復元済みの回数まで足してしまう（#428）。
+let restoredDate = null;
+
 // 記録フォームの見出しとボタンを「新規」か「編集」かで切り替える
 function setRecordMode(isEdit) {
   setText('recordTitle', isEdit ? 'きろくを なおす' : 'れんしゅうを きろく');
-  const submit = document.getElementById('recordSubmitBtn');
-  if (submit) submit.textContent = isEdit ? 'なおす' : 'きろくする';
+  setText('recordSubmitBtn', isEdit ? 'なおす' : 'きろくする');
+  document.getElementById('recordBackBtn')?.setAttribute('aria-label', isEdit ? 'きろくにもどる' : 'ホームにもどる');
 }
 
 // 入力欄が指す記録日。未来日は今日に丸める（時系列破壊防止・#260）。
@@ -918,26 +910,28 @@ function syncRecordInputs() {
   selectedSong = names[names.length - 1] ?? chipNames[0] ?? null;
   renderChips();
   renderStampCard();
-  renderBatchRows(stampsToSongs(stamps).songs);
+  renderBatchRows(songsToRows(stampsToSongs(stamps).songs));
 }
 
-// 日付が変わったら、その日付が本来始まるべき内容へフォームを戻す（→ features.md #273）。
-// 今日=当日セッション/下書きから復元、今日以外=空。持ち越すと当日ぶんが二重計上される。
 // 記録済みの過去日を選んだら、既存の回数と「たしざん」になることを出す（二重記録の防止・#398）。
-// 今日は当日ぶんがフォームに復元されるので出さない。編集中は対象の記録そのものなので出さない。
+// 当日ぶんがフォームに復元されているときと、編集中（対象の記録そのもの）は出さない。
 function updateRecordDateNote() {
   const el = document.getElementById('recordDateNote');
   if (!el) return;
   const date = formDate();
-  const existing = editingDate == null && date !== todayStr() ? state.sessions.find((x) => x.date === date) : null;
+  const existing = editingDate == null && date !== restoredDate ? state.sessions.find((x) => x.date === date) : null;
   el.hidden = !existing;
-  if (existing) el.textContent = `この ひは もう ${Number(existing.totalCount) || 0}かい きろく してあるよ。いれた ぶんは たしざん されるよ。`;
+  if (existing) el.textContent = `この ひは もう ${existing.totalCount}かい きろく してあるよ。いれた ぶんは たしざん されるよ。`;
 }
 
+// 日付を変えたら、その日付が本来始まるべき内容へフォームを戻す（→ features.md #273）。
+// 今日=当日セッション/下書きから復元、今日以外=空。持ち越すと当日ぶんが二重計上される。
 function onRecordDateChange() {
+  const isToday = formDate() === todayStr();
+  if (editingDate == null) restoredDate = isToday ? todayStr() : null;
   updateRecordDateNote();
   if (editingDate != null) return;   // 編集中は対象セッションの内容が正
-  stamps = formDate() === todayStr() ? todayStamps() : [];
+  stamps = isToday ? todayStamps() : [];
   saveStampDraft();                   // 過去日は saveStampDraft 側のガードで no-op
   if (stampHintEl) stampHintEl.hidden = true;
   syncRecordInputs();
@@ -953,6 +947,7 @@ function resetRecordForm() {
     recordDateEl.value = todayStr();
     recordDateEl.max = todayStr();   // 未来日はピッカーで選ばせない（時系列破壊防止・#260）
   }
+  restoredDate = todayStr();
   stamps = todayStamps();
   saveStampDraft();
   if (newSongInputEl) newSongInputEl.value = '';
@@ -963,25 +958,6 @@ function resetRecordForm() {
   if (recordErrorEl) recordErrorEl.hidden = true;
 }
 
-// 既存セッションの内容をフォームに流し込み、編集モードにする
-function fillRecordForm(session) {
-  if (recordDateEl) recordDateEl.value = session.date;
-  stamps = songsToStamps(session.songs ?? []);
-  // 編集対象の曲を候補の先頭に立て、過去曲も合わせて選べるようにする
-  const editedNames = [...new Set(stamps)];
-  chipNames = [...editedNames, ...pastSongNames(state.sessions).filter((n) => !editedNames.includes(n))];
-  selectedSong = editedNames[editedNames.length - 1] ?? chipNames[0] ?? null;
-  if (newSongInputEl) newSongInputEl.value = '';
-  if (stampHintEl) stampHintEl.hidden = true;
-  setRecordMode(true);
-  renderChips();
-  renderSongSuggestions();
-  renderStampCard();
-  if (recordErrorEl) recordErrorEl.hidden = true;
-}
-
-// 履歴から編集を開始：record 画面へ切り替えてからフォームを埋める。
-// 一覧のチップは元配列 index を載せているが、ここで date に解決して持つ（#314）。
 // 「なおす」から きろく の元の位置へ戻る（#401）
 let editReturnY = 0;
 function backToHistory() {
@@ -990,26 +966,23 @@ function backToHistory() {
   renderHistory().then(() => window.scrollTo(0, y));
 }
 
-function startEditSession(index) {
-  const session = state.sessions[index];
+// 履歴から編集を開始：record 画面へ切り替えて（render() 内の resetRecordForm が新規の状態に戻す）から
+// 対象の記録を流し込む。
+function startEditSession(date) {
+  const session = state.sessions.find((s) => s.date === date);
   if (!session) return;
   editReturnY = window.scrollY;
-  router.go('record');     // render() 内の resetRecordForm が editingDate を一旦 null に戻す
-  editingDate = session.date;
-  fillRecordForm(session);
-  // 編集中はナビも「きろく」を選択状態に（#401）
-  for (const b of navButtons) {
-    const on = b.dataset.nav === 'history';
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-current', on ? 'page' : 'false');
-  }
+  router.go('record');
+  editingDate = date;
+  if (recordDateEl) recordDateEl.value = date;
+  stamps = songsToStamps(session.songs);
+  setRecordMode(true);
+  syncRecordInputs();
+  markNav('history');   // 編集中はナビも「きろく」を選択状態に（#401）
 }
 
 // 履歴から削除：確認のうえ該当セッションを除き、全再計算して保存
-async function deleteSession(index) {
-  const session = state.sessions[index];
-  if (!session) return;
-  const date = session.date;   // await をまたぐ前に同一性へ解決（#314 と同じ理由・#324）
+async function deleteSession(date) {
   await loadHistory();
   // 何が減るかも書く（全再計算でコイン・XP・れんぞくも戻る・#398）
   if (!window.confirm(`${historyMod.formatDateJa(date)} の きろくを けしますか？
@@ -1025,19 +998,17 @@ async function deleteSession(index) {
 
 // スタンプ（praise #145 / tempo #239）を付与／解除。報酬に影響しないので再計算は不要。
 // 同じスタンプを再タップしたら解除（null）。保存してクラウドへ即送信。
-function setSessionMark(kind, index, id) {
-  const marks = { praise: normalizePraise, tempo: normalizeTempo };
-  const normalize = Object.hasOwn(marks, kind) ? marks[kind] : null;   // data-mark は DOM 由来
-  const session = normalize && state.sessions[index];
-  if (!session) return;
-  const next = normalize(session[kind]) === id ? null : normalize(id);
-  state.sessions = state.sessions.map((s, i) => (i === index ? { ...s, [kind]: next } : s));
+function setSessionMark(kind, date, id) {
+  const normalize = kind === 'tempo' ? normalizeTempo : normalizePraise;
+  const sessions = state.sessions.map((s) => (s.date === date
+    ? { ...s, [kind]: normalize(s[kind]) === id ? null : normalize(id) } : s));
   // スタンプで praise_all3 / tempo_all3 が成立しうる。購入・えさやりと同じくその場で
   // 再判定する（#320・設計判断は docs/features.md）。外す操作では剥がれない（checkBadges は state.badges 引継ぎ）。
   const prevBadges = state.badges;
-  state = { ...state, badges: checkBadges(state) };
+  state = { ...state, sessions };
+  state.badges = checkBadges(state);
   const gained = newlyEarned(prevBadges, state.badges);
-  saveState(state);
+  persist();
   queueCloudPush();
   renderHistory();
   if (gained.length) setTimeout(() => showBadgePopup(gained), 300);
@@ -1085,7 +1056,10 @@ function celebrateRecord({ leveled, badgeCount, streakCurrent, streakAdvanced, g
     const noClip = () => { fallback(); resolve(); };
     catVideoPromise.then((m) => {
       if (!m) { noClip(); return; }
-      return m.tryPlay(state.pet.catStyle, resolve).then((ok) => { if (!ok) noClip(); });
+      return m.tryPlay(state.pet.catStyle, resolve).then((ok) => {
+        if (!ok) noClip();
+        else if (router.current !== 'home') m.stopClip(document.getElementById('catVideo'));   // 読み込みを待つ間にホームを離れた（#428）
+      });
     }).catch(noClip);
   });
 }
@@ -1188,7 +1162,7 @@ function showCoinPopup({ coins, leveled, newLevel, fixed = false }) {
 // えさやりのポップアップ（なかよし上昇）。まず従来の静止カード（もぐもぐ）を出し、えさやり
 // クリップ（#294）の再生が始まったらカードをクリップ表示に切り替えて、見終わる／タップまで出し続ける。
 // クリップが出せなければ従来どおり 1800ms で閉じる。onHidden は閉じきった後に呼ぶ（連打で前回の
-// サイクルが張り替えられると前回分は呼ばれないので、呼び出し側は冪等なコールバックを渡す）。
+// サイクルが張り替えられると前回分は呼ばれないので、呼び出し側はキューを吐く冪等なものを渡す）。
 function showFeedPopup(food, onHidden) {
   const popup = document.getElementById('feedPopup');
   const host = document.getElementById('feedClip');
@@ -1217,25 +1191,27 @@ function showFeedPopup(food, onHidden) {
 // クリップ（8秒）の ended／保険タイマーで閉じるので、これは両方が来なかったときの上限。
 const FEED_CLIP_MAX_MS = 12000;
 
-// バッジ獲得ポップアップ（複数取得時は前のフェードアウト完了を待って順番に表示）
+// バッジ獲得ポップアップ（前のフェードアウト完了を待って順番に表示）。表示中に次の獲得が来ても、
+// 出ているものを置き換えず後ろに並べる（置き換えると読む前に消え、続きの連鎖も失われる・#428）。
+const badgeQueue = [];
+let badgeShowing = false;
 function showBadgePopup(badges) {
-  const popup = document.getElementById('badgePopup');
-  if (!popup || !badges.length) return;
   // 3つ以上は2つ目以降を1枚にまとめる（#400）
   if (badges.length > 2) {
     const rest = badges.slice(1);
     badges = [badges[0], { icon: rest.slice(0, 3).map((b) => b.icon).join(''), name: rest.map((b) => b.name).join('・') }];
   }
-  let i = 0;
-  const showNext = () => {
-    if (i >= badges.length) return;
-    const b = badges[i++];
-    document.getElementById('badgePopupIcon').textContent = b.icon;
-    document.getElementById('badgePopupName').textContent = b.name;
-    playSound('levelup', state);
-    showPopup(popup, 2200, showNext);
-  };
-  showNext();
+  badgeQueue.push(...badges);
+  if (!badgeShowing) showNextBadge();
+}
+function showNextBadge() {
+  const b = badgeQueue.shift();
+  badgeShowing = !!b;
+  if (!b) return;
+  setText('badgePopupIcon', b.icon);
+  setText('badgePopupName', b.name);
+  playSound('levelup', state);
+  showPopup(document.getElementById('badgePopup'), 2200, showNextBadge);
 }
 
 // きょうのおまけ（#148）：練習した日だけ低確率でもらえるプチ報酬のポップアップ
@@ -1255,26 +1231,22 @@ function showFreezePopup() {
   showPopup(popup, 2200);
 }
 
-// 変更後 sessions を全再計算して確定する共通経路（同日統合 #186・過去日挿入 #260）。
-// applySession と違い報酬情報が返らないため、前後の diff から演出（コイン・レベル・バッジ）を出す。
+// 記録の確定：保存・送信 → ホームへ → お祝い → ごほうびのポップアップ。
+// 全再計算で確定した記録（同日統合 #186・過去日挿入 #260 等）は報酬の内訳が無いので、コインは前後の差を出す。
 // increased: その日の回数が増えた記録か（同じ内容の再送信・減らした修正は false・#396）
-function commitRecordedSessions(sessions, totalCount, { increased = true } = {}) {
-  const prevCoins = state.pet.coins;
-  const prevLevel = state.pet.level;
-  const prevBadges = state.badges;
-  const prevSessions = state.sessions;         // 目標到達判定は commitState（state 書換）より前に取る（#227）
-  const prevStreak = state.streak.current;     // 連続日数の節目は「この記録で伸びたか」で見る（#305）
+function finishRecord(newState, totalCount, {
+  increased = true, coins = Math.max(0, newState.pet.coins - state.pet.coins), bonus = 0, frozeDays = 0,
+} = {}) {
+  const prev = state;   // 目標到達（#227）・連続の節目（#305）は commitState（state 書換）より前と比べる
   const goal = currentGoal();
-  const newState = recomputeState({ ...state, sessions }, spentTotal(state));
-  const gainedBadges = newlyEarned(prevBadges, newState.badges);
   commitState(newState);
   cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
   track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
   router.go('home');
-  const leveled = newState.pet.level > prevLevel;
-  const goalReached = crossedDailyGoal(prevSessions, newState.sessions, todayStr(), goal);
-  const gainedCoins = Math.max(0, newState.pet.coins - prevCoins);
-  const streakAdvanced = newState.streak.current !== prevStreak;
+  const gainedBadges = newlyEarned(prev.badges, newState.badges);
+  const leveled = newState.pet.level > prev.pet.level;
+  const goalReached = crossedDailyGoal(prev.sessions, newState.sessions, todayStr(), goal);
+  const streakAdvanced = newState.streak.current !== prev.streak.current;
   // 何も増えていない（同じ内容の再送信・回数を減らした修正）ときは、お祝いの演出を出さない（#396）
   const ready = (increased || leveled || gainedBadges.length || goalReached || streakAdvanced)
     ? celebrateRecord({
@@ -1285,9 +1257,12 @@ function commitRecordedSessions(sessions, totalCount, { increased = true } = {})
       goalReached,
     })
     : Promise.resolve();
-  playSound('record', state);
+  playSound('record', state);   // 記録完了（レベルアップ音はコインのポップアップと一緒に鳴る）
+  // コイン→おまけ→お休み券→バッジの順（#400）
   ready.then(() => playRewardPopups([
-    () => showCoinPopup({ coins: gainedCoins, leveled, newLevel: newState.pet.level, fixed: !increased && !leveled }),
+    () => showCoinPopup({ coins, leveled, newLevel: newState.pet.level, fixed: !increased && !leveled }),
+    bonus > 0 && (() => showBonusPopup(bonus)),
+    frozeDays > 0 && showFreezePopup,
     gainedBadges.length && (() => showBadgePopup(gainedBadges)),
   ]));
   resetRecordForm();
@@ -1295,7 +1270,6 @@ function commitRecordedSessions(sessions, totalCount, { increased = true } = {})
 
 function submitRecord(event) {
   event.preventDefault();
-  const today = todayStr();
   const date = formDate();   // 未来日は今日に丸め済み（#260）
   const { songs, totalCount } = recordMode === 'batch'
     ? collectSongs(readBatchRows())
@@ -1322,10 +1296,9 @@ function submitRecord(event) {
     const sessions = state.sessions.map((s, i) =>
       i === idx ? { ...s, date, songs, totalCount } : s);
     // 日付を動かしたら元の日付は墓標へ（#358）
-    const deletedDates = date === editingDate ? state.deletedDates
-      : [...new Set([...(state.deletedDates ?? []), editingDate])];
-    commitState(recomputeState({ ...state, sessions: mergeSameDaySessions(sessions), deletedDates }, spentTotal(state)));
     const moved = date !== editingDate;
+    const deletedDates = moved ? [...new Set([...state.deletedDates, editingDate])] : state.deletedDates;
+    commitState(recomputed({ sessions, deletedDates }));
     resetRecordForm();
     // 日付を変えたら直した記録へ（#401）
     if (moved) {
@@ -1336,70 +1309,34 @@ function submitRecord(event) {
   }
 
   // 同日に既存セッションがある場合は統合して全再計算（目標達成ボーナスの二重取りを防ぐ）
-  const existingIndex = state.sessions.findIndex((s) => s.date === date);
-  if (existingIndex !== -1) {
-    const existing = state.sessions[existingIndex];
+  const existing = state.sessions.find((s) => s.date === date);
+  if (existing) {
     // 当日の記録画面は「その日ぜんぶ」を表す（resetRecordForm で当日セッションから復元済み）。
     // よって追記ではなく置き換えて、当日中の押し増しが二重計上されないようにする（#186）。
-    // 当日以外（日付欄を過去日に変えた場合）は従来どおり合算する。
-    const isToday = date === today;
-    const mergedSongs = combineSongs(isToday ? songs : [...existing.songs, ...songs]);
-    const mergedCount = isToday ? totalCount : existing.totalCount + totalCount;
-    const sessions = state.sessions.map((s, i) =>
-      i === existingIndex ? { ...s, songs: mergedSongs, totalCount: mergedCount } : s);
-    commitRecordedSessions(sessions, mergedCount, { increased: mergedCount > existing.totalCount });
+    // それ以外（日付欄を過去日に変えた場合）は合算する。
+    const whole = date === restoredDate;
+    const mergedSongs = combineSongs(whole ? songs : [...existing.songs, ...songs]);
+    const mergedCount = whole ? totalCount : existing.totalCount + totalCount;
+    const sessions = state.sessions.map((s) => (s === existing ? { ...s, songs: mergedSongs, totalCount: mergedCount } : s));
+    finishRecord(recomputed({ sessions }), mergedCount, { increased: mergedCount > existing.totalCount });
     return;
   }
 
-  // 過去日（最終練習日より前）の新規記録（#260）：applySession は「日付が時系列順で届く」
-  // 前提の逐次更新なので、そのまま適用するとストリークが1に巻き戻り lastPracticeDate も
-  // 過去日へ戻ってしまう。挿入して全再計算（日付昇順の再生）で整合させる。
-  // きょうのおまけ（#148）は「その日の記録時の抽選」なので後追い入力では抽選しない。
-  if (state.streak.lastPracticeDate && date < state.streak.lastPracticeDate) {
-    commitRecordedSessions([{ date, songs, totalCount, bonusCoins: 0 }, ...state.sessions], totalCount);
+  // きょうのおまけ（#148）は「その日の記録時の抽選」なので、過去日の後追い入力では抽選しない。
+  const last = state.streak.lastPracticeDate;
+  const isPast = last && date < last;
+  const bonus = isPast ? 0 : rollDailyBonus(Math.random());
+  // applySession は「日付が時系列順で届く」前提の逐次更新なので、次の記録は挿入して全再計算で確定する。
+  //   - 過去日（最終練習日より前・#260）：連続が1に巻き戻り lastPracticeDate も過去日へ戻ってしまう
+  //   - 連続に未反映のレッスン日（#393）が間にある：先にレッスン日を練習日として挟む必要がある
+  //   - 当日のレッスンだけが反映済み（date === last）：節目判定が再び立ち、おやすみけんが二重に付く
+  if (isPast || date === last || hasUncreditedLesson(state, date)) {
+    finishRecord(recomputed({ sessions: [{ date, songs, totalCount, bonusCoins: bonus }, ...state.sessions] }), totalCount);
     return;
   }
 
-  // 連続に未反映のレッスン日（#393）が間にあるときも、逐次更新ではなく全再計算で確定する
-  // （レッスン日を練習日として挟んでから、この記録の連続・報酬を数える）。おまけは通常どおり抽選。
-  const bonus = rollDailyBonus(Math.random());
-  // 当日のレッスンだけが反映済み（lastPracticeDate===date・当日の記録なし）の場合も含む。逐次更新だと
-  // updateStreak が current を動かさないのに節目判定が再び立ち、おやすみけんが二重に付く。
-  if (date === state.streak.lastPracticeDate || hasUncreditedLesson(state, date)) {
-    commitRecordedSessions([{ date, songs, totalCount, bonusCoins: bonus }, ...state.sessions], totalCount);
-    return;
-  }
-
-  const prevBadges = state.badges;
-  const prevSessions = state.sessions;         // 目標到達判定は commitState より前に取る（#227）
-  const prevStreak = state.streak.current;     // 連続日数の節目は「この記録で伸びたか」で見る（#305）
-  const goal = currentGoal();
-  // きょうのおまけ（#148）：その日の初回記録（同日既存なし）でのみ低確率で抽選（上で抽選済み）
   const { state: newState, rewards } = applySession(state, { date, songs, totalCount }, bonus);
-  const gainedBadges = newlyEarned(prevBadges, newState.badges);
-  commitState(newState);          // 保存 + ホーム再描画
-  cloud?.flushCloud();            // 記録確定はバッチ境界。debounce を待たず即送信（#146）
-  track('practice_recorded', { totalCount }); // 回数のみ・曲名は送らない
-  router.go('home');              // ホームへ遷移
-  // 節目（レベルアップ／新バッジ／連続日数の節目）は特別演出、通常はランダムなお祝い（#81）。
-  // 今日の目標にはじめて届いた記録は動画演出を必ず（#227）。
-  const goalReached = crossedDailyGoal(prevSessions, newState.sessions, todayStr(), goal);
-  const ready = celebrateRecord({
-    leveled: rewards.leveled,
-    badgeCount: gainedBadges.length,
-    streakCurrent: newState.streak.current,
-    streakAdvanced: newState.streak.current !== prevStreak,
-    goalReached,
-  });
-  playSound('record', state);   // 記録完了（レベルアップ音はコインのポップアップと一緒に鳴る）
-  // コイン→おまけ→お休み券→バッジの順（#400）
-  ready.then(() => playRewardPopups([
-    () => showCoinPopup(rewards),
-    rewards.bonus > 0 && (() => showBonusPopup(rewards.bonus)),
-    rewards.frozeDays > 0 && showFreezePopup,
-    gainedBadges.length && (() => showBadgePopup(gainedBadges)),
-  ]));
-  resetRecordForm();
+  finishRecord(newState, totalCount, rewards);
 }
 
 songChipsEl?.addEventListener('click', (e) => {
@@ -1409,7 +1346,7 @@ songChipsEl?.addEventListener('click', (e) => {
 });
 document.getElementById('addSongBtn')?.addEventListener('click', addNewSong);
 newSongInputEl?.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
+  if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;   // 変換確定の Enter では足さない（#428）
   e.preventDefault();
   addNewSong();
 });
@@ -1436,21 +1373,25 @@ batchRowsEl?.addEventListener('click', (e) => {
   const stepBtn = e.target.closest('.stepper__btn');
   if (stepBtn) {
     const countEl = row.querySelector('.batch-row__count');
-    const next = Math.max(0, (Number(countEl.value) || 0) + Number(stepBtn.dataset.step));
+    const next = Math.min(MAX_ROW_COUNT, Math.max(0, (Number(countEl.value) || 0) + Number(stepBtn.dataset.step)));
     countEl.value = String(next);
     updateBatchTotal();
   }
 });
-batchRowsEl?.addEventListener('input', updateBatchTotal);
+batchRowsEl?.addEventListener('input', (e) => {
+  if (e.target.matches('.batch-row__count') && Number(e.target.value) > MAX_ROW_COUNT) e.target.value = String(MAX_ROW_COUNT);
+  updateBatchTotal();
+});
 
 // ===== 記録履歴の編集・削除 =====
 document.getElementById('historyList')?.addEventListener('click', (e) => {
   const btn = e.target.closest('[data-action]');
   if (!btn) return;
-  const index = Number(btn.dataset.index);
-  if (btn.dataset.action === 'edit-session') startEditSession(index);
-  else if (btn.dataset.action === 'delete-session') deleteSession(index);
-  else if (btn.dataset.action === 'set-mark') setSessionMark(btn.dataset.mark, index, btn.dataset.id);
+  // 対象は date で引く（配列の位置は、別の保存や取り込みで並びが変わるとずれる・#314/#428）
+  const date = btn.closest('.history-card')?.dataset.date;
+  if (btn.dataset.action === 'edit-session') startEditSession(date);
+  else if (btn.dataset.action === 'delete-session') deleteSession(date);
+  else if (btn.dataset.action === 'set-mark') setSessionMark(btn.dataset.mark, date, btn.dataset.id);
   else if (btn.dataset.action === 'more-history') {
     const from = historyShown;
     historyShown += HISTORY_PAGE;
@@ -1509,22 +1450,21 @@ function applyShopAction(action, id) {
     : action === 'place' ? togglePlace(state, id)
     : toggleEquip(state, id);
   if (next === state) return;       // 変化なし（買えない等）
-  if (action === 'buy') {
-    playSound('purchase', state);  // 購入音
+  if (action !== 'buy') {
+    commitState(next);              // 保存 + ホームの猫へ即反映
+    renderShop();
+    return;
   }
-  // first_outfit（#309）は inventory（購入）から判定するため、購入直後だけ再判定する
-  // （device/place/equip は inventory を変えないので対象外）。次の記録まで待たせない。
-  const prevBadges = state.badges;
-  const withBadges = action === 'buy' ? { ...next, badges: checkBadges(next) } : next;
-  const gainedBadges = action === 'buy' ? newlyEarned(prevBadges, withBadges.badges) : [];
-  commitState(withBadges);          // 保存 + ホームの猫へ即反映
-  renderShop();                     // ショップ表示を更新
-  if (action === 'buy') {
-    const after = document.querySelector(`#shopList .shop-btn[data-id="${id}"]`);
-    if (after) {
-      after.disabled = true;
-      setTimeout(() => { after.disabled = false; }, BUY_GUARD_MS);
-    }
+  playSound('purchase', state);
+  // first_outfit（#309）は inventory（購入）から判定するため、購入直後に再判定する（次の記録まで待たせない）
+  const badges = checkBadges(next);
+  const gainedBadges = newlyEarned(state.badges, badges);
+  commitState({ ...next, badges });
+  renderShop();
+  const after = document.querySelector(`#shopList .shop-btn[data-id="${id}"]`);
+  if (after) {
+    after.disabled = true;
+    setTimeout(() => { after.disabled = false; }, BUY_GUARD_MS);
   }
   if (gainedBadges.length) setTimeout(() => showBadgePopup(gainedBadges), 300);
 }
@@ -1575,10 +1515,9 @@ document.getElementById('feedList')?.addEventListener('click', (e) => {
   if (next === state) return;        // 買えない（コイン不足等）
   // affinity_max（#309）は pet.affinity から判定するため、えさやり直後に再判定する
   // （なかよしMAXの瞬間を次の記録まで待たせない）。
-  const prevBadges = state.badges;
-  const withBadges = { ...next, badges: checkBadges(next) };
-  const gainedBadges = newlyEarned(prevBadges, withBadges.badges);
-  commitState(withBadges);           // 保存 + ホーム再描画（なかよし反映）
+  const badges = checkBadges(next);
+  const gainedBadges = newlyEarned(state.badges, badges);
+  commitState({ ...next, badges });  // 保存 + ホーム再描画（なかよし反映）
   renderShop();                      // ショップのコイン・なかよし・ボタン更新
   playSound('record', state);        // もぐもぐ（やわらかいチャイム）
   // バッジ告知はえさやりポップアップ（クリップ再生中はその終わり）を閉じきってから出す。連打で
@@ -1636,7 +1575,7 @@ async function toggleDressup() {
     stage.classList.add('cat-stage--editing');
     dressupDisable = enableDressup(
       stage,
-      () => state.pet.itemLayout ?? {},
+      () => state.pet.itemLayout,
       (layout) => commitState({ ...state, pet: { ...state.pet, itemLayout: layout } }),
     );
     if (btn) { btn.textContent = '✅ できた！'; btn.setAttribute('aria-pressed', 'true'); }
@@ -1689,25 +1628,21 @@ const LAYER_LABEL = Object.fromEntries(LAYER_ROWS);
 function renderLayerPanel() {
   const el = document.getElementById('layerPanel');
   if (!el || el.hidden) return;
-  const layout = state.pet.itemLayout ?? {};
+  const layout = state.pet.itemLayout;
   // 未知IDは描画しない（allowlist・#312）。equippedItems/placedItems はクラウド doc 由来で
   // 任意文字列が入りうるが、猫の描画側（cat-image.js）は allowlist で弾いている。ここも揃える。
-  const ids = [...(state.pet.equippedItems ?? []), ...(state.pet.placedItems ?? [])]
-    .filter((id) => itemById(id) || isSceneItem(id));
+  const items = [...state.pet.equippedItems, ...state.pet.placedItems].map(itemById).filter(Boolean);
   // 何もつけていないと「まえ なし／うしろ なし」だけで何をすればいいか分からない（#399）
-  if (!ids.length) {
+  if (!items.length) {
     el.innerHTML = '<p class="layer-panel__hint">まだ なにも つけていないよ。ショップで かってね</p>' +
       '<button type="button" class="layer-panel__shop" data-go="shop">🛍️ ショップへ</button>';
     return;
   }
   el.innerHTML = LAYER_ROWS.map(([layer, label]) => {
-    const chips = ids.filter((id) => itemLayer(id, layout) === layer).map((id) => {
-      const item = itemById(id);
-      const to = LAYER_LABEL[layer === 'back' ? 'front' : 'back'];
-      return `<button type="button" class="layer-panel__chip" data-item="${escapeHtml(id)}" data-layer="${layer}"
-        aria-label="${escapeHtml(item?.name ?? id)} を ${to} に する">`+
-        `<span aria-hidden="true">${escapeHtml(item?.icon ?? '❔')}</span><span>${escapeHtml(item?.name ?? id)}</span></button>`;
-    }).join('');
+    const to = LAYER_LABEL[layer === 'back' ? 'front' : 'back'];
+    const chips = items.filter((it) => itemLayer(it.id, layout) === layer).map((it) =>
+      `<button type="button" class="layer-panel__chip" data-item="${it.id}" data-layer="${layer}" aria-label="${it.name} を ${to} に する">`
+        + `<span aria-hidden="true">${it.icon}</span><span>${it.name}</span></button>`).join('');
     return `<div class="layer-panel__row"><span class="layer-panel__label">${label}</span>`+
       `${chips || '<span class="layer-panel__empty">なし</span>'}</div>`;
   }).join('') + '<p class="layer-panel__hint">タップすると まえ／うしろ が かわるよ</p>';
@@ -1723,8 +1658,8 @@ document.getElementById('layerPanel')?.addEventListener('click', (e) => {
   if (!chip) return;
   const id = chip.dataset.item;
   const layer = chip.dataset.layer === 'back' ? 'front' : 'back';
-  const layout = { ...(state.pet.itemLayout ?? {}) };
-  layout[id] = { ...(layout[id] ?? {}), layer };     // 座標・スケールは保ったままレイヤーだけ差し替える
+  const layout = { ...state.pet.itemLayout };
+  layout[id] = { ...layout[id], layer };     // 座標・スケールは保ったままレイヤーだけ差し替える
   commitState({ ...state, pet: { ...state.pet, itemLayout: layout } });   // renderHome がパネルも描き直す
   playSound('purchase', state);   // うしろへ送ると猫の陰に完全に隠れることがあるため、効いた合図を音でも返す
 });
@@ -1763,12 +1698,12 @@ try { applyTheme(localStorage.getItem(THEME_KEY) || 'auto'); } catch (_) { apply
 // 報酬（コイン）には影響しない（達成ボーナス閾値は固定10）。
 function setDailyGoal(value) {
   const goal = clampDailyGoal(value);
-  if (goal === currentGoal() && state.pet.dailyGoal === goal) return;
-  state.pet = { ...state.pet, dailyGoal: goal };
-  saveState(state);
-  queueCloudPush();
   const goalInput = document.getElementById('goalTargetInput');
-  if (goalInput) goalInput.value = String(goal);   // クランプ結果を入力欄に反映
+  if (goalInput) goalInput.value = String(goal);   // 丸めた結果を入力欄に反映（目標が変わらないときも・#428）
+  if (state.pet.dailyGoal === goal) return;
+  state = { ...state, pet: { ...state.pet, dailyGoal: goal } };
+  persist();
+  queueCloudPush();
   renderHome();
   renderStampCard();                               // 記録画面が開いていればマス数も更新
 }
@@ -1787,7 +1722,7 @@ function setLessonDates(dates, { announce = false, onlyIfChanged = false } = {})
   const lessonDates = normalizeLessonDates(dates);
   const lessonRemoved = normalizeLessonDates([...state.pet.lessonDates.filter((d) => !lessonDates.includes(d)),
     ...state.pet.lessonRemoved.filter((d) => !lessonDates.includes(d))]);
-  const next = recomputeState({ ...state, pet: { ...state.pet, lessonDates, lessonRemoved } }, spentTotal(state));
+  const next = recomputed({ pet: { ...state.pet, lessonDates, lessonRemoved } });
   // 起動時の取りこみは、数値が動かなければ保存も送信もしない
   if (onlyIfChanged && next.pet.coins === state.pet.coins && next.pet.xp === state.pet.xp
       && next.streak.current === state.streak.current && next.streak.freezes === state.streak.freezes
@@ -1818,11 +1753,34 @@ async function showLessonSettings() {
   renderLessonList(true);   // 開くたびに畳む
 }
 
-// 起動時：日付をまたいで「きょう」になったレッスン日が未反映なら取りこむ（モジュール評価の完了後に実行）
-// 旧版の端末が落とした分（最終練習日以前のレッスン日）も拾えるよう、登録日があれば毎回再計算する。
-setTimeout(() => {
+// 「きょう」になったレッスン日が未反映なら取りこむ。旧版の端末が落とした分（最終練習日以前のレッスン日）も
+// 拾えるよう、登録日があれば毎回再計算する。
+function creditDueLessons() {
   if (state.pet.lessonDates.length) setLessonDates(state.pet.lessonDates, { announce: true, onlyIfChanged: true });
-}, 0);
+}
+setTimeout(creditDueLessons, 0);   // 起動時（モジュール評価の完了後に実行）
+
+// 開いたまま日付をまたいで戻ってきたら、昨日のままの表示（きょうの もくひょう・レッスンび等）を
+// 描き直す（#428）。記録画面に書きかけがあるときは、その日付の記録として出せるよう触らない。
+// レッスン日の取りこみは保存・送信を伴うので、クラウドを取り込んだあと（resyncAndSettle）に回す。先に送ると、
+// 休んでいた間の古い state で他の端末の記録・購入を消す（#242）。
+let shownDay = todayStr();
+let lessonsDue = false;
+function refreshOnNewDay() {
+  if (shownDay === todayStr()) return;
+  shownDay = todayStr();
+  lessonsDue = true;
+  showThisMonth();
+  renderHome();
+  if (router.current !== 'record' || !hasUnsentInput()) render(router.current);
+}
+
+function hasUnsentInput() {
+  if (editingDate != null || recordMode === 'batch') return true;
+  // 復元した日なら保存済みの内容、それ以外（過去日）は空のカードから始まっている
+  const saved = formDate() === restoredDate ? state.sessions.find((s) => s.date === restoredDate) : null;
+  return JSON.stringify(stamps) !== JSON.stringify(songsToStamps(combineSongs(saved?.songs)));
+}
 
 // ===== せってい：データのバックアップ/復元（#140） =====
 const settingsOverlayEl = document.getElementById('settingsOverlay');
@@ -1913,7 +1871,7 @@ async function shareCatPhoto() {
   try {
     const { renderCatCanvas, canvasToBlob } = await import('./cat-snapshot.js');
     const canvas = await renderCatCanvas(catEl, 600);
-    const blob = await canvasToBlob(canvas, 'image/png');
+    const blob = await canvasToBlob(canvas);
     if (!blob) return;
     // ファイル名・タイトルに曲名・こども名は入れない（PII規約）。
     const file = new File([blob], 'pianopet.png', { type: 'image/png' });
@@ -1925,14 +1883,7 @@ async function shareCatPhoto() {
       return;
     }
     // フォールバック：ダウンロード（Web Share 非対応環境）
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'pianopet.png';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    downloadBlob(blob, 'pianopet.png');
     track('cat_photo_saved', {});
   } catch (err) {
     console.warn('cat photo failed', err);
@@ -1942,28 +1893,27 @@ async function shareCatPhoto() {
   }
 }
 
+function downloadBlob(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 // 現行 state を JSON 化して a[download] でローカル保存（無害なので確認不要）。
 async function downloadBackup() {
   // がぞくコード（#233）を同梱＝別端末で復元すると同じクラウド保存先に合流できる。
   const { exportState, backupFilename } = await loadBackup();
   const json = exportState(state, new Date(), getCloudDocId(getActiveAccountId()));
-  const blob = new Blob([json], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = backupFilename();
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadBlob(new Blob([json], { type: 'application/json' }), backupFilename());
   showImportStatus('ファイルを ほぞんしたよ！', false);
 }
 
-// 取り込み確定：①直前データを退避 ②クラウド購読を解除 ③ローカル保存
-// ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
-// docId＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
-// #378
-let overwriting = false;
+let overwriting = false;   // 上書き中は、届いたクラウドの内容も保留中の送信も無視する（#378）
 // 上書きの push。不通の回線では setDoc が解決しないので10秒で見切る（#381・data-model.md）
 async function pushForOverwrite(docId = null) {
   if (!cloud || navigator.onLine === false) return;
@@ -1983,7 +1933,7 @@ function stopCloudForOverwrite() {
 
 // 読み込み・初期化の直前のデータを退避し、「ひとつ まえの データに もどす」で戻せるようにする（#398）
 async function stashBeforeOverwrite() {
-  (await loadBackup()).stashBeforeOverwrite(localStorage, activeStorageKey(), stashOwner());
+  return (await loadBackup()).stashBeforeOverwrite(localStorage, activeStorageKey(), stashOwner());
 }
 const stashOwner = () => ({ account: getActiveAccountId(), doc: getCloudDocId(getActiveAccountId()) ?? null });
 const readStashedState = () => backupMod?.readStash(localStorage, stashOwner()) ?? null;
@@ -2000,11 +1950,21 @@ async function restorePrevData() {
   applyImportedState(prev.state);   // いまの データは退避されるので、もう一度押せば行き来できる
 }
 
-async function applyImportedState(imported, docId = null, { stash = true } = {}) {
-  if (stash) await stashBeforeOverwrite();   // 誤読込からの復旧用に退避
+// 取り込み確定：①直前データを退避 ②ローカル保存 ③クラウド購読を解除
+// ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
+// ②が書けなければ何も変えずにやめる（クラウドだけ置き換わって端末が元のままになるのを防ぐ・#428）。
+// code＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
+async function applyImportedState(imported, code = null) {
+  const revertStash = await stashBeforeOverwrite();   // 誤読込からの復旧用。退避の素性を元の保存先で残すため、コードの切替より前に（#398）
+  if (!saveState(imported)) {
+    revertStash();
+    showImportStatus('たんまつの あきが たりなくて ほぞんできませんでした。', true);
+    return;
+  }
   stopCloudForOverwrite();
   state = imported;
-  saveState(state);
+  const docId = code && setCloudDocId(getActiveAccountId(), code) ? code : null;
+  clearStampDraft();   // 前のデータの書きかけを、入れ替えたデータの記録にしない（#428）
   await pushForOverwrite(docId);
   window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
 }
@@ -2078,16 +2038,9 @@ async function clearLegacyCloudDoc() {
 }
 
 // データ初期化（#183）：購入履歴・猫の状態・練習記録をすべて消して新品に戻す。
-// applyImportedState と同じ安全手順（退避→購読解除→ローカル保存→クラウド反映→reload）で、
-// 取り込み先が「新品の DEFAULTS」になるだけ。古いスナップショットの巻き戻しを断つ。
-async function resetData() {
+function resetData() {
   if (!window.confirm('ねこの じょうたい・アイテム・れんしゅうきろくが ぜんぶ きえて、さいしょから になります。よろしいですか？')) return;
-  await stashBeforeOverwrite();   // 誤操作からの復旧用に退避
-  stopCloudForOverwrite();
-  state = normalizeState({});            // 新品の DEFAULTS へ
-  saveState(state);
-  await pushForOverwrite();
-  window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
+  applyImportedState(normalizeState({}));
 }
 
 // 選択ファイルを読んで検証。OK なら確認のうえ復元、NG なら理由をひらがなで表示。
@@ -2102,10 +2055,7 @@ function handleImportFile(file) {
     }
     if (!window.confirm('いまの データは きえて、ファイルの データに なります。よろしいですか？')) return;
     // バックアップに がぞくコード（#233）が入っていれば、同じクラウド保存先へ合流させる。
-    // 退避はがぞくコードを切り替える前に（退避の素性を元の保存先で残す・#398）
-    await stashBeforeOverwrite();
-    const docId = res.cloudDocId && setCloudDocId(getActiveAccountId(), res.cloudDocId) ? res.cloudDocId : null;
-    applyImportedState(res.state, docId, { stash: false });
+    applyImportedState(res.state, res.cloudDocId);
   };
   reader.onerror = async () => showImportStatus((await loadBackup()).importErrorMessage('parse'), true);
   reader.readAsText(file);
@@ -2246,6 +2196,22 @@ if (!isOnboarded()) {
 // ローカルで即描画したあと、クラウドと突き合わせる。SDK は CDN 読み込みなので
 // 動的 import で取り込み、失敗（オフライン等）してもローカル動作を妨げない。
 
+// 表示中の画面を今の state で描き直す（記録画面は入力中の内容を持つので触らない）
+function refreshView() {
+  if (router.current === 'history') renderHistory();
+  else if (router.current === 'shop') renderShop();
+  else if (router.current === 'badges') renderBadges();
+  else if (router.current === 'stamp' && !stampPressing) renderStampBook();
+}
+
+// 取り込んだ state に差し替えて、ホームと表示中の画面を描き直す
+function adoptState(next) {
+  state = next;
+  persist();                   // ローカルキャッシュも最新に
+  renderHome();
+  refreshView();
+}
+
 // クラウドのデータを現在の state に取り込んで再描画する。
 // 自分の書き込みのエコーなど「実質変化なし」のときは再描画をスキップする。
 function applyRemoteState(cloudData) {
@@ -2255,14 +2221,8 @@ function applyRemoteState(cloudData) {
     return;
   }
   const merged = mergeCloud(state, cloudData);
-  if (JSON.stringify(cloudFields(merged)) === JSON.stringify(cloudFields(state))) return;
-  state = merged;
-  saveState(state);            // ローカルキャッシュも最新に
-  renderHome();
-  if (router.current === 'history') renderHistory();
-  else if (router.current === 'shop') renderShop();
-  else if (router.current === 'badges') renderBadges();
-  else if (router.current === 'stamp' && !stampPressing) renderStampBook();
+  if (cloudDigest(merged) === cloudDigest(state)) return;
+  adoptState(merged);
 }
 
 // ローカルに引き継ぐ価値のあるデータがあるか（初回クラウド移行の判定用）。
@@ -2307,19 +2267,11 @@ function reconcileInitialCloud(cloudData) {
   if (overwriting) return;
   const merged = mergeCloudInitial(state, cloudData);
   const reconciled = recomputeState(merged, spentTotal(merged));
-  const reconciledCloud = JSON.stringify(cloudFields(reconciled));
+  const reconciledCloud = cloudDigest(reconciled);
 
-  if (reconciledCloud !== JSON.stringify(cloudFields(state))) {
-    state = reconciled;
-    saveState(state);                       // ローカルキャッシュも最新に
-    renderHome();
-    if (router.current === 'history') renderHistory();
-    else if (router.current === 'shop') renderShop();
-    else if (router.current === 'badges') renderBadges();
-    else if (router.current === 'stamp' && !stampPressing) renderStampBook();
-  }
+  if (reconciledCloud !== cloudDigest(state)) adoptState(reconciled);
   // ローカルだけが持っていた記録（起動直後に記録した分など）でクラウドが古ければ確定保存する。
-  if (reconciledCloud !== JSON.stringify(cloudFields(normalizeState(cloudData)))) {
+  if (reconciledCloud !== cloudDigest(normalizeState(cloudData))) {
     cloud?.pushCloud(cloudFields(state));
   }
 }
@@ -2340,7 +2292,15 @@ async function resyncFromCloud() {
 
 // 印を下ろす条件は data-model.md #358
 const resyncAndSettle = () => resyncFromCloud()
-  .then((ok) => { if (ok && navigator.onLine !== false) offlineDirty = false; });
+  .then((ok) => {
+    const offline = navigator.onLine === false;
+    if (ok && !offline) offlineDirty = false;
+    // 取り込めたか、いま保存しても送信されない（未接続・初回同期前）ときだけ。取れなければ次の再同期で
+    if (!lessonsDue || overwriting || !(ok || offline || !initialSyncDone)) return;
+    lessonsDue = false;
+    creditDueLessons();
+    refreshView();
+  });
 let retryTimer = null;
 function scheduleRetry() {
   retryTimer ??= setTimeout(() => { retryTimer = null; retryResync(); }, 30000);
@@ -2359,21 +2319,26 @@ window.addEventListener('online', () => {
 window.addEventListener('offline', () => { offlineDirty = true; });
 
 // タブの表示状態に応じて省電力・取りこぼし防止を行う（#146）。
-//   - 非アクティブ化: 効果音用 AudioContext を suspend（音声HWを休ませバッテリ節約）し、
+//   - 非アクティブ化: 取り消し待ちの削除を確定し（#398）、AudioContext を suspend（バッテリ節約）、
 //     保留中のクラウド書き込みを flush（バックグラウンド/終了で消えないよう確定送信）。
-//   - 復帰: AudioContext を resume（次の効果音に備える）。
+//   - 復帰: AudioContext を resume（次の効果音に備える）、日付が変わっていれば描き直す。
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) {
+    applyPendingDelete();
     suspendAudio();
     cloud?.flushCloud();
   } else {
     resumeAudio();
+    refreshOnNewDay();
     resyncAndSettle();            // 復帰時に最新クラウドを取り込んでから操作を受ける（#242）
   }
 });
-// 離脱直前（タブ閉じ・遷移）にも保留中の書き込みを確定する。pagehide は
-// visibilitychange より確実に発火する端末があるため併用する。
-window.addEventListener('pagehide', () => cloud?.flushCloud());
+// 離脱直前（タブ閉じ・遷移）にも確定する。pagehide は visibilitychange より確実に発火する端末が
+// あるため併用する。
+window.addEventListener('pagehide', () => {
+  applyPendingDelete();
+  cloud?.flushCloud();
+});
 
 // 初回のクラウド同期はブラウザのアイドル時間まで遅延し、初回描画・操作を妨げない（#142）。
 // renderHome は既に localStorage から同期描画済み。Firebase SDK の動的取得・初期化はここで初めて走る。
