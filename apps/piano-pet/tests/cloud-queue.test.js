@@ -1,8 +1,9 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createCloudQueue } from '../js/cloud-queue.js';
 
 const flush = () => new Promise((r) => setTimeout(r, 0));
 
+beforeEach(() => vi.stubGlobal('navigator', { onLine: true }));   // Node 20（CI）には無い
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('createCloudQueue（#313）', () => {
