@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { mergeSameDaySessions, recomputeState, checkBadges } from '../js/game.js';
 import { spentCoins } from '../js/shop.js';
+import { catMarkup } from '../js/cat-image.js';
 import {
   normalizeState,
   cloudFields,
@@ -134,6 +135,45 @@ describe('normalizeState の型矯正（#272）', () => {
         { date: '2026-01-03', totalCount: 60 },
       ] });
       expect(checkBadges(state)).toContain('challenge_100');
+    });
+  });
+
+  // #428: 型は合っていても中身が壊れた値が、起動・記録を止める／数値を連結に化けさせる。
+  describe('中身の矯正（#428）', () => {
+    it('実在しない日付の記録・レッスン日・墓標を落とし、recomputeState が throw しない（旧: RangeError）', () => {
+      const s = normalizeState({
+        sessions: [{ date: '2026-11-00', totalCount: 3 }, { date: '2026-02-30', totalCount: 3 }, { date: '2026-11-01', totalCount: 4 }],
+        deletedDates: ['2026-13-01', '2026-11-02'],
+        pet: { lessonDates: ['2026-11-00', '2026-11-03'] },
+        streak: { lastPracticeDate: '2026-11-00' },
+      });
+      expect(s.sessions.map((v) => v.date)).toEqual(['2026-11-01']);
+      expect(s.pet.lessonDates).toEqual(['2026-11-03']);
+      expect(s.deletedDates).toEqual(['2026-11-02']);
+      expect(s.streak.lastPracticeDate).toBeNull();
+      expect(() => recomputeState(s, 0, '2026-11-30')).not.toThrow();
+    });
+
+    it('自由配置の壊れた値を落とし、猫の描画が throw しない（旧: scale が文字列で TypeError＝起動不能）', () => {
+      const s = normalizeState({ pet: { equippedItems: ['crown', 'hat'], itemLayout: {
+        crown: { x_pct: 'a', y_pct: 20, scale: '1.2', layer: 'side' },
+        hat: { x_pct: 40, y_pct: 20, scale: 1.2, layer: 'back' },
+        cape: null,
+      } } });
+      expect(s.pet.itemLayout).toEqual({ crown: {}, hat: { x_pct: 40, y_pct: 20, scale: 1.2, layer: 'back' }, cape: {} });
+      expect(() => catMarkup(s.pet)).not.toThrow();
+    });
+
+    it('文字列の数値は数値にそろえ（旧: 加算が連結に化ける）、数値でない・無限大は既定へ倒す', () => {
+      const s = normalizeState({
+        pet: { coins: '10', affinity: '5', foodSpent: null, xp: Infinity, level: 'x' },
+        streak: { current: '3', freezes: {} },
+        sessions: [{ date: '2026-11-01', totalCount: Infinity, bonusCoins: '3' }],
+      });
+      expect(s.pet).toMatchObject({ coins: 10, affinity: 5, foodSpent: 0, xp: 0, level: 1 });
+      expect(s.streak).toMatchObject({ current: 3, freezes: 0 });
+      expect(s.sessions[0]).toMatchObject({ totalCount: 0, bonusCoins: 3 });
+      expect(recomputeState(s, 0, '2026-11-30').pet.coins).toBe(3);
     });
   });
 

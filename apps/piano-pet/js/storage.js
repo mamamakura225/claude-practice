@@ -19,29 +19,16 @@ const DEFAULTS = {
     xp: 0,
     coins: 0,
     equippedItems: [],
-    // 置物・小物系（シーン配置型・#226）。配置中の置物IDの配列。装備（equippedItems・slot排他）とは
-    // 別管理で排他なし複数配置。座標は itemLayout を共用（置物IDは装着IDと重複しない）。
-    placedItems: [],
-    // 衣装・置物の自由配置（#168/#205/#226/#270）。{ itemId: { x_pct, y_pct, scale?, layer? } }。
-    // 未登録のアイテムは cat-image.js が既定位置で描く（装着=アンカー / 置物=SCENE_DEFAULT_PCT の置物ごとの位置）。
-    itemLayout: {},
+    placedItems: [],       // 配置中の置物ID（#226）。座標は itemLayout を装備と共用
+    itemLayout: {},        // { itemId: { x_pct, y_pct, scale?, layer? } }（#168/#205/#226/#270）
     affinity: 0,
     foodSpent: 0,
-    // 1日の練習目標回数（#238）。親が 5〜20 で調整。既定10。進捗表示・スタンプのマス数/音程にのみ
-    // 反映し、達成ボーナス閾値（game.js GOAL_BONUS_THRESHOLD=10・固定）とは分離する（過去コイン不変）。
-    // pet 配下なので既存の cloud 同期にそのまま乗り、未設定の旧データは normalizeState が10で補完する。
-    dailyGoal: 10,
-    // 猫スタイル（#66）。'tora' | 'shiro' | 'russianblue'。未知値は表示側が tora にフォールバック。
-    catStyle: 'tora',
-    // こども本人のプロフィール（#121）。ヘッダ隅のアバターに使う。クラウド同期で別端末にも反映。
-    // childAvatar は絵文字ID（child-profile.js）。未設定・未知IDは表示側が既定にフォールバック。
-    childName: '',
+    dailyGoal: 10,         // 表示上の目標だけに効く。達成ボーナスの閾値とは別（#238）
+    catStyle: 'tora',      // #66。未知値は表示側が tora に戻す
+    childName: '',         // こどものプロフィール（#121）
     childAvatar: 'chick',
-    // ピアノのレッスン日（#393）。YYYY-MM-DD の昇順・重複なし。sessions には入れず、
-    // recomputeState が練習記録と並べて再生する（連続+1・固定コイン/XP）。
-    lessonDates: [],
-    // 解除したレッスン日（墓標）。初回マージの union で解除が復活しないようにする（#393）。
-    lessonRemoved: [],
+    lessonDates: [],       // レッスン日（#393）。YYYY-MM-DD の昇順・重複なし
+    lessonRemoved: [],     // 解除したレッスン日（墓標・#393）
     // ねこスタンプちょう（#409・docs/data-model.md）
     stampBook: { card: null, pressed: [], done: [] },
   },
@@ -63,7 +50,6 @@ const DEFAULTS = {
 
 // 各ステップは「v(index) の state を受け取り v(index+1) の形に変換して返す純粋関数」。
 // version フィールドの付与は migrate() が行うので、ここでは構造変換だけを書く。
-// 例: v1→v2 で sessions の形を変えるなら MIGRATIONS[1] に変換を追加する。
 const MIGRATIONS = [
   // v0 (バージョン番号を持たないレガシーデータ) → v1: 構造変更なし。version 付与のみ。
   (s) => s,
@@ -86,9 +72,6 @@ export function migrate(saved) {
 }
 
 // クラウド(Firestore)へ保存するフィールド。settings は端末ローカル設定なので含めない。
-// 旧 'assignment'（しゅくだい・#143）は機能削除（#261）に伴い同期対象から外した。
-// 既存データに残る assignment フィールドは normalizeState の未知キー引き継ぎで無害に残り、
-// クラウド doc からは次回 push（setDoc 置換）で自然に消える。
 export const CLOUD_FIELDS = ['pet', 'inventory', 'streak', 'badges', 'sessions', 'deletedDates'];
 
 // 配列であるべきフィールドを配列に矯正する（#272）。壊れた値は既定（空配列）へ倒す。
@@ -101,11 +84,36 @@ function asObject(value) {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// 実在する YYYY-MM-DD か。書式だけ正しい日付（2026-11-00 等）は、連続日数の計算（game.js prevDay の
+// toISOString）が RangeError になり、記録の保存ごと止まる（#428）。
+function isDate(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const d = new Date(`${v}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().startsWith(v);
+}
 
-// レッスン日の矯正（#393）。日付形式だけ残し、重複を除いて昇順にそろえる。
+// 有限の数値に矯正する。文字列の '5' のまま残すと加算が連結（'5'+1='51'）に化ける（#428）。
+function asNumber(value, fallback = 0) {
+  const n = value === null || value === '' ? NaN : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+// 日付の配列の矯正。実在する日付だけ残し、重複を除いて昇順にそろえる（レッスン日 #393 ほか）。
 export function normalizeLessonDates(value) {
-  return [...new Set(asArray(value).filter((v) => typeof v === 'string' && DATE_RE.test(v)))].sort();
+  return [...new Set(asArray(value).filter(isDate))].sort();
+}
+
+// 自由配置の各エントリの矯正（#428）。数値でない scale は cat-image.js の toFixed で throw し、
+// 起動直後の renderHome が落ちて画面が真っ白のままになる。
+function normalizeItemLayout(value) {
+  return Object.fromEntries(Object.entries(asObject(value)).map(([id, v]) => {
+    const { x_pct, y_pct, scale, layer } = asObject(v);
+    return [id, {
+      ...(Number.isFinite(x_pct) && Number.isFinite(y_pct) ? { x_pct, y_pct } : {}),
+      ...(Number.isFinite(scale) && scale > 0 ? { scale } : {}),
+      ...(layer === 'front' || layer === 'back' ? { layer } : {}),
+    }];
+  }));
 }
 
 // スタンプちょうのカード（#409）。id・開始日が壊れていれば捨てる。5/60/10/20 は stamp-book.js の
@@ -113,7 +121,7 @@ export function normalizeLessonDates(value) {
 function normalizeStampCard(v) {
   const o = asObject(v);
   const id = Number(o.id);
-  if (!Number.isFinite(id) || typeof o.startDate !== 'string' || !DATE_RE.test(o.startDate)) return null;
+  if (!Number.isFinite(id) || !isDate(o.startDate)) return null;
   return {
     id,
     startDate: o.startDate,
@@ -130,8 +138,18 @@ function normalizeStampBook(v) {
     pressed: normalizeLessonDates(o.pressed),
     done: asArray(o.done).map((c) => {
       const card = normalizeStampCard(c);
-      return card && { ...card, dates: normalizeLessonDates(c.dates), redeemedOn: typeof c.redeemedOn === 'string' && DATE_RE.test(c.redeemedOn) ? c.redeemedOn : null };
+      return card && { ...card, dates: normalizeLessonDates(c.dates), redeemedOn: isDate(c.redeemedOn) ? c.redeemedOn : null };
     }).filter(Boolean),
+  };
+}
+
+// レッスン日の初回マージ：登録の union − 解除の墓標の union。再登録は墓標を外して保存されるので、
+// 同じ日が登録と墓標の両方にあるときは墓標を勝たせる（#393）。
+function mergeLessonDates(l, c) {
+  const removed = normalizeLessonDates([...l.lessonRemoved, ...c.lessonRemoved]);
+  return {
+    lessonDates: normalizeLessonDates([...l.lessonDates, ...c.lessonDates]).filter((d) => !removed.includes(d)),
+    lessonRemoved: removed,
   };
 }
 
@@ -150,21 +168,22 @@ function mergeStampBook(l, c) {
 // 文字列 'abc' はスプレッドで ['a','b','c'] に化けるので name:'' として弾く。
 function normalizeSong(v) {
   const o = asObject(v);
-  return { name: String(o.name ?? ''), count: Number(o.count) || 0 };
+  return { name: String(o.name ?? ''), count: asNumber(o.count) };
 }
 
 // sessions 要素の中身を矯正する（#311・設計判断は docs/data-model.md）。
 // date 不正は要素ごと落とし（既定で埋めると連続日数・ヒートマップが嘘になる）、
-// totalCount / songs は安全な既定値へ倒して残す。
+// totalCount / bonusCoins / songs は安全な既定値へ倒して残す。
 function normalizeSessions(value) {
   const objs = asArray(value).filter((v) => v !== null && typeof v === 'object' && !Array.isArray(v));
-  const kept = objs.filter((v) => typeof v.date === 'string' && DATE_RE.test(v.date));
-  if (objs.length > kept.length && typeof console !== 'undefined') {
+  const kept = objs.filter((v) => isDate(v.date));
+  if (objs.length > kept.length) {
     console.warn(`[piano-pet] normalizeState: 日付不正の記録を ${objs.length - kept.length} 件除外`);
   }
   return kept.map((v) => ({
     ...v,
-    totalCount: Number(v.totalCount) || 0,
+    totalCount: asNumber(v.totalCount),
+    ...(v.bonusCoins === undefined ? {} : { bonusCoins: asNumber(v.bonusCoins) }),
     songs: asArray(v.songs).map(normalizeSong).filter((x) => x.name !== ''),
   }));
 }
@@ -180,20 +199,32 @@ function normalizeSessions(value) {
 export function normalizeState(saved) {
   const s = asObject(saved);
   const pet = asObject(s.pet);
+  const streak = asObject(s.streak);
   return {
     ...structuredClone(DEFAULTS),
     ...s,
     pet: {
       ...DEFAULTS.pet,
       ...pet,
+      level: asNumber(pet.level, 1),
+      xp: asNumber(pet.xp),
+      coins: asNumber(pet.coins),
+      affinity: asNumber(pet.affinity),
+      foodSpent: asNumber(pet.foodSpent),
       equippedItems: asArray(pet.equippedItems),
       placedItems: asArray(pet.placedItems),
-      itemLayout: asObject(pet.itemLayout),
+      itemLayout: normalizeItemLayout(pet.itemLayout),
       lessonDates: normalizeLessonDates(pet.lessonDates),
       lessonRemoved: normalizeLessonDates(pet.lessonRemoved),
       stampBook: normalizeStampBook(pet.stampBook),
     },
-    streak: { ...DEFAULTS.streak, ...asObject(s.streak) },
+    streak: {
+      ...streak,
+      current: asNumber(streak.current),
+      best: asNumber(streak.best),
+      lastPracticeDate: isDate(streak.lastPracticeDate) ? streak.lastPracticeDate : null,
+      freezes: asNumber(streak.freezes),
+    },
     settings: { ...DEFAULTS.settings, ...asObject(s.settings) },
     inventory: asArray(s.inventory),
     badges: asArray(s.badges),
@@ -201,7 +232,7 @@ export function normalizeState(saved) {
     // mergeSameDaySessions が `[...s.songs]` で throw してアプリが起動不能になる。
     sessions: normalizeSessions(s.sessions),
     // 削除記録の墓標（#319）。日付形式のものだけ残す。
-    deletedDates: [...new Set(asArray(s.deletedDates).filter((v) => typeof v === 'string' && DATE_RE.test(v)))],
+    deletedDates: [...new Set(asArray(s.deletedDates).filter(isDate))],
   };
 }
 
@@ -263,32 +294,20 @@ export function mergeSessionsKeepLarger(localSessions, cloudSessions, deletedDat
 //   - pet.affinity / pet.foodSpent: sessions から導出されない累積値なので max
 // pet.coins/xp/level・streak・badges は sessions から導出されるため、呼び出し側で
 // recomputeState を通して再計算する（このモジュールは game ロジックに依存しない）。
-// レッスン日の初回マージ：登録は union、解除は墓標の union で引く。同じ日が登録と墓標の両方にある
-// ときは「どちらの端末にも登録が残っている」ことは無いので墓標を勝たせる（再登録は墓標を外して保存される）。
-function mergeLessonDates(l, c) {
-  const removed = normalizeLessonDates([...(l.lessonRemoved ?? []), ...(c.lessonRemoved ?? [])]);
-  const gone = new Set(removed);
-  return {
-    lessonDates: normalizeLessonDates([...(l.lessonDates ?? []), ...(c.lessonDates ?? [])]).filter((d) => !gone.has(d)),
-    lessonRemoved: removed,
-  };
-}
-
 export function mergeCloudInitial(local, cloud) {
   const l = normalizeState(local);
   if (!cloud) return l;
   const c = normalizeState(cloud);
 
-  const inventory = [...new Set([...(l.inventory ?? []), ...(c.inventory ?? [])])];
+  const union = (a, b) => [...new Set([...a, ...b])];
+  const inventory = union(l.inventory, c.inventory);
   const owned = new Set(inventory);
-  const equippedItems = [...new Set([...(l.pet.equippedItems ?? []), ...(c.pet.equippedItems ?? [])])]
-    .filter((id) => owned.has(id));
+  const equippedItems = union(l.pet.equippedItems, c.pet.equippedItems).filter((id) => owned.has(id));
   // 置物（#226）も装備と同じく union ∩ inventory（未所持の配置は残さない）。
-  const placedItems = [...new Set([...(l.pet.placedItems ?? []), ...(c.pet.placedItems ?? [])])]
-    .filter((id) => owned.has(id));
+  const placedItems = union(l.pet.placedItems, c.pet.placedItems).filter((id) => owned.has(id));
 
   // 墓標は両側の union（片方で消したものは消えたまま・#319）。
-  const deletedDates = [...new Set([...(l.deletedDates ?? []), ...(c.deletedDates ?? [])])];
+  const deletedDates = union(l.deletedDates, c.deletedDates);
 
   return normalizeState({
     ...l,
@@ -299,15 +318,12 @@ export function mergeCloudInitial(local, cloud) {
       ...l.pet,
       equippedItems,
       placedItems,
-      // 自由配置座標も union（cloud を土台にローカルで上書き）。placedItems だけ union して
-      // itemLayout をローカル固定にすると、他端末が置いた置物が既定位置に戻ってしまうため（#242）。
-      // 初回同期でも他端末の配置座標を取り込める（従来はローカルのみ参照で既定位置に落ちていた）。
-      itemLayout: { ...(c.pet.itemLayout ?? {}), ...(l.pet.itemLayout ?? {}) },
-      // レッスン日は登録の union − 解除の墓標の union（#393）
+      // 座標も union（ローカル優先）。ローカル固定にすると、他端末が置いた置物が既定位置に戻る（#242）。
+      itemLayout: { ...c.pet.itemLayout, ...l.pet.itemLayout },
       ...mergeLessonDates(l.pet, c.pet),
       stampBook: mergeStampBook(l.pet.stampBook, c.pet.stampBook),
-      affinity: Math.max(l.pet.affinity ?? 0, c.pet.affinity ?? 0),
-      foodSpent: Math.max(l.pet.foodSpent ?? 0, c.pet.foodSpent ?? 0),
+      affinity: Math.max(l.pet.affinity, c.pet.affinity),
+      foodSpent: Math.max(l.pet.foodSpent, c.pet.foodSpent),
     },
   });
 }
