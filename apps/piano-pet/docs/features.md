@@ -898,7 +898,7 @@
 | メディア（`img/` `icons/` `sounds/` `video/`・`isMedia`） | **cache-first**（#259 #303） |
 | 外部オリジン | `caches.match` → 無ければ `fetch`。キャッシュに入れないので実質は素通し |
 
-- キャッシュは `CODE_CACHE` と `MEDIA_CACHE` の2つ。名前はそれぞれの中身のハッシュで、`activate` は現行の2つ以外を捨てる。コードだけの変更では画像（約4 MiB）を取り直さない（#259）
+- キャッシュは `CODE_CACHE` と `MEDIA_CACHE` の2つ。名前はそれぞれの中身のハッシュで、`activate` は現行の2つ以外を捨てる。コードだけの変更では画像（約2.7MiB）を取り直さない（#259）
 - `video/*.mp4` はプリキャッシュと予算の列挙（`listAssets()`）には入れず、`listHashOnlyAssets()` で**メディアのハッシュにだけ**載せる（#318）。初回再生時に `MEDIA_CACHE` へ入る
 
 **設計判断**
@@ -920,7 +920,7 @@
 - 配信アセットの列挙は `piano-pet-assets.mjs` が唯一の正。`gen-sw` と `perf-budget` が**同じ集合**を見る。どのカテゴリにも入らないファイルがあれば失敗する
 - JS は**起動をブロックするぶん（`js-entry`）**と**遅延読込（`js-lazy`）**に分ける。`classifyJs()` が `js/app.js` の import 文から導出する。どこからも import されない JS（`orphan`）は CI を落とす
 - `total` は **html＋css＋js-entry**（初回ロードで必ず落ちてくる量）
-- 判定は gzip が効くテキスト資産だけ。画像・音声はレポートにだけ出す。`video/` は列挙に含めない（18本・約 3.8 MiB）
+- 判定は gzip が効くテキスト資産だけ。画像・音声はレポートにだけ出す。`video/` は列挙に含めない（18本・約 3.6 MiB）
 
 **現状（2026-11-26 実測・`npm run perf-budget`）**
 
