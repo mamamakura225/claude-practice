@@ -7,7 +7,7 @@ import {
 } from './account.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, clampDailyGoal, rollDailyBonus, checkBadges, hasUncreditedLesson } from './game.js';
 import { catMarkup, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
-import { isValidSession, collectSongs, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
+import { isValidSession, collectSongs, MAX_ROW_COUNT, songsToRows, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
 import { songColor, assignSongColors } from './song-color.js';
 import { CHILD_AVATARS, normalizeChildAvatar, avatarEmoji, normalizeChildName } from './child-profile.js';
 import {
@@ -805,7 +805,7 @@ function batchRowMarkup(row) {
     <input type="text" class="field-input batch-row__name" list="songSuggestions" placeholder="きょくめい" aria-label="きょくめい" maxlength="40" autocomplete="off" value="${name}">
     <div class="stepper">
       <button type="button" class="stepper__btn" data-step="-1" aria-label="かいすうを へらす">−</button>
-      <input type="number" class="stepper__value batch-row__count" min="0" max="99" inputmode="numeric" aria-label="かいすう" value="${count}">
+      <input type="number" class="stepper__value batch-row__count" min="0" max="${MAX_ROW_COUNT}" inputmode="numeric" aria-label="かいすう" value="${count}">
       <button type="button" class="stepper__btn" data-step="1" aria-label="かいすうを ふやす">＋</button>
     </div>
     <button type="button" class="batch-row__del" aria-label="この ぎょうを けす">✕</button>
@@ -837,7 +837,7 @@ function switchRecordMode(mode) {
   if (mode === 'batch') {
     // スタンプ → まとめ：押した順スタンプを曲ごとに集約して行へ
     const { songs } = stampsToSongs(stamps);
-    renderBatchRows(songs);
+    renderBatchRows(songsToRows(songs));
   } else {
     // まとめ → スタンプ：行を曲ごとに集約してスタンプ列へ展開
     stamps = songsToStamps(collectSongs(readBatchRows()).songs);
@@ -902,7 +902,7 @@ function syncRecordInputs() {
   selectedSong = names[names.length - 1] ?? chipNames[0] ?? null;
   renderChips();
   renderStampCard();
-  renderBatchRows(stampsToSongs(stamps).songs);
+  renderBatchRows(songsToRows(stampsToSongs(stamps).songs));
 }
 
 // 記録済みの過去日を選んだら、既存の回数と「たしざん」になることを出す（二重記録の防止・#398）。
@@ -1365,12 +1365,15 @@ batchRowsEl?.addEventListener('click', (e) => {
   const stepBtn = e.target.closest('.stepper__btn');
   if (stepBtn) {
     const countEl = row.querySelector('.batch-row__count');
-    const next = Math.max(0, (Number(countEl.value) || 0) + Number(stepBtn.dataset.step));
+    const next = Math.min(MAX_ROW_COUNT, Math.max(0, (Number(countEl.value) || 0) + Number(stepBtn.dataset.step)));
     countEl.value = String(next);
     updateBatchTotal();
   }
 });
-batchRowsEl?.addEventListener('input', updateBatchTotal);
+batchRowsEl?.addEventListener('input', (e) => {
+  if (e.target.matches('.batch-row__count') && Number(e.target.value) > MAX_ROW_COUNT) e.target.value = String(MAX_ROW_COUNT);
+  updateBatchTotal();
+});
 
 // ===== 記録履歴の編集・削除 =====
 document.getElementById('historyList')?.addEventListener('click', (e) => {
@@ -1935,14 +1938,19 @@ async function restorePrevData() {
   applyImportedState(prev.state);   // いまの データは退避されるので、もう一度押せば行き来できる
 }
 
-// 取り込み確定：①直前データを退避 ②クラウド購読を解除 ③ローカル保存
+// 取り込み確定：①直前データを退避 ②ローカル保存 ③クラウド購読を解除
 // ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
-// docId＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
-async function applyImportedState(imported, docId = null, { stash = true } = {}) {
-  if (stash) await stashBeforeOverwrite();   // 誤読込からの復旧用に退避
+// ②が書けなければ何も変えずにやめる（クラウドだけ置き換わって端末が元のままになるのを防ぐ・#428）。
+// code＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
+async function applyImportedState(imported, code = null) {
+  await stashBeforeOverwrite();   // 誤読込からの復旧用。退避の素性を元の保存先で残すため、コードの切替より前に（#398）
+  if (!saveState(imported)) {
+    showImportStatus('たんまつの あきが たりなくて ほぞんできませんでした。', true);
+    return;
+  }
   stopCloudForOverwrite();
   state = imported;
-  saveState(state);
+  const docId = code && setCloudDocId(getActiveAccountId(), code) ? code : null;
   clearStampDraft();   // 前のデータの書きかけを、入れ替えたデータの記録にしない（#428）
   await pushForOverwrite(docId);
   window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
@@ -2034,10 +2042,7 @@ function handleImportFile(file) {
     }
     if (!window.confirm('いまの データは きえて、ファイルの データに なります。よろしいですか？')) return;
     // バックアップに がぞくコード（#233）が入っていれば、同じクラウド保存先へ合流させる。
-    // 退避はがぞくコードを切り替える前に（退避の素性を元の保存先で残す・#398）
-    await stashBeforeOverwrite();
-    const docId = res.cloudDocId && setCloudDocId(getActiveAccountId(), res.cloudDocId) ? res.cloudDocId : null;
-    applyImportedState(res.state, docId, { stash: false });
+    applyImportedState(res.state, res.cloudDocId);
   };
   reader.onerror = async () => showImportStatus((await loadBackup()).importErrorMessage('parse'), true);
   reader.readAsText(file);

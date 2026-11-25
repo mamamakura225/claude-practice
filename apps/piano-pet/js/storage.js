@@ -338,6 +338,14 @@ export function loadState() {
   }
 }
 
+// 保存できたら true。容量超過等で書けなくても投げない（呼び出し側の描画・クラウド送信まで止まる・#428）。
+// 毎回 state 全体を書くので、次の保存が通れば追いつく。
 export function saveState(state) {
-  localStorage.setItem(activeStorageKey(), JSON.stringify(state));
+  try {
+    localStorage.setItem(activeStorageKey(), JSON.stringify(state));
+    return true;
+  } catch (err) {
+    console.warn('[piano-pet] saveState: 端末に保存できません', err);
+    return false;
+  }
 }

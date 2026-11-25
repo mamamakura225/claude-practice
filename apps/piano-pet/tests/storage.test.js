@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mergeSameDaySessions, recomputeState, checkBadges } from '../js/game.js';
 import { spentCoins } from '../js/shop.js';
 import { catMarkup } from '../js/cat-image.js';
@@ -8,6 +8,7 @@ import {
   mergeCloud,
   mergeSessionsKeepLarger,
   mergeCloudInitial,
+  saveState,
   migrate,
   CLOUD_FIELDS,
   SCHEMA_VERSION,
@@ -453,5 +454,23 @@ describe('レッスン日 pet.lessonDates（#393）', () => {
     const m = mergeCloudInitial(local, cloud);
     expect(m.pet.lessonDates).toEqual(['2026-11-10']);
     expect(m.pet.lessonRemoved).toEqual(['2026-11-03']);
+  });
+});
+
+describe('saveState（#428）', () => {
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it('容量超過でも投げずに false を返し、次の保存で最新の state が書かれる', () => {
+    let full = true;
+    const store = new Map();
+    vi.stubGlobal('localStorage', {
+      getItem: (k) => store.get(k) ?? null,
+      setItem: (k, v) => { if (full) throw new Error('QuotaExceededError'); store.set(k, v); },
+    });
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(saveState({ n: 1 })).toBe(false);
+    full = false;
+    expect(saveState({ n: 2 })).toBe(true);
+    expect(JSON.parse(store.get('piano-pet'))).toEqual({ n: 2 });
   });
 });
