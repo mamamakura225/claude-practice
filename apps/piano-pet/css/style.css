@@ -230,7 +230,7 @@ body {
 
 .avatar-grid__btn {
   border: 2px solid transparent;
-  background: var(--cream, #fff7fa);
+  background: var(--cream);
   border-radius: 16px;
   aspect-ratio: 1;
   font-size: 1.6rem;
@@ -244,7 +244,7 @@ body {
 
 .avatar-grid__btn[aria-pressed="true"] {
   border-color: var(--pink);
-  background: var(--pink-soft, #ffe3ea);
+  background: var(--pink-soft);
 }
 
 /* ===== ビュー本文 ===== */
@@ -454,7 +454,7 @@ body {
 
 .account-row--active {
   background: var(--surface-soft);
-  border-color: var(--accent, #ff7a93);
+  border-color: var(--pink-deep);
 }
 
 .account-row__name {
@@ -605,36 +605,27 @@ body {
   padding: 10px 16px;
   min-height: 44px;
   cursor: pointer;
-}
-
-/* 未選択チップの左に曲色のスウォッチ（曲ごとに色が違うことを示す・#122） */
-.song-chip {
   display: inline-flex;
   align-items: center;
   gap: 7px;
 }
 
+/* チップの左に曲色のスウォッチ（曲ごとに色が違うことを示す・#122）。選択中の地・枠・文字色は app.js が曲の色で付ける */
 .song-chip::before {
   content: '';
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  background: var(--song-fill, #ddd);
+  background: var(--song-fill);
   flex: 0 0 auto;
 }
 
 .song-chip.is-selected {
-  background: var(--pink-fill);
-  color: #fff;
-  border-color: var(--pink-deep);
   box-shadow: inset 0 0 0 1px var(--song-fill);
 }
 
 .song-chip, .song-title, .song-collection__name { overflow-wrap: anywhere; }
 
-.song-chip.is-selected::before {
-  background: var(--song-fill, var(--surface));
-}
 
 .song-chip:active {
   transform: scale(0.96);
@@ -712,9 +703,7 @@ body {
 }
 
 .stamp-cell.is-filled {
-  background: var(--pink-soft);
-  border-style: solid;
-  border-color: var(--pink);
+  border-style: solid;   /* 地と枠の色は app.js が曲の色で付ける */
 }
 
 .stamp-cell.is-new {
@@ -800,7 +789,6 @@ body {
 
 .record-mode__btn.is-active {
   background: var(--surface);
-  color: var(--pink-ink);
   box-shadow: 0 2px 6px rgba(240, 138, 160, 0.3);
 }
 
@@ -1282,10 +1270,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   transform: scale(0.96);
 }
 
-.history-action--del {
-  background: var(--pink-soft);
-  color: var(--pink-ink);
-}
 
 .history-empty {
   text-align: center;
@@ -1492,7 +1476,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   color: var(--pink-ink);
 }
 
-
 /* ----- カテゴリ絞り込み（#299）: 横に並べて折り返す。320px でも1行目が潰れない ----- */
 .shop-cats {
   display: flex;
@@ -1504,7 +1487,7 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   border: 2px solid var(--pink-soft);
   border-radius: 999px;
   padding: 8px 12px;
-  background: var(--surface, #fff);
+  background: var(--surface);
   color: var(--pink-ink);
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.78rem;
@@ -1556,7 +1539,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   background: var(--surface-mute);
   color: var(--text-muted);
   cursor: not-allowed;
-  box-shadow: none;
 }
 
 .shop-btn--locked:active {
@@ -1741,10 +1723,10 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   transition: opacity 0.25s ease;
 }
 
-/* 上の display:flex が UA既定の [hidden]{display:none} を上書きしてしまうため明示（理由・実測は features.md「ポップアップ演出」参照）。 */
 /* 表示中はタップで次へ送れる（#400）。消えかけ（--show が外れた後）は下の画面へ通す */
 .coin-popup.coin-popup--show { pointer-events: auto; }
 
+/* 上の display:flex が UA既定の [hidden]{display:none} を上書きしてしまうため明示（理由・実測は features.md「ポップアップ演出」参照）。 */
 .coin-popup[hidden] {
   display: none;
 }
@@ -2092,10 +2074,6 @@ button.cal-cell { width: 100%; border: none; padding: 0; font: inherit; cursor: 
   height: 120px;
 }
 
-.onboarding__cat svg {
-  width: 100%;
-  height: 100%;
-}
 
 /* 横向き（#396） */
 @media (max-height: 520px) {

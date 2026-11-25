@@ -1,5 +1,5 @@
 /* ===== 猫プリレンダ画像 表示・アニメーション（#167） ===== */
-/* 猫本体は tier×mood の透過PNG（img.cat__body）。衣装と演出は viewBox 0 0 200 236 の
+/* 猫本体は スタイル×tier×mood の透過WebP（img.cat__body）。衣装と演出は viewBox 0 0 200 200 の
    オーバーレイSVG として本体の上に重ねる。演出クラス（cat--happy 等）は .cat コンテナに付く。 */
 .cat-stage {
   display: flex;
@@ -55,7 +55,7 @@
 /* クリップ再生中はコインポップアップ等（すべて .coin-popup・z-index:50・全画面暗幕）を
    クリップの前に出さない（#227）。クリップが主役で、コイン総額はホームのカードに即反映される
    ので被っても情報は失われない。wrap を stacking context に上げ、暗幕だけ透明化する。 */
-body.cat-clip-playing .cat-stage-wrap { position: relative; z-index: 55; }
+body.cat-clip-playing .cat-stage-wrap { z-index: 55; }
 body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
 
 /* レイヤー共通：コンテナ全体に絶対配置で重ねる */
@@ -80,8 +80,8 @@ body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
 /* ----- きせかえ編集モード（#168）：衣装をドラッグで動かす ----- */
 /* 通常は衣装も pointer-events:none（猫タップ＝なで優先）。編集中だけ衣装を掴めるようにする。 */
 .cat-stage--editing { touch-action: none; }            /* ドラッグ中のスクロール抑制 */
-.cat-stage--editing .cat__front { pointer-events: none; }
-/* 編集中は本体PNGを pointer 透過にする（#240）。背面置物(cushion=scene--back z1)は不透明な
+
+/* 編集中は本体画像を pointer 透過にする（#240）。背面置物(cushion=scene--back z1)は不透明な
    本体img(z2)の下にあり、img が矩形全体で pointerdown を奪うため onDown の closest('.cat__item')
    が null になり掴めない。編集中だけ本体を透過させ、下の背面 .cat__item まで pointer を通す。
    なで（本体タップ）は非編集時のみなので影響しない。前面置物(z5)・装着(z3)は元々本体より上で無影響。
@@ -93,7 +93,7 @@ body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
 
 /* 編集中であることが伝わる視覚フィードバック（猫のまわりをやわらかく囲う） */
 .cat-stage--editing .cat {
-  outline: 3px dashed var(--pink-deep, #ff7a93);
+  outline: 3px dashed var(--pink-deep);
   outline-offset: 6px;
   border-radius: 16px;
   animation: pp-dressup-glow 1.6s ease-in-out infinite;
@@ -118,15 +118,14 @@ body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.95rem;
   color: #fff;
-  background: var(--pink-fill, #c9395b);
+  background: var(--pink-fill);
   border: none;
   border-radius: 999px;
   padding: 7px 18px;
   box-shadow: 0 2px 0 #962a45;
   cursor: pointer;
 }
-.btn-dressup { margin-top: 4px; }
-.cat-actions .btn-dressup { margin-top: 0; }
+
 .btn-dressup[aria-pressed="true"] {
   background: #3a8527;
   box-shadow: 0 2px 0 #2a611c;
@@ -149,13 +148,13 @@ body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
   align-items: center;
   gap: 2px;
   padding: 6px 10px 4px;
-  background: var(--surface, #fff);
-  border: 3px solid var(--pink-soft, #ffd0d9);
+  background: var(--surface);
+  border: 3px solid var(--pink-soft);
   border-radius: 14px;
   cursor: pointer;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.75rem;
-  color: var(--pink-ink, #b8324f);
+  color: var(--pink-ink);
 }
 .style-picker__btn img {
   width: 52px;
@@ -163,8 +162,8 @@ body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
   object-fit: contain;
 }
 .style-picker__btn[aria-pressed="true"] {
-  border-color: var(--pink-ink, #b8324f);
-  background: var(--surface-soft, #fff0f3);
+  border-color: var(--pink-ink);
+  background: var(--surface-soft);
 }
 
 /* ----- まえ／うしろパネル（#270）：編集中だけ出るアイテムの前後切り替え ----- */
@@ -189,22 +188,22 @@ body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
 .layer-panel__empty {
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.8rem;
-  color: var(--pink-ink, #b8324f);
+  color: var(--pink-ink);
 }
-.layer-panel__empty { color: var(--text-muted, #b0a3a3); }
+.layer-panel__empty { color: var(--text-muted); }
 .layer-panel__chip {
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 6px 10px;
   min-height: 44px;   /* 指のサイズ（ヒット矩形 MIN_HIT_UNITS と同じ考え方）。誤タップ＝意図しない前後反転を防ぐ */
-  background: var(--surface, #fff);
-  border: 3px solid var(--pink-soft, #ffd0d9);
+  background: var(--surface);
+  border: 3px solid var(--pink-soft);
   border-radius: 14px;
   cursor: pointer;
   font-family: 'Mochiy Pop One', sans-serif;
   font-size: 0.75rem;
-  color: var(--pink-ink, #b8324f);
+  color: var(--pink-ink);
 }
 
 .pet-name {
@@ -341,8 +340,7 @@ body.cat-clip-playing .coin-popup:not(#feedPopup) { background: transparent; }
 }
 
 /* ----- なかよしエンブレム（#124）：ゆっくり脈打つハートのしるし ----- */
-.cat__bond { transform-box: fill-box; transform-origin: center; }
-.cat__bond { animation: pp-bond-pulse 2.4s ease-in-out infinite; }
+.cat__bond { transform-box: fill-box; transform-origin: center; animation: pp-bond-pulse 2.4s ease-in-out infinite; }
 
 @keyframes pp-bond-pulse {
   0%, 100% { transform: translate(32px, 34px) scale(1); }
