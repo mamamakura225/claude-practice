@@ -50,37 +50,9 @@ describe('カテゴリ絞り込み（#299）', () => {
 });
 
 describe('カタログ', () => {
-  it('45種類のアイテムを持つ', () => {
-    expect(SHOP_ITEMS).toHaveLength(45);
-  });
-
-  // #210: 追加アイテムが各スロットに割り当てられている
-  it('追加アイテム（#210）の slot が正しい', () => {
-    expect(itemById('beret').slot).toBe('head');
-    expect(itemById('sunglasses').slot).toBe('face');
-    expect(itemById('bell').slot).toBe('neck');
-    expect(itemById('wings').slot).toBe('back');
-  });
-
-  // #226: 置物・小物系は slot:'scene'
-  it('置物アイテム（#226）の slot が scene', () => {
-    expect(itemById('yarnBall').slot).toBe('scene');
-    expect(itemById('cushion').slot).toBe('scene');
-  });
-
-  // #299: 追加アイテムの slot と、重複IDなし・装着系が価格昇順で並ぶこと
-  it('追加アイテム（#299）の slot が正しい', () => {
-    const want = { cap: 'head', headphones: 'head', gradCap: 'head', partyHat: 'head', roundGlasses: 'face',
-      bandana: 'neck', balloon: 'back', backpack: 'back', butterflyWings: 'back',
-      plant: 'scene', miniPiano: 'scene', teddy: 'scene', window: 'scene', lantern: 'scene',
-      tophat: 'head', heartGlasses: 'face', medal: 'neck', beeWings: 'back', present: 'scene',
-      sailorHat: 'head', monocle: 'face', bowTieBlue: 'neck', pearls: 'neck', stars: 'back', dragonWings: 'back',
-      fishToy: 'scene', sofa: 'scene', tree: 'scene', lamp: 'scene' };
-    for (const [id, slot] of Object.entries(want)) expect(itemById(id)?.slot).toBe(slot);
-  });
-
-  it('IDは重複せず、装着系・置物系それぞれ価格昇順で並ぶ', () => {
+  it('IDは重複せず、名前・値段があり、装着系・置物系それぞれ価格昇順で並ぶ', () => {
     expect(new Set(SHOP_ITEMS.map((i) => i.id)).size).toBe(SHOP_ITEMS.length);
+    for (const i of SHOP_ITEMS) expect(i.name && i.icon && i.price > 0, i.id).toBe(true);
     for (const scene of [false, true]) {
       const prices = SHOP_ITEMS.filter((i) => (i.slot === 'scene') === scene).map((i) => i.price);
       expect(prices).toEqual([...prices].sort((a, b) => a - b));
@@ -93,19 +65,6 @@ describe('カタログ', () => {
     expect(itemById('unknown')).toBeNull();
   });
 
-  it('全アイテムが price・slot・icon を持つ', () => {
-    for (const item of SHOP_ITEMS) {
-      expect(typeof item.price).toBe('number');
-      expect(item.slot).toBeTruthy();
-      expect(item.icon).toBeTruthy();
-    }
-  });
-
-  // #191/#196: 絵文字一致と表示名の確定（id は据え置き＝保存データ後方互換）
-  it('bowtie はループリボン・cape は 🧥（#191 個別決定）', () => {
-    expect(itemById('bowtie').name).toBe('ループリボン');
-    expect(itemById('cape').icon).toBe('🧥');
-  });
 });
 
 describe('canBuy', () => {

@@ -1,161 +1,111 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, makeState, seed, readLocal, fixRandom, gotoHome } from './helpers.js';
 
-// きせかえ：衣装をドラッグして自由配置・スナップ吸着（#168）
+// きせかえ：衣装のドラッグ（#168）・ピンチ拡縮（#205）・まえ／うしろ（#270）
 test.describe('きせかえ 自由配置', () => {
-  test.beforeEach(async ({ page }) => {
-    // 本番Firestoreへの読み書きと干渉を防ぐためFirebase関連を全てブロック（シード保護）。
-    await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
-    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
-    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
-    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+  const ribbon = (page, layer = '') => page.locator(`#catStage ${layer} .cat__item[data-item="ribbon"]`);
+  const layoutOf = async (page) => (await readLocal(page)).pet.itemLayout?.ribbon;
 
-    // リボン(neck)を装備済みの状態で開始。
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'piano-pet',
-        JSON.stringify({
-          version: 2,
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: ['ribbon'], itemLayout: {}, affinity: 0, foodSpent: 0 },
-          inventory: ['ribbon'],
-          streak: { current: 0, best: 0, lastPracticeDate: null, freezes: 0 },
-          badges: [],
-          sessions: [],
-        }),
-      );
-      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
-    });
-  });
+  // リボン(neck)を装備済みで編集モードに入る
+  async function startEditing(page, pet = {}) {
+    await seed(page, makeState({ pet: { equippedItems: ['ribbon'], itemLayout: {}, ...pet }, inventory: ['ribbon'] }));
+    await gotoHome(page);
+    await page.click('#dressupToggle');
+    await expect(page.locator('#catStage')).toHaveClass(/cat-stage--editing/);
+  }
 
-  // .cat__item を (toX,toY) 画面座標へ pointer ドラッグするヘルパー。
-  async function dragItemTo(page, toX, toY) {
-    const item = page.locator('#catStage .cat__item[data-item="ribbon"]');
-    const box = await item.boundingBox();
+  // ステージの (x, y) 割合の位置へドラッグする
+  async function dragTo(page, x, y) {
+    await page.locator('#catStage .cat').scrollIntoViewIfNeeded();   // パネル操作でスクロールしていることがある
+    const stage = await page.locator('#catStage .cat').boundingBox();
+    const box = await ribbon(page).boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
     await page.mouse.down();
-    await page.mouse.move(toX, toY, { steps: 8 });
+    await page.mouse.move(stage.x + stage.width * x, stage.y + stage.height * y, { steps: 8 });
     await page.mouse.up();
   }
 
-  const itemLayout = (page) =>
-    page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).pet.itemLayout || {});
+  test('ドラッグした位置が itemLayout に記録され、既定の位置の近くでも吸着しない', { tag: '@compat' }, async ({ page }) => {
+    await startEditing(page);
+    await dragTo(page, 0.2, 0.2);
+    const layout = await layoutOf(page);
+    expect(layout.x_pct).toBeLessThan(40);
+    expect(layout.y_pct).toBeLessThan(40);
 
-  test('編集モードで衣装を離れた位置へドラッグすると itemLayout に座標が記録される', { tag: '@compat' }, async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#catStage .cat__item[data-item="ribbon"]')).toBeVisible();
-
-    // きせかえ編集モードに入る
-    await page.click('#dressupToggle');
-    await expect(page.locator('#catStage')).toHaveClass(/cat-stage--editing/);
-
-    // ステージ左上寄り（既定の首アンカー≒中央から大きく離す）へドラッグ
-    const stage = await page.locator('#catStage .cat').boundingBox();
-    await dragItemTo(page, stage.x + stage.width * 0.2, stage.y + stage.height * 0.2);
-
-    const layout = await itemLayout(page);
-    expect(layout.ribbon).toBeTruthy();
-    // 左上へ動かしたので 50%(中央)より小さい値に来ているはず
-    expect(layout.ribbon.x_pct).toBeLessThan(40);
-    expect(layout.ribbon.y_pct).toBeLessThan(40);
+    await dragTo(page, 0.5, 0.5);   // 首の既定位置（≒中央）の至近（位置スナップは廃止・#214）
+    const back = await layoutOf(page);
+    expect(back.x_pct).toBeGreaterThan(40);
+    expect(back.x_pct).toBeLessThan(60);
   });
 
-  test('既定アンカーの近くにドロップしてもスナップせず座標を保持する（#214 位置スナップ廃止）', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-    await page.click('#dressupToggle');
-
-    const stage = await page.locator('#catStage .cat').boundingBox();
-    // まず自由配置（左上）して layout に載せる
-    await dragItemTo(page, stage.x + stage.width * 0.2, stage.y + stage.height * 0.2);
-    expect((await itemLayout(page)).ribbon).toBeTruthy();
-
-    // 首の既定アンカー（neck≒中央 x50% y50%）の至近へドロップしても、吸着で消えず座標が残る
-    await dragItemTo(page, stage.x + stage.width * 0.5, stage.y + stage.height * 0.5);
-    const layout = await itemLayout(page);
-    expect(layout.ribbon).toBeTruthy();
-    expect(layout.ribbon.x_pct).toBeGreaterThan(40);
-    expect(layout.ribbon.x_pct).toBeLessThan(60);
+  // 2本指の入力は mouse で出せないので PointerEvent を直接撃つ（#325）
+  test('ピンチ: 小さな揺れでは変わらず、超えた所から飛ばずに拡縮し、元の大きさに吸着、0.3〜3倍に収まる', async ({ page }) => {
+    await startEditing(page);
+    const scales = await page.evaluate(() => {
+      const item = () => document.querySelector('#catStage .cat__item[data-item="ribbon"]');
+      const box = item().getBoundingClientRect();
+      const [cx, cy] = [box.x + box.width / 2, box.y + box.height / 2];
+      const fire = (type, pointerId, dx) => item().dispatchEvent(new PointerEvent(type, {
+        pointerId, clientX: cx + dx, clientY: cy, bubbles: true, cancelable: true,
+      }));
+      fire('pointerdown', 1, 0);
+      fire('pointerdown', 2, 100);
+      const at = (dx) => { fire('pointermove', 2, dx); return Number(item().dataset.scale); };
+      const seen = { start: Number(item().dataset.scale), inDeadzone: at(109), justOver: at(111), twice: at(222), nearBase: at(114), max: at(2000), min: at(10) };
+      fire('pointerup', 2, 10);
+      fire('pointerup', 1, 0);
+      return seen;
+    });
+    // 基準は首 0.8。デッドゾーン（10px）を超えた時点で基準を取り直すので、そこではまだ 0.8
+    expect(scales).toEqual({ start: 0.8, inDeadzone: 0.8, justOver: 0.8, twice: 1.6, nearBase: 0.8, max: 3, min: 0.3 });
+    const layout = await layoutOf(page);
+    expect(layout.scale).toBe(0.3);
+    expect(layout).toMatchObject({ x_pct: 50, y_pct: 50 });   // ピンチでは動かない
   });
 
-  // まえ／うしろパネル（#270）：チップのタップで描画レイヤーが入れ替わり、保存・ドラッグ後も残る。
-  test('パネルでアイテムをうしろへ送ると背面レイヤーに移り、ドラッグ後も layer が残る', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-    await page.click('#dressupToggle');
-
+  test('パネルでうしろへ送ると背面レイヤーに移り、ドラッグ後も layer が残る', async ({ page }) => {
+    await startEditing(page);
     const chip = page.locator('#layerPanel .layer-panel__chip[data-item="ribbon"]');
     await expect(chip).toHaveAttribute('data-layer', 'front');
-    // 編集中は本体が半透明＝うしろへ送ったアイテムが透けて見える（#270・#211 の再来防止）
+    // 編集中は本体が半透明＝うしろへ送ったアイテムが透けて見える
     await expect(page.locator('#catStage .cat__body')).toHaveCSS('opacity', '0.55');
-    await expect(page.locator('#catStage .cat__front .cat__item[data-item="ribbon"]')).toHaveCount(1);
+    await expect(ribbon(page, '.cat__front')).toHaveCount(1);
 
     await chip.click();
-    await expect(page.locator('#catStage .cat__scene--back .cat__item[data-item="ribbon"]')).toHaveCount(1);
-    await expect(page.locator('#catStage .cat__front .cat__item[data-item="ribbon"]')).toHaveCount(0);
-    expect((await itemLayout(page)).ribbon.layer).toBe('back');
+    await expect(ribbon(page, '.cat__scene--back')).toHaveCount(1);
+    await expect(ribbon(page, '.cat__front')).toHaveCount(0);
+    expect((await layoutOf(page)).layer).toBe('back');
 
-    // 背面のまま編集中にドラッグしても layer は失われない（#270 dressup の引き継ぎ）
-    // チップのクリックでページがスクロールしうるので、猫を画面内に戻してから座標を取る。
-    await page.locator('#catStage .cat').scrollIntoViewIfNeeded();
-    const stage = await page.locator('#catStage .cat').boundingBox();
-    await dragItemTo(page, stage.x + stage.width * 0.3, stage.y + stage.height * 0.3);
-    const moved = (await itemLayout(page)).ribbon;
+    await dragTo(page, 0.3, 0.3);
+    const moved = await layoutOf(page);
     expect(moved.layer).toBe('back');
     expect(moved.x_pct).toBeLessThan(45);
 
-    // 編集を抜けるとパネルは隠れ、本体は不透明に戻る
     await page.click('#dressupToggle');
     await expect(page.locator('#layerPanel')).toBeHidden();
     await expect(page.locator('#catStage .cat__body')).toHaveCSS('opacity', '1');
+
+    await page.reload();   // 起動時の描画にも保存した layer が効く
+    await expect(ribbon(page, '.cat__scene--back')).toHaveCount(1);
+    await expect(ribbon(page, '.cat__front')).toHaveCount(0);
   });
 
-  // 保存済みの layer が起動時の描画に効くこと（上の beforeEach は毎ナビゲーションで seed を
-  // 書き戻すため、リロードではなく「layer 付きの state で開く」形で検証する）。
-  test('保存済みの layer:back は起動時から背面レイヤーに描かれる', async ({ page }) => {
-    await page.addInitScript(() => {
-      const s = JSON.parse(localStorage.getItem('piano-pet'));
-      s.pet.itemLayout = { ribbon: { x_pct: 40, y_pct: 45, layer: 'back' } };
-      localStorage.setItem('piano-pet', JSON.stringify(s));
-    });
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#catStage .cat__scene--back .cat__item[data-item="ribbon"]')).toHaveCount(1);
-    await expect(page.locator('#catStage .cat__front .cat__item[data-item="ribbon"]')).toHaveCount(0);
-  });
-
-  // #312：クラウド doc 由来の equippedItems に細工文字列が入っていても、レイヤーパネルが
-  // それを属性へ生で埋めない（属性注入で任意スクリプトが走らない）。
-  test('細工した equippedItems はレイヤーパネルに描画されず pageerror も起きない', async ({ page }) => {
+  // クラウド doc 由来の equippedItems に細工した文字列が入っていても、属性へ生で埋めない（#312）
+  test('細工した equippedItems はレイヤーパネルに描画されず、スクリプトも走らない', async ({ page }) => {
     const errors = [];
     page.on('pageerror', (e) => errors.push(String(e)));
-    page.on('dialog', (d) => { errors.push(`dialog:${d.message()}`); d.dismiss().catch(() => {}); });
-
-    await page.addInitScript(() => {
-      const s = JSON.parse(localStorage.getItem('piano-pet'));
-      s.pet.equippedItems = ['ribbon', 'x" onmouseover="window.__pwned=1'];
-      localStorage.setItem('piano-pet', JSON.stringify(s));
-    });
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-    await page.click('#dressupToggle');
-
-    // 正規の ribbon だけが並び、細工IDのチップは作られない
+    await startEditing(page, { equippedItems: ['ribbon', 'x" onmouseover="window.__pwned=1'] });
     await expect(page.locator('#layerPanel .layer-panel__chip')).toHaveCount(1);
     await expect(page.locator('#layerPanel .layer-panel__chip[data-item="ribbon"]')).toHaveCount(1);
-    // 属性が実体化していないこと（onmouseover ハンドラが生成されていない）
     expect(await page.locator('#layerPanel *[onmouseover]').count()).toBe(0);
     expect(await page.evaluate(() => window.__pwned)).toBeUndefined();
     expect(errors).toEqual([]);
   });
 
-  test('編集モード中は猫タップでなで演出（喜び/しっぽふり）が出ない', async ({ page }) => {
-    await page.addInitScript(() => { Math.random = () => 0.99; });  // hiss回避
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-
-    await page.click('#dressupToggle');                 // 編集モードへ
-    await page.click('#catStage');                       // 猫タップ
-    await page.waitForTimeout(200);
-    await expect(page.locator('#catStage .cat')).not.toHaveClass(/cat--(happy|wiggle)/);
+  test('編集モード中は猫タップで なで演出（喜び/しっぽふり）が出ない', async ({ page }) => {
+    await fixRandom(page, 0.999);
+    await startEditing(page);
+    await page.click('#catStage');
+    // クラスはタップと同時に付く。not.toHaveClass は剥がれる（1.2秒）まで待って通ってしまうので瞬間値で見る
+    expect(await page.locator('#catStage .cat').getAttribute('class')).not.toMatch(/cat--(happy|wiggle)/);
   });
 });

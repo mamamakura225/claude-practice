@@ -1,21 +1,7 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, ymd, session, makeState, seed } from './helpers.js';
 
 // 横向き・ダークでの見た目の退行（#432）。スクショ比較はせず、押せる／読めることを計測で確かめる。
-async function boot(page) {
-  for (const host of ['www.gstatic.com/firebasejs', 'firestore.googleapis.com', 'firebase.googleapis.com', 'identitytoolkit.googleapis.com']) {
-    await page.route(`**/${host}/**`, (route) => route.abort());
-  }
-  await page.addInitScript(() => {
-    const d = new Date();
-    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    localStorage.setItem('piano-pet-onboarded', '1');
-    localStorage.setItem('piano-pet', JSON.stringify({
-      pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [] },
-      inventory: [], streak: { current: 1, best: 1, lastPracticeDate: date }, badges: [],
-      sessions: [{ date, songs: [{ name: 'きらきらぼし', count: 10 }], totalCount: 10 }],
-    }));
-  });
-}
+const boot = (page) => seed(page, makeState({ streak: { current: 1, best: 1, lastPracticeDate: ymd() }, sessions: [session(0, 10)] }));
 
 test('横向きでも猫が下ナビに重ならず、タブを押せる', async ({ page }) => {
   await page.setViewportSize({ width: 740, height: 360 });

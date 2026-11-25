@@ -15,7 +15,6 @@ import {
   clampDailyGoal,
   crossedDailyGoal,
   checkBadges,
-  GOAL_BONUS_THRESHOLD,
   DAILY_GOAL,
   LESSON_COINS,
   LESSON_XP,
@@ -111,7 +110,9 @@ describe('calcRewards', () => {
     expect(calcRewards(3, 1)).toEqual({ coins: 3, xp: 3 });
   });
 
-  it('10回以上で目標達成ボーナス(+5コイン +3XP)', () => {
+  // 親が変える目標（dailyGoal）とは分離した固定値。連動させると過去のコインまで増減する（#238）
+  it('目標達成ボーナス(+5コイン +3XP)は、目標の設定によらず10回から', () => {
+    expect(calcRewards(9, 1)).toEqual({ coins: 9, xp: 9 });
     expect(calcRewards(10, 1)).toEqual({ coins: 15, xp: 13 });
   });
 
@@ -250,6 +251,12 @@ describe('applySession', () => {
     expect(state.streak.current).toBe(3);
     expect(state.streak.freezes).toBe(1);
     expect(rewards.freezeGranted).toBe(1);
+  });
+
+  it('壊れた保存で上限を超えた お休み券は、次の記録で上限に収まる', () => {
+    const start = baseState({ streak: { current: 4, best: 4, lastPracticeDate: '2026-05-21', freezes: MAX_FREEZES + 1 } });
+    const { state } = applySession(start, { date: '2026-05-22', songs: [], totalCount: 2 });
+    expect(state.streak.freezes).toBe(MAX_FREEZES);
   });
 
   it('お休み券は上限を超えて付与されない', () => {
@@ -421,6 +428,7 @@ describe('recomputeState', () => {
     expect(recomputed.pet.level).toBe(live.pet.level);
     expect(recomputed.streak.current).toBe(live.streak.current);
     expect(recomputed.streak.freezes).toBe(live.streak.freezes);
+    expect(recomputed.sessions).toHaveLength(3);
   });
 
   it('セッションを削除すると XP・コイン・ストリークが再計算される', () => {
@@ -473,13 +481,6 @@ describe('recomputeState', () => {
     expect(dupR.streak.freezes).toBe(mergedR.streak.freezes);
     expect(dupR.sessions).toHaveLength(3);
   });
-
-  it('重複が無ければ既存の再計算結果は変わらない（mergeSameDaySessions は同一参照を返す）', () => {
-    const live = buildHistory(['2026-05-20', '2026-05-21', '2026-05-22'], [5, 5, 12]);
-    const r = recomputeState(live, 0);
-    expect(r.pet.coins).toBe(live.pet.coins);
-    expect(r.sessions).toHaveLength(3);
-  });
 });
 
 describe('clampDailyGoal（1日の目標回数・#238）', () => {
@@ -501,13 +502,6 @@ describe('clampDailyGoal（1日の目標回数・#238）', () => {
     expect(clampDailyGoal(null)).toBe(DAILY_GOAL);
     expect(clampDailyGoal('abc')).toBe(DAILY_GOAL);
     expect(clampDailyGoal(NaN)).toBe(DAILY_GOAL);
-  });
-
-  it('達成ボーナス閾値は固定10で、可変目標とは分離（過去コイン不変・#238）', () => {
-    // 目標を下げても上げても calcRewards のボーナスは totalCount>=10 で判定される。
-    expect(GOAL_BONUS_THRESHOLD).toBe(10);
-    expect(calcRewards(9, 1).coins).toBe(9);        // 9回はボーナス無し
-    expect(calcRewards(10, 1).coins).toBe(10 + 5);  // 10回で+5（目標設定に依らず）
   });
 });
 
@@ -561,7 +555,11 @@ describe('checkBadges（中〜長期バッジ・#298）', () => {
   });
   const songNames = (n) => Array.from({ length: n }, (_, i) => `きょく${i + 1}`);
 
-  it('連続日数で streak_14 / streak_30 が取れる', () => {
+  it('連続日数で streak_3 / 7 / 14 / 30 が取れる', () => {
+    for (const n of [3, 7]) {
+      expect(checkBadges(stateOf({ current: n - 1, best: n - 1 }))).not.toContain(`streak_${n}`);
+      expect(checkBadges(stateOf({ current: n, best: n }))).toContain(`streak_${n}`);
+    }
     expect(checkBadges(stateOf({ current: 13, best: 13 }))).not.toContain('streak_14');
     expect(checkBadges(stateOf({ current: 14, best: 14 }))).toContain('streak_14');
     expect(checkBadges(stateOf({ current: 29, best: 29 }))).not.toContain('streak_30');
@@ -569,15 +567,19 @@ describe('checkBadges（中〜長期バッジ・#298）', () => {
     expect(checkBadges(stateOf({ current: 1, best: 30 }))).toContain('streak_30');
   });
 
-  it('累計回数で challenge_500 / challenge_1000 が取れる', () => {
+  it('累計回数で challenge_100 / 500 / 1000 が取れる', () => {
     const at = (total) => checkBadges(stateOf({ sessions: [{ date: day(1), totalCount: total }] }));
+    expect(at(99)).not.toContain('challenge_100');
+    expect(at(100)).toContain('challenge_100');
     expect(at(499)).not.toContain('challenge_500');
     expect(at(500)).toContain('challenge_500');
     expect(at(999)).not.toContain('challenge_1000');
     expect(at(1000)).toContain('challenge_1000');
   });
 
-  it('記録した日数で days_100 が取れる', () => {
+  it('記録した日数で month_30 / days_100 が取れる', () => {
+    expect(checkBadges(stateOf({ sessions: days(29) }))).not.toContain('month_30');
+    expect(checkBadges(stateOf({ sessions: days(30) }))).toContain('month_30');
     expect(checkBadges(stateOf({ sessions: days(99) }))).not.toContain('days_100');
     expect(checkBadges(stateOf({ sessions: days(100) }))).toContain('days_100');
   });

@@ -1,3 +1,4 @@
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   BADGES,
@@ -7,19 +8,16 @@ import {
   earnedCount,
   newlyEarned,
 } from '../js/badges.js';
-import { checkBadges } from '../js/game.js';
 
 describe('カタログ', () => {
-  it('24種類のバッジを持ち id が checkBadges と一致する', () => {
-    expect(BADGES).toHaveLength(24);
-    const ids = BADGES.map((b) => b.id).sort();
-    expect(ids).toEqual([
-      'affinity_max', 'big_day', 'challenge_100', 'challenge_1000', 'challenge_500',
-      'comeback', 'days_100', 'days_50', 'first_outfit', 'first_practice',
-      'goal_hit_5', 'month_30', 'practice_again', 'praise_all3', 'repertoire_day_5',
-      'song_master_first', 'songs_10', 'songs_20', 'songs_5', 'streak_14',
-      'streak_3', 'streak_30', 'streak_7', 'tempo_all3',
-    ]);
+  // ソースを走査して突き合わせる。カタログを正にすると、判定だけ足して載せ忘れた
+  // （取れたのに一覧に出ない）事故が見えない。
+  it('判定（earned.add）とカタログの id が過不足なく一致する', () => {
+    const dir = new URL('../js/', import.meta.url);
+    const granted = readdirSync(dir).filter((f) => f.endsWith('.js'))
+      .flatMap((f) => [...readFileSync(new URL(f, dir), 'utf8').matchAll(/earned\.add\('([^']+)'\)/g)].map((m) => m[1]));
+    expect(granted.length).toBeGreaterThan(0);
+    expect([...new Set(granted)].sort()).toEqual(BADGES.map((b) => b.id).sort());
   });
 
   it('id が重複しない', () => {
@@ -71,12 +69,3 @@ describe('newlyEarned', () => {
   });
 });
 
-describe('checkBadges との結合', () => {
-  it('初回記録で first_practice が取れ、カタログで表示できる', () => {
-    const base = { badges: [], sessions: [{ date: '2026-05-01', totalCount: 5 }], streak: { current: 1, best: 1 } };
-    const earned = checkBadges(base);
-    expect(earned).toContain('first_practice');
-    // 取得idがすべてカタログに存在する
-    for (const id of earned) expect(badgeById(id)).not.toBeNull();
-  });
-});

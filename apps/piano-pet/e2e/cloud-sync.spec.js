@@ -1,21 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, session, makeState, seed, readLocal, importJson, backupOf, record, ymd } from './helpers.js';
 
 // クラウド同期の取り込み経路（#142 初回 / #242 復帰時 resync / realtime）。
-//
-// 他の spec は Firestore を route.abort で遮断しているため、app.js 側の
-// initCloudSync / reconcileInitialCloud / applyRemoteState / resyncFromCloud は
-// 一度も実行されていなかった（データ損失系という最高リスク領域が退行検知できない状態）。
-// ここでは ./js/cloud.js への **リクエストを差し替えて偽モジュールを配る**ことで、
-// アプリ側のコードには一切手を入れずに実経路を通す。
+// ./js/cloud.js への**リクエストを差し替えて偽モジュールを配り**、app.js の実経路を通す（アプリには手を入れない）。
 // 挙動の仕様は docs/data-model.md「取り込み経路は3つあり、規則が同じではない」。
-
-// 偽 cloud.js。クラウド doc は window.__cloudDoc に置き、push は同じ場所へ書き戻す。
-// subscribeCloud のコールバックは window.__onRemote に生やし、テストから realtime を撃てるようにする。
-// debounce キューは本物（cloud-queue.js は firebase 非依存）を使う＝#313 の thunk 化・
-// 保留中マージが実経路で通る。delay は 0 にして既存テストの即時性を保ちつつ、
-// window.__cloudDelay を入れた個別テストだけ本来の遅延で回す。
-// 本物と同じく import 時点の doc に束縛し、オフライン中は送らない。送信先はリロードをまたいで
-// 検証できるよう sessionStorage の __pushLog に残す（#358）。
+//
+// 偽 cloud.js：doc は window.__cloudDoc、realtime は window.__onRemote(doc) で撃つ。debounce のキューは本物
+// （既定は遅延 0）。本物と同じく import 時点の doc に束縛し、オフライン中は送らない。送信先はリロードを
+// またいで見られるよう sessionStorage の __pushLog に残す。__holdFetch / __holdPush を立てると応答を止める
+// （fetch は __releaseFetch() で返す。__pushDelay は #381 だけが使う実時間の遅延）。固定時間の遅延だと、遅い環境で順番が崩れる。
 const FAKE_CLOUD = `
 import { createCloudQueue } from './cloud-queue.js';
 import { getActiveAccountId, cloudDocIdFor } from './account.js';
@@ -26,8 +18,8 @@ const logPush = (target) => {
 };
 export async function fetchCloud() {
   window.__fetching = true;
-  const doc = window.__cloudDoc ?? null;   // サーバが読んだ時点の内容（遅延中の書き込みは載らない）
-  if (window.__fetchDelay) await new Promise((r) => setTimeout(r, window.__fetchDelay));
+  const doc = window.__cloudDoc ?? null;   // サーバが読んだ時点の内容（止めている間の書き込みは載らない）
+  if (window.__holdFetch) await new Promise((r) => { window.__releaseFetch = r; });
   window.__fetchDone = true;
   if (window.__fetchFail) return undefined;   // タイムアウト・通信エラー（doc が無い null とは別・#362）
   return doc;
@@ -41,6 +33,7 @@ export async function pushCloud(data) {
   window.__cloudDoc = JSON.parse(JSON.stringify(data));
   // 実 Firestore と同じく書き込みはローカルへ即反映し、サーバの ack だけ遅らせる（#374）
   window.__pushStarted = true;
+  if (window.__holdPush) await new Promise(() => {});
   if (window.__pushDelay) await new Promise((r) => setTimeout(r, window.__pushDelay));
 }
 const __queue = createCloudQueue(pushCloud, { defaultDelay: window.__cloudDelay ?? 0 });
@@ -48,6 +41,8 @@ export const pushCloudDebounced = __queue.pushCloudDebounced;
 export const flushCloud = __queue.flushCloud;
 export async function pushCloudDoc(docId, data) {
   logPush('pushDoc:' + docId); window.__pushedDoc = { docId, data };
+  window.__pushStarted = true;
+  if (window.__holdPush) await new Promise(() => {});
   if (window.__pushDelay) await new Promise((r) => setTimeout(r, window.__pushDelay));
   return true;
 }
@@ -57,8 +52,7 @@ export function subscribeCloud(onRemote) {
 }
 `;
 
-// クラウド doc の初期値をページに仕込み、偽 cloud.js を配る。
-// delay を渡すと debounce キューの遅延をその値にする（既定 0＝既存テストは即時性を保つ）。
+// クラウド doc の初期値を仕込み、偽 cloud.js を配る。delay は debounce キューの遅延。
 async function useFakeCloud(page, cloudDoc, { delay = 0 } = {}) {
   await page.route('**/js/cloud.js', (route) => route.fulfill({
     status: 200,
@@ -66,85 +60,42 @@ async function useFakeCloud(page, cloudDoc, { delay = 0 } = {}) {
     body: FAKE_CLOUD,
   }));
   await page.addInitScript(({ doc, d }) => {
-    try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
     window.__cloudDoc = doc;
     window.__cloudDelay = d;
   }, { doc: cloudDoc ?? null, d: delay });
 }
 
-// localStorage に state を直接仕込む（起動前のローカルデータを作る）。
-async function seedLocal(page, state) {
-  await page.addInitScript((s) => {
-    try { localStorage.setItem('piano-pet', JSON.stringify(s)); } catch { /* 無視 */ }
-  }, state);
-}
-
-const baseState = (over = {}) => ({
+const baseState = ({ pet, ...over } = {}) => makeState({
   version: 2,
-  pet: {
-    name: 'きーちゃん', level: 1, xp: 0, coins: 0,
-    equippedItems: [], placedItems: [], itemLayout: {},
-    affinity: 0, foodSpent: 0, dailyGoal: 10, catStyle: 'tora',
-    childName: '', childAvatar: 'chick',
-    ...(over.pet ?? {}),
-  },
-  inventory: over.inventory ?? [],
-  streak: { current: 0, best: 0, lastPracticeDate: null, freezes: 0, ...(over.streak ?? {}) },
-  badges: over.badges ?? [],
-  sessions: over.sessions ?? [],
+  pet: { placedItems: [], itemLayout: {}, affinity: 0, foodSpent: 0, dailyGoal: 10, catStyle: 'tora', childName: '', childAvatar: 'chick', ...pet },
   settings: { soundOn: true },
+  ...over,
 });
-
-const readLocal = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')));
+const days = (...list) => baseState({ sessions: list });
 
 // 同期はアイドル遅延（requestIdleCallback）で走るので、購読が張られるまで待つ。
 const waitForSync = (page) => page.waitForFunction(() => typeof window.__onRemote === 'function', null, { timeout: 10000 });
 
 test.describe('クラウド同期の取り込み', () => {
-  test('初回同期はローカル優先マージ：ローカルだけが持つ記録が消えない（#142）', async ({ page }) => {
-    // クラウドには 01-01 の 4かい だけがある。ローカルには 01-02 の 6かい がある。
-    await useFakeCloud(page, {
-      pet: { ...baseState().pet }, inventory: [], streak: baseState().streak, badges: [],
-      sessions: [{ date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }],
-    });
-    await seedLocal(page, baseState({
-      sessions: [{ date: '2026-01-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] }],
-    }));
-
+  test('初回同期はローカル優先マージ：片側だけの記録は消えず、同日は回数の多い方（#142）', async ({ page }) => {
+    await useFakeCloud(page, days(session('2026-01-01', 4, 'A'), session('2026-01-03', 5, 'A')));
+    await seed(page, days(session('2026-01-02', 6, 'B'), session('2026-01-03', 7, 'A')));
     await page.goto('/');
     await waitForSync(page);
 
     const st = await readLocal(page);
-    const byDate = Object.fromEntries(st.sessions.map((s) => [s.date, s.totalCount]));
-    expect(byDate).toEqual({ '2026-01-01': 4, '2026-01-02': 6 });   // union（どちらも消えない）
-    expect(st.pet.coins).toBe(10);                                   // sessions から再計算
+    // 01-03 は cloud-wins なら 5、合算なら 12 になる
+    expect(Object.fromEntries(st.sessions.map((s) => [s.date, s.totalCount])))
+      .toEqual({ '2026-01-01': 4, '2026-01-02': 6, '2026-01-03': 7 });
+    expect(st.pet.coins).toBe(4 + 6 + 7 + 10);   // sessions から再計算（3日連続の +10）
     // ローカルだけが持っていた記録があるのでクラウドへ確定保存される
-    await expect.poll(() => page.evaluate(() => (window.__pushed?.sessions ?? []).length)).toBe(2);
-  });
-
-  test('初回同期の同日衝突は keep-larger（合算せず・cloud で上書きもしない・#142）', async ({ page }) => {
-    // ローカルを大きい側にする。cloud-wins に退行すると 5 に、合算に退行すると 12 になるので、
-    // 7 を期待することで「keep-larger である」ことだけが通る。
-    await useFakeCloud(page, {
-      pet: { ...baseState().pet }, inventory: [], streak: baseState().streak, badges: [],
-      sessions: [{ date: '2026-01-01', totalCount: 5, songs: [{ name: 'A', count: 5 }] }],
-    });
-    await seedLocal(page, baseState({
-      sessions: [{ date: '2026-01-01', totalCount: 7, songs: [{ name: 'A', count: 7 }] }],
-    }));
-
-    await page.goto('/');
-    await waitForSync(page);
-
-    const st = await readLocal(page);
-    expect(st.sessions).toHaveLength(1);
-    expect(st.sessions[0].totalCount).toBe(7);   // 5（cloud-wins）でも 12（合算）でもない
+    await expect.poll(() => page.evaluate(() => (window.__pushed?.sessions ?? []).length)).toBe(3);
   });
 
   test('復帰時の resync で他端末が置いた置物・座標が消えない（#242）', { tag: '@compat' }, async ({ page }) => {
     // 起動時のクラウドは空。ローカルは cushion を持って配置済み。
     await useFakeCloud(page, null);
-    await seedLocal(page, baseState({
+    await seed(page, baseState({
       inventory: ['cushion', 'yarnBall'],
       pet: { placedItems: ['cushion'], itemLayout: { cushion: { x_pct: 30, y_pct: 60 } } },
     }));
@@ -173,7 +124,7 @@ test.describe('クラウド同期の取り込み', () => {
 
   test('realtime は cloud-wins：他端末の変更が画面へ反映される', async ({ page }) => {
     await useFakeCloud(page, null);
-    await seedLocal(page, baseState());
+    await seed(page, baseState());
     await page.goto('/');
     await waitForSync(page);
     await expect(page.locator('#statCoins')).toHaveText('0');
@@ -203,9 +154,7 @@ test.describe('クラウド同期の取り込み', () => {
       // 白画面にならないことを確認する。
       sessions: [{ date: '2026-01-01', songs: 5 }, { date: 'garbage', totalCount: 3 }],
     });
-    await seedLocal(page, baseState({
-      sessions: [{ date: '2026-01-01', totalCount: 3, songs: [{ name: 'A', count: 3 }] }],
-    }));
+    await seed(page, days(session('2026-01-01', 3, 'A')));
 
     await page.goto('/');
     await waitForSync(page);
@@ -222,13 +171,8 @@ test.describe('クラウド同期の取り込み', () => {
   });
 
   test('debounce 保留中に入ったリモートの記録を、遅延 flush が巻き戻さない（#313）', async ({ page }) => {
-    await useFakeCloud(page, {
-      ...baseState(),
-      sessions: [{ date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }],
-    }, { delay: 1500 });
-    await seedLocal(page, baseState({
-      sessions: [{ date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }],
-    }));
+    await useFakeCloud(page, days(session('2026-01-01', 4, 'A')), { delay: 1500 });
+    await seed(page, days(session('2026-01-01', 4, 'A')));
     await page.goto('/');
     await waitForSync(page);
 
@@ -244,9 +188,7 @@ test.describe('クラウド同期の取り込み', () => {
         { date: '2026-01-02', totalCount: 9, songs: [{ name: 'C', count: 9 }] },
       ],
     }));
-    await expect
-      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length))
-      .toBe(2);
+    await expect.poll(async () => (await readLocal(page)).sessions.length).toBe(2);
 
     // 1.5秒後の flush が送る内容に 01-02 が残る（呼び出し時点の古い state を焼き付けていない・#313）
     await expect
@@ -256,16 +198,11 @@ test.describe('クラウド同期の取り込み', () => {
 
   // #314: 記録編集の参照は配列 index でなく date（同一性）。編集フォームを開いたまま
   // 同期で sessions が並び替わっても、別の日の記録を壊さない。
-  const editSeed = () => baseState({
-    sessions: [
-      { date: '2026-09-02', totalCount: 7, songs: [{ name: 'Z', count: 7 }] },
-      { date: '2026-09-03', totalCount: 5, songs: [{ name: 'Y', count: 5 }] },
-    ],
-  });
+  const editSeed = () => days(session('2026-09-02', 7, 'Z'), session('2026-09-03', 5, 'Y'));
 
   test('編集フォームを開いたまま sessions が並び替わっても、なおすが正しい記録に当たる（#314）', async ({ page }) => {
-    await useFakeCloud(page, { ...editSeed() });
-    await seedLocal(page, editSeed());
+    await useFakeCloud(page, editSeed());
+    await seed(page, editSeed());
     await page.goto('/');
     await waitForSync(page);
 
@@ -283,8 +220,7 @@ test.describe('クラウド同期の取り込み', () => {
         { date: '2026-09-02', totalCount: 7, songs: [{ name: 'Z', count: 7 }] },
       ],
     }));
-    await expect
-      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(3);
+    await expect.poll(async () => (await readLocal(page)).sessions.length).toBe(3);
 
     await page.click('#stampCard');                       // 7 → 8 かい
     await expect(page.locator('#recordTotal')).toHaveText('8');
@@ -298,8 +234,8 @@ test.describe('クラウド同期の取り込み', () => {
   });
 
   test('編集中の記録がリモートで消えたら、別の記録を壊さず案内を出す（#314）', async ({ page }) => {
-    await useFakeCloud(page, { ...editSeed() });
-    await seedLocal(page, editSeed());
+    await useFakeCloud(page, editSeed());
+    await seed(page, editSeed());
     await page.goto('/');
     await waitForSync(page);
 
@@ -312,8 +248,7 @@ test.describe('クラウド同期の取り込み', () => {
       ...window.__cloudDoc,
       sessions: [{ date: '2026-09-03', totalCount: 5, songs: [{ name: 'Y', count: 5 }] }],
     }));
-    await expect
-      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(1);
+    await expect.poll(async () => (await readLocal(page)).sessions.length).toBe(1);
 
     await page.click('#stampCard');
     await page.click('#recordSubmitBtn');
@@ -333,19 +268,8 @@ test.describe('クラウド同期の取り込み', () => {
 
   // #319: 端末Aで削除 → 端末Bの古いスナップショットが降ってきても記録は復活しない
   test('削除した記録は、古い doc が realtime で降ってきても復活しない（tombstone）', async ({ page }) => {
-    await useFakeCloud(page, {
-      ...baseState(),
-      sessions: [
-        { date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] },
-        { date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] },
-      ],
-    });
-    await seedLocal(page, baseState({
-      sessions: [
-        { date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] },
-        { date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] },
-      ],
-    }));
+    await useFakeCloud(page, days(session('2026-09-01', 4, 'A'), session('2026-09-02', 6, 'B')));
+    await seed(page, days(session('2026-09-01', 4, 'A'), session('2026-09-02', 6, 'B')));
     await page.goto('/');
     await waitForSync(page);
 
@@ -354,9 +278,9 @@ test.describe('クラウド同期の取り込み', () => {
     page.once('dialog', (d) => d.accept());
     await page.locator('#historyList .history-card').filter({ hasText: '9月1日' })
       .locator('[data-action="delete-session"]').click();
-    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });   // 猶予のあとに確定（#398）
-    await expect
-      .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(1);
+    await expect(page.locator('#undoToast')).toBeVisible();
+    await page.click('.nav-btn[data-nav="home"]');   // 画面を移ると確定（#398）
+    await expect.poll(async () => (await readLocal(page)).sessions.length).toBe(1);
 
     // 端末B（サスペンド中で削除を受けていない）の古いスナップショットが降ってくる
     await page.evaluate(() => window.__onRemote({
@@ -369,8 +293,6 @@ test.describe('クラウド同期の取り込み', () => {
       ],
     }));
 
-    // 少し待っても 9/01 は復活しない
-    await page.waitForTimeout(300);
     const st = await readLocal(page);
     expect(st.sessions.map((s) => s.date)).toEqual(['2026-09-02']);
     expect(st.deletedDates).toContain('2026-09-01');
@@ -378,8 +300,8 @@ test.describe('クラウド同期の取り込み', () => {
 
   // #358-1: 「なおす」で日付を動かしたら、元の日付は削除と同じ扱い（墓標）にする
   test('なおすで日付を変えた記録は、古い doc との union で元の日付に復活しない（#358）', async ({ page }) => {
-    await useFakeCloud(page, { ...editSeed() });
-    await seedLocal(page, editSeed());
+    await useFakeCloud(page, editSeed());
+    await seed(page, editSeed());
     await page.goto('/');
     await waitForSync(page);
 
@@ -413,9 +335,9 @@ test.describe('クラウド同期の取り込み', () => {
 
   // #358-2: オフライン中は onSnapshot が届かない。復帰時に古い state で全置換すると他端末の記録が消える
   test('オンライン復帰で、オフライン中に他端末が書いた記録を上書きしない（#358）', async ({ page, context }) => {
-    const seed = baseState({ sessions: [{ date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
-    await useFakeCloud(page, { ...seed });
-    await seedLocal(page, seed);
+    const local = days(session('2026-09-01', 4, 'A'));
+    await useFakeCloud(page, local);
+    await seed(page, local);
     await page.goto('/');
     await waitForSync(page);
 
@@ -432,27 +354,20 @@ test.describe('クラウド同期の取り込み', () => {
     });
     await context.setOffline(false);
 
-    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.length)).toBe(2);
+    await expect.poll(async () => (await readLocal(page)).sessions.length).toBe(2);
     const cloudDates = await page.evaluate(() => window.__cloudDoc.sessions.map((s) => s.date).sort());
     expect(cloudDates).toEqual(['2026-09-01', '2026-09-02']);   // 旧実装は 09-01 だけで全置換
   });
 
   test('オフライン中の記録は、復帰前後に届いたスナップショットの cloud-wins で消えない（#358）', async ({ page, context }) => {
-    const seed = baseState({ sessions: [{ date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
-    await useFakeCloud(page, { ...seed });
-    await seedLocal(page, seed);
+    const local = days(session('2026-09-01', 4, 'A'));
+    await useFakeCloud(page, local);
+    await seed(page, local);
     await page.goto('/');
     await waitForSync(page);
 
     await context.setOffline(true);
-    await page.click('#goRecordBtn');
-    await page.fill('#newSongInput', 'C');
-    await page.click('#addSongBtn');
-    for (let i = 0; i < 3; i += 1) await page.click('#stampCard');
-    await page.click('#recordSubmitBtn');
-    await expect(page.locator('#view-home')).toBeVisible();
-    const today = await page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions
-      .find((s) => s.date !== '2026-09-01').date);
+    const today = await record3(page);
 
     // オフライン中（または再接続直後で resync より前）にスナップショット（端末Bの 09-02 入り・この端末の記録は無い）が届く
     await page.evaluate(() => window.__onRemote({
@@ -480,19 +395,15 @@ test.describe('クラウド同期の取り込み', () => {
   // #358-3: cloud.js の DATA_DOC は import 時点で固定。がぞくコード入りの復元を pushCloud すると
   // 切替前（旧・推測可能な pianopet/data）へ書き戻してしまう
   test('がぞくコード入りバックアップの復元は、旧 doc でなくコードの doc へ書く（#358）', async ({ page }) => {
-    await useFakeCloud(page, { ...baseState() });
-    await seedLocal(page, baseState());
+    await useFakeCloud(page, baseState());
+    await seed(page, baseState());
     await page.goto('/');
     await waitForSync(page);
     await page.evaluate(() => sessionStorage.removeItem('__pushLog'));
 
-    const backup = JSON.stringify({
-      app: 'piano-pet', schemaVersion: 2, exportedAt: '2026-09-30T00:00:00.000Z',
-      cloudDocId: 'pp-family-code-1234',
-      state: baseState({ pet: { coins: 321 } }),
-    });
+    const backup = backupOf(baseState({ pet: { coins: 321 } }), { cloudDocId: 'pp-family-code-1234' });
     page.on('dialog', (d) => d.accept());
-    await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
+    await importJson(page, backup);
 
     await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet:cloud-ids') ?? '{}').data))
       .toBe('pp-family-code-1234');
@@ -504,18 +415,14 @@ test.describe('クラウド同期の取り込み', () => {
 
   // #362: fetchCloud のタイムアウトを「doc が無い」と取り違えて、ローカルで全置換しない
   test('初回の取得に失敗しても、他端末の記録がある doc をローカルで上書きしない（#362）', async ({ page }) => {
-    const local = baseState({ sessions: [{ date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
-    await useFakeCloud(page, {
-      ...baseState(),
-      sessions: [{ date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] }],
-    });
-    await seedLocal(page, local);
+    const local = days(session('2026-09-01', 4, 'A'));
+    await useFakeCloud(page, days(session('2026-09-02', 6, 'B')));
+    await seed(page, local);
     await page.addInitScript(() => { window.__fetchFail = true; });
     await page.goto('/');
     await waitForSync(page);
 
     // 取得に失敗した起動では push しない（旧実装は hasLocalData で 09-01 だけの state を全置換）
-    await page.waitForTimeout(300);
     expect(await page.evaluate(() => window.__cloudDoc.sessions.map((s) => s.date))).toEqual(['2026-09-02']);
 
     // 最初に届いたスナップショットは cloud-wins でなく union で取り込み、両方を残して送る
@@ -528,33 +435,29 @@ test.describe('クラウド同期の取り込み', () => {
 
   // #374: 初回の取り込みが済むまで（取得待ち・取得失敗後）のユーザー操作で、ローカルだけの state を全置換 push しない
   const record3 = async (page) => {
-    await page.click('#goRecordBtn');
-    await page.fill('#newSongInput', 'C');
-    await page.click('#addSongBtn');
-    for (let i = 0; i < 3; i += 1) await page.click('#stampCard');
-    await page.click('#recordSubmitBtn');
-    await expect(page.locator('#view-home')).toBeVisible();
-    return page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).sessions.find((x) => x.date !== '2026-09-01').date);
+    await record(page, 3, { song: 'C' });
+    return (await readLocal(page)).sessions.find((x) => x.date !== '2026-09-01').date;
   };
-  const otherDoc = () => ({ ...baseState(), sessions: [{ date: '2026-09-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] }] });
-  const localSeed = () => baseState({ sessions: [{ date: '2026-09-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
+  const otherDoc = () => days(session('2026-09-02', 6, 'B'));
+  const localSeed = () => days(session('2026-09-01', 4, 'A'));
   const cloudDates = (page) => page.evaluate(() => (window.__cloudDoc?.sessions ?? []).map((x) => x.date).sort());
 
   test('初回の取得を待つ間に記録しても、他端末の記録を上書きしない（#374）', async ({ page }) => {
     await useFakeCloud(page, otherDoc());
-    await seedLocal(page, localSeed());
-    await page.addInitScript(() => { window.__fetchDelay = 8000; });
+    await seed(page, localSeed());
+    await page.addInitScript(() => { window.__holdFetch = true; });
     await page.goto('/');
     await page.waitForFunction(() => window.__fetching === true, null, { timeout: 10000 });
     const today = await record3(page);
-    expect(await cloudDates(page)).toEqual(['2026-09-02']);   // 取り込み前は送らない（旧実装はここで 09-02 を消す）
+    expect(await cloudDates(page)).toEqual(['2026-09-02']);   // 取り込み前は送らない
+    await page.evaluate(() => window.__releaseFetch());
     await waitForSync(page);
     await expect.poll(() => cloudDates(page)).toEqual(['2026-09-01', '2026-09-02', today].sort());
   });
 
   test('初回の取得に失敗したあと記録しても、最初のスナップショットまで送らない（#374）', async ({ page }) => {
     await useFakeCloud(page, otherDoc());
-    await seedLocal(page, localSeed());
+    await seed(page, localSeed());
     await page.addInitScript(() => { window.__fetchFail = true; });
     await page.goto('/');
     await waitForSync(page);
@@ -566,7 +469,7 @@ test.describe('クラウド同期の取り込み', () => {
 
   test('doc が無いのに取得に失敗した端末は、次の resync で初回移行する（#374）', async ({ page }) => {
     await useFakeCloud(page, null);
-    await seedLocal(page, localSeed());
+    await seed(page, localSeed());
     await page.addInitScript(() => { window.__fetchFail = true; });
     await page.goto('/');
     await waitForSync(page);
@@ -578,8 +481,8 @@ test.describe('クラウド同期の取り込み', () => {
 
   test('初回移行の ack を待つ間に記録しても、最初のスナップショットで消えない（#374）', async ({ page }) => {
     await useFakeCloud(page, null);   // doc が無い＝ローカルを初回移行する
-    await seedLocal(page, localSeed());
-    await page.addInitScript(() => { window.__pushDelay = 8000; });
+    await seed(page, localSeed());
+    await page.addInitScript(() => { window.__holdPush = true; });
     await page.goto('/');
     await page.waitForFunction(() => window.__pushStarted === true, null, { timeout: 10000 });
     const today = await record3(page);
@@ -591,30 +494,24 @@ test.describe('クラウド同期の取り込み', () => {
   });
 
   // #378: 復元の push（ack 待ち）の間に、先に走り出していた resync が古いクラウドとの union を送らない
-  // （__pushDelay は上書きの見切り 10 秒（#381）より短く、__fetchDelay はそれよりさらに短く保つ）
   test('復元の push を待つ間に resync が終わっても、古い記録を混ぜて送らない（#378）', async ({ page }) => {
-    await useFakeCloud(page, { ...otherDoc(), sessions: [...otherDoc().sessions, ...localSeed().sessions] });
-    await page.addInitScript((st) => {   // リロード後に再シードしない（復元結果を上書きしないため）
-      if (sessionStorage.getItem('seeded')) return;
-      sessionStorage.setItem('seeded', '1');
-      localStorage.setItem('piano-pet', JSON.stringify(st));
-    }, localSeed());
+    await useFakeCloud(page, days(...otherDoc().sessions, ...localSeed().sessions));
+    await seed(page, localSeed());
     await page.goto('/');
     await waitForSync(page);
 
-    // 復帰時 resync の取得が走り出す（サーバは 09-01・09-02 を返す・3秒かかる）
+    // 復帰時 resync の取得が走り出す（サーバは 09-01・09-02 を返すが、まだ届かない）
     await page.evaluate(() => {
-      window.__fetchDelay = 3000; window.__fetchDone = false; window.__pushDelay = 6000; window.__pushCount = 0;
-      window.__pushStarted = false;   // 以降の待ち条件を「復元の push が始まった」にする
+      window.__holdFetch = true; window.__fetchDone = false; window.__holdPush = true; window.__pushCount = 0;
+      window.__pushStarted = false;   // 以降は「復元の push が始まった」の印
       document.dispatchEvent(new Event('visibilitychange'));
     });
-    const backup = JSON.stringify({
-      app: 'piano-pet', schemaVersion: 2, exportedAt: '2026-10-01T00:00:00.000Z',
-      state: baseState({ sessions: [{ date: '2026-09-05', totalCount: 2, songs: [{ name: 'Z', count: 2 }] }] }),
-    });
+    const backup = backupOf(days(session('2026-09-05', 2, 'Z')));
     page.on('dialog', (d) => d.accept());
-    await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
-    await page.waitForFunction(() => window.__pushStarted === true && window.__fetchDone === true, null, { timeout: 10000 });
+    await importJson(page, backup);
+    await page.waitForFunction(() => window.__pushStarted === true, null, { timeout: 10000 });
+    await page.evaluate(() => window.__releaseFetch());
+    await page.waitForFunction(() => window.__fetchDone === true);
 
     // 復元の1回だけ。旧実装は resync が union（09-01・09-02・09-05）を追い送りする
     expect(await page.evaluate(() => window.__pushCount)).toBe(1);
@@ -622,22 +519,17 @@ test.describe('クラウド同期の取り込み', () => {
   });
 
   test('起動直後の初回取得が復元中に返っても、購読を張り直して古い doc で上書きしない（#378）', async ({ page }) => {
-    await useFakeCloud(page, { ...otherDoc(), sessions: [...otherDoc().sessions, ...localSeed().sessions] });
-    await page.addInitScript((st) => {
-      if (sessionStorage.getItem('seeded')) return;
-      sessionStorage.setItem('seeded', '1');
-      localStorage.setItem('piano-pet', JSON.stringify(st));
-      window.__fetchDelay = 3000; window.__pushDelay = 6000;
-    }, localSeed());
+    await useFakeCloud(page, days(...otherDoc().sessions, ...localSeed().sessions));
+    await seed(page, localSeed());
+    await page.addInitScript(() => { window.__holdFetch = true; window.__holdPush = true; });
     await page.goto('/');
     await page.waitForFunction(() => window.__fetching === true, null, { timeout: 10000 });
-    const backup = JSON.stringify({
-      app: 'piano-pet', schemaVersion: 2, exportedAt: '2026-10-01T00:00:00.000Z',
-      state: baseState({ sessions: [{ date: '2026-09-05', totalCount: 2, songs: [{ name: 'Z', count: 2 }] }] }),
-    });
+    const backup = backupOf(days(session('2026-09-05', 2, 'Z')));
     page.on('dialog', (d) => d.accept());
-    await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
-    await page.waitForFunction(() => window.__fetchDone === true, null, { timeout: 10000 });
+    await importJson(page, backup);
+    await page.waitForFunction(() => window.__pushStarted === true, null, { timeout: 10000 });
+    await page.evaluate(() => window.__releaseFetch());
+    await page.waitForFunction(() => window.__fetchDone === true);
 
     expect(await page.evaluate(() => typeof window.__onRemote)).not.toBe('function');   // 購読を張り直さない
     const st = await readLocal(page);
@@ -648,7 +540,7 @@ test.describe('クラウド同期の取り込み', () => {
   for (const kind of ['しょきか', 'ふくげん', 'ふくげん（がぞくコード付き）']) {
     test(`push が返らない回線でも ${kind} は上限時間内にリロードする（#381）`, async ({ page }) => {
       await useFakeCloud(page, { ...baseState() });
-      await seedLocal(page, localSeed());
+      await seed(page, localSeed());
       await page.goto('/');
       await waitForSync(page);
       await page.evaluate(() => { window.__pushDelay = 60000; });   // ack が返らない
@@ -675,25 +567,24 @@ test.describe('クラウド同期の取り込み', () => {
   // 日付をまたいで復帰すると「きょう」になったレッスン日を取りこむ（#428）。取り込み前の state で送ると #242 の再来
   async function comeBackNextDay(page, { fetchFail = false } = {}) {
     const noon = new Date(); noon.setHours(12, 0, 0, 0);
-    const tomorrow = new Date(noon.getTime() + 86400000);
-    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     await page.clock.install({ time: noon });
-    const local = baseState({ pet: { lessonDates: [ymd(tomorrow)] }, sessions: [{ date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
     await useFakeCloud(page, null, { delay: 50 });
-    await seedLocal(page, local);
+    await seed(page, baseState({ pet: { lessonDates: [ymd(-1)] }, sessions: [session('2026-01-01', 4, 'A')] }));
     await page.goto('/');
     await waitForSync(page);
     await expect.poll(() => page.evaluate(() => window.__cloudDoc?.sessions?.length)).toBe(1);
     // 休んでいる間に、他の端末が記録した
-    await page.evaluate((fail) => {
+    await page.evaluate(([fail, other]) => {
       window.__pushedAll = [];
-      window.__cloudDoc.sessions.push({ date: '2026-01-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] });
-      window.__fetchDelay = 800;   // 送信の待ち（50ms）より取得が遅い
+      window.__cloudDoc.sessions.push(other);
+      window.__holdFetch = true;
       window.__fetchDone = false;
       window.__fetchFail = fail;
-    }, fetchFail);
-    await page.clock.setSystemTime(tomorrow);
+    }, [fetchFail, session('2026-01-02', 6, 'B')]);
+    await page.clock.setSystemTime(noon.getTime() + 86400000);
     await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForTimeout(300);   // 送信の待ち（50ms）より取得が遅い
+    await page.evaluate(() => { window.__holdFetch = false; window.__releaseFetch(); });
     await page.waitForFunction(() => window.__fetchDone);
     await page.waitForTimeout(300);
   }
@@ -717,14 +608,14 @@ test.describe('クラウド同期の取り込み', () => {
   test('キー順だけ違う同じ内容のクラウドでは、起動時に送らない（#428）', async ({ page }) => {
     const local = baseState({
       pet: { xp: 4, coins: 4 }, badges: ['first_practice'],
-      streak: { current: 1, best: 1, lastPracticeDate: '2026-01-01', freezes: 0 },
-      sessions: [{ date: '2026-01-01', songs: [{ name: 'A', count: 4 }], totalCount: 4, coinsEarned: 4, xpEarned: 4, bonusCoins: 0, praise: null, tempo: null }],
+      streak: { current: 1, best: 1, lastPracticeDate: '2026-01-01' },
+      sessions: [{ ...session('2026-01-01', 4, 'A'), coinsEarned: 4, xpEarned: 4, bonusCoins: 0, praise: null, tempo: null }],
     });
     const sorted = (v) => (Array.isArray(v) ? v.map(sorted) : v !== null && typeof v === 'object'
       ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])])) : v);
     const { pet, inventory, streak, badges, sessions } = local;
     await useFakeCloud(page, sorted({ pet, inventory, streak, badges, sessions, deletedDates: [] }));   // Firestore はキーをソートして返す
-    await seedLocal(page, local);
+    await seed(page, local);
     await page.goto('/');
     await waitForSync(page);
     await page.waitForTimeout(300);

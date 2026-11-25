@@ -1,99 +1,48 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, fixRandom, gotoHome } from './helpers.js';
 
-// ホームで猫をなでる/タップする interaction（#79）
+// ホームで猫をなでる/タップする（#79）・猫スタイル（#66）
 test.describe('猫とのインタラクション', () => {
-  test.beforeEach(async ({ page }) => {
-    // 本番Firestoreへの読み書きと干渉を防ぐためFirebase関連を全てブロック。
-    await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
-    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
-    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
-    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
+  test('タップすると反応アニメーションが出るだけで、コインも連続日数も増えない', async ({ page }) => {
+    await fixRandom(page, 0.999);   // 威嚇(hiss)を外す
+    await gotoHome(page);
+    await page.click('#catStage');
+    await expect(page.locator('#catStage .cat')).toHaveClass(/cat--(happy|wiggle)/);
+    await expect(page.locator('#view-home')).toBeVisible();
+    await expect(page.locator('#statCoins')).toHaveText('0');
+    await expect(page.locator('#statStreak')).toHaveText('0');
+  });
 
-    // 初回オンボーディング（#141）が全画面で重ならないよう「見た」フラグを立てる。
-    await page.addInitScript(() => {
-      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
+  // 威嚇の抽選は再生と分離してある＝音を切っていても同じに出る（#187）
+  for (const sound of ['ON', 'OFF']) {
+    test(`音 ${sound}: 威嚇(hiss)のときは威嚇の表情に差し替え、喜びの演出は出さない`, async ({ page }) => {
+      await fixRandom(page, 0);
+      await gotoHome(page);
+      if (sound === 'OFF') await page.click('#soundToggle');
+      const cat = page.locator('#catStage .cat');
+      // 反応クラスが一瞬でも付いたら拾う（あとで見ると、剥がれたのか付かなかったのか区別できない）
+      await cat.evaluate((el) => {
+        window.__classes = [];
+        new MutationObserver(() => window.__classes.push(el.className)).observe(el, { attributes: true, attributeFilter: ['class'] });
+      });
+      await page.click('#catStage');
+      await expect(cat).toHaveClass(/cat--hiss/);
+      await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_tora_low_hiss\.webp/);
+      await expect(cat).not.toHaveClass(/cat--hiss/);   // 元の表情に戻る
+      const reacted = await page.evaluate(() => window.__classes.filter((c) => /cat--(happy|wiggle)/.test(c)));
+      expect(reacted).toEqual([]);
     });
-  });
-
-  test('猫をタップすると反応アニメーションが再生される', async ({ page }) => {
-    // Math.random を固定して威嚇(hiss)を起こさせない（hiss だと演出を出さないため）。
-    await page.addInitScript(() => { Math.random = () => 0.99; });
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-
-    const catSvg = page.locator('#catStage .cat');
-    await expect(catSvg).toBeVisible();
-
-    // タップ直後は反応クラス（喜ぶ or しっぽふり）が付く。終了時に剥がれる前に確認する。
-    await page.click('#catStage');
-    await expect(catSvg).toHaveClass(/cat--(happy|wiggle)/);
-  });
-
-  test('威嚇(hiss)したときは喜び演出を出さず威嚇表情に差し替える（#187）', async ({ page }) => {
-    // Math.random を 0 に固定して必ず hiss にする。
-    await page.addInitScript(() => { Math.random = () => 0; });
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-
-    const catSvg = page.locator('#catStage .cat');
-    await expect(catSvg).toBeVisible();
-
-    await page.click('#catStage');
-    // 威嚇表情への一時差し替え（#187）：cat--hiss が付き、本体画像が hiss になる
-    await expect(catSvg).toHaveClass(/cat--hiss/);
-    await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_tora_low_hiss\.webp/);
-    // 反応クラスが付かないこと。誤って付くなら数百ms残るので、少し待ってから確認する。
-    await page.waitForTimeout(300);
-    await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
-  });
-
-  test('サウンドOFFでも威嚇(hiss)なら喜び演出を出さない（音設定と演出の非結合）', async ({ page }) => {
-    // Math.random を 0 に固定して必ず hiss にする。
-    await page.addInitScript(() => { Math.random = () => 0; });
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-
-    // サウンドをOFFにする（デフォルトON）。OFFでも威嚇判定は走るべき。
-    await page.click('#soundToggle');
-
-    const catSvg = page.locator('#catStage .cat');
-    await expect(catSvg).toBeVisible();
-
-    await page.click('#catStage');
-    // ミュートでも hiss は抽選され、喜び演出は抑制される（抽選を再生から分離した修正）
-    await page.waitForTimeout(300);
-    await expect(catSvg).not.toHaveClass(/cat--(happy|wiggle)/);
-  });
+  }
 
   test('きせかえ中に猫スタイルを切り替えられる（#66）', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-
-    // ピッカーはきせかえ編集モード中だけ出る
-    await expect(page.locator('#stylePicker')).toBeHidden();
+    await gotoHome(page);
+    await expect(page.locator('#stylePicker')).toBeHidden();   // きせかえ編集中だけ出る
     await page.click('#dressupToggle');
-    await expect(page.locator('#stylePicker')).toBeVisible();
-
-    // しろ を選ぶと本体画像と data-style が切り替わる
     await page.click('.style-picker__btn[data-style="shiro"]');
     await expect(page.locator('#catStage .cat')).toHaveAttribute('data-style', 'shiro');
     await expect(page.locator('#catStage .cat__body')).toHaveAttribute('src', /cat_shiro_low_idle\.webp/);
 
-    // 「できた！」で抜けてもスタイルは維持され、ピッカーは隠れる
-    await page.click('#dressupToggle');
+    await page.click('#dressupToggle');   // 「できた！」で抜けても維持される
     await expect(page.locator('#stylePicker')).toBeHidden();
     await expect(page.locator('#catStage .cat')).toHaveAttribute('data-style', 'shiro');
-  });
-
-  test('猫をなでる操作は記録ボタンとは別の安全操作（コインは増えない）', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('#statCoins')).toHaveText('0');
-
-    // なでてもホームのまま、コインやストリークは変化しない（記録ではない）
-    await page.click('#catStage');
-    await expect(page.locator('#view-home')).toBeVisible();
-    await expect(page.locator('#statCoins')).toHaveText('0');
-    await expect(page.locator('#statStreak')).toHaveText('0');
   });
 });

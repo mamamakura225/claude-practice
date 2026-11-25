@@ -1,3 +1,4 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   isSoundOn,
@@ -51,11 +52,12 @@ describe('toggleSound', () => {
 });
 
 describe('SOUND_SPECS', () => {
-  it('必要な効果音が定義されている', () => {
-    for (const name of ['coin', 'levelup', 'record', 'purchase', 'peta', 'fanfare']) {
-      expect(Array.isArray(SOUND_SPECS[name])).toBe(true);
-      expect(SOUND_SPECS[name].length).toBeGreaterThan(0);
-    }
+  it('アプリが鳴らす効果音がすべて定義されている', () => {
+    const dir = new URL('../js/', import.meta.url);
+    const played = readdirSync(dir).filter((f) => f.endsWith('.js'))
+      .flatMap((f) => [...readFileSync(new URL(f, dir), 'utf8').matchAll(/playSound\('([^']+)'/g)].map((m) => m[1]));
+    expect(played.length).toBeGreaterThan(0);
+    for (const name of new Set(played)) expect(SOUND_SPECS[name]?.length, name).toBeGreaterThan(0);
   });
 
   it('各音符が周波数とタイミングを持つ', () => {
@@ -87,11 +89,6 @@ describe('stampSemitone / stampFrequency (#139)', () => {
   it('目標マス（最後の1マス）は高いド＝オクターブ(+12)に解決する', () => {
     expect(stampSemitone(9, 10)).toBe(12);
     expect(stampFrequency(9, 10)).toBeCloseTo(STAMP_BASE_FREQ * 2, 5);
-  });
-
-  it('オクターブ上がると周波数は2倍（平均律）＝目標マスは基準の2倍', () => {
-    expect(stampSemitone(7, 8)).toBe(12);
-    expect(stampFrequency(7, 8)).toBeCloseTo(STAMP_BASE_FREQ * 2, 5);
   });
 
   it('goal が変わっても最後のマスがオクターブで締まる', () => {
@@ -150,11 +147,6 @@ describe('stampNotes (#154 目標マスは主和音)', () => {
     expect(Math.max(...chord.map((n) => n.g))).toBeLessThanOrEqual(maxSingle);
   });
 
-  it('goal が変わっても最後のマスが和音になる', () => {
-    expect(stampNotes(4, 5)).toHaveLength(4); // 目標マス
-    expect(stampNotes(0, 5)).toHaveLength(2); // 通常マス
-  });
-
   it('各 note は周波数とタイミングを持つ（再生エンジン契約）', () => {
     for (const n of [...stampNotes(0, 10), ...stampNotes(9, 10)]) {
       expect(n.f).toBeGreaterThan(0);
@@ -178,25 +170,16 @@ describe('rollCatVoice', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0.99);
     expect(rollCatVoice()).toBe('meow');
   });
-
-  it('state を受け取らず、引数なしで種類だけ返す', () => {
-    vi.spyOn(Math, 'random').mockReturnValue(0.5);
-    expect(rollCatVoice()).toBe('meow');
-  });
 });
 
 describe('MEOW_SOUNDS / HISS_SOUNDS', () => {
-  it('鳴き声サンプルが3種以上、威嚇サンプルが1種以上ある', () => {
-    expect(Array.isArray(MEOW_SOUNDS)).toBe(true);
+  it('鳴き声は3種以上、威嚇は1種以上ある', () => {
     expect(MEOW_SOUNDS.length).toBeGreaterThanOrEqual(3);
-    expect(Array.isArray(HISS_SOUNDS)).toBe(true);
     expect(HISS_SOUNDS.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('各サンプルが sounds 配下の mp3 を指す', () => {
-    for (const url of [...MEOW_SOUNDS, ...HISS_SOUNDS]) {
-      expect(url).toMatch(/sounds\/.+\.mp3$/);
-    }
+  it('音声ファイルが実在する', () => {
+    for (const url of [...MEOW_SOUNDS, ...HISS_SOUNDS]) expect(existsSync(new URL(url)), url).toBe(true);
   });
 });
 

@@ -1,24 +1,12 @@
-import { test, expect } from '@playwright/test';
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { APP_DIR, isMediaAsset, listCodeAssets, listMediaAssets } from '../../../scripts/piano-pet-assets.mjs';
+import { test, expect } from './helpers.js';
 
-// 記録クリップの SW キャッシュ（#303）。
-// SW の同一オリジン処理は network-first（`cache: 'reload'`）で、キャッシュはオフライン時の
-// フォールバックにしか使われない。そのため cat-video.js の prime（先読み）がオンラインで効かず、
-// 再生のたびにクリップ全量（106〜172KB）を取り直していた。PLAY_TIMEOUT_MS=1秒に間に合わないと
-// 抽選に当たっても動画が出ない。cache-first にしても、差し替え時は gen-sw のハッシュ入力に
-// video/*.mp4 が入っている（#318）ので MEDIA_CACHE 名が必ず動き古い版が残る心配はない。
+// SW のキャッシュ方針：メディア（クリップ・画像・音）は cache-first（#303。クリップを再生のたびに取り直すと
+// 1秒の上限に間に合わない）、コードは network-first。差し替えは gen-sw のハッシュがキャッシュ名を動かして届ける（#318）。
 test.use({ serviceWorkers: 'allow' });
-
-// 本番 Firestore へつながない（届いた state で見た目が変わり、結果が回線しだいになる）。
-// SW からの取得にも効くよう page でなく context で遮る。
-test.beforeEach(async ({ context }) => {
-  for (const host of ['www.gstatic.com/firebasejs', 'firestore.googleapis.com', 'firebase.googleapis.com', 'identitytoolkit.googleapis.com']) {
-    await context.route(`**/${host}/**`, (route) => route.abort());
-  }
-});
 
 const CLIP = './video/cat_shiro_record_v1.mp4';
 
@@ -35,6 +23,19 @@ const loadClip = (page, src) => page.evaluate(async (s) => {
   });
 }, src);
 
+const waitForSw = (page) => page.waitForFunction(
+  () => navigator.serviceWorker?.controller != null, null, { timeout: 20000 },
+);
+
+/** その名前で終わる URL がキャッシュに入るまで待つ。 */
+const waitCached = (page, suffix) => expect.poll(() => page.evaluate(async (end) => {
+  for (const n of await caches.keys()) {
+    const keys = await (await caches.open(n)).keys();
+    if (keys.some((k) => k.url.endsWith(end))) return true;
+  }
+  return false;
+}, suffix), { timeout: 10000 }).toBe(true);
+
 test.describe('記録クリップの SW キャッシュ（#303）', () => {
   test('一度読んだクリップは2回目にネットワークへ出ない', async ({ page, context }) => {
     const hits = [];
@@ -44,22 +45,16 @@ test.describe('記録クリップの SW キャッシュ（#303）', () => {
     });
 
     await page.goto('/');
-    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 20000 });
+    await waitForSw(page);
 
     expect(await loadClip(page, CLIP), '1回目が読めること').toBe(true);
-    await expect.poll(async () => page.evaluate(async () => {
-      for (const n of await caches.keys()) {
-        const keys = await (await caches.open(n)).keys();
-        if (keys.some((k) => k.url.includes('cat_shiro_record_v1.mp4'))) return true;
-      }
-      return false;
-    }), { timeout: 5000 }).toBe(true);
+    await waitCached(page, 'cat_shiro_record_v1.mp4');
 
     const afterFirst = hits.length;
     expect(afterFirst, '1回目はネットワークから取る').toBeGreaterThan(0);
 
     expect(await loadClip(page, CLIP), '2回目が読めること').toBe(true);
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(500);   // 「ネットワークへ出ない」ことの証拠時間
 
     // ここが本題。network-first のままだと2回目もネットワークへ出て全量ダウンロードになる。
     expect(hits.length, `2回目でネットワーク取得が増えた: ${hits.join(', ')}`).toBe(afterFirst);
@@ -73,13 +68,11 @@ test.describe('記録クリップの SW キャッシュ（#303）', () => {
     });
 
     await page.goto('/');
-    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 20000 });
+    await waitForSw(page);
 
     await page.evaluate(() => fetch('./js/cat-video.js').then((r) => r.text()));
     const afterFirst = hits.length;
     await page.evaluate(() => fetch('./js/cat-video.js').then((r) => r.text()));
-    await page.waitForTimeout(300);
-
     expect(hits.length, 'JS は毎回ネットワークを見に行く').toBeGreaterThan(afterFirst);
   });
 
@@ -87,18 +80,12 @@ test.describe('記録クリップの SW キャッシュ（#303）', () => {
   // 以後オフラインになったときエラーページが返り「オフライン時だけ白画面」になる。
   test('失敗レスポンス(503)はキャッシュに焼かず、オフラインでは正常版が返る（#317）', async ({ page, context }) => {
     await page.goto('/');
-    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 20000 });
+    await waitForSw(page);
 
     // 正常版を SW 経由で取ってキャッシュに入れる（query 無し URL のエントリを自分で作る）
     const goodBody = await page.evaluate(() => fetch('./js/app.js').then((r) => r.text()));
     expect(goodBody).toContain('import');
-    await expect.poll(() => page.evaluate(async () => {
-      for (const n of await caches.keys()) {
-        const keys = await (await caches.open(n)).keys();
-        if (keys.some((k) => k.url.endsWith('/js/app.js'))) return true;
-      }
-      return false;
-    }), { timeout: 10000 }).toBe(true);
+    await waitCached(page, '/js/app.js');
 
     // app.js に 503 を返させて SW に取りに行かせる（network-first の put 分岐）
     let served503 = false;
@@ -120,10 +107,10 @@ test.describe('記録クリップの SW キャッシュ（#303）', () => {
 
   test('キャッシュ済みのクリップはオフラインでも再生できる', async ({ page, context }) => {
     await page.goto('/');
-    await page.waitForFunction(() => navigator.serviceWorker?.controller != null, null, { timeout: 20000 });
+    await waitForSw(page);
 
     expect(await loadClip(page, CLIP)).toBe(true);
-    await page.waitForTimeout(500);
+    await waitCached(page, 'cat_shiro_record_v1.mp4');
 
     await context.setOffline(true);
     const offlineOk = await loadClip(page, CLIP);
@@ -134,10 +121,6 @@ test.describe('記録クリップの SW キャッシュ（#303）', () => {
 
 // コード用とメディア用のキャッシュ分割（#259）と、アプリシェルのオフライン起動（#289）。
 test.describe('コードとメディアのキャッシュ（#259 #289）', () => {
-  const waitForSw = (page) => page.waitForFunction(
-    () => navigator.serviceWorker?.controller != null, null, { timeout: 20000 },
-  );
-
   /** { キャッシュ名: [アプリ相対パス（?v= は除く）] } */
   const dumpCaches = (page) => page.evaluate(async () => {
     const out = {};

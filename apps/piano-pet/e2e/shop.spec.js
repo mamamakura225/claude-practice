@@ -1,318 +1,196 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, makeState, seed, readLocal, gotoHome } from './helpers.js';
 
+// ショップ：購入・装備・置物・えさ・なかよし・絞り込み。買う前の確認（#421）は undo.spec.js。
+// えさやりクリップ（#294）は再生中ポップアップが全画面でタップを受けるので、クリップを見るテスト
+// （openShopWithClips）以外は読めなくして、静止ポップアップ（フォールバック）の経路に固定する。
 const FEED_CLIP_URL = '**/video/*_feed_*.mp4';
 
-// ショップ：購入 → 装備 → ホームの猫に反映
-test.describe('ショップ', () => {
-  test.beforeEach(async ({ page }) => {
-    // 本番Firestoreへの読み書きと干渉を防ぐためFirebase関連を全てブロック。
-    // （クラウド取得が成功すると下のシード状態を上書きしてしまうため必須）
-    await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
-    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
-    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
-    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
-    // えさやりクリップ（#294）は再生中ポップアップが全画面でタップを受けるので、クリップ自体を
-    // 検証するテスト以外は読めなくして静止ポップアップ（フォールバック）の経路に固定する。
-    await page.route(FEED_CLIP_URL, (route) => route.abort());
+const item = (page, name) => page.locator('.shop-card', { hasText: name });
+const coins = (page) => page.locator('#shopCoins');
+const feedBtn = (food) => `.shop-btn[data-action="feed"][data-id="${food}"]`;
+const badgeName = (page) => page.locator('#badgePopupName');
 
-    // コインを持った状態で開始（記録を経由せずショップ単体を検証するため）
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'piano-pet',
-        JSON.stringify({
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [] },
-          inventory: [],
-          streak: { current: 0, best: 0, lastPracticeDate: null },
-          badges: [],
-          sessions: [],
-        }),
-      );
-    });
+async function openShop(page, pet = {}, rest = {}) {
+  await page.route(FEED_CLIP_URL, (route) => route.abort());
+  const state = makeState({ pet: { coins: 200, ...pet }, badges: ['first_outfit'], ...rest });   // 購入でバッジが出て操作を遮らないように
+  await seed(page, state);
+  await page.goto('/#/shop');
+  await expect(coins(page)).toHaveText(String(state.pet.coins), { timeout: 10000 });
+}
 
-    // 初回オンボーディング（#141）が全画面で重ならないよう「見た」フラグを立てる。
-    await page.addInitScript(() => {
-      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
-    });
-  });
+async function buy(page, id) {
+  await page.click(`.shop-btn[data-action="buy"][data-id="${id}"]`);
+  await page.click('#buyOkBtn');
+}
 
+test.describe('購入と装備', () => {
   test('購入して装備するとホームの猫にアイテムが乗る', { tag: '@compat' }, async ({ page }) => {
-    await page.goto('/#/shop');
-
-    // ショップ表示・所持コイン200
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    // 赤いリボン（25コイン）を買う → 残175
-    await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
-    await page.click('#buyOkBtn');   // かう？ の確認（#421）
-    await expect(page.locator('#shopCoins')).toHaveText('175');
-
-    // 装備する → 「みにつけてる」バッジが出る
+    await openShop(page);
+    await buy(page, 'ribbon');   // 25コイン
+    await expect(coins(page)).toHaveText('175');
     await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');
-    const ribbonCard = page.locator('.shop-card', { hasText: 'あかい リボン' });
-    await expect(ribbonCard.locator('.shop-card__badge')).toBeVisible();
+    await expect(item(page, 'あかい リボン').locator('.shop-card__badge')).toBeVisible();
 
-    // ホームへ → 猫にアイテムグループが1つ乗る
     await page.click('.nav-btn[data-nav="home"]');
-    await expect(page.locator('#view-home')).toBeVisible();
     await expect(page.locator('#catStage .cat__front > g')).toHaveCount(1);
   });
 
-  // 置物・小物系（シーン配置型・#226）：購入 → 配置 → ホームの猫の前後レイヤーに反映
   test('置物を買って「おく」とホームのシーンレイヤーに乗る（#226）', async ({ page }) => {
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    // けいとだま（40コイン・前面）を買う → 残160
-    await page.click('.shop-btn[data-action="buy"][data-id="yarnBall"]');
-    await page.click('#buyOkBtn');   // かう？ の確認（#421）
-    await expect(page.locator('#shopCoins')).toHaveText('160');
-
-    // 「おく」（配置トグル）→ 「おうちに あるよ」バッジ
+    await openShop(page);
+    await buy(page, 'yarnBall');   // 40コイン・前面
+    await expect(coins(page)).toHaveText('160');
     await page.click('.shop-btn[data-action="place"][data-id="yarnBall"]');
-    const yarnCard = page.locator('.shop-card', { hasText: 'けいとだま' });
-    await expect(yarnCard.locator('.shop-card__badge')).toBeVisible();
+    await expect(item(page, 'けいとだま').locator('.shop-card__badge')).toBeVisible();
 
-    // ホームへ → 前面シーンレイヤー(z5)に毛糸玉、装備レイヤーは空
     await page.click('.nav-btn[data-nav="home"]');
-    await expect(page.locator('#view-home')).toBeVisible();
     await expect(page.locator('#catStage .cat__scene--front .cat__item[data-item="yarnBall"]')).toHaveCount(1);
-    await expect(page.locator('#catStage .cat__front > g')).toHaveCount(0);
+    await expect(page.locator('#catStage .cat__front > g')).toHaveCount(0);   // 装着の層は空
   });
 
-  test('同じスロットのアイテムは付け替わる（リボン→星の首輪）', async ({ page }) => {
-    // 星の首輪は unlockLevel 2（#126）。解放済みにするため affinity を盛る
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'piano-pet',
-        JSON.stringify({
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 50, foodSpent: 0 },
-          inventory: [],
-          streak: { current: 0, best: 0, lastPracticeDate: null },
-          badges: [],
-          sessions: [],
-        }),
-      );
-    });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    // リボン購入＆装備
+  // #396: 購入直後は同じ商品のボタンが「みにつける」に替わる。しばらく押せなくして連打の2打目で進ませない
+  test('「かう」の直後に同じ商品のボタンを押しても、勝手に みにつけられない', async ({ page }) => {
+    await openShop(page);
     await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
-    await page.click('#buyOkBtn');   // かう？ の確認（#421）
-    await page.click('.shop-btn[data-action="toggle"][data-id="ribbon"]');
-    await expect(
-      page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-card__badge'),
-    ).toBeVisible();
-
-    // 星の首輪購入＆装備（どちらも首スロット）
-    await page.click('.shop-btn[data-action="buy"][data-id="collar"]');
-    await page.click('#buyOkBtn');   // かう？ の確認（#421）
-    await page.click('.shop-btn[data-action="toggle"][data-id="collar"]');
-
-    // 星の首輪が装備中、リボンは外れて「みにつける」に戻る
-    await expect(
-      page.locator('.shop-card', { hasText: 'ほしの くびわ' }).locator('.shop-card__badge'),
-    ).toBeVisible();
-    await expect(
-      page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-btn'),
-    ).toHaveText('みにつける');
-
-    // ホームの猫に乗っているアイテムは1つ（付け替えなので増えない）
-    await page.click('.nav-btn[data-nav="home"]');
-    await expect(page.locator('#catStage .cat__front > g')).toHaveCount(1);
+    await expect(page.locator('#buyOkBtn')).toBeVisible();
+    await page.evaluate(() => {
+      document.getElementById('buyOkBtn').click();
+      document.querySelector('#shopList .shop-btn[data-id="ribbon"]').click();
+    });
+    const st = await readLocal(page);
+    expect(st.inventory).toContain('ribbon');
+    expect(st.pet.equippedItems).not.toContain('ribbon');
   });
 
-  // #359: 320px で名前の列が潰れて「お／う／か／ん」と1文字ずつ縦に並ばない。語の途中で改行しない
-  test('せまい画面でも アイテム名が1文字ずつ縦に並ばない（#359）', async ({ page }) => {
+  test('コインが足りないアイテムとえさは「あと ○ コイン」で押せない（#360）', async ({ page }) => {
+    await openShop(page, { coins: 3, affinity: 50 });   // 王冠（150・Lv8）は解放済み＝コインだけが足りない
+    for (const [name, text] of [['おうかん', 'あと 147 コイン'], ['ミルク', 'あと 4 コイン']]) {
+      const btn = item(page, name).locator('.shop-btn');
+      await expect(btn).toBeDisabled();
+      await expect(btn).toHaveText(text);
+    }
+  });
+
+  test('なかよしLv未到達のアイテムはロック表示で、買うボタンが無い（#126）', async ({ page }) => {
+    await openShop(page);   // なかよしLv1
+    const scarf = item(page, 'マフラー');   // Lv4
+    await expect(scarf.locator('.shop-btn')).toBeDisabled();
+    await expect(scarf.locator('.shop-btn')).toHaveText('なかよしLv4で あえる');
+    await expect(scarf.locator('.shop-card__badge--locked')).toHaveCount(0);   // ロックはボタンだけで示す（#399）
+    await expect(scarf.locator('.shop-btn[data-action="buy"]')).toHaveCount(0);
+    await expect(item(page, 'あかい リボン').locator('.shop-btn[data-action="buy"]')).toBeVisible();
+  });
+
+  test('カテゴリで絞り込め、買っても絞り込みが戻らない（#299）', async ({ page }) => {
+    await openShop(page);
+    const cards = page.locator('#shopList .shop-card');
+    const all = await cards.count();
+    await page.click('.shop-cat[data-cat="head"]');
+    await expect(page.locator('.shop-cat[data-cat="head"]')).toHaveAttribute('aria-pressed', 'true');
+    const head = await cards.count();
+    expect(head).toBeLessThan(all);
+    await expect(item(page, 'むぎわら ぼうし')).toBeVisible();
+    await expect(item(page, 'あかい リボン')).toHaveCount(0);
+
+    await buy(page, 'hat');
+    await expect(coins(page)).toHaveText('160');
+    expect(await cards.count()).toBe(head);
+    await page.click('.shop-cat[data-cat="all"]');
+    expect(await cards.count()).toBe(all);
+  });
+
+  test('320px でも、名前が1文字ずつ縦に並ばず（#359）、ロック中のボタンで横スクロールしない（#396）', async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 640 });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopList .shop-card').first()).toBeVisible({ timeout: 10000 });
-    expect(await page.evaluate(() => getComputedStyle(document.body).wordBreak)).toBe('keep-all');
+    await openShop(page);
+    await expect(page.locator('#shopList .shop-btn--locked').first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
+    expect(await page.evaluate(() => getComputedStyle(document.body).wordBreak)).toBe('keep-all');   // 語の途中で改行しない
     const lines = await page.locator('#shopList .shop-card__name').evaluateAll((els) => els.map((el) => {
       const lh = parseFloat(getComputedStyle(el).lineHeight) || parseFloat(getComputedStyle(el).fontSize) * 1.5;
       return Math.round(el.getBoundingClientRect().height / lh);
     }));
     expect(Math.max(...lines)).toBeLessThanOrEqual(2);
   });
+});
 
-  test('えさをあげるとコインが減り なかよし度が上がる', async ({ page }) => {
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-    await expect(page.locator('#feedAffinity')).toHaveText('0');
-
-    // おさかな（5コイン・なかよし+1）をあげる → 残195・なかよし1
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    await expect(page.locator('#shopCoins')).toHaveText('195');
+test.describe('えさと なかよし', () => {
+  test('えさをあげるとコインが減り、なかよし度がショップとホームで上がる', async ({ page }) => {
+    await openShop(page);
+    await page.click(feedBtn('fish'));   // 5コイン・なかよし+1
+    await expect(coins(page)).toHaveText('195');
     await expect(page.locator('#feedAffinity')).toHaveText('1');
-
-    // ホームの「なかよし」表示にも反映される
     await page.click('.nav-btn[data-nav="home"]');
     await expect(page.locator('#statAffinity')).toHaveText('1');
   });
 
-  // えさやりクリップ（#294）：ショップ内のポップアップで、えさの種類・猫スタイルに合ったクリップを
-  // その場で再生する。従来の静止ポップアップ（1800ms）より長く出し続け、タップでスキップできる。
-  // 再生の positive 確認は Chromium のみ（WebKit は playing を出さない・clip.spec.js 冒頭参照）。
-  // クリップを有効にしてショップを開き、モジュール読込＋先読み（primeFeed の3本）が済むまで待つ。
-  // 待たずに押すと、遅い環境では静止カードが閉じた後に再生が始まる分岐（＝クリップを出さない）に入る。
-  async function openShopWithClips(page, coins = '200') {
-    await page.unroute(FEED_CLIP_URL);
-    const feedRequests = new Set();
-    page.on('request', (req) => { if (/_feed_/.test(req.url())) feedRequests.add(new URL(req.url()).pathname); });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText(coins, { timeout: 10000 });
-    await expect.poll(() => feedRequests.size, { timeout: 8000 }).toBeGreaterThanOrEqual(3);
-    return feedRequests;
-  }
+  test('なかよしレベルの名前・エンブレム・ごほうびの解放が表示される（#124）', async ({ page }) => {
+    await seed(page, makeState({ pet: { affinity: 7 } }));   // Lv3「だいすき」
+    await gotoHome(page);
+    await expect(page.locator('#statBondLevel')).toHaveText('3');
+    await expect(page.locator('#statBondName')).toHaveText('だいすき');
+    await expect(page.locator('#catStage .cat__bond')).toBeVisible();
 
-  test('えさをあげるとショップ内でえさ別の動画クリップが出て、タップで閉じる（#294）', async ({ page }) => {
-    await openShopWithClips(page);
-
-    await page.click('.shop-btn[data-action="feed"][data-id="treat"]');
-    const popup = page.locator('#feedPopup');
-    await expect(popup).toHaveClass(/coin-popup--clip/);
-    await expect(page.locator('#feedClip video')).toHaveAttribute('src', /cat_tora_feed_cake.mp4$/);
-    await expect(page.locator('#feedPopupGain')).toHaveText('+3');
-
-    // 静止ポップアップの尺（1800ms＋フェード）を過ぎても、クリップ再生中は閉じない
-    await page.waitForTimeout(2600);
-    await expect(popup).toBeVisible();
-    await expect(popup).toHaveClass(/coin-popup--clip/);
-
-    // ポップアップのどこをタップしてもスキップして閉じる
-    await popup.click({ position: { x: 10, y: 10 } });
-    await expect(popup).toBeHidden();
-    await expect(page.locator('#feedClip')).toBeHidden();
+    await page.click('.nav-btn[data-nav="shop"]');
+    await expect(page.locator('#bondRewards .bond-reward')).toHaveCount(8);
+    await expect(page.locator('#bondRewards .bond-reward:not(.is-locked)')).toHaveCount(3);
+    await expect(page.locator('#feedBondName')).toHaveText('だいすき');
   });
 
-  test('ショップに入ると現スタイルのえさやりクリップ3本だけを先読みし、そのスタイルのクリップを出す（#294）', async ({ page }) => {
-    await page.addInitScript(() => {
-      const s = JSON.parse(localStorage.getItem('piano-pet'));
-      s.pet.catStyle = 'shiro';
-      localStorage.setItem('piano-pet', JSON.stringify(s));
-    });
-    const feedRequests = await openShopWithClips(page);
-    await page.waitForTimeout(500);
-    expect([...feedRequests].map((u) => u.split('/').pop()).sort()).toEqual([
-      'cat_shiro_feed_cake.mp4', 'cat_shiro_feed_fish.mp4', 'cat_shiro_feed_milk.mp4',
-    ]);
-
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    await expect(page.locator('#feedPopup')).toHaveClass(/coin-popup--clip/);
-    await expect(page.locator('#feedClip video')).toHaveAttribute('src', /cat_shiro_feed_fish.mp4$/);
+  // 給餌はショップ（#catStage が隠れている）で行うので、ホームへ戻った瞬間に再生する（#347）
+  test('なかよしMAX到達で、バッジが付き、ホームに戻ると猫の特別演出が出る（#309）', async ({ page }) => {
+    await openShop(page, { affinity: 41 });   // あと1
+    await page.click(feedBtn('fish'));
+    await expect(page.locator('#feedAffinity')).toHaveText('42');
+    await page.click('.nav-btn[data-nav="home"]');
+    const cat = page.locator('#catStage .cat');
+    await expect(cat).toHaveClass(/cat--celebrate/);
+    await expect(cat).not.toHaveClass(/cat--celebrate/, { timeout: 3000 });
+    await expect(badgeName(page)).toHaveText('ねこと だいの なかよし');
   });
 
-  test('クリップを最後まで見ると（ended）ポップアップが閉じる（#294）', async ({ page }) => {
-    await openShopWithClips(page);
-    await page.click('.shop-btn[data-action="feed"][data-id="milk"]');
-    const popup = page.locator('#feedPopup');
-    await expect(popup).toHaveClass(/coin-popup--clip/);
-    // 実尺（8秒）を待つと保険タイマー（尺+1秒）でも閉じてしまい ended 経路を区別できないので、ended を直接撃つ
-    await page.$eval('#feedClip video', (v) => v.dispatchEvent(new Event('ended')));
-    await expect(popup).toBeHidden({ timeout: 1500 });
+  // バッジ告知を静止カードの onHidden に結び付けると、張り替えで失われる
+  test('なかよしMAXのえさの直後に次のえさを押しても、バッジ告知は出る（#294）', async ({ page }) => {
+    await openShop(page, { affinity: 41 });
+    await page.click(feedBtn('fish'));
+    await expect(page.locator('#feedAffinity')).toHaveText('42');
+    await page.click(feedBtn('milk'));
+    await expect(badgeName(page)).toHaveText('ねこと だいの なかよし', { timeout: 6000 });
   });
 
-  test('クリップ再生中に成立したバッジは、クリップが閉じてから告知する（#294）', async ({ page }) => {
-    await page.addInitScript(() => {
-      const s = JSON.parse(localStorage.getItem('piano-pet'));
-      s.pet.affinity = 41;   // おさかな（+1）で42＝なかよしMAX（affinity_max）
-      localStorage.setItem('piano-pet', JSON.stringify(s));
-    });
-    await openShopWithClips(page);
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    const popup = page.locator('#feedPopup');
-    await expect(popup).toHaveClass(/coin-popup--clip/);
-    // 旧実装（1800ms 固定で告知）ならこの時点で出ている。toBeHidden は消えるまで待って偽緑になるので瞬間値で見る
-    await page.waitForTimeout(2600);
-    expect(await page.locator('#badgePopup').isVisible()).toBe(false);
-
-    await popup.click({ position: { x: 10, y: 10 } });
-    await expect(page.locator('#badgePopupName')).toHaveText('ねこと だいの なかよし', { timeout: 3000 });
+  // #396: ポップアップは全画面でタップを受けるので、ページ内で直接押して重なる状況を作る
+  test('購入のバッジ表示は、続けて えさをあげると畳まれて重ならない', async ({ page }) => {
+    await openShop(page, {}, { badges: [] });
+    await buy(page, 'ribbon');   // はじめての衣装＝300ms 後にバッジ
+    await expect(page.locator('#badgePopup')).toBeVisible();
+    await page.locator(feedBtn('fish')).dispatchEvent('click');
+    await expect(page.locator('#feedPopup')).toBeVisible();
+    expect(await page.locator('#badgePopup').isHidden()).toBe(true);   // 2.2秒で自然に消えるので、待たずに見る
   });
 
-  test('モジュール読込が遅れ、静止カードが閉じてから再生できるようになっても開き直さない（#294）', async ({ page }) => {
-    await page.unroute(FEED_CLIP_URL);
-    await page.route('**/js/cat-video.js*', async (route) => {
-      await new Promise((r) => setTimeout(r, 4000));
-      await route.continue();
-    });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-    await page.evaluate(() => {
-      window.__clipSeen = false;
+  test('購入のバッジに畳まれた えさやりカードの後続（バッジ告知）は失われず、あとで出る', async ({ page }) => {
+    await openShop(page, { affinity: 41 }, { badges: [] });   // あと1で なかよしMAX
+    await page.click('.shop-btn[data-action="buy"][data-id="ribbon"]');
+    await expect(page.locator('#buyOkBtn')).toBeVisible();
+    await page.evaluate((sel) => {   // バッジが出る（300ms 後）より先に えさやりカードを出す
+      document.getElementById('buyOkBtn').click();
+      document.querySelector(sel).click();
+    }, feedBtn('fish'));
+    await expect(badgeName(page)).toHaveText('おきがえ じょうず');
+    await expect(badgeName(page)).toHaveText('ねこと だいの なかよし', { timeout: 8000 });
+  });
+
+  // #261: showPopup は要素ごとに前回のタイマー・transitionend を解除する。解除を外すと、1回目の
+  // フェードアウト開始〜完了の間（約250ms）に2回目を出したとき、残ったリスナーが2回目を即座に隠す。
+  // 窓が狭いので、--show が外れた瞬間をページ内で捕まえて撃ち、消えるまでの時間もページ内で測る。
+  test('えさやり連打の2回目も最後まで表示される（#261）', async ({ page }) => {
+    await openShop(page);
+    const elapsedMs = await page.evaluate((sel) => new Promise((resolve, reject) => {
       const el = document.getElementById('feedPopup');
-      new MutationObserver(() => { if (el.classList.contains('coin-popup--clip')) window.__clipSeen = true; })
-        .observe(el, { attributes: true, attributeFilter: ['class'] });
-    });
-
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    const popup = page.locator('#feedPopup');
-    await expect(popup).toBeHidden({ timeout: 3000 });   // 静止カードは通常どおり閉じる
-    await page.waitForTimeout(4000);                      // その後にモジュールが届き再生が始まりうる
-    await expect(popup).toBeHidden();
-    expect(await page.evaluate(() => window.__clipSeen)).toBe(false);
-    await expect(page.locator('#feedClip')).toBeHidden();
-  });
-
-  test('reduced-motion ではえさやりクリップを先読みも再生もしない（#294）', async ({ page }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.unroute(FEED_CLIP_URL);
-    const feedRequests = [];
-    page.on('request', (req) => { if (/_feed_/.test(req.url())) feedRequests.push(req.url()); });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-    await page.waitForTimeout(2500);   // primeCatVideo の idle 読込（上限2秒）を越える
-
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    const popup = page.locator('#feedPopup');
-    await expect(popup).toBeVisible();
-    await expect(popup).toBeHidden({ timeout: 4000 });
-    await expect(popup).not.toHaveClass(/coin-popup--clip/);
-    expect(feedRequests).toEqual([]);
-  });
-
-  test('クリップが読めないときは従来の静止ポップアップで閉じる（#294）', { tag: '@compat' }, async ({ page }) => {
-    await page.goto('/#/shop');   // beforeEach でクリップは abort 済み
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    const popup = page.locator('#feedPopup');
-    await expect(popup).toBeVisible();
-    await expect(popup).not.toHaveClass(/coin-popup--clip/);
-    await expect(popup).toBeHidden({ timeout: 4000 });
-    await expect(page.locator('#feedClip')).toBeHidden();
-  });
-
-  // #261 の退行ガード（#323）：showPopup は要素ごとにタイマー・transitionend リスナーを
-  // 張り替えて前回サイクルを解除する。これを削ると、1回目のフェードアウトで付いた
-  // transitionend リスナーが残ったまま2回目の表示（フェードイン）が終わった瞬間に発火し、
-  // 2回目のポップアップを即座に隠してしまう。再現には**1回目がフェードアウトを始めた直後**
-  // （リスナーは付いたがまだ発火していない窓）に2回目を重ねる必要がある——即座に連打すると
-  // 1回目のリスナーがまだ付いていないため再現しない（実測で確認済み）。
-  // 固定sleepで窓を狙うと、CI側の往復遅延が数十ms乗るだけで窓（実測約250ms）を外し
-  // 静かに緑化する（実測：wait=2010msで3回中1回だけ検出、2060ms以降は壊れていても常に緑）。
-  // ページ内で「class から --show が外れた瞬間」を直接観測して2回目を撃つことで、
-  // ハーネス側の遅延に依存しない待ち合わせにする。
-  // 経過時間はJS側の `hidden` プロパティが変わるまでをページ内で直接測る（Playwright側の
-  // ポーリングだとラウンドトリップ遅延が窓を狙う精度を崩すため。`.coin-popup[hidden]`の
-  // CSSガードは是正済みで toBeVisible/toBeHidden 自体は使えるが、この窓（実測約250ms）を
-  // 正確に捉える精度には不十分）。
-  test('えさやり連打の2回目も最後まで表示される（#261の退行ガード）', async ({ page }) => {
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    const elapsedMs = await page.evaluate(() => new Promise((resolve, reject) => {
-      const el = document.getElementById('feedPopup');
-      // ショップは feed のたびに再描画されボタン要素が差し替わるので毎回引き直す
-      const feed = () => document.querySelector('.shop-btn[data-action="feed"][data-id="fish"]').click();
+      const feed = () => document.querySelector(sel).click();   // 給餌のたびに再描画されるので毎回引く
       const timeout = setTimeout(() => reject(new Error('timeout: feedPopup not observed')), 8000);
       new MutationObserver((_, classObserver) => {
-        if (el.classList.contains('coin-popup--show')) return;   // 1回目の表示は無視
-        classObserver.disconnect();                              // duration 経過＝フェードアウト開始
-        // 旧 transitionend リスナーが付いた直後（まだ発火していない窓）を狙って2回目を撃つ。
-        // 同一タスクで撃つと再現しない（正常実装でも壊れた実装でも約2050msで緑になる・実測）
-        // ので、setTimeout で1マクロタスク分ずらす。
-        setTimeout(() => {
+        if (el.classList.contains('coin-popup--show')) return;
+        classObserver.disconnect();   // 1回目のフェードアウト開始
+        setTimeout(() => {            // 同一タスクで撃つとリスナーが付く前で再現しない
           feed();
           const t0 = performance.now();
           new MutationObserver(() => {
@@ -320,180 +198,103 @@ test.describe('ショップ', () => {
           }).observe(el, { attributes: true, attributeFilter: ['hidden'] });
         }, 50);
       }).observe(el, { attributes: true, attributeFilter: ['class'] });
-      feed();   // 1回目
-    }));
+      feed();
+    }), feedBtn('fish'));
+    expect(elapsedMs).toBeGreaterThan(1200);   // 正常は約2050ms、壊れていると130〜230ms（実測）
+  });
+});
 
-    // duration=1800ms + フェード0.25s ≈ 2050ms。壊れた実装（前回サイクル解除を削る）だと
-    // 1回目の旧リスナーが2回目のフェードイン完了で誤発火し、約130〜230msで消える（実測）。
-    expect(elapsedMs).toBeGreaterThan(1200);
+// 再生の positive 確認は Chromium のみ（WebKit は playing を出さない・clip.spec.js 冒頭）
+test.describe('えさやりクリップ（#294）', () => {
+  const popup = (page) => page.locator('#feedPopup');
+  const IN_CLIP = /coin-popup--clip/;
+  const tapToSkip = (page) => popup(page).click({ position: { x: 10, y: 10 } });
+
+  // 先読み（3本）が済むまで待つ。待たずに押すと、遅い環境では静止カードが閉じた後に再生が始まる
+  // 分岐（クリップを出さない）に入る。
+  async function openShopWithClips(page, pet) {
+    const requested = new Set();
+    page.on('request', (req) => { if (/_feed_/.test(req.url())) requested.add(new URL(req.url()).pathname.split('/').pop()); });
+    await seed(page, makeState({ pet: { coins: 200, ...pet } }));
+    await page.goto('/#/shop');
+    await expect.poll(() => requested.size, { timeout: 8000 }).toBeGreaterThanOrEqual(3);
+    return requested;
+  }
+
+  test('えさ別のクリップが静止カードより長く出て、タップで閉じる。成立したバッジは閉じてから告知する', async ({ page }) => {
+    await openShopWithClips(page, { affinity: 41 });
+    await page.click(feedBtn('treat'));   // +3 で なかよしMAX
+    await expect(popup(page)).toHaveClass(IN_CLIP);
+    await expect(page.locator('#feedClip video')).toHaveAttribute('src', /cat_tora_feed_cake.mp4$/);
+    await expect(page.locator('#feedPopupGain')).toHaveText('+3');
+
+    await page.waitForTimeout(2600);   // 静止カードの尺（1800ms＋フェード）を過ぎても
+    await expect(popup(page)).toHaveClass(IN_CLIP);
+    expect(await popup(page).isVisible()).toBe(true);
+    expect(await page.locator('#badgePopup').isVisible()).toBe(false);
+
+    await tapToSkip(page);
+    await expect(popup(page)).toBeHidden();
+    await expect(page.locator('#feedClip')).toBeHidden();
+    await expect(badgeName(page)).toHaveText('ねこと だいの なかよし', { timeout: 3000 });
   });
 
-  test('なかよしレベルとご褒美の解放が表示される（#124）', async ({ page }) => {
-    // affinity=7 を仕込む（なかよしレベル3「だいすき」相当・#216 8段階）
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'piano-pet',
-        JSON.stringify({
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 7, foodSpent: 0 },
-          inventory: [],
-          streak: { current: 0, best: 0, lastPracticeDate: null },
-          badges: [],
-          sessions: [],
-        }),
-      );
+  test('先読みはいまの猫スタイルの3本だけで、そのスタイルのクリップを出し、見終わる（ended）と閉じる', async ({ page }) => {
+    const requested = await openShopWithClips(page, { catStyle: 'shiro' });
+    await page.click(feedBtn('fish'));
+    await expect(popup(page)).toHaveClass(IN_CLIP);
+    await expect(page.locator('#feedClip video')).toHaveAttribute('src', /cat_shiro_feed_fish.mp4$/);
+    expect([...requested].sort()).toEqual(['cat_shiro_feed_cake.mp4', 'cat_shiro_feed_fish.mp4', 'cat_shiro_feed_milk.mp4']);
+    // 実尺（8秒）を待つと保険タイマーでも閉じて ended の経路を区別できないので、直接撃つ
+    await page.$eval('#feedClip video', (v) => v.dispatchEvent(new Event('ended')));
+    await expect(popup(page)).toBeHidden({ timeout: 1500 });
+  });
+
+  test('モジュール読込が遅れ、静止カードが閉じてから再生できるようになっても開き直さない', async ({ page }) => {
+    let arrive;
+    const late = new Promise((r) => { arrive = r; });
+    await page.route('**/js/cat-video.js*', async (route) => { await late; await route.continue(); });
+    await seed(page, makeState({ pet: { coins: 200 } }));
+    await page.goto('/#/shop');
+    await popup(page).evaluate((el) => {
+      window.__clipSeen = false;
+      new MutationObserver(() => { if (el.classList.contains('coin-popup--clip')) window.__clipSeen = true; })
+        .observe(el, { attributes: true, attributeFilter: ['class'] });
     });
+    await page.click(feedBtn('fish'));
+    await expect(popup(page)).toBeVisible();
+    await expect(popup(page)).toBeHidden({ timeout: 3000 });   // 静止カードは通常どおり閉じる
 
-    // ホーム：なかよしレベル3「だいすき」＋猫にエンブレムが付く
-    await page.goto('/');
-    await expect(page.locator('#statBondLevel')).toHaveText('3', { timeout: 10000 });
-    await expect(page.locator('#statBondName')).toHaveText('だいすき');
-    await expect(page.locator('#catStage .cat__bond')).toBeVisible();
-
-    // ショップ：ご褒美リストで Lv1〜3 が解放済み（is-locked でない）。全8段階（#216）。
-    await page.click('.nav-btn[data-nav="shop"]');
-    await expect(page.locator('#bondRewards .bond-reward')).toHaveCount(8);
-    await expect(page.locator('#bondRewards .bond-reward:not(.is-locked)')).toHaveCount(3);
-    await expect(page.locator('#feedBondName')).toHaveText('だいすき');
+    const clipLoaded = page.waitForResponse(/_feed_fish\.mp4/);
+    arrive();
+    await clipLoaded;                                           // ここから再生が始まりうる
+    await expect(page.locator('#feedClip')).toBeHidden();
+    await page.waitForTimeout(1000);
+    expect(await page.evaluate(() => window.__clipSeen)).toBe(false);
+    await expect(popup(page)).toBeHidden();
   });
 
-  // なかよしMAX到達時の特別演出（#309後追い）：badges.js の affinity_max 獲得と同時に
-  // playCelebrate（cat--celebrate）が再生される。バッジポップアップだけだった旧実装への退行ガード。
-  // 給餌操作自体はショップタブ（#catStage が hidden）で行うため、ホームへ戻った瞬間に再生される
-  // （#347・flushPendingFeedFx）。
-  test('なかよしMAX到達で猫の特別演出が出る（affinity_max）', async ({ page }) => {
-    // affinity=41（Lv8「えいえんのきずな」まで残り1）を仕込む。おさかな1つ（+1）で42＝MAXに到達する。
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'piano-pet',
-        JSON.stringify({
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 41, foodSpent: 0 },
-          inventory: [],
-          streak: { current: 0, best: 0, lastPracticeDate: null },
-          badges: [],
-          sessions: [],
-        }),
-      );
-    });
+  test('reduced-motion では先読みも再生もしない', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const requested = [];
+    page.on('request', (req) => { if (/_feed_/.test(req.url())) requested.push(req.url()); });
+    const moduleLoaded = page.waitForResponse(/\/js\/cat-video\.js/);   // 先読みするならこの直後
+    await seed(page, makeState({ pet: { coins: 200 } }));
     await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    const cat = page.locator('#catStage .cat');
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');
-    await expect(page.locator('#feedAffinity')).toHaveText('42');
-    await page.click('.nav-btn[data-nav="home"]');   // ホームへ戻った瞬間に再生される（#347）
-    await expect(cat).toHaveClass(/cat--celebrate/);
-    // playCelebrate は1700msで自動的にクラスを外す（cat-image.js）
-    await expect(cat).not.toHaveClass(/cat--celebrate/, { timeout: 3000 });
-
-    // バッジも従来どおり獲得する（演出追加がバッジ判定を壊していないことの確認）
-    await expect(page.locator('#badgePopupName')).toHaveText('ねこと だいの なかよし', { timeout: 5000 });
+    await moduleLoaded;
+    await page.click(feedBtn('fish'));
+    await expect(popup(page)).toBeVisible();
+    await expect(popup(page)).toBeHidden({ timeout: 4000 });
+    await expect(popup(page)).not.toHaveClass(IN_CLIP);
+    expect(requested).toEqual([]);
   });
 
-  // #294 のレビューで発覚：バッジ告知をえさやりポップアップの onHidden に結び付けると、静止カードの
-  // 表示中に次のえさを押したとき前回の onHidden ごと張り替えられ、なかよしMAXの告知が二度と出ない。
-  test('なかよしMAXのえさの直後に次のえさを押しても、バッジ告知は出る（#294）', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'piano-pet',
-        JSON.stringify({
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 200, equippedItems: [], affinity: 41, foodSpent: 0 },
-          inventory: [],
-          streak: { current: 0, best: 0, lastPracticeDate: null },
-          badges: [],
-          sessions: [],
-        }),
-      );
-    });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    await page.click('.shop-btn[data-action="feed"][data-id="fish"]');   // 41→42＝MAX（affinity_max 成立）
-    await expect(page.locator('#feedAffinity')).toHaveText('42');
-    await page.click('.shop-btn[data-action="feed"][data-id="milk"]');   // 静止カードの表示中に次のえさ
-    await expect(page.locator('#badgePopupName')).toHaveText('ねこと だいの なかよし', { timeout: 6000 });
-  });
-
-  test('コイン不足のアイテムは購入ボタンが無効', async ({ page }) => {
-    // 王冠は unlockLevel 8（#126・#216）。解放はクリアしコイン不足だけを検証するため affinity を盛る。
-    // 値下げ後（#250）の王冠は150コインなので、既定シードの200では足りてしまう→100で始める
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        'piano-pet',
-        JSON.stringify({
-          pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 100, equippedItems: [], affinity: 50, foodSpent: 0 },
-          inventory: [],
-          streak: { current: 0, best: 0, lastPracticeDate: null },
-          badges: [],
-          sessions: [],
-        }),
-      );
-    });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('100', { timeout: 10000 });
-
-    // 王冠は150コインなので100では買えない
-    const crownBtn = page.locator('.shop-card', { hasText: 'おうかん' }).locator('.shop-btn');
-    await expect(crownBtn).toBeDisabled();
-    await expect(crownBtn).toHaveText('あと 50 コイン');   // 目標として不足ぶんを見せる（#360）
-  });
-
-  test('コイン不足のえさは「あと ○ コイン」で無効（#360）', async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem('piano-pet', JSON.stringify({
-        pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 3, equippedItems: [], affinity: 0, foodSpent: 0 },
-        inventory: [], streak: { current: 0, best: 0, lastPracticeDate: null }, badges: [], sessions: [],
-      }));
-    });
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('3', { timeout: 10000 });
-    const milkBtn = page.locator('#feedList .shop-card', { hasText: 'ミルク' }).locator('.shop-btn');
-    await expect(milkBtn).toBeDisabled();
-    await expect(milkBtn).toHaveText('あと 4 コイン');
-  });
-
-  test('なかよしLv未到達のアイテムはロック表示で買えない（#126）', async ({ page }) => {
-    // 既定シードは affinity 0（なかよしLv1）。マフラー(Lv4)・王冠(Lv8)は未解放（#216）。
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-
-    const scarfCard = page.locator('.shop-card', { hasText: 'マフラー' });
-    const scarfBtn = scarfCard.locator('.shop-btn');
-    await expect(scarfBtn).toBeDisabled();
-    await expect(scarfBtn).toHaveText('なかよしLv4で あえる');
-    // ロックはボタンだけで示し、カード内に重ねて書かない（#399）
-    await expect(scarfCard.locator('.shop-card__badge--locked')).toHaveCount(0);
-
-    // ロック中は buy アクションのボタン自体が存在しない（誤購入できない）
-    await expect(scarfCard.locator('.shop-btn[data-action="buy"]')).toHaveCount(0);
-
-    // Lv1 のリボンは解放済みで買える
-    await expect(
-      page.locator('.shop-card', { hasText: 'あかい リボン' }).locator('.shop-btn[data-action="buy"]'),
-    ).toBeVisible();
-  });
-
-  // カテゴリ絞り込み（#299）：件数が増えた一覧を種類で絞れる。切替後も購入できる
-  test('カテゴリで絞り込める（#299）', async ({ page }) => {
-    await page.goto('/#/shop');
-    await expect(page.locator('#shopCoins')).toHaveText('200', { timeout: 10000 });
-    const cards = page.locator('#shopList .shop-card');
-    const all = await cards.count();
-
-    await page.click('.shop-cat[data-cat="head"]');
-    await expect(page.locator('.shop-cat[data-cat="head"]')).toHaveAttribute('aria-pressed', 'true');
-    const head = await cards.count();
-    expect(head).toBeGreaterThan(0);
-    expect(head).toBeLessThan(all);
-    await expect(page.locator('#shopList .shop-card', { hasText: 'むぎわら ぼうし' })).toBeVisible();
-    await expect(page.locator('#shopList .shop-card', { hasText: 'あかい リボン' })).toHaveCount(0);
-
-    // 絞り込み中でも購入でき、購入後に一覧が「ぜんぶ」へ戻らない
-    await page.click('.shop-btn[data-action="buy"][data-id="hat"]');
-    await page.click('#buyOkBtn');   // かう？ の確認（#421）
-    await expect(page.locator('#shopCoins')).toHaveText('160');
-    expect(await cards.count()).toBe(head);
-
-    await page.click('.shop-cat[data-cat="all"]');
-    expect(await cards.count()).toBe(all);
+  test('クリップが読めないときは従来の静止ポップアップで閉じる', { tag: '@compat' }, async ({ page }) => {
+    await openShop(page);   // クリップは abort 済み
+    await page.click(feedBtn('fish'));
+    await expect(popup(page)).toBeVisible();
+    await expect(popup(page)).not.toHaveClass(IN_CLIP);
+    await expect(popup(page)).toBeHidden({ timeout: 4000 });
+    await expect(page.locator('#feedClip')).toBeHidden();
   });
 });

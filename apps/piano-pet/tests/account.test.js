@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_ACCOUNTS,
   getAccounts,
@@ -12,16 +12,9 @@ import {
   generateCloudDocId,
   isValidCloudDocId,
 } from '../js/account.js';
+import { useMockLocalStorage } from './helpers.js';
 
-// node 環境には localStorage が無いので Map ベースの簡易モックを差し込む。
-function mockLocalStorage() {
-  const store = new Map();
-  return {
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => store.set(k, String(v)),
-    removeItem: (k) => store.delete(k),
-  };
-}
+useMockLocalStorage();
 
 describe('storageKeyFor / cloudDocIdFor', () => {
   it("'data'（娘）は既存キー piano-pet / doc data を温存する", () => {
@@ -36,13 +29,6 @@ describe('storageKeyFor / cloudDocIdFor', () => {
 });
 
 describe('レジストリ（getAccounts / getActiveAccountId / setActiveAccount）', () => {
-  beforeEach(() => {
-    globalThis.localStorage = mockLocalStorage();
-  });
-  afterEach(() => {
-    delete globalThis.localStorage;
-  });
-
   it('初期状態は既定2アカウントで有効は data（娘）', () => {
     expect(getAccounts()).toEqual(DEFAULT_ACCOUNTS);
     expect(getActiveAccountId()).toBe('data');
@@ -71,13 +57,6 @@ describe('レジストリ（getAccounts / getActiveAccountId / setActiveAccount�
 });
 
 describe('クラウド保存先の推測不能化（がぞくコード・#233）', () => {
-  beforeEach(() => {
-    globalThis.localStorage = mockLocalStorage();
-  });
-  afterEach(() => {
-    delete globalThis.localStorage;
-  });
-
   it('未移行なら旧固定IDのまま（後方互換＝移行するまで挙動は変わらない）', () => {
     expect(getCloudDocId('data')).toBeNull();
     expect(cloudDocIdFor('data')).toBe('data');

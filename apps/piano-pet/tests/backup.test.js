@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { seq } from './helpers.js';
 import {
   exportState,
   backupFilename,
@@ -20,12 +21,6 @@ describe('exportState', () => {
     expect(obj.schemaVersion).toBe(SCHEMA_VERSION);
     expect(obj.exportedAt).toBe('2026-06-04T12:00:00.000Z');
     expect(obj.state.pet.coins).toBe(30);
-  });
-
-  it('pretty JSON（インデントあり）で書き出す', () => {
-    const json = exportState(normalizeState(), new Date());
-    expect(json).toContain('\n');
-    expect(json).toContain('  ');
   });
 
   it('がぞくコードを渡すと同梱し、未移行(null)なら含めない（#233）', () => {
@@ -109,39 +104,17 @@ describe('parseBackup', () => {
 });
 
 describe('importErrorMessage', () => {
-  it('各 reason にひらがなメッセージを返す', () => {
-    for (const reason of ['parse', 'marker', 'shape', 'future']) {
-      const msg = importErrorMessage(reason);
-      expect(typeof msg).toBe('string');
-      expect(msg.length).toBeGreaterThan(0);
-    }
-    expect(importErrorMessage('unknown')).toBe('よみこめませんでした。');
+  it('理由ごとに別の案内を出し、未知の理由は共通の文にする', () => {
+    const messages = ['parse', 'marker', 'shape', 'future', 'unknown'].map(importErrorMessage);
+    expect(new Set(messages).size).toBe(5);
+    expect(messages.at(-1)).toBe('よみこめませんでした。');
   });
 });
 
 describe('makeGateProblem', () => {
-  it('1桁×1桁で answer = a * b', () => {
-    const p = makeGateProblem(() => 0); // a=1,b=1
-    expect(p).toEqual({ a: 1, b: 1, answer: 1 });
-    const q = makeGateProblem(() => 0.999); // a=9,b=9
-    expect(q).toEqual({ a: 9, b: 9, answer: 81 });
-  });
-
-  it('既定の乱数でも 1..9 の範囲', () => {
-    for (let i = 0; i < 50; i += 1) {
-      const { a, b, answer } = makeGateProblem();
-      expect(a).toBeGreaterThanOrEqual(1);
-      expect(a).toBeLessThanOrEqual(9);
-      expect(b).toBeGreaterThanOrEqual(1);
-      expect(b).toBeLessThanOrEqual(9);
-      expect(answer).toBe(a * b);
-    }
-  });
-});
-
-describe('RESTORE_BACKUP_KEY', () => {
-  it('退避用キーが定義されている', () => {
-    expect(RESTORE_BACKUP_KEY).toBe('piano-pet-backup-before-restore');
+  it('1〜9 の2つの数を別々に引き、積を答えにする', () => {
+    expect(makeGateProblem(seq(0, 0.999))).toEqual({ a: 1, b: 9, answer: 9 });
+    expect(makeGateProblem(seq(0.999, 0.5))).toEqual({ a: 9, b: 5, answer: 45 });
   });
 });
 

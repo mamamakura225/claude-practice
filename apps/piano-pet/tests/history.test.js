@@ -97,15 +97,11 @@ describe('weeklySummary', () => {
     { date: '2026-05-11', totalCount: 9, songs: [{ name: 'ぶんぶん', count: 9 }] }, // 先週分は除外
   ];
 
-  it('今週の回数・きょく数・日数を集計する', () => {
+  it('今週の回数・きょく数・日数を集計する（先週以前は含めない）', () => {
     const s = weeklySummary(sessions, today);
     expect(s.count).toBe(9);      // 5 + 4
     expect(s.songCount).toBe(2);  // きらきら / ちょうちょ（重複は1つ）
     expect(s.dayCount).toBe(2);   // 2日
-  });
-
-  it('先週以前の記録は含めない', () => {
-    expect(weeklySummary(sessions, today).count).toBe(9);
   });
 
   it('count<=0 の曲は数えない', () => {

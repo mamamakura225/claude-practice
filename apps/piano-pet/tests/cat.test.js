@@ -1,18 +1,13 @@
+import { existsSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, SCENE_BOX, itemLayer, defaultItemLayer, tierToPrefetch } from '../js/cat-image.js';
+import { CAT_STYLES, pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, SCENE_BOX, itemLayer, defaultItemLayer, tierToPrefetch } from '../js/cat-image.js';
 import { FOODS } from '../js/feed.js';
+import { SHOP_ITEMS } from '../js/shop.js';
+import { appFile } from './helpers.js';
 
 // 日常のお祝い演出のバリエーション選択（#81）。
 // 描画・アニメ自体は CSS / DOM 依存なので、ここでは純粋な選択ロジックだけ検証する。
 describe('pickHappyVariant', () => {
-  const VARIANTS = ['', 'hop', 'spin'];
-
-  it('返り値は必ず既知のバリエーションのいずれか', () => {
-    for (let i = 0; i < 100; i++) {
-      expect(VARIANTS).toContain(pickHappyVariant());
-    }
-  });
-
   it('rng の値に応じて決定的にバリエーションを選ぶ', () => {
     expect(pickHappyVariant(() => 0)).toBe('');     // floor(0 * 3) = 0
     expect(pickHappyVariant(() => 0.5)).toBe('hop'); // floor(1.5) = 1
@@ -50,9 +45,12 @@ describe('catImageSrc', () => {
     expect(catImageSrc('tora', 'mid', 'bogus')).toBe('img/cat/cat_tora_mid_idle.webp');
   });
 
-  it('威嚇（hiss・#187）も既知 mood としてパスを組む', () => {
-    expect(catImageSrc('tora', 'low', 'hiss')).toBe('img/cat/cat_tora_low_hiss.webp');
-    expect(catImageSrc('shiro', 'high', 'hiss')).toBe('img/cat/cat_shiro_high_hiss.webp');
+  it('全スタイル×なつき度×表情の画像がある（hiss を含む）', () => {
+    for (const style of CAT_STYLES) for (const tier of ['low', 'mid', 'high']) for (const mood of ['idle', 'happy', 'sleep', 'love', 'hiss']) {
+      const src = catImageSrc(style, tier, mood);
+      expect(src).toContain(`${style}_${tier}_${mood}.`);   // 知らない値は既定に落ちる
+      expect(existsSync(appFile(src)), src).toBe(true);
+    }
   });
 });
 
@@ -64,13 +62,21 @@ describe('itemAnchorPct（#168 スナップ吸着点）', () => {
   });
   it('未知アイテムは null', () => {
     expect(itemAnchorPct('bogus')).toBeNull();
+    expect(itemAnchorScale('bogus')).toBeNull();
   });
-  // #210: 追加アイテムが想定アンカーに割り当てられている
-  it('追加アイテム（#210）のアンカー', () => {
-    expect(itemAnchorPct('beret')).toEqual({ x_pct: 50, y_pct: 23 });       // head
-    expect(itemAnchorPct('sunglasses')).toEqual({ x_pct: 50, y_pct: 36 });  // face x100/2, y72/2
-    expect(itemAnchorPct('bell')).toEqual({ x_pct: 50, y_pct: 50 });        // neck x100/2, y100/2
-    expect(itemAnchorPct('wings')).toEqual({ x_pct: 50, y_pct: 54 });       // back x100/2, y108/2
+  it('ショップの商品は、slot どおりの位置・画像で猫に付く（置物は置物として描ける）', () => {
+    const scene = SHOP_ITEMS.filter((i) => i.slot === 'scene');
+    const worn = SHOP_ITEMS.filter((i) => i.slot !== 'scene');
+    expect([...SCENE_IDS].sort()).toEqual(scene.map((i) => i.id).sort());
+    // 同じ slot はみな同じ位置・大きさ、slot が違えば位置も違う
+    const anchors = new Map();
+    for (const { id, slot } of worn) anchors.set(slot, (anchors.get(slot) ?? new Set()).add(JSON.stringify([itemAnchorPct(id), itemAnchorScale(id)])));
+    for (const [slot, set] of anchors) expect(set.size, slot).toBe(1);
+    expect(new Set([...anchors.values()].map((set) => [...set][0])).size).toBe(anchors.size);
+    const html = catMarkup({ equippedItems: worn.map((i) => i.id), placedItems: scene.map((i) => i.id) });
+    const hrefs = [...html.matchAll(/<image href="([^"]+)"/g)].map((m) => m[1]);
+    expect(hrefs).toHaveLength(SHOP_ITEMS.length);
+    for (const href of hrefs) expect(existsSync(appFile(href)), href).toBe(true);
   });
 });
 
@@ -129,16 +135,6 @@ describe('catMarkup の最小タッチ領域（#215 ヒット矩形）', () => {
   });
 });
 
-describe('itemAnchorScale（#205 基準スケール）', () => {
-  it('アイテムの基準スケール a.s を返す（crown=head=0.9 / cape=back=0.92）', () => {
-    expect(itemAnchorScale('crown')).toBe(0.9);
-    expect(itemAnchorScale('cape')).toBe(0.92);
-  });
-  it('未知アイテムは null', () => {
-    expect(itemAnchorScale('bogus')).toBeNull();
-  });
-});
-
 // なかよしエンブレム（#124）：bond レベルで猫の隅のハートしるしを出し分ける。
 describe('catMarkup の なかよしエンブレム', () => {
   it('bond 未指定（0〜1）ではエンブレムを出さない', () => {
@@ -177,10 +173,9 @@ describe('catMarkup の style', () => {
 
 // 置物・小物系（シーン配置型・#226）：ステージ正方枠に置く新カテゴリ。
 describe('置物アイテム（#226）', () => {
-  it('isSceneItem / SCENE_IDS', () => {
-    expect([...SCENE_IDS].sort()).toEqual(['cushion', 'fishToy', 'lamp', 'lantern', 'miniPiano', 'plant', 'present', 'sofa', 'teddy', 'tree', 'window', 'yarnBall']);
+  it('isSceneItem は置物だけ true', () => {
     expect(isSceneItem('cushion')).toBe(true);
-    expect(isSceneItem('crown')).toBe(false);   // 装着系は置物でない
+    expect(isSceneItem('crown')).toBe(false);
     expect(isSceneItem('bogus')).toBe(false);
   });
 

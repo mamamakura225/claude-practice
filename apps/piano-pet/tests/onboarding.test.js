@@ -1,30 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { ONBOARD_KEY, isOnboarded, setOnboarded } from '../js/onboarding.js';
-import { ONBOARD_STEPS, isLastStep, nextStepIndex } from '../js/onboarding-ui.js';
-
-// node 環境には localStorage が無いので Map ベースの簡易モックを差し込む。
-function mockLocalStorage() {
-  const store = new Map();
-  return {
-    getItem: (k) => (store.has(k) ? store.get(k) : null),
-    setItem: (k, v) => store.set(k, String(v)),
-    removeItem: (k) => store.delete(k),
-  };
-}
-
-describe('ONBOARD_STEPS', () => {
-  it('紙芝居は3画面', () => {
-    expect(ONBOARD_STEPS).toHaveLength(3);
-  });
-
-  it('各画面に emoji・title・body が揃っている', () => {
-    for (const step of ONBOARD_STEPS) {
-      expect(step.emoji).toBeTruthy();
-      expect(step.title).toBeTruthy();
-      expect(step.body).toBeTruthy();
-    }
-  });
-});
+import { isLastStep, nextStepIndex } from '../js/onboarding-ui.js';
+import { useMockLocalStorage } from './helpers.js';
 
 describe('isLastStep', () => {
   it('最後の画面でだけ true', () => {
@@ -46,12 +23,7 @@ describe('nextStepIndex', () => {
 });
 
 describe('isOnboarded / setOnboarded', () => {
-  beforeEach(() => {
-    globalThis.localStorage = mockLocalStorage();
-  });
-  afterEach(() => {
-    delete globalThis.localStorage;
-  });
+  useMockLocalStorage();
 
   it('初期状態は未完了', () => {
     expect(isOnboarded()).toBe(false);

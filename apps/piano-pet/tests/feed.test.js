@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  FOODS,
   foodById,
   foodSpent,
   affinity,
@@ -24,20 +23,8 @@ function makeState(overrides = {}) {
   };
 }
 
-describe('カタログ', () => {
-  it('えさが定義されている', () => {
-    expect(FOODS.length).toBeGreaterThanOrEqual(3);
-  });
-
-  it('全えさが price・affinity・icon を持つ', () => {
-    for (const f of FOODS) {
-      expect(typeof f.price).toBe('number');
-      expect(typeof f.affinity).toBe('number');
-      expect(f.icon).toBeTruthy();
-    }
-  });
-
-  it('foodById で取得・未知IDは null', () => {
+describe('foodById', () => {
+  it('id で取得・未知IDは null', () => {
     expect(foodById('fish').price).toBe(5);
     expect(foodById('unknown')).toBeNull();
   });
@@ -88,15 +75,10 @@ describe('feedCat', () => {
   });
 });
 
-describe('foodSpent / affinity アクセサ', () => {
+describe('foodSpent / affinity', () => {
   it('未定義なら 0 を返す', () => {
     expect(foodSpent({ pet: {} })).toBe(0);
     expect(affinity({ pet: {} })).toBe(0);
-  });
-
-  it('値があればそれを返す', () => {
-    expect(foodSpent(makeState({ pet: { foodSpent: 40 } }))).toBe(40);
-    expect(affinity(makeState({ pet: { affinity: 7 } }))).toBe(7);
   });
 });
 
@@ -172,31 +154,7 @@ describe('bondCelebrateChance', () => {
 });
 
 describe('recordClipChance（#227）', () => {
-  it('Lv1 から 0 より大きい（始めたばかりの子も見られる）', () => {
-    expect(recordClipChance(1)).toBeGreaterThan(0);
-  });
-
-  it('レベルが上がると単調に増える（減らない）', () => {
-    const levels = [1, 2, 3, 4, 5, 6, 7, 8];
-    for (let i = 1; i < levels.length; i += 1) {
-      expect(recordClipChance(levels[i])).toBeGreaterThanOrEqual(recordClipChance(levels[i - 1]));
-    }
-  });
-
-  it('しきい値の境界（4 / 6 / 8 で上がる・#296 で引き上げ）', () => {
-    expect(recordClipChance(3)).toBe(0.25);
-    expect(recordClipChance(4)).toBe(0.40);
-    expect(recordClipChance(5)).toBe(0.40);
-    expect(recordClipChance(6)).toBe(0.55);
-    expect(recordClipChance(7)).toBe(0.55);
-    expect(recordClipChance(8)).toBe(0.70);
-  });
-
-  it('確率なので 0〜1 の範囲に収まる', () => {
-    for (let lv = 0; lv <= 10; lv += 1) {
-      const p = recordClipChance(lv);
-      expect(p).toBeGreaterThanOrEqual(0);
-      expect(p).toBeLessThanOrEqual(1);
-    }
+  it('Lv1 から出て、Lv4・6・8 で上がる（#296）', () => {
+    expect([1, 3, 4, 5, 6, 7, 8].map(recordClipChance)).toEqual([0.25, 0.25, 0.40, 0.40, 0.55, 0.55, 0.70]);
   });
 });

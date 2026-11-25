@@ -1,36 +1,23 @@
 import { existsSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { CLIPS, FEED_CLIPS, feedClipSrc, pickClip, peekClip, resetClipBags } from '../js/cat-video.js';
 import { FOODS } from '../js/feed.js';
+import { seq, appFile } from './helpers.js';
 
 // 再生（tryPlay / prime / playFeedClip / primeFeed）は DOM・<video> 依存なので e2e（記録は clip.spec.js、えさやりは shop.spec.js）側で通す。
 // ここは純粋なクリップ選択だけを検証する。
 
-/** 指定した値を順に返す rng。使い切ったら最後の値を返し続ける。 */
-const seq = (...values) => {
-  let i = 0;
-  return () => values[Math.min(i++, values.length - 1)];
-};
-
 describe('pickClip（#227・#300）', () => {
   beforeEach(() => resetClipBags());   // バッグはモジュールレベルの状態なのでテスト間で畳む
 
-  it('CLIPS は3スタイル×3本ぶん定義されている', () => {
-    expect(Object.keys(CLIPS).sort()).toEqual(['russianblue', 'shiro', 'tora']);
-    for (const pool of Object.values(CLIPS)) {
-      expect(pool).toHaveLength(3);
-      expect(pool.map((c) => c.id)).toEqual(['record_v1', 'record_v2', 'record_v3']);
-      for (const clip of pool) {
-        expect(clip.src).toMatch(/\.mp4$/);
+  it('どのスタイルにも、そのスタイルの動画が3本あり、実ファイルがそろっている', () => {
+    for (const [style, pool] of Object.entries(CLIPS)) {
+      expect(new Set(pool.map((c) => c.src)).size, style).toBe(3);
+      for (const { src } of pool) {
+        expect(src).toContain(style);
+        expect(existsSync(appFile(src)), src).toBe(true);
       }
     }
-  });
-
-  it('指定スタイルのクリップを返す（スタイル一致）', () => {
-    expect(pickClip('shiro', () => 0).src).toContain('shiro');
-    expect(pickClip('russianblue', () => 0).src).toContain('russianblue');
-    expect(pickClip('tora', () => 0).src).toContain('tora');
   });
 
   it('未知スタイルは tora にフォールバックする', () => {
@@ -85,7 +72,7 @@ describe('feedClipSrc（#294）', () => {
       for (const food of FOODS) {
         const src = feedClipSrc(style, food.id);
         expect(src).toContain(style);
-        expect(existsSync(fileURLToPath(new URL(src, new URL('../index.html', import.meta.url))))).toBe(true);
+        expect(existsSync(appFile(src)), src).toBe(true);
       }
       expect(Object.keys(FEED_CLIPS[style]).sort()).toEqual(FOODS.map((f) => f.id).sort());
     }
