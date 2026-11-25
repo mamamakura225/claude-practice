@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
-import { APP_DIR, classifyJs, importSpecs, JS_ENTRY, listAssets, listHashOnlyAssets } from '../../../scripts/piano-pet-assets.mjs';
+import { APP_DIR, classifyJs, importSpecs, JS_ENTRY, listAssets, listCodeAssets, listHashOnlyAssets, listMediaAssets } from '../../../scripts/piano-pet-assets.mjs';
 import { minifyFile, minifyHtml } from '../../../scripts/minify.mjs';
 
 // 初回ロード JS / 遅延読込 JS の判定（#284）。perf-budget の予算はこの分類の上に乗るので、
@@ -55,6 +55,32 @@ describe('listHashOnlyAssets（#318）', () => {
     for (const rel of listHashOnlyAssets()) {
       expect(assets.has(rel)).toBe(false);
     }
+  });
+});
+
+// SW のキャッシュはコード用とメディア用の2つ（#259）。メディアは cache-first なので、コードが混ざると
+// 古い版が返り続ける。列挙（scripts）と実行時の判定（sw.js の isMedia）が食い違わないことも確かめる。
+describe('SW のキャッシュ分割（#259）', () => {
+  const sw = readFileSync(path.join(APP_DIR, 'sw.js'), 'utf8');
+  const shell = (name) => [...sw.match(new RegExp(`const ${name} = \\[([^\\]]*)\\]`))[1].matchAll(/'([^']+)'/g)]
+    .map((m) => m[1].replace(/\?v=.*$/, ''));
+  const isMedia = (rel) => new RegExp(sw.match(/&& \/(.+)\/\.test/)[1]).test(rel);
+
+  it('配信アセットを過不足なく2つに分ける', () => {
+    expect([...listCodeAssets(), ...listMediaAssets()].sort()).toEqual(listAssets().sort());
+    expect(listMediaAssets().length).toBeGreaterThan(0);
+    for (const rel of listCodeAssets()) expect(rel).toMatch(/\.(?:html|css|js|json)$/);
+    for (const rel of listMediaAssets()) expect(rel).not.toMatch(/\.(?:html|css|js|json)$/);
+  });
+
+  it('sw.js の APP_SHELL / MEDIA_SHELL が列挙と一致し、動画は入らない（#227）', () => {
+    expect(shell('APP_SHELL')).toEqual(['./', ...listCodeAssets().map((rel) => `./${rel}`)]);
+    expect(shell('MEDIA_SHELL')).toEqual(listMediaAssets().map((rel) => `./${rel}`));
+  });
+
+  it('sw.js の isMedia が列挙と同じ判定をする', () => {
+    for (const rel of [...listMediaAssets(), ...listHashOnlyAssets()]) expect(isMedia(rel), rel).toBe(true);
+    for (const rel of listCodeAssets()) expect(isMedia(rel), rel).toBe(false);
   });
 });
 
