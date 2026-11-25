@@ -1,13 +1,10 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.js';
 
 // 写真モード（きせかえ猫のスナップ・#237）。Web Share 対応時は共有、非対応時はダウンロード。
 // 端末内完結・PII（曲名/こども名）を共有ペイロードに含めない。
 
-// 準備完了＝**猫の本体画像が読み込み終わっている**こと（#280）。
-// #photoBtn は index.html の静的要素なのでページ表示と同時に可視になり、猫の DOM は
-// app.js の renderHome() が注入し、その <img> の読み込みはさらに後になる。未ロードのまま
-// 押すと renderCatCanvas が同じ画像を取り直すことになり、ローカルの http-server
-// （-c-1＝キャッシュ無効）ではその再取得に数秒かかって共有が始まらない。
+// 準備完了＝猫の本体画像が読み込み終わっていること（#280）。未ロードのまま押すと画像を取り直し、
+// キャッシュ無効のテストサーバでは数秒かかる。
 async function waitForCatReady(page) {
   await expect(page.locator('#catStage .cat__body')).toBeVisible({ timeout: 10000 });
   await page.waitForFunction(() => {
@@ -17,16 +14,6 @@ async function waitForCatReady(page) {
 }
 
 test.describe('写真モード（#237）', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
-    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
-    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
-    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
-    await page.addInitScript(() => {
-      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
-    });
-  });
-
   test('Web Share 対応時は PNG ファイルを共有する（PII を含めない）', { tag: '@compat' }, async ({ page }) => {
     await page.addInitScript(() => {
       window.__shared = null;

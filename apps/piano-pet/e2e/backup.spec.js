@@ -1,181 +1,73 @@
-import { test, expect } from '@playwright/test';
 import fs from 'node:fs/promises';
+import { test, expect, makeState, seed, readLocal, gotoHome, openSettings, closeSettings, importJson, backupOf, addSong } from './helpers.js';
 
-// データのバックアップ/復元（#140）。本番Firestoreと干渉しないよう Firebase 関連を全ブロック。
-// （クラウド取得が成功すると下のシード状態を上書きしてしまうため必須）
-const blockFirebase = async (page) => {
-  await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
-  await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
-  await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
-  await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
-};
-
-// コイン123を持った状態で開始。**未設定時のみ**シードする（復元→reload 後に
-// addInitScript がシードで上書きしてしまうのを防ぐため）。
-const SEED = {
-  version: 1,
-  pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 123, equippedItems: [], affinity: 0, foodSpent: 0 },
-  inventory: [],
-  streak: { current: 0, best: 0, lastPracticeDate: null, freezes: 0 },
-  badges: [],
-  sessions: [],
-  settings: { soundOn: true },
-};
-
-function backupJson(coins, level = 1) {
-  return JSON.stringify({
-    app: 'piano-pet',
-    schemaVersion: 1,
-    exportedAt: new Date().toISOString(),
-    state: {
-      version: 1,
-      pet: { name: 'きーちゃん', level, xp: 0, coins, equippedItems: [], affinity: 0, foodSpent: 0 },
-      inventory: [],
-      streak: { current: 0, best: 0, lastPracticeDate: null, freezes: 0 },
-      badges: [],
-      sessions: [],
-      settings: { soundOn: true },
-    },
-  });
-}
-
-async function passGate(page) {
-  await page.click('#settingsToggle');
-  await expect(page.locator('#settingsGate')).toBeVisible();
-  const a = Number(await page.locator('#gateA').textContent());
-  const b = Number(await page.locator('#gateB').textContent());
-  await page.fill('#gateAnswer', String(a * b));
-  await page.click('#gateSubmit');
-  await expect(page.locator('#settingsMenu')).toBeVisible();
-}
-
+// データのバックアップ/復元（#140）・しょきか（#183）。読み込みの成功は undo.spec.js（読み込み→ひとつ まえ の往復）で通す。
 test.describe('データのバックアップ/復元', () => {
-  test.beforeEach(async ({ page }) => {
-    await blockFirebase(page);
-    await page.addInitScript((seed) => {
-      if (!localStorage.getItem('piano-pet')) {
-        localStorage.setItem('piano-pet', JSON.stringify(seed));
-      }
-    }, SEED);
-
-    // 初回オンボーディング（#141）が全画面で重ならないよう「見た」フラグを立てる。
-    await page.addInitScript(() => {
-      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
-    });
-  });
+  test.beforeEach(({ page }) => seed(page, makeState({ pet: { coins: 123 } })));
 
   test('親ゲート：誤答では開かず、正答でメニューが開く', async ({ page }) => {
-    await page.goto('/');
+    await gotoHome(page);
     await page.click('#settingsToggle');
-    await expect(page.locator('#settingsGate')).toBeVisible();   // 出題は遅延読込のあとに入る（#284）
+    await expect(page.locator('#settingsGate')).toBeVisible();
     const a = Number(await page.locator('#gateA').textContent());
     const b = Number(await page.locator('#gateB').textContent());
 
-    await page.fill('#gateAnswer', String(a * b + 1)); // 誤答
+    await page.fill('#gateAnswer', String(a * b + 1));
     await page.click('#gateSubmit');
-    await expect(page.locator('#settingsMenu')).toBeHidden();
     await expect(page.locator('#gateError')).toBeVisible();
+    await expect(page.locator('#settingsMenu')).toBeHidden();
 
-    await page.fill('#gateAnswer', String(a * b)); // 正答
+    await page.fill('#gateAnswer', String(a * b));
     await page.click('#gateSubmit');
     await expect(page.locator('#settingsMenu')).toBeVisible();
   });
 
   test('ほぞん：app マーカー付き JSON がダウンロードされる', { tag: '@compat' }, async ({ page }) => {
-    await page.goto('/');
-    await passGate(page);
-
+    await gotoHome(page);
+    await openSettings(page);
     const downloadPromise = page.waitForEvent('download');
     await page.click('#exportBtn');
     const download = await downloadPromise;
 
     expect(download.suggestedFilename()).toMatch(/^piano-pet-backup-\d{4}-\d{2}-\d{2}\.json$/);
-    const path = await download.path();
-    const obj = JSON.parse(await fs.readFile(path, 'utf-8'));
+    const obj = JSON.parse(await fs.readFile(await download.path(), 'utf-8'));
     expect(obj.app).toBe('piano-pet');
     expect(obj.state.pet.coins).toBe(123);
   });
 
-  test('よみこむ：確認OKで復元され、リロード後に反映される', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#statCoins')).toHaveText('123');
-    await passGate(page);
+  test('確認をやめた読み込み・しょきか、別アプリの JSON では、データが変わらない', async ({ page }) => {
+    await gotoHome(page);
+    await openSettings(page);
+    let asked = 0;
+    page.on('dialog', (d) => { asked += 1; d.dismiss(); });
 
-    page.on('dialog', (d) => d.accept());
-    await page.setInputFiles('#importFile', {
-      name: 'backup.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(backupJson(999)),
-    });
-
-    // reload 後に取り込んだコイン999が反映される（直接フィールドなので確実な証拠）
-    await expect(page.locator('#statCoins')).toHaveText('999', { timeout: 10000 });
-  });
-
-  test('よみこむ：確認キャンセルなら復元しない', async ({ page }) => {
-    await page.goto('/');
-    await passGate(page);
-
-    page.on('dialog', (d) => d.dismiss());
-    await page.setInputFiles('#importFile', {
-      name: 'backup.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(backupJson(999)),
-    });
-
-    await expect(page.locator('#settingsMenu')).toBeVisible(); // 復元されずメニューのまま
-    await page.click('#settingsMenu [data-action="close-settings"]');
-    await expect(page.locator('#statCoins')).toHaveText('123');
-  });
-
-  test('しょきか：確認OKで新品に戻り、リロード後にコインが0になる（#183）', async ({ page }) => {
-    await page.goto('/');
-    await expect(page.locator('#statCoins')).toHaveText('123');
-    await passGate(page);
-
-    page.on('dialog', (d) => d.accept());
+    await importJson(page, backupOf(makeState({ pet: { coins: 999 } })));
+    await expect.poll(() => asked).toBe(1);
     await page.click('#resetBtn');
-
-    // reload 後に DEFAULTS（coins:0）へ戻る
-    await expect(page.locator('#statCoins')).toHaveText('0', { timeout: 10000 });
-  });
-
-  test('しょきか：確認キャンセルなら初期化しない（#183）', async ({ page }) => {
-    await page.goto('/');
-    await passGate(page);
-
-    page.on('dialog', (d) => d.dismiss());
-    await page.click('#resetBtn');
-
-    await expect(page.locator('#settingsMenu')).toBeVisible(); // 初期化されずメニューのまま
-    await page.click('#settingsMenu [data-action="close-settings"]');
-    await expect(page.locator('#statCoins')).toHaveText('123');
-  });
-
-  test('別アプリの JSON はエラー表示で復元されない', async ({ page }) => {
-    await page.goto('/');
-    await passGate(page);
-
-    await page.setInputFiles('#importFile', {
-      name: 'other.json',
-      mimeType: 'application/json',
-      buffer: Buffer.from(JSON.stringify({ app: 'dtask', state: { tasks: [] } })),
-    });
-
-    await expect(page.locator('#importStatus')).toBeVisible();
+    await expect.poll(() => asked).toBe(2);
+    await importJson(page, { app: 'dtask', state: { tasks: [] } });
     await expect(page.locator('#importStatus')).toContainText('ピアノペットの ファイルじゃ');
-    await page.click('#settingsMenu [data-action="close-settings"]');
+    expect(asked).toBe(2);   // 中身が違うファイルは確認まで進まない
+
+    await closeSettings(page);
     await expect(page.locator('#statCoins')).toHaveText('123');
+    expect((await readLocal(page)).pet.coins).toBe(123);
+  });
+
+  test('しょきか：確認OKで新品に戻り、リロード後にコインが0になる', async ({ page }) => {
+    await gotoHome(page);
+    await openSettings(page);
+    page.on('dialog', (d) => d.accept());
+    await page.click('#resetBtn');
+    await expect(page.locator('#statCoins')).toHaveText('0', { timeout: 10000 });
   });
 
   test('しょきかしたら、書きかけのスタンプも残らない（#428）', async ({ page }) => {
     await page.goto('/#/record');
-    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
-    await page.fill('#newSongInput', 'きらきらぼし');
-    await page.click('#addSongBtn');
+    await addSong(page, 'きらきらぼし');
     await page.click('#stampCard');
     await page.click('.nav-btn[data-nav="home"]');
-    await passGate(page);
+    await openSettings(page);
     page.on('dialog', (d) => d.accept());
     const reloaded = page.waitForEvent('load');
     await page.click('#resetBtn');
@@ -185,10 +77,11 @@ test.describe('データのバックアップ/復元', () => {
   });
 
   test('よみこむ：端末に保存できなければ、何も変えずに知らせる（#428）', async ({ page }) => {
+    const STASH = 'piano-pet-backup-before-restore';
     const prevStash = JSON.stringify({ pet: { coins: 42 } });
-    await page.addInitScript((v) => localStorage.setItem('piano-pet-backup-before-restore', v), prevStash);
-    await page.goto('/');
-    await passGate(page);
+    await page.addInitScript(([k, v]) => localStorage.setItem(k, v), [STASH, prevStash]);
+    await gotoHome(page);
+    await openSettings(page);
     await page.evaluate(() => {
       const set = Storage.prototype.setItem;
       Storage.prototype.setItem = function setItem(k, v) {
@@ -197,12 +90,11 @@ test.describe('データのバックアップ/復元', () => {
       };
     });
     page.on('dialog', (d) => d.accept());
-    const file = { ...JSON.parse(backupJson(999)), cloudDocId: 'pp-0123456789abcdef0123456789abcdef' };
-    await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
+    await importJson(page, backupOf(makeState({ pet: { coins: 999 } }), { cloudDocId: 'pp-0123456789abcdef0123456789abcdef' }));
     await expect(page.locator('#importStatus')).toContainText('ほぞんできませんでした');
     expect(await page.evaluate(() => localStorage.getItem('piano-pet:cloud-ids'))).toBeNull();   // 保存先だけ切り替わらない
-    expect(await page.evaluate(() => localStorage.getItem('piano-pet-backup-before-restore'))).toBe(prevStash);   // 前の退避も残る
-    await page.click('#settingsMenu [data-action="close-settings"]');
+    expect(await page.evaluate((k) => localStorage.getItem(k), STASH)).toBe(prevStash);          // 前の退避も残る
+    await closeSettings(page);
     await expect(page.locator('#statCoins')).toHaveText('123');
   });
 });

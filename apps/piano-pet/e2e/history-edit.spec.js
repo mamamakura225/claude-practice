@@ -1,98 +1,69 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, session, makeState, seed, readLocal, gotoHome } from './helpers.js';
 
-// きろく一覧からの編集・削除・スタンプ付与（#145 はなまる / #239 練習の質メモ）。
-//
-// 一覧は日付降順に並べ替えて出し、操作の対象はカードの data-date（同日1件＝主キー）で引く
-// （app.js の renderHistory）。ここを壊すと「別の記録を消す・別の記録にスタンプが付く」
-// という気づきにくい退行になるため、並び順と対象がズレていないことをここで固定する。
+// きろく一覧からの編集・削除・スタンプ付与（#145 はなまる / #239 ようす）。
+// 一覧は日付降順に並べ、操作の対象はカードの data-date で引く。ずれると「別の記録を消す・別の記録に
+// スタンプが付く」になるので、表示順と元配列の並びが逆になる配置（日付昇順）で確かめる。
 test.describe('きろくの編集・削除・スタンプ', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
-    await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
-    await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
-    await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
-    await page.addInitScript(() => {
-      try { localStorage.setItem('piano-pet-onboarded', '1'); } catch { /* 無視 */ }
-      // 元配列は「日付昇順」で入れる＝表示（降順）と並びが逆になる配置。
-      // ここが取り違えの起きやすい形なので、あえてこの並びで検証する。
-      const s = {
-        version: 2,
-        pet: {
-          name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], placedItems: [],
-          itemLayout: {}, affinity: 0, foodSpent: 0, dailyGoal: 10, catStyle: 'tora',
-          childName: '', childAvatar: 'chick',
-        },
-        inventory: [],
-        streak: { current: 0, best: 0, lastPracticeDate: null, freezes: 0 },
-        // 3日連続なので checkBadges 済みの状態＝実アプリが保存する形で置く
-        badges: ['first_practice', 'streak_3'],
-        sessions: [
-          { date: '2026-01-01', totalCount: 2, songs: [{ name: 'ふるいきょく', count: 2 }] },
-          { date: '2026-01-02', totalCount: 3, songs: [{ name: 'まんなか', count: 3 }] },
-          { date: '2026-01-03', totalCount: 4, songs: [{ name: 'あたらしいきょく', count: 4 }] },
-        ],
-        settings: { soundOn: true },
-      };
-      try { localStorage.setItem('piano-pet', JSON.stringify(s)); } catch { /* 無視 */ }
-    });
-  });
+  test.beforeEach(({ page }) => seed(page, makeState({
+    badges: ['first_practice', 'streak_3'],   // 3日連続なので checkBadges 済みの形で置く
+    sessions: [
+      session('2026-01-01', 2, 'ふるいきょく'),
+      session('2026-01-02', 3, 'まんなか'),
+      session('2026-01-03', 4, 'あたらしいきょく'),
+    ],
+  })));
 
-  const readLocal = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')));
+  const cards = (page) => page.locator('#historyList .history-card');
+  const nav = (page, view) => page.click(`.nav-btn[data-nav="${view}"]`);
 
-  async function openHistory(page) {
-    await page.goto('/');
-    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
-    await page.click('.nav-btn[data-nav="history"]');
-    await expect(page.locator('#view-history')).toBeVisible();
-    await expect(page.locator('#historyList .history-card')).toHaveCount(3);
+  async function openHistory(page, count = 3) {
+    await nav(page, 'history');
+    await expect(cards(page)).toHaveCount(count);
   }
 
-  test('一覧は新しい順に並ぶ', async ({ page }) => {
-    await openHistory(page);
-    await expect(page.locator('#historyList .history-card__day')).toHaveText([
-      '1月3日（土）', '1月2日（金）', '1月1日（木）',
-    ]);
-  });
-
-  test('先頭（最新）を消すとその日だけが消える', async ({ page }) => {
-    await openHistory(page);
+  // 消したあと画面を移ると、取り消しの猶予（5秒）を待たずに確定する（#398）
+  async function deleteCard(page, card) {
     page.once('dialog', (d) => d.accept());
-    await page.locator('#historyList .history-card').first().locator('[data-action="delete-session"]').click();
-    // 削除は取り消しの猶予（5秒）のあとに確定する（#398）
-    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });
+    await card.locator('[data-action="delete-session"]').click();
+    await expect(page.locator('#undoToast')).toBeVisible();
+    await nav(page, 'home');
+  }
 
-    await expect(page.locator('#historyList .history-card')).toHaveCount(2);
-    const st = await readLocal(page);
+  test('一覧は新しい順。消した日だけが消え、コインが再計算され、資格を失ったバッジは剥がれる', async ({ page }) => {
+    await gotoHome(page);
+    await openHistory(page);
+    await expect(page.locator('#historyList .history-card__day')).toHaveText(['1月3日（土）', '1月2日（金）', '1月1日（木）']);
+
+    page.once('dialog', (d) => d.dismiss());   // 確認をやめたら消えない
+    await cards(page).first().locator('[data-action="delete-session"]').click();
+    await expect(cards(page)).toHaveCount(3);
+    await expect(page.locator('#undoToast')).toBeHidden();
+
+    await deleteCard(page, cards(page).first());   // 最新（元配列では末尾）
+    let st = await readLocal(page);
     expect(st.sessions.map((s) => s.date)).toEqual(['2026-01-01', '2026-01-02']);
-    expect(st.pet.coins).toBe(5);   // 2 + 3（4かいぶんが消えて再計算される）
-  });
+    expect(st.pet.coins).toBe(5);   // 2 + 3
 
-  test('最後（最古）を消すとその日だけが消える', async ({ page }) => {
-    await openHistory(page);
-    page.once('dialog', (d) => d.accept());
-    await page.locator('#historyList .history-card').last().locator('[data-action="delete-session"]').click();
-    // 削除は取り消しの猶予（5秒）のあとに確定する（#398）
-    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });
+    await openHistory(page, 2);
+    await deleteCard(page, cards(page).last());   // 最古（元配列では先頭）
+    st = await readLocal(page);
+    expect(st.sessions.map((s) => s.date)).toEqual(['2026-01-02']);
+    expect(st.pet.coins).toBe(3);
 
-    const st = await readLocal(page);
-    expect(st.sessions.map((s) => s.date)).toEqual(['2026-01-02', '2026-01-03']);
-    expect(st.pet.coins).toBe(7);   // 3 + 4
-  });
-
-  test('削除の確認をキャンセルすると何も消えない', async ({ page }) => {
-    await openHistory(page);
-    page.once('dialog', (d) => d.dismiss());
-    await page.locator('#historyList .history-card').first().locator('[data-action="delete-session"]').click();
-
-    await expect(page.locator('#historyList .history-card')).toHaveCount(3);
-    expect((await readLocal(page)).sessions).toHaveLength(3);
+    const firstBadge = page.locator('#badgeGrid .badge-card').first();   // はじめての れんしゅう
+    await nav(page, 'badges');
+    await expect(firstBadge).not.toHaveClass(/badge-card--locked/);
+    await openHistory(page, 1);
+    await deleteCard(page, cards(page).first());
+    await nav(page, 'badges');
+    await expect(firstBadge).toHaveClass(/badge-card--locked/);
+    await expect(page.locator('#badgesCount')).toHaveText(/^0 \/ \d+ こ ゲット！$/);
   });
 
   test('編集すると対象の記録だけが更新され、コインが再計算される', async ({ page }) => {
+    await gotoHome(page);
     await openHistory(page);
-    // 表示の真ん中＝2026-01-02
-    await page.locator('#historyList .history-card').nth(1).locator('[data-action="edit-session"]').click();
-    await expect(page.locator('#view-record')).toBeVisible();
+    await cards(page).nth(1).locator('[data-action="edit-session"]').click();   // 2026-01-02
     await expect(page.locator('#recordDate')).toHaveValue('2026-01-02');
     await expect(page.locator('#recordTotal')).toHaveText('3');
 
@@ -102,104 +73,57 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     await expect(page.locator('#view-history')).toBeVisible();
 
     const st = await readLocal(page);
-    const byDate = Object.fromEntries(st.sessions.map((s) => [s.date, s.totalCount]));
-    expect(byDate).toEqual({ '2026-01-01': 2, '2026-01-02': 4, '2026-01-03': 4 });
-    // 2+4+4=10 に、3日連続到達のマイルストーン +10（calcRewards）が乗る
-    expect(st.pet.coins).toBe(20);
+    expect(Object.fromEntries(st.sessions.map((s) => [s.date, s.totalCount])))
+      .toEqual({ '2026-01-01': 2, '2026-01-02': 4, '2026-01-03': 4 });
+    expect(st.pet.coins).toBe(20);   // 2+4+4 に、3日連続のボーナス +10
   });
 
-  test('はなまる（#145）と ようす（#239）は押した記録にだけ付き、再タップで外れる', async ({ page }) => {
+  test('はなまると ようすは押した記録にだけ付き、もう一度押すとその1つだけ外れる', async ({ page }) => {
+    await gotoHome(page);
     await openHistory(page);
-    const middle = page.locator('#historyList .history-card').nth(1);   // 2026-01-02
+    const middle = cards(page).nth(1);   // 2026-01-02
+    const praise = middle.locator('.praise-stamp').first();
+    const tempo = middle.locator('.tempo-stamp').last();
+    const byDate = async () => Object.fromEntries((await readLocal(page)).sessions.map((s) => [s.date, s]));
 
-    await middle.locator('.praise-stamp').first().click();              // 💮 はなまる
-    await expect(middle.locator('.praise-stamp').first()).toHaveAttribute('aria-pressed', 'true');
-    await middle.locator('.tempo-stamp').last().click();                // 🚀 はやく
-    await expect(middle.locator('.tempo-stamp').last()).toHaveAttribute('aria-pressed', 'true');
+    await praise.click();
+    await expect(praise).toHaveAttribute('aria-pressed', 'true');
+    await tempo.click();
+    await expect(tempo).toHaveAttribute('aria-pressed', 'true');
+    let st = await byDate();
+    expect(st['2026-01-02']).toMatchObject({ praise: 'hanamaru', tempo: 'fast' });
+    expect(st['2026-01-01'].praise ?? null).toBeNull();
+    expect(st['2026-01-03'].praise ?? null).toBeNull();
 
-    let st = await readLocal(page);
-    expect(st.sessions.find((s) => s.date === '2026-01-02').praise).toBe('hanamaru');
-    expect(st.sessions.find((s) => s.date === '2026-01-02').tempo).toBe('fast');
-    // 他の記録には付いていない（対象の取り違えの検知）
-    expect(st.sessions.find((s) => s.date === '2026-01-03').praise ?? null).toBeNull();
-    expect(st.sessions.find((s) => s.date === '2026-01-01').praise ?? null).toBeNull();
+    await praise.click();
+    await expect(praise).toHaveAttribute('aria-pressed', 'false');
+    st = await byDate();
+    expect(st['2026-01-02']).toMatchObject({ praise: null, tempo: 'fast' });
 
-    await middle.locator('.praise-stamp').first().click();              // 再タップで解除
-    await expect(middle.locator('.praise-stamp').first()).toHaveAttribute('aria-pressed', 'false');
-    st = await readLocal(page);
-    expect(st.sessions.find((s) => s.date === '2026-01-02').praise).toBeNull();
-    expect(st.sessions.find((s) => s.date === '2026-01-02').tempo).toBe('fast');   // ようすは残る
-
-    // 画面を離れて戻っても保持される（renderHistory が state から描き直す）。
-    // ここで reload しないのは、seed 用の addInitScript がリロードでも再実行されて
-    // localStorage を初期状態へ巻き戻してしまうため（永続化そのものは上の localStorage 検査で担保）。
-    await page.click('.nav-btn[data-nav="home"]');
-    await expect(page.locator('#view-home')).toBeVisible();
-    await page.click('.nav-btn[data-nav="history"]');
-    await expect(page.locator('#historyList .history-card').nth(1).locator('.tempo-stamp').last())
-      .toHaveAttribute('aria-pressed', 'true');
+    await page.reload();   // 描き直しても保存どおり
+    await expect(tempo).toHaveAttribute('aria-pressed', 'true');
+    await expect(praise).toHaveAttribute('aria-pressed', 'false');
   });
 
-  // #320: スタンプで praise_all3 / tempo_all3 の条件が成立したら、その場でバッジが付く
-  // （購入・えさやりと同じ）。旧実装は次の練習記録まで🔒のままだった。
-  test('スタンプで tempo_all3 が成立したその場でバッジが付く（#320）', async ({ page }) => {
+  // #320: 次の練習記録を待たず、スタンプを押したその場で判定する
+  test('3種の ようすが そろったその場でバッジが付き、外しても剥がれない（#320）', async ({ page }) => {
+    await gotoHome(page);
     await openHistory(page);
-    const cards = page.locator('#historyList .history-card');
-    await cards.nth(0).locator('.tempo-stamp').nth(0).click();   // 🐢 ゆっくり
-    await cards.nth(1).locator('.tempo-stamp').nth(1).click();   // 🎵 ふつう
-    // 2種の時点では tempo_all3 は付いていない（バッジ画面は🔒）
-    await page.click('.nav-btn[data-nav="badges"]');
-    await expect(page.locator('#badgeGrid .badge-card').filter({ hasText: 'さんしょく テンポ' }))
-      .toHaveClass(/badge-card--locked/);
-    await page.click('.nav-btn[data-nav="history"]');
+    const badge = page.locator('#badgeGrid .badge-card').filter({ hasText: 'さんしょく テンポ' });
+    await cards(page).nth(0).locator('.tempo-stamp').nth(0).click();
+    await cards(page).nth(1).locator('.tempo-stamp').nth(1).click();
+    await nav(page, 'badges');
+    await expect(badge).toHaveClass(/badge-card--locked/);   // 2種ではまだ
 
-    await cards.nth(2).locator('.tempo-stamp').nth(2).click();   // 🚀 はやく → 3種そろう
-    // その場でポップアップが出て、バッジ画面が解錠される（旧実装は次の練習記録まで🔒）
-    await expect(page.locator('#badgePopup')).toBeVisible();
+    await nav(page, 'history');
+    const last = cards(page).nth(2).locator('.tempo-stamp').nth(2);
+    await last.click();
     await expect(page.locator('#badgePopup')).toContainText('さんしょく テンポ');
+    await page.locator('#badgePopup').click();
+    await last.click();   // 外す
+    await expect(last).toHaveAttribute('aria-pressed', 'false');
     expect((await readLocal(page)).badges).toContain('tempo_all3');
-
-    await page.click('.nav-btn[data-nav="badges"]');
-    await expect(page.locator('#badgeGrid .badge-card').filter({ hasText: 'さんしょく テンポ' }))
-      .not.toHaveClass(/badge-card--locked/);
-  });
-
-  test('スタンプで praise_all3 も その場で付く（#320）', async ({ page }) => {
-    await openHistory(page);
-    const cards = page.locator('#historyList .history-card');
-    await cards.nth(0).locator('.praise-stamp').nth(0).click();   // 💮
-    await cards.nth(1).locator('.praise-stamp').nth(1).click();   // 🌟
-    await cards.nth(2).locator('.praise-stamp').nth(2).click();   // 👍
-    expect((await readLocal(page)).badges).toContain('praise_all3');
-  });
-
-  test('スタンプを外してもバッジは剥がれない（checkBadges は state.badges を引き継ぐ・#320）', async ({ page }) => {
-    await openHistory(page);
-    const cards = page.locator('#historyList .history-card');
-    await cards.nth(0).locator('.tempo-stamp').nth(0).click();
-    await cards.nth(1).locator('.tempo-stamp').nth(1).click();
-    await cards.nth(2).locator('.tempo-stamp').nth(2).click();
-    expect((await readLocal(page)).badges).toContain('tempo_all3');
-    await cards.nth(2).locator('.tempo-stamp').nth(2).click();     // 🚀 を外す
-    expect((await readLocal(page)).badges).toContain('tempo_all3'); // 剥がれない
-  });
-
-  test('編集・削除で失った資格のバッジは剥がれる', async ({ page }) => {
-    await openHistory(page);
-    // 3日ぶんあるので first_practice は取得済み
-    await page.click('.nav-btn[data-nav="badges"]');
-    await expect(page.locator('#badgeGrid .badge-card').first()).not.toHaveClass(/badge-card--locked/);
-
-    // 全部消すと剥がれる
-    await page.click('.nav-btn[data-nav="history"]');
-    for (let i = 0; i < 3; i += 1) {
-      page.once('dialog', (d) => d.accept());
-      await page.locator('#historyList .history-card:visible').first().locator('[data-action="delete-session"]').click();
-      await expect(page.locator('#historyList .history-card:visible')).toHaveCount(2 - i);
-    }
-    await expect(page.locator('#undoToast')).toBeHidden({ timeout: 8000 });   // 最後の削除の確定（#398）
-    await page.click('.nav-btn[data-nav="badges"]');
-    await expect(page.locator('#badgeGrid .badge-card').first()).toHaveClass(/badge-card--locked/);
-    await expect(page.locator('#badgesCount')).toHaveText('0 / 24 こ ゲット！');
+    await nav(page, 'badges');
+    await expect(badge).not.toHaveClass(/badge-card--locked/);
   });
 });

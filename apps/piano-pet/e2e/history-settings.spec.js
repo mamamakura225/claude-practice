@@ -1,62 +1,35 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, ymd, session, makeState, seed, gotoHome, openSettings, closeSettings } from './helpers.js';
 
-// きろく画面と設定画面の整理（#401）。
-const ymd = (back) => {
-  const d = new Date(); d.setDate(d.getDate() - back);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-};
-
-const session = (back, name = 'きらきらぼし', count = 3) => ({ date: ymd(back), songs: [{ name, count }], totalCount: count });
-
+// きろく画面と設定画面の整理（#401）・練習カレンダー（#236）。
 async function boot(page, { sessions = [], pet = {} } = {}) {
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.route('**/www.gstatic.com/firebasejs/**', (route) => route.abort());
-  await page.route('**/firestore.googleapis.com/**', (route) => route.abort());
-  await page.route('**/firebase.googleapis.com/**', (route) => route.abort());
-  await page.route('**/identitytoolkit.googleapis.com/**', (route) => route.abort());
-  await page.addInitScript(([ss, p]) => {
-    localStorage.setItem('piano-pet-onboarded', '1');
-    localStorage.setItem('piano-pet', JSON.stringify({
-      pet: { name: 'きーちゃん', level: 1, xp: 0, coins: 0, equippedItems: [], ...p },
-      inventory: [], streak: { current: 0, best: 0, lastPracticeDate: null }, badges: [], sessions: ss,
-    }));
-  }, [sessions, pet]);
+  await seed(page, makeState({ pet, sessions }));
 }
 
-async function passGate(page) {
-  await page.click('#settingsToggle');
-  await expect(page.locator('#settingsGate')).toBeVisible();
-  const a = Number(await page.locator('#gateA').textContent());
-  const b = Number(await page.locator('#gateB').textContent());
-  await page.fill('#gateAnswer', String(a * b));
-  await page.click('#gateSubmit');
-  await expect(page.locator('#settingsMenu')).toBeVisible();
-}
+const bg = (loc) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
 
 test.describe('きろく画面の整理（#401）', () => {
-  test('カレンダー: 練習しなかった日は少ない日と色で見分けられる', async ({ page }) => {
-    // 2日前=少ない日（1回・レベル1）、3日前=なし（レベル0）。同じ月に収まらない日付もあるので前月へは移らず、月内の2セルを比べる
-    const d = new Date();
-    test.skip(d.getDate() < 4, '月初は同じ月に過去の2日が無い');
-    await boot(page, { sessions: [session(2, 'きらきらぼし', 1)] });
+  test('カレンダー: 前の月・次の月へ移れ、目標は保存値で判定し、練習しなかった日・先の日も見分けられる', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-06-15T12:00:00'));   // 月の端だと過去・先の日が無い
+    await boot(page, { pet: { dailyGoal: 5 }, sessions: [session('2026-06-15', 5), session('2026-06-13', 1)] });
     await page.goto('/#/history');
-    const low = page.locator(`#calGrid .cal-cell[data-date="${ymd(2)}"]`);
-    await expect(low).toBeVisible({ timeout: 10000 });
+    const title = page.locator('#calTitle');
+    await expect(title).toHaveText('2026年6月', { timeout: 10000 });
+    const today = page.locator('#calGrid .cal-cell--today');
+    const cell = (date) => page.locator(`#calGrid .cal-cell[data-date="${date}"]`);
+    await expect(today).toHaveAttribute('data-level', '3');   // 目標5を5回で達成（既定の10なら 2）
+    await expect(cell('2026-06-13')).toHaveAttribute('data-level', '1');
     const none = page.locator('#calGrid .cal-cell[data-level="0"]:not(.cal-cell--future):not(.cal-cell--pad)').first();
-    const bg = (loc) => loc.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await bg(none)).not.toBe(await bg(low));
-    expect(await bg(none)).toBe('rgb(255, 255, 255)');   // 白抜き（旧実装は淡いピンク）
-  });
-
-  test('カレンダーの先の日は薄くしない（日付が読める）', async ({ page }) => {
-    const d = new Date();
-    const last = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-    test.skip(d.getDate() === last, '月末は同じ月に先の日が無い');
-    await boot(page);
-    await page.goto('/#/history');
+    expect(await bg(none)).not.toBe(await bg(cell('2026-06-13')));
+    expect(await bg(none)).toBe('rgb(255, 255, 255)');   // 白抜き
     const future = page.locator('#calGrid .cal-cell--future').first();
-    await expect(future).toBeAttached({ timeout: 10000 });
-    expect(await future.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+    expect(await future.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');   // 先の日も日付が読める
+
+    await page.click('#calPrevBtn');
+    await expect(title).toHaveText('2026年5月');
+    await page.click('#calNextBtn');
+    await page.click('#calNextBtn');
+    await expect(title).toHaveText('2026年7月');
   });
 
   test('カレンダーの日を押すと、一覧の表示件数の外でもその日の記録へ移る', async ({ page }) => {
@@ -118,16 +91,8 @@ test.describe('きろく画面の整理（#401）', () => {
     await expect(page.locator(`#historyList .history-card[data-date="${ymd(40)}"]`)).toBeInViewport();
   });
 
-  test('「なおす」を経由しない記録画面の「もどる」はホームへ', async ({ page }) => {
-    await boot(page);
-    await page.goto('/#/record');
-    await expect(page.locator('#recordBackBtn')).toBeVisible({ timeout: 10000 });
-    await page.click('#recordBackBtn');
-    await expect(page.locator('#view-home')).toBeVisible();
-  });
-
   test('曲別コレクションは上位5曲で、「もっと みる」で全曲', async ({ page }) => {
-    const sessions = ['あ', 'い', 'う', 'え', 'お', 'か', 'き'].map((n, i) => session(i + 1, n, 10 - i));
+    const sessions = ['あ', 'い', 'う', 'え', 'お', 'か', 'き'].map((n, i) => session(i + 1, 10 - i, n));
     await boot(page, { sessions });
     await page.goto('/#/history');
     const items = page.locator('.song-collection__item');
@@ -142,7 +107,7 @@ test.describe('きろく画面の整理（#401）', () => {
     await expect(items).toHaveCount(5);
   });
 
-  test('記録カードのスタンプ2段に見出しがあり、回数の単位は「かい」', async ({ page }) => {
+  test('記録カードのスタンプ2段に見出しがあり、記録画面の単位は「かい」・もどるはホームへ', async ({ page }) => {
     await boot(page, { sessions: [session(1)] });
     await page.goto('/#/history');
     await expect(page.locator('.praise-row .mark-label')).toHaveText('はなまる', { timeout: 10000 });
@@ -150,29 +115,27 @@ test.describe('きろく画面の整理（#401）', () => {
     await page.goto('/#/record');
     await expect(page.locator('.stamp-progress')).toContainText('かい / もくひょう');
     await expect(page.locator('.stamp-progress')).not.toContainText('こ');
+    await page.click('#recordBackBtn');   // 「なおす」から来ていなければホームへ
+    await expect(page.locator('#view-home')).toBeVisible();
   });
 });
 
 test.describe('設定画面の整理（#401）', () => {
-  test('レッスン日の一覧は過去3件で、「もっと みる」で増える。先の予定は全部出る', async ({ page }) => {
-    const future = (() => { const d = new Date(); d.setDate(d.getDate() + 5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; })();
-    const lessonDates = [ymd(12), ymd(10), ymd(8), ymd(6), ymd(4), future];
+  test('レッスン日の一覧は過去3件＋先の予定ぜんぶ。「もっと みる」や、古い日を足したときは広げる', async ({ page }) => {
+    const lessonDates = [ymd(12), ymd(10), ymd(8), ymd(6), ymd(4), ymd(-5)];
     await boot(page, { pet: { lessonDates } });
-    await page.goto('/');
-    await expect(page.locator('#settingsToggle')).toBeVisible({ timeout: 10000 });
-    await passGate(page);
-    await expect(page.locator('#lessonList .lesson-del')).toHaveCount(4);   // 予定1＋過去3
+    await gotoHome(page);
+    await openSettings(page);
+    const rows = page.locator('#lessonList .lesson-del');
+    await expect(rows).toHaveCount(4);   // 予定1＋過去3
     await page.click('#lessonList .lesson-more');
-    await expect(page.locator('#lessonList .lesson-del')).toHaveCount(6);
+    await expect(rows).toHaveCount(6);
     await expect(page.locator('#lessonList .lesson-more')).toHaveCount(0);
-  });
 
-  test('古いレッスン日を入れ忘れで足すと、一覧を広げて見せる', async ({ page }) => {
-    await boot(page, { pet: { lessonDates: [ymd(8), ymd(6), ymd(4), ymd(2)] } });
-    await page.goto('/');
-    await expect(page.locator('#settingsToggle')).toBeVisible({ timeout: 10000 });
-    await passGate(page);
-    await expect(page.locator('#lessonList .lesson-del')).toHaveCount(3);
+    // 畳んだ範囲より古い日を入れ忘れで足すと、広げて見せる
+    await closeSettings(page);
+    await openSettings(page);
+    await expect(rows).toHaveCount(4);
     await page.fill('#lessonDateInput', ymd(20));
     await page.click('#lessonAddBtn');
     await expect(page.locator(`#lessonList .lesson-del[data-date="${ymd(20)}"]`)).toHaveCount(1);
@@ -180,9 +143,8 @@ test.describe('設定画面の整理（#401）', () => {
 
   test('せっていの「×」は上にあり、スクロールしても見えていて閉じられる', async ({ page }) => {
     await boot(page);
-    await page.goto('/');
-    await expect(page.locator('#settingsToggle')).toBeVisible({ timeout: 10000 });
-    await passGate(page);
+    await gotoHome(page);
+    await openSettings(page);
     const close = page.locator('.settings-panel__close');
     await expect(close).toBeInViewport();
     const scrolled = await page.locator('#settingsMenu').evaluate((el) => { el.scrollTop = el.scrollHeight; return el.scrollTop; });
