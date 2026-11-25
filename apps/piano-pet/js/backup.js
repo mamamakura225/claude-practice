@@ -16,13 +16,24 @@ export const RESTORE_BACKUP_KEY = 'piano-pet-backup-before-restore';
 // 別アカウントや別のクラウド保存先へ古いデータを戻して上書きしないよう、戻すときに素性を突き合わせる。
 // storage は localStorage 相当（テストで差し替えられるよう引数で受ける）。
 const STASH_META_KEY = `${RESTORE_BACKUP_KEY}:meta`;
+// 戻り値は退避する前の退避へ戻す関数（上書きそのものに失敗したとき用・#428）。
 export function stashBeforeOverwrite(storage, storageKey, { account, doc = null }, now = Date.now()) {
+  const keys = [RESTORE_BACKUP_KEY, STASH_META_KEY];
+  const prev = keys.map((k) => storage.getItem(k));
+  const revert = () => {
+    try {
+      keys.forEach((k) => storage.removeItem(k));
+      keys.forEach((k, i) => { if (prev[i] !== null) storage.setItem(k, prev[i]); });
+    } catch { /* 元の退避に戻せなくても致命的でない */ }
+  };
   try {
     const cur = storage.getItem(storageKey);
-    if (!cur) return;
-    storage.setItem(RESTORE_BACKUP_KEY, cur);
-    storage.setItem(STASH_META_KEY, JSON.stringify({ account, doc, at: now }));
-  } catch { /* 退避失敗は致命的でないので無視 */ }
+    if (cur) {
+      storage.setItem(RESTORE_BACKUP_KEY, cur);
+      storage.setItem(STASH_META_KEY, JSON.stringify({ account, doc, at: now }));
+    }
+  } catch { revert(); }   // 片方だけ書けると中身と素性が食い違う。退避失敗そのものは致命的でない
+  return revert;
 }
 
 // 素性が一致する退避があれば { state, at } を返す。無い・不一致・壊れていれば null。

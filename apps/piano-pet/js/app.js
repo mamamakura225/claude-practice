@@ -1,6 +1,6 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
 import { escapeHtml } from './html.js';
-import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, normalizeState, normalizeLessonDates, activeStorageKey } from './storage.js';
+import { loadState, saveState, cloudFields, mergeCloud, mergeCloudInitial, cloudDigest, normalizeState, normalizeLessonDates, activeStorageKey } from './storage.js';
 import {
   getAccounts, getActiveAccountId, setActiveAccount,
   getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
@@ -138,6 +138,13 @@ function holdCloudPush() {
   cloud.pushCloudDebounced(cloudPayload, UNDO_MS + 500);
 }
 
+// 端末への保存に失敗したままか（容量超過等）。次の保存が通れば追いつく
+let unsaved = false;
+function persist() {
+  unsaved = !saveState(state);
+  if (unsaved) showUndoToast('たんまつに ほぞんできなかったよ。あきを ふやしてね', 'わかった', () => {});
+}
+
 function commitState(newState) {
   // 取り消し待ちの削除（#398）があれば、この保存に重ねて確定する（別の操作で保存が走ったら猶予は終わり）
   const deleted = pendingDelete?.date;
@@ -145,13 +152,13 @@ function commitState(newState) {
     pendingDelete = null;
     dismissUndoToast(false);
     newState = withSessionDeleted(newState, deleted);
-    // 当日分を消したら下書きも消す。残すと次に記録画面を開いたとき消した回数が戻り、二重に記録される
-    if (deleted === todayStr()) clearStampDraft();
   }
   // 別の保存が走ったら、出ている取り消し（レッスン日）は巻き戻すと他の変更まで消えるので閉じる
   if (undoCycle) dismissUndoToast(true);
   state = { ...newState, pet: { ...newState.pet, itemLayout: cleanItemLayout(newState.pet) } };
-  saveState(state);                 // ローカルキャッシュ（オフライン用）
+  persist();                        // ローカルキャッシュ（オフライン用）
+  // 当日分を消したら下書きも消す。残すと次に記録画面を開いたとき消した回数が戻り、二重に記録される
+  if (deleted === todayStr() && !unsaved) clearStampDraft();
   queueCloudPush();
   renderHome();
   if (deleted && router.current === 'history') renderHistory();   // 連続日数・カレンダーも消したあとの姿に
@@ -663,6 +670,7 @@ const STAMP_DRAFT_KEY = `${activeStorageKey()}:stamp-draft`;
 function saveStampDraft() {
   if (editingDate != null) return;
   if (formDate() !== todayStr()) return;
+  if (unsaved) return;   // 記録を端末に書けていない間は、確定前の下書きを残す（閉じると記録ごと失うため・#428）
   if (state.sessions.some((s) => s.date === todayStr())) { clearStampDraft(); return; }
   try {
     localStorage.setItem(STAMP_DRAFT_KEY, JSON.stringify({ date: todayStr(), stamps }));
@@ -1000,7 +1008,7 @@ function setSessionMark(kind, date, id) {
   state = { ...state, sessions };
   state.badges = checkBadges(state);
   const gained = newlyEarned(prevBadges, state.badges);
-  saveState(state);
+  persist();
   queueCloudPush();
   renderHistory();
   if (gained.length) setTimeout(() => showBadgePopup(gained), 300);
@@ -1694,7 +1702,7 @@ function setDailyGoal(value) {
   if (goalInput) goalInput.value = String(goal);   // 丸めた結果を入力欄に反映（目標が変わらないときも・#428）
   if (state.pet.dailyGoal === goal) return;
   state = { ...state, pet: { ...state.pet, dailyGoal: goal } };
-  saveState(state);
+  persist();
   queueCloudPush();
   renderHome();
   renderStampCard();                               // 記録画面が開いていればマス数も更新
@@ -1754,20 +1762,24 @@ setTimeout(creditDueLessons, 0);   // 起動時（モジュール評価の完了
 
 // 開いたまま日付をまたいで戻ってきたら、昨日のままの表示（きょうの もくひょう・レッスンび等）を
 // 描き直す（#428）。記録画面に書きかけがあるときは、その日付の記録として出せるよう触らない。
+// レッスン日の取りこみは保存・送信を伴うので、クラウドを取り込んだあと（resyncAndSettle）に回す。先に送ると、
+// 休んでいた間の古い state で他の端末の記録・購入を消す（#242）。
 let shownDay = todayStr();
+let lessonsDue = false;
 function refreshOnNewDay() {
   if (shownDay === todayStr()) return;
   shownDay = todayStr();
+  lessonsDue = true;
   showThisMonth();
   renderHome();
-  creditDueLessons();
   if (router.current !== 'record' || !hasUnsentInput()) render(router.current);
 }
 
 function hasUnsentInput() {
   if (editingDate != null || recordMode === 'batch') return true;
-  const saved = state.sessions.find((s) => s.date === formDate());
-  return stamps.length !== songsToStamps(saved?.songs).length;
+  // 復元した日なら保存済みの内容、それ以外（過去日）は空のカードから始まっている
+  const saved = formDate() === restoredDate ? state.sessions.find((s) => s.date === restoredDate) : null;
+  return JSON.stringify(stamps) !== JSON.stringify(songsToStamps(combineSongs(saved?.songs)));
 }
 
 // ===== せってい：データのバックアップ/復元（#140） =====
@@ -1921,7 +1933,7 @@ function stopCloudForOverwrite() {
 
 // 読み込み・初期化の直前のデータを退避し、「ひとつ まえの データに もどす」で戻せるようにする（#398）
 async function stashBeforeOverwrite() {
-  (await loadBackup()).stashBeforeOverwrite(localStorage, activeStorageKey(), stashOwner());
+  return (await loadBackup()).stashBeforeOverwrite(localStorage, activeStorageKey(), stashOwner());
 }
 const stashOwner = () => ({ account: getActiveAccountId(), doc: getCloudDocId(getActiveAccountId()) ?? null });
 const readStashedState = () => backupMod?.readStash(localStorage, stashOwner()) ?? null;
@@ -1943,8 +1955,9 @@ async function restorePrevData() {
 // ②が書けなければ何も変えずにやめる（クラウドだけ置き換わって端末が元のままになるのを防ぐ・#428）。
 // code＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
 async function applyImportedState(imported, code = null) {
-  await stashBeforeOverwrite();   // 誤読込からの復旧用。退避の素性を元の保存先で残すため、コードの切替より前に（#398）
+  const revertStash = await stashBeforeOverwrite();   // 誤読込からの復旧用。退避の素性を元の保存先で残すため、コードの切替より前に（#398）
   if (!saveState(imported)) {
+    revertStash();
     showImportStatus('たんまつの あきが たりなくて ほぞんできませんでした。', true);
     return;
   }
@@ -2183,15 +2196,20 @@ if (!isOnboarded()) {
 // ローカルで即描画したあと、クラウドと突き合わせる。SDK は CDN 読み込みなので
 // 動的 import で取り込み、失敗（オフライン等）してもローカル動作を妨げない。
 
-// 取り込んだ state に差し替えて、ホームと表示中の画面を描き直す
-function adoptState(next) {
-  state = next;
-  saveState(state);            // ローカルキャッシュも最新に
-  renderHome();
+// 表示中の画面を今の state で描き直す（記録画面は入力中の内容を持つので触らない）
+function refreshView() {
   if (router.current === 'history') renderHistory();
   else if (router.current === 'shop') renderShop();
   else if (router.current === 'badges') renderBadges();
   else if (router.current === 'stamp' && !stampPressing) renderStampBook();
+}
+
+// 取り込んだ state に差し替えて、ホームと表示中の画面を描き直す
+function adoptState(next) {
+  state = next;
+  persist();                   // ローカルキャッシュも最新に
+  renderHome();
+  refreshView();
 }
 
 // クラウドのデータを現在の state に取り込んで再描画する。
@@ -2203,7 +2221,7 @@ function applyRemoteState(cloudData) {
     return;
   }
   const merged = mergeCloud(state, cloudData);
-  if (JSON.stringify(cloudFields(merged)) === JSON.stringify(cloudFields(state))) return;
+  if (cloudDigest(merged) === cloudDigest(state)) return;
   adoptState(merged);
 }
 
@@ -2249,11 +2267,11 @@ function reconcileInitialCloud(cloudData) {
   if (overwriting) return;
   const merged = mergeCloudInitial(state, cloudData);
   const reconciled = recomputeState(merged, spentTotal(merged));
-  const reconciledCloud = JSON.stringify(cloudFields(reconciled));
+  const reconciledCloud = cloudDigest(reconciled);
 
-  if (reconciledCloud !== JSON.stringify(cloudFields(state))) adoptState(reconciled);
+  if (reconciledCloud !== cloudDigest(state)) adoptState(reconciled);
   // ローカルだけが持っていた記録（起動直後に記録した分など）でクラウドが古ければ確定保存する。
-  if (reconciledCloud !== JSON.stringify(cloudFields(normalizeState(cloudData)))) {
+  if (reconciledCloud !== cloudDigest(normalizeState(cloudData))) {
     cloud?.pushCloud(cloudFields(state));
   }
 }
@@ -2274,7 +2292,15 @@ async function resyncFromCloud() {
 
 // 印を下ろす条件は data-model.md #358
 const resyncAndSettle = () => resyncFromCloud()
-  .then((ok) => { if (ok && navigator.onLine !== false) offlineDirty = false; });
+  .then((ok) => {
+    const offline = navigator.onLine === false;
+    if (ok && !offline) offlineDirty = false;
+    // 取り込めたか、いま保存しても送信されない（未接続・初回同期前）ときだけ。取れなければ次の再同期で
+    if (!lessonsDue || overwriting || !(ok || offline || !initialSyncDone)) return;
+    lessonsDue = false;
+    creditDueLessons();
+    refreshView();
+  });
 let retryTimer = null;
 function scheduleRetry() {
   retryTimer ??= setTimeout(() => { retryTimer = null; retryResync(); }, 30000);

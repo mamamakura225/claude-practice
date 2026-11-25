@@ -129,7 +129,7 @@ export function enableDressup(stageEl, getLayout, onCommit) {
       // エントリは作り直す（基準サイズに戻したら scale を残さない）が、前後レイヤー（#270）は
       // 位置の確定で失われないよう明示的に引き継ぐ。
       const keep = layout[drag.id]?.layer ? { layer: layout[drag.id].layer } : {};
-      layout[drag.id] = atBase ? { ...keep, ...xy } : { ...keep, ...xy, scale: round3(sc) };
+      layout[drag.id] = atBase ? { ...xy, ...keep } : { ...xy, scale: round3(sc), ...keep };
       onCommit(layout);
     }
     drag = null;

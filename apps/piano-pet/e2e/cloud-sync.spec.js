@@ -36,6 +36,7 @@ export async function pushCloud(data) {
   if (navigator.onLine === false) return;
   logPush('push:' + DOC_ID);
   window.__pushed = data;
+  (window.__pushedAll ??= []).push(JSON.parse(JSON.stringify(data)));
   window.__pushCount = (window.__pushCount ?? 0) + 1;
   window.__cloudDoc = JSON.parse(JSON.stringify(data));
   // 実 Firestore と同じく書き込みはローカルへ即反映し、サーバの ack だけ遅らせる（#374）
@@ -670,4 +671,63 @@ test.describe('クラウド同期の取り込み', () => {
       await reloaded;   // 旧実装は ack を待ち続けて 60 秒止まる
     });
   }
+
+  // 日付をまたいで復帰すると「きょう」になったレッスン日を取りこむ（#428）。取り込み前の state で送ると #242 の再来
+  async function comeBackNextDay(page, { fetchFail = false } = {}) {
+    const noon = new Date(); noon.setHours(12, 0, 0, 0);
+    const tomorrow = new Date(noon.getTime() + 86400000);
+    const ymd = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    await page.clock.install({ time: noon });
+    const local = baseState({ pet: { lessonDates: [ymd(tomorrow)] }, sessions: [{ date: '2026-01-01', totalCount: 4, songs: [{ name: 'A', count: 4 }] }] });
+    await useFakeCloud(page, null, { delay: 50 });
+    await seedLocal(page, local);
+    await page.goto('/');
+    await waitForSync(page);
+    await expect.poll(() => page.evaluate(() => window.__cloudDoc?.sessions?.length)).toBe(1);
+    // 休んでいる間に、他の端末が記録した
+    await page.evaluate((fail) => {
+      window.__pushedAll = [];
+      window.__cloudDoc.sessions.push({ date: '2026-01-02', totalCount: 6, songs: [{ name: 'B', count: 6 }] });
+      window.__fetchDelay = 800;   // 送信の待ち（50ms）より取得が遅い
+      window.__fetchDone = false;
+      window.__fetchFail = fail;
+    }, fetchFail);
+    await page.clock.setSystemTime(tomorrow);
+    await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
+    await page.waitForFunction(() => window.__fetchDone);
+    await page.waitForTimeout(300);
+  }
+
+  test('日付をまたいで復帰したとき、レッスン日の取りこみは最新を取り込んでから送る（#428）', async ({ page }) => {
+    await comeBackNextDay(page);
+    const pushed = await page.evaluate(() => window.__pushedAll.map((d) => ({ n: d.sessions.length, coins: d.pet.coins })));
+    expect(pushed.length).toBeGreaterThan(0);
+    expect(pushed.map((p) => p.n)).not.toContain(1);      // 取り込む前の（1件しかない）state を送っていない
+    expect(pushed.at(-1).coins).toBe(4 + 6 + 10);          // 他の端末の分もレッスンの分も入る
+    await expect(page.locator('#statCoins')).toHaveText('20');
+  });
+
+  test('復帰時に取れなければ、レッスン日の取りこみは送らずに次の再同期まで待つ（#428）', async ({ page }) => {
+    await comeBackNextDay(page, { fetchFail: true });
+    expect(await page.evaluate(() => window.__pushedAll.length)).toBe(0);
+    await page.evaluate(() => { window.__fetchFail = false; document.dispatchEvent(new Event('visibilitychange')); });
+    await expect(page.locator('#statCoins')).toHaveText('20');
+  });
+
+  test('キー順だけ違う同じ内容のクラウドでは、起動時に送らない（#428）', async ({ page }) => {
+    const local = baseState({
+      pet: { xp: 4, coins: 4 }, badges: ['first_practice'],
+      streak: { current: 1, best: 1, lastPracticeDate: '2026-01-01', freezes: 0 },
+      sessions: [{ date: '2026-01-01', songs: [{ name: 'A', count: 4 }], totalCount: 4, coinsEarned: 4, xpEarned: 4, bonusCoins: 0, praise: null, tempo: null }],
+    });
+    const sorted = (v) => (Array.isArray(v) ? v.map(sorted) : v !== null && typeof v === 'object'
+      ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])])) : v);
+    const { pet, inventory, streak, badges, sessions } = local;
+    await useFakeCloud(page, sorted({ pet, inventory, streak, badges, sessions, deletedDates: [] }));   // Firestore はキーをソートして返す
+    await seedLocal(page, local);
+    await page.goto('/');
+    await waitForSync(page);
+    await page.waitForTimeout(300);
+    expect(await page.evaluate(() => window.__pushCount ?? 0)).toBe(0);
+  });
 });

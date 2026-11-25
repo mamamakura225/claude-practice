@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { enableDressup } from '../js/dressup.js';
+import { normalizeState } from '../js/storage.js';
 
 // きせかえのポインタ処理（#428）。DOM は使う分だけの偽物で足りる。
 const listeners = {};
@@ -54,6 +55,18 @@ describe('enableDressup のポインタ処理', () => {
     fire('pointerup', 3);
     fire('pointerup', 2);
     expect(onCommit.mock.calls[0][0].crown.scale).toBeCloseTo(1.8);
+  });
+
+  it('落としたエントリのキー順は入口の矯正（normalizeItemLayout）と同じ', () => {
+    disable();
+    disable = enableDressup(stage, () => ({ crown: { layer: 'back' } }), onCommit);
+    item.dataset.scale = '1.5';
+    fire('pointerdown', 1);
+    fire('pointermove', 1, 40, 60);
+    fire('pointerup', 1);
+    item.dataset.scale = '0.9';
+    const layout = onCommit.mock.calls[0][0];
+    expect(JSON.stringify(normalizeState({ pet: { itemLayout: layout } }).pet.itemLayout)).toBe(JSON.stringify(layout));
   });
 
   it('解除するとリスナーが残らない', () => {

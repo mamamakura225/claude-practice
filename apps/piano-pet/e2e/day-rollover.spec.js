@@ -64,4 +64,15 @@ test.describe('日付またぎ（#428）', () => {
     await expect(page.locator('#recordDate')).toHaveValue(ymd(tomorrow));
     await expect(page.locator('#recordTotal')).toHaveText('1');
   });
+
+  test('保存済みと同じ枚数の書きかけ（過去日・曲の入れ替え）も、日付をまたいで戻っても残る', async ({ page }) => {
+    const past = ymd(new Date(NOON.getTime() - 3 * 86400000));
+    await boot(page, { sessions: [session(ymd(NOON), 1), session(past, 1)] }, '/#/record');
+    await page.fill('#recordDate', past);
+    await page.click('#stampCard');
+    await page.clock.setSystemTime(new Date(NOON.getTime() + 86400000));
+    await comeBack(page);
+    await expect(page.locator('#recordDate')).toHaveValue(past);
+    await expect(page.locator('#recordTotal')).toHaveText('1');
+  });
 });

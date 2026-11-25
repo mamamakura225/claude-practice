@@ -231,6 +231,16 @@ describe('再生エンジン（#428）', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
+  it('読み込みを待つ間に休んでも、鳴らす前に起こす', async () => {
+    const { playCatVoice, suspendAudio } = await load();
+    vi.stubGlobal('fetch', async () => ({ arrayBuffer: async () => new ArrayBuffer(1) }));
+    playCatVoice({}, 'hiss');
+    suspendAudio();             // 遅い回線で猶予（3秒）が先に切れた
+    expect(ctx.state).toBe('suspended');
+    await flush();
+    expect(ctx.state).toBe('running');
+  });
+
   it('何も鳴らさずに起こした AudioContext も、しばらくすると休む', async () => {
     const { unlockAudio, suspendAudio, resumeAudio } = await load();
     vi.useFakeTimers();

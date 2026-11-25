@@ -237,8 +237,8 @@ export function playCatVoice(state, kind) {
       const gain = audio.createGain();
       gain.gain.value = 0.9;
       src.connect(gain).connect(audio.destination);
+      resumeAudio();   // 読み込みを待つ間に休んでいたら起こし、休むまでの猶予を数え直す（#428）
       src.start();
-      scheduleIdleSuspend();   // 鳴き終わったらアイドルで休ませる（#146）
     })
     .catch(() => {});  // ネットワーク/デコード失敗は握りつぶす
 }

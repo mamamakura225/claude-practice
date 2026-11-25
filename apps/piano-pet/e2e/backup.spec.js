@@ -185,6 +185,8 @@ test.describe('データのバックアップ/復元', () => {
   });
 
   test('よみこむ：端末に保存できなければ、何も変えずに知らせる（#428）', async ({ page }) => {
+    const prevStash = JSON.stringify({ pet: { coins: 42 } });
+    await page.addInitScript((v) => localStorage.setItem('piano-pet-backup-before-restore', v), prevStash);
     await page.goto('/');
     await passGate(page);
     await page.evaluate(() => {
@@ -199,6 +201,7 @@ test.describe('データのバックアップ/復元', () => {
     await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(file)) });
     await expect(page.locator('#importStatus')).toContainText('ほぞんできませんでした');
     expect(await page.evaluate(() => localStorage.getItem('piano-pet:cloud-ids'))).toBeNull();   // 保存先だけ切り替わらない
+    expect(await page.evaluate(() => localStorage.getItem('piano-pet-backup-before-restore'))).toBe(prevStash);   // 前の退避も残る
     await page.click('#settingsMenu [data-action="close-settings"]');
     await expect(page.locator('#statCoins')).toHaveText('123');
   });

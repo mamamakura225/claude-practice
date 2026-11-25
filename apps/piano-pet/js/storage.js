@@ -219,6 +219,7 @@ export function normalizeState(saved) {
       stampBook: normalizeStampBook(pet.stampBook),
     },
     streak: {
+      ...DEFAULTS.streak,
       ...streak,
       current: asNumber(streak.current),
       best: asNumber(streak.best),
@@ -241,6 +242,14 @@ export function cloudFields(state) {
   const out = {};
   for (const k of CLOUD_FIELDS) out[k] = state[k];
   return out;
+}
+
+// 同期対象の中身を比べるための文字列。キー順は中身ではない（Firestore はキーをソートして返す）ので
+// そろえてから比べる。そろえないと、同じ内容でも毎回「変化あり」で描き直し・送信が走る（#428）。
+export function cloudDigest(state) {
+  return JSON.stringify(cloudFields(state), (_, v) => (v !== null && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => (a < b ? -1 : 1)))
+    : v));
 }
 
 // ローカル state にクラウドのデータフィールドを重ねる（realtime onSnapshot 経路: cloud-wins）。

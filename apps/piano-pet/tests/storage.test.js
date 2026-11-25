@@ -9,6 +9,7 @@ import {
   mergeSessionsKeepLarger,
   mergeCloudInitial,
   saveState,
+  cloudDigest,
   migrate,
   CLOUD_FIELDS,
   SCHEMA_VERSION,
@@ -454,6 +455,28 @@ describe('レッスン日 pet.lessonDates（#393）', () => {
     const m = mergeCloudInitial(local, cloud);
     expect(m.pet.lessonDates).toEqual(['2026-11-10']);
     expect(m.pet.lessonRemoved).toEqual(['2026-11-03']);
+  });
+});
+
+describe('cloudDigest（#428）', () => {
+  // Firestore はマップのキーをソートして返す
+  const sorted = (v) => (Array.isArray(v) ? v.map(sorted) : v !== null && typeof v === 'object'
+    ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sorted(v[k])])) : v);
+  const state = normalizeState({
+    pet: { coins: 3, itemLayout: { crown: { x_pct: 1, y_pct: 2, scale: 1.2, layer: 'back' } } },
+    streak: { current: 1, best: 2, lastPracticeDate: '2026-11-01', freezes: 1 },
+    sessions: [{ date: '2026-11-01', songs: [{ name: 'A', count: 3 }], totalCount: 3, praise: 'jouzu' }],
+  });
+
+  it('キー順だけ違う同じ内容は同じ、中身が違えば違う', () => {
+    expect(cloudDigest(normalizeState(sorted(cloudFields(state))))).toBe(cloudDigest(state));
+    expect(cloudDigest({ ...state, streak: { ...state.streak, freezes: 0 } })).not.toBe(cloudDigest(state));
+  });
+
+  it('normalizeState の streak / pet のキー順は入力に左右されない', () => {
+    const n = normalizeState(sorted(cloudFields(state)));
+    expect(Object.keys(n.streak)).toEqual(['current', 'best', 'lastPracticeDate', 'freezes']);
+    expect(Object.keys(n.pet)).toEqual(Object.keys(normalizeState().pet));
   });
 });
 

@@ -306,6 +306,9 @@ test.describe('練習記録', () => {
     await page.click('#recordSubmitBtn');
     await expect(page.locator('#view-home')).toBeVisible();
     await expect(page.locator('#statCoins')).toHaveText('1');
+    await expect(page.locator('#undoToast')).toContainText('ほぞんできなかった');
+    const draft = () => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet:stamp-draft'))?.stamps?.length ?? 0);
+    expect(await draft()).toBe(1);   // 記録を書けていない間は下書きを残す
     const stored = () => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet'))?.sessions?.length ?? 0);
     expect(await stored()).toBe(0);
 

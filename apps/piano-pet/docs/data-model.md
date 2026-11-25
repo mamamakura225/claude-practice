@@ -22,7 +22,7 @@
 
 - 読み込み・正規化・クラウド射影は [storage.js](../js/storage.js) に集約する
 - `CLOUD_FIELDS` ＝ `pet, inventory, streak, badges, sessions, deletedDates`。`settings` と `version` は端末ローカル
-- `saveState` は書けなくても（容量超過等）投げず `false` を返す（#428）。画面とクラウド送信は続き、毎回 state 全体を書くので次の保存が通れば追いつく
+- `saveState` は書けなくても（容量超過等）投げず `false` を返す（#428）。画面とクラウド送信は続き、毎回 state 全体を書くので次の保存が通れば追いつく。失敗中は知らせを出し、スタンプ下書きを消さない
 
 ### State 以外の localStorage キー
 
@@ -242,7 +242,7 @@
 |---|---|---|---|
 | 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別にローカル優先（union） | 同日衝突で回数の**少ない方** |
 | 復帰時 resync（#242 #358） | `visibilitychange`→visible、`online` 復帰 | 同上（`reconcileInitialCloud`） | 同上。加えて**一方で外した装備・置物が戻る**ことがある |
-| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え）。自分のエコーは差分比較でスキップ。`deletedDates` だけは union し、墓標の日付の記録は取り込まない（#319）。**印（`offlineDirty`）が立っている間は union**（#358） | **まだ送っていないローカルの変更**（debounce の待ち・既定2秒） |
+| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え）。自分のエコーはキー順をそろえた差分比較（`cloudDigest`・#428）でスキップ。`deletedDates` だけは union し、墓標の日付の記録は取り込まない（#319）。**印（`offlineDirty`）が立っている間は union**（#358） | **まだ送っていないローカルの変更**（debounce の待ち・既定2秒） |
 
 **設計判断**
 
@@ -355,7 +355,7 @@
 購読中に取り込むと、push が届く前に**古いスナップショットが結果を巻き戻す**ので、次の順で行う（`applyImportedState`・topic_1780530736889）。
 
 1. 今の localStorage を `piano-pet-backup-before-restore` へ退避する
-2. `saveState(imported)` でローカルに反映する。**書けなければ（容量超過等）何も変えずに知らせてやめる**（#428。クラウドやがぞくコードだけ入れ替わるのを防ぐ）
+2. `saveState(imported)` でローカルに反映する。**書けなければ（容量超過等）何も変えずに知らせてやめる**（退避も元に戻す・#428。クラウドやがぞくコードだけ入れ替わるのを防ぐ）
 3. 購読解除（`cloudUnsub`）で **onSnapshot を止める**。復帰時 resync と30秒の再試行も止める（`stopCloudForOverwrite`・#378）。がぞくコードの切替とスタンプ下書きの消去もここ
 4. `await pushCloud(cloudFields(imported))`（**上限10秒**・`pushForOverwrite`・#381）。がぞくコード入りのファイルは `pushCloudDoc(コード, …)` でそのコードの doc へ書く（#358）
 5. `window.location.reload()`
