@@ -10,6 +10,7 @@ export * from './history.js';
 
 // 週ごとの合計回数を SVG の棒グラフにする
 export function weeklyChartSvg(bars) {
+  if (!bars.some((b) => b.total > 0)) return '<p class="history-empty">れんしゅうすると ここに グラフが でるよ。</p>';
   const N = bars.length;
   const W = N * 30;
   const H = 120;

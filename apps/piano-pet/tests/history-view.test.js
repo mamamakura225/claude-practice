@@ -40,6 +40,10 @@ describe('calendarCellsMarkup / weeklyChartSvg', () => {
     expect(html).toContain('cal-cell--future');
   });
 
+  it('棒が1本も無いときは空のグラフでなく案内を出す（#432）', () => {
+    expect(weeklyChartSvg([{ total: 0, ratio: 0, label: '9/1' }])).toContain('グラフが でるよ');
+  });
+
   it('0回の週は値ラベルを出さない', () => {
     const svg = weeklyChartSvg([{ total: 0, ratio: 0, label: '9/1' }, { total: 5, ratio: 1, label: '9/8' }]);
     expect(svg.match(/class="bar-value"/g)).toHaveLength(1);

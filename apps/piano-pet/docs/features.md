@@ -24,7 +24,7 @@
 
 ## ホーム
 
-> Issue: #121 #167 #187 #396 #399 ｜ 実装: [app.js](../js/app.js)・[cat-image.js](../js/cat-image.js)・[child-profile.js](../js/child-profile.js) ｜ テスト: tests/child-profile.test.js・e2e/child-avatar.spec.js・e2e/navigation.spec.js
+> Issue: #121 #167 #187 #396 #399 #432 ｜ 実装: [app.js](../js/app.js)・[cat-image.js](../js/cat-image.js)・[child-profile.js](../js/child-profile.js) ｜ テスト: tests/child-profile.test.js・e2e/child-avatar.spec.js・e2e/navigation.spec.js
 
 **仕様**
 
@@ -42,6 +42,8 @@
 | 記録ボタン | 「れんしゅうを きろくする」を下ナビの上に `position: sticky` で固定（#399） |
 
 - 記録ボタンを固定しないのは、高さ 600px 未満と きせかえ中（`.is-dressup`）。きせかえ・しゃしん・まえ／うしろパネルに重なるため
+- 下ナビは `z-index: 10`（猫の重ね順 2〜6 より上、ポップアップ 50〜 より下）。横向きで猫がタブを覆って押せなかった（#432）
+- 猫の上下の余白を詰め、375×740 で「きょうの もくひょう」が固定ボタンに隠れないようにする（きせかえ中は詰めない・#432）
 - 幅 420px 以下では名前とタイトルを省略記号で縮め、右端の 🔊/⚙️ を押し出さない（#396）
 
 **設計判断**
@@ -261,7 +263,7 @@
 |---|---|
 | 連続記録カード | いまの れんぞく / さいこう きろく |
 | こんしゅうの ふりかえり（#144） | 今週（月曜起点）の かいすう／きょく数／日数（`weeklySummary`） |
-| 週次グラフ | 直近8週の合計回数（SVG・`weeklyChartModel`） |
+| 週次グラフ | 直近8週の合計回数（SVG・`weeklyChartModel`）。8週とも0なら案内文だけ（#432） |
 | れんしゅうカレンダー（#236） | 月間ヒートマップ（下記） |
 | きょくべつ コレクション（#122） | 曲ごとの累計を「多い順→新しさ」で。回数0・空名は出さない。上位5曲＋「もっと みる（あと Nきょく）」（#401） |
 | 曲マスター👑（#149） | 累計が `SONG_MASTER_COUNT`(=50) に達した曲 |
@@ -844,7 +846,8 @@
 
 | 項目 | 仕様 |
 |---|---|
-| 色の構造 | 構造色は `:root` のセマンティック変数（`--surface`/`--cream`/`--ink`/`--shadow` ほか）。ダークではこの変数だけを上書き。アクセント色は共通 |
+| 色の構造 | 構造色は `:root` のセマンティック変数（`--surface`/`--cream`/`--ink`/`--shadow` ほか）。ダークではこの変数だけを上書き。アクセント色は共通。`color-scheme: dark` で日付アイコンなどもダークにする（#432） |
+| 変数にした面 | 目標達成カード（`--goal-done`）・カレンダーの濃淡（`--heat-1/2`。ダークでも濃いほど多い）・🐾（`--paw-filter`。濃い色の絵文字なのでダークでは反転）（#432） |
 | 切り替え | じどう / あかるい / よる。`じどう` は `data-theme` を外し `@media (prefers-color-scheme: dark)` で OS に追従、他は `data-theme="light"/"dark"` |
 | 保存 | 端末ごと（`localStorage['pp-theme']`） |
 | チラつき防止 | `index.html` の `<head>` のインラインスクリプトで描画前に付ける |
@@ -985,7 +988,7 @@
 - **えさやりクリップの WebKit 実再生**：「読めるが `playing` が来ない」経路と実機 iOS は未検証（#294）
 - **サウンド**：計算は単体テスト、威嚇の出し分けは E2E。鳴った音そのものは未検証
 - **曲の色**：単体テストのみ
-- **ダークモード**：切り替えと保存値は E2E。テーマごとの見た目は未検証
+- **ダークモード**：切り替えと保存値、目標達成カードのコントラストは E2E（`layout-theme`）。ほかの見た目は未検証
 
 ## トレーサビリティ表
 
@@ -1020,7 +1023,7 @@
 | 状態の正規化・移行 | #272 #311 | [data-model.md 4・5章](./data-model.md#4-正規化と型の矯正) | `storage.js` | `storage` | — |
 | クラウド同期・マージ | #142 #242 #313 #358 #362 #374 #378 #381 | [data-model.md 6章](./data-model.md#6-クラウド同期) | `storage.js`・`cloud.js`・`cloud-queue.js`・`app.js` | `storage`・`cloud-queue` | `cloud-sync` |
 | エスケープ（XSS 対策） | #274 #312 | [requirements.md 受容しているリスク](./requirements.md#受容しているリスク258) | `html.js` | `html`・`cat` | — |
-| アクセシビリティ・モーダル・テーマ | #151 #359 #397 | [アクセシビリティ](#アクセシビリティ表示テーマ151) | `dialog.js`・`app.js`・`css/` | — | `a11y-dialogs`・`settings`・`uiux-bugs` |
+| アクセシビリティ・モーダル・テーマ | #151 #359 #397 #432 | [アクセシビリティ](#アクセシビリティ表示テーマ151) | `dialog.js`・`app.js`・`css/` | — | `a11y-dialogs`・`layout-theme`・`settings`・`uiux-bugs` |
 | 計測・監視（内容を送らない） | — | [requirements.md 4.2](./requirements.md#42-セキュリティとプライバシー) | `analytics.js`・`sentry.js`・`monitoring-config.js`（生成） | — | — |
 | SW のキャッシュ | #259 #289 #303 #317 #318 | [Service Worker](#service-worker-のキャッシュ戦略) | `sw.js`（生成）・`scripts/gen-sw.mjs` | `assets` | `sw-clip-cache` |
 | アセット列挙・予算・最小化 | #275 #284 #324 #430 | [パフォーマンス予算](#アセット総量とパフォーマンス予算) | `scripts/piano-pet-assets.mjs`・`scripts/perf-budget.mjs`・`scripts/minify.mjs`・`scripts/build.mjs` | `assets` | — |
