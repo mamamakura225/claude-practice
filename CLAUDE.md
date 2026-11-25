@@ -15,6 +15,7 @@
 ```bash
 npm test              # Vitest単体テスト (apps/*/tests 対象)
 npm run test:e2e      # Playwright E2E (自動サーバー起動・project でアプリ/ブラウザを振り分け)
+npm run build         # 最小化した配信物 dist/ を作る（E2E_DIST=1 npm run test:e2e で dist を検証）
 npm run gen-sw        # piano-pet: SWキャッシュ・index.htmlの?v=を再生成
 npm run gen-config    # envからFirebase/Sentry等の各種configをマッピング生成
 ```
@@ -34,7 +35,7 @@ npm run gen-config    # envからFirebase/Sentry等の各種configをマッピ�
 - `analytics.js`: autocapture/session-recording等は無効化。送るのは操作種別（`task_added`等）のフラグのみとし、`track(event, props)` の props に具体的なテキスト内容を入れないこと。
 
 ### ④ パフォーマンス予算 (`perf-budget`)
-- `perf-budget:check`（Gzipサイズ制限）でエラーが出た場合、無理にコードを圧縮して可読性を破壊してはならない。最小構成を徹底しても予算を超える場合は、`scripts/perf-budget.mjs` の `BUDGETS_KIB` を見直すよう人間に提案せよ。
+- `perf-budget:check`（最小化後のGzipサイズ制限。コメントや空白は数字に乗らない）でエラーが出た場合、無理にコードを圧縮して可読性を破壊してはならない。最小構成を徹底しても予算を超える場合は、`scripts/perf-budget.mjs` の `BUDGETS_KIB` を見直すよう人間に提案せよ。
 
 ### ⑤ ドキュメントの完全同期
 - ソース（`apps/*/`）を変更した場合、必ず同一PR内で関連する要件定義書（`requirements.md`）および設計書（`features.md` 等）に変更を反映せよ。非自明な設計判断の理由は、該当docの `## 設計判断` または `> **設計判断**:` に必ず残すこと。

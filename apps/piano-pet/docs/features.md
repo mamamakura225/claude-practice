@@ -674,7 +674,7 @@
 - **押したら先に保存し、演出は後**：途中でタブを移っても消えない。演出中はクラウドからの再描画を止める
 - **「おしてね」は影の明滅**：拡大縮小だとボタンが動き続け、子どもにも Playwright にも押しにくい
 - **押す演出（#415 #417）**：マスの中（約60px）だけでは手応えが弱かった。等倍の0.6倍速（`playbackRate`）。`peta` は頭に0.25秒の間があるので、タップ時に `unlockAudio()` し 160ms 後に鳴らして着地に合わせる
-- **CSS を足さない**：css 予算の余白が 0.1 KiB しかないので、既存のキーフレームの使い回しとインラインスタイル＋Web Animations API で書く（押す演出・お祝いとも）
+- **CSS を足さない**：当時の css 予算の余白が 0.1 KiB だったので、既存のキーフレームの使い回しとインラインスタイル＋Web Animations API で書く（押す演出・お祝いとも）
 - **お祝いは閉じるまで出す（#419）**：子が「おうちの ひと」を呼びに行って見せられる。音は `levelup` を使い回さず達成専用
 - **ごほうびの絵文字はお祝いに出さない（#423・ユーザー判断）**：なかみとの結びつきが弱く、大きく出しても意味が伝わらない
 - **`prefers-reduced-motion` で止めるのは明滅だけ**：ぺたっとお祝いは遊びの手応えなので残す
@@ -887,46 +887,49 @@
 
 ## Service Worker のキャッシュ戦略
 
-> Issue: #303 #317 #318 ｜ 実装: [sw.js](../sw.js)（`gen-sw` が生成）・[scripts/gen-sw.mjs](../../../scripts/gen-sw.mjs) ｜ テスト: e2e/sw-clip-cache.spec.js・`gen-sw:check`（CI）
+> Issue: #259 #289 #303 #317 #318 ｜ 実装: [sw.js](../sw.js)（`gen-sw` が生成）・[scripts/gen-sw.mjs](../../../scripts/gen-sw.mjs) ｜ テスト: tests/assets.test.js・e2e/sw-clip-cache.spec.js・`gen-sw:check`（CI）
 
-`gen-sw` が作る `APP_SHELL` を install 時にプリキャッシュし、fetch は次の3通り。
+`gen-sw` が作る `APP_SHELL`（コード）と `MEDIA_SHELL`（メディア）を install 時にプリキャッシュし、fetch は次の3通り。
 
 | 対象 | 戦略 |
 |---|---|
-| 同一オリジン（下記以外） | **network-first**（`cache: 'reload'` で HTTP キャッシュも通さない）。**`response.ok` のときだけ**キャッシュを更新（#317）。ナビゲーションの代わりは `./index.html` |
-| クリップ（`video/*.mp4`・`isClip`） | **cache-first**（#303） |
+| コード（下記以外の同一オリジン） | **network-first**（`cache: 'reload'` で HTTP キャッシュも通さない）。**`response.ok` のときだけ**キャッシュを更新（#317）。ナビゲーションの代わりは `./index.html` |
+| メディア（`img/` `icons/` `sounds/` `video/`・`isMedia`） | **cache-first**（#259 #303） |
 | 外部オリジン | `caches.match` → 無ければ `fetch`。キャッシュに入れないので実質は素通し |
 
-- `video/*.mp4` はプリキャッシュと予算の列挙（`listAssets()`）には入れず、`listHashOnlyAssets()` で**ハッシュにだけ**載せる（#318）。書き換えると `CACHE` 名が変わり、古いキャッシュは `activate` で捨てられる
+- キャッシュは `CODE_CACHE` と `MEDIA_CACHE` の2つ。名前はそれぞれの中身のハッシュで、`activate` は現行の2つ以外を捨てる。コードだけの変更では画像（約4 MiB）を取り直さない（#259）
+- `video/*.mp4` はプリキャッシュと予算の列挙（`listAssets()`）には入れず、`listHashOnlyAssets()` で**メディアのハッシュにだけ**載せる（#318）。初回再生時に `MEDIA_CACHE` へ入る
 
 **設計判断**
 
 - **network-first＋`cache: 'reload'`**：ES モジュールの `import` には `?v=` を付けられず、HTTP キャッシュが効くと古い版が残る。代償はシェル取得が毎回ネットワーク待ちになること。#142 の「ローカルファースト」は state の話で、シェル配信とは別
 - **失敗レスポンスを焼かない（#317）**：5xx/404 をキャッシュするとオフライン時だけ白画面になる
 - **外部オリジンは素通し**：Google Fonts はオフラインで取れずフォールバックのフォントになる（機能は落ちない）
-- **クリップだけ cache-first（#303）**：network-first では先読みがオンラインで効かず、1秒のタイムアウトに間に合わなかった。`PLAY_TIMEOUT_MS` の延長（間延び）と、先読みの `<video>` の使い回し（世代管理に手が入る）は不採用
-- **動画もハッシュに載せる（#318）**：URL に `?v=` を個別に付ける案は `CLIPS` に版管理が戻るので不採用。代償はクリップ1本の差し替えで `APP_SHELL` 全量が再プリキャッシュされること（どの css/js 変更でも同じ）
+- **キャッシュを2つに分けた（#259）**：全画像のオフライン保証を保ったまま再取得をなくす。画像を `MEDIA_SHELL` から外す案（保証が弱まる）と、旧キャッシュから1件ずつ引き継ぐ案（ファイル別のハッシュが要る）は不採用。install はメディアの無いものだけを `cache: 'no-cache'` で取る（古い版を焼かない）。代償はメディアを1つ変えると全メディアを確かめ直すこと（304 で済みうる）
+- **クリップを cache-first にした（#303・のち #259 で全メディアへ）**：network-first では先読みがオンラインで効かず、1秒のタイムアウトに間に合わなかった。`PLAY_TIMEOUT_MS` の延長（間延び）と、先読みの `<video>` の使い回し（世代管理に手が入る）は不採用
+- **動画もハッシュに載せる（#318）**：URL に `?v=` を個別に付ける案は `CLIPS` に版管理が戻るので不採用。代償は #259 と同じ
 
 ## アセット総量とパフォーマンス予算
 
-> Issue: #147 #275 #284 #324 ｜ 実装: [scripts/piano-pet-assets.mjs](../../../scripts/piano-pet-assets.mjs)（列挙・JS 分類）・[scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs)（予算 `BUDGETS_KIB`） ｜ テスト: tests/assets.test.js・`perf-budget:check`（CI）
+> Issue: #147 #275 #284 #324 #430 ｜ 実装: [scripts/piano-pet-assets.mjs](../../../scripts/piano-pet-assets.mjs)（列挙・JS 分類）・[scripts/minify.mjs](../../../scripts/minify.mjs)・[scripts/build.mjs](../../../scripts/build.mjs)（配信物）・[scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs)（予算 `BUDGETS_KIB`） ｜ テスト: tests/assets.test.js・`perf-budget:check`（CI）
 
 **仕組み**
 
+- 配信は `npm run build` が作る最小化済みの `dist/`（ソースは書き換えない）。予算も同じ変換（`minify.mjs`）を通した**最小化後**の gzip で測る。CI の E2E と Lighthouse も `dist/` を見る（`E2E_DIST=1`）
 - 配信アセットの列挙は `piano-pet-assets.mjs` が唯一の正。`gen-sw` と `perf-budget` が**同じ集合**を見る。どのカテゴリにも入らないファイルがあれば失敗する
 - JS は**起動をブロックするぶん（`js-entry`）**と**遅延読込（`js-lazy`）**に分ける。`classifyJs()` が `js/app.js` の import 文から導出する。どこからも import されない JS（`orphan`）は CI を落とす
 - `total` は **html＋css＋js-entry**（初回ロードで必ず落ちてくる量）
 - 判定は gzip が効くテキスト資産だけ。画像・音声はレポートにだけ出す。`video/` は列挙に含めない（18本・約 3.8 MiB）
 
-**現状（2026-11-18 実測・`npm run perf-budget`）**
+**現状（2026-11-26 実測・`npm run perf-budget`）**
 
 | カテゴリ | 件数 | gzip | 予算 | 残り |
 |---|---:|---:|---:|---:|
-| html（`index.html`＋`manifest.json`） | 2 | 8.2 KiB | 9 KiB | 0.8 |
-| css | 2 | 14.9 KiB | 15 KiB | **0.1** |
-| js-entry（起動をブロック） | 18 | 86.6 KiB | 87 KiB | 0.4 |
-| js-lazy（遅延読込） | 15 | 32.7 KiB | 33 KiB | 0.3 |
-| **total（html＋css＋js-entry）** | — | **109.7 KiB** | **110 KiB** | 0.3 |
+| html（`index.html`＋`manifest.json`） | 2 | 6.4 KiB | 7 KiB | 0.6 |
+| css | 2 | 8.7 KiB | 10 KiB | 1.3 |
+| js-entry（起動をブロック） | 18 | 33.5 KiB | 37 KiB | 3.5 |
+| js-lazy（遅延読込） | 15 | 16.2 KiB | 18 KiB | 1.8 |
+| **total（html＋css＋js-entry）** | — | **48.5 KiB** | **53 KiB** | 4.5 |
 | icons | 5 | 39.0 KiB | — | 対象外 |
 | img（猫45・装着33・置物12・ねこスタンプ10＋肉球） | 101 | 4173 KiB（raw 4208） | — | 対象外 |
 | sounds | 4 | 103 KiB | — | 対象外 |
@@ -935,6 +938,7 @@
 
 **設計判断**
 
+- **ファイル単位で最小化し、バンドルしない（#430）**：コメントごと配信していて total は 109.7→48.5 KiB。SW のプリキャッシュ・`classifyJs`・E2E の `page.route` は、ファイル名と import の形がソースと同じことに乗っている。`?v=` はソース由来のまま（minify の設定だけ変えても、コードは network-first なので最新が届く）
 - **列挙を共有モジュールにした（#275）**：PNG→WebP 後に画像が**0件（実体 3.6 MiB）と報告され続けた**。同じ列挙を2つのスクリプトに書いていたのが原因。0件チェックでは部分的なずれを拾えない
 - **起動ぶんと遅延ぶんを分けた（#284）**：丸ごと合計していると、動的 import へ移しても数字が動かない。分類を import 文から導出するのは、手書きのリストが実体とずれるため
   - `js-lazy` には**操作するまで読まない**ものと、**idle で必ず読む**もの（`cloud.js`）が混ざる。idle 読みを増やしても total は動かない点に注意
@@ -976,7 +980,7 @@
 
 **まだ埋まっていない空白**
 
-- **オフライン / SW**：ほとんどの project は `serviceWorkers: 'block'`。担保は `gen-sw:check` と `sw-clip-cache.spec.js`（クリップの cache-first／失敗レスポンスを焼かない）だけで、install/activate と全面的なオフライン起動は未検証（#289）
+- **オフライン / SW**：ほとんどの project は `serviceWorkers: 'block'`。担保は `gen-sw:check` と `sw-clip-cache.spec.js`（install・オフライン起動・index.html への代替・コードだけ／メディアだけの更新・失敗レスポンスを焼かない）。オフラインでの記録と WebKit の SW は未検証（#289）
 - **`prefers-reduced-motion`**：ポップアップの確定と、えさやりクリップを出さないことは検証済み。CSS だけの停止（猫・スタンプ・バー）は E2E なし
 - **えさやりクリップの WebKit 実再生**：「読めるが `playing` が来ない」経路と実機 iOS は未検証（#294）
 - **サウンド**：計算は単体テスト、威嚇の出し分けは E2E。鳴った音そのものは未検証
@@ -1018,5 +1022,5 @@
 | エスケープ（XSS 対策） | #274 #312 | [requirements.md 受容しているリスク](./requirements.md#受容しているリスク258) | `html.js` | `html`・`cat` | — |
 | アクセシビリティ・モーダル・テーマ | #151 #359 #397 | [アクセシビリティ](#アクセシビリティ表示テーマ151) | `dialog.js`・`app.js`・`css/` | — | `a11y-dialogs`・`settings`・`uiux-bugs` |
 | 計測・監視（内容を送らない） | — | [requirements.md 4.2](./requirements.md#42-セキュリティとプライバシー) | `analytics.js`・`sentry.js`・`monitoring-config.js`（生成） | — | — |
-| SW のキャッシュ | #303 #317 #318 | [Service Worker](#service-worker-のキャッシュ戦略) | `sw.js`（生成）・`scripts/gen-sw.mjs` | — | `sw-clip-cache` |
-| アセット列挙・予算 | #275 #284 #324 | [パフォーマンス予算](#アセット総量とパフォーマンス予算) | `scripts/piano-pet-assets.mjs`・`scripts/perf-budget.mjs` | `assets` | — |
+| SW のキャッシュ | #259 #289 #303 #317 #318 | [Service Worker](#service-worker-のキャッシュ戦略) | `sw.js`（生成）・`scripts/gen-sw.mjs` | `assets` | `sw-clip-cache` |
+| アセット列挙・予算・最小化 | #275 #284 #324 #430 | [パフォーマンス予算](#アセット総量とパフォーマンス予算) | `scripts/piano-pet-assets.mjs`・`scripts/perf-budget.mjs`・`scripts/minify.mjs`・`scripts/build.mjs` | `assets` | — |

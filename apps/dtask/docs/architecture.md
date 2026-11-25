@@ -53,7 +53,7 @@
 ## 設定・デプロイ
 
 - `*-config.js` は環境変数から生成し、未設定なら本番値（監視は無効）。CI の `gen-config:check` がずれを検知する。値は公開して安全なもので、目的は秘匿でなく環境分離。アクセス制御は Firestore ルール
-- デプロイは GitHub Actions（[test.yml](../../../.github/workflows/test.yml)）だけが行う。unit と e2e が両方成功したら Vercel CLI で `vercel pull → build → deploy --prebuilt`（main への push＝本番、PR＝プレビュー。Dependabot の PR はプレビューしない）。Vercel の Git 自動デプロイは `vercel.json` の `git.deploymentEnabled: false` で止めている
+- デプロイは GitHub Actions（[test.yml](../../../.github/workflows/test.yml)）だけが行う。unit と e2e が両方成功したら Vercel CLI で `vercel pull → build → deploy --prebuilt`（build は `npm run build` で最小化した `dist/` を作る・#430。main への push＝本番、PR＝プレビュー。Dependabot の PR はプレビューしない）。Vercel の Git 自動デプロイは `vercel.json` の `git.deploymentEnabled: false` で止めている
 - Secrets：`VERCEL_TOKEN` / `VERCEL_ORG_ID` / `VERCEL_PROJECT_ID`（値は `vercel link` 後の `.vercel/project.json`）と `FIREBASE_*`・監視用の鍵
 - 外部サービス（Firebase / Vercel / Sentry / PostHog）の設定とプライバシー方針は [docs/external-services.md](../../../docs/external-services.md)
 
@@ -61,7 +61,7 @@
 
 | 判断 | 理由・不採用案 |
 |---|---|
-| ビルドツールを入れない | 依存と学習コストを最小にする。TypeScript 化やバンドル最適化が要るなら Vite を検討 |
+| ビルドツールを入れない | 依存と学習コストを最小にする（配信時の最小化だけ esbuild をファイル単位で使う・#430）。TypeScript 化やバンドル最適化が要るなら Vite を検討 |
 | 全体再描画 | 単純さ優先。数百件を超えたら差分描画を検討 |
 | 未同期中は書かない (#349) | `setDoc` は全体置換なので、クラウドを読まずに書くと空・古い状態で全件（や他端末の変更）が消える。旧実装はミラーを書かず、フォールバックの中身は移行前の空データだった |
 | 差分の基準をミラーでなく `dtask_synced` に (#349) | ミラーを基準にすると、未同期のまま再起動→再フォールバックで未同期分が基準に溶けて消える |
