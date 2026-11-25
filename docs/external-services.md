@@ -92,7 +92,7 @@ GitHub リポジトリの **Actions Secrets**（Vercel 側ではない）。確�
 
 - **送らないもの**: タスク名・詳細・曲名などの「内容」、および個人情報。
 - **Sentry**: breadcrumb を全破棄・`request`/`user` を除去・session replay 不使用。送るのは例外とスタックトレースのみ。非minified 配信なのでソースマップ不要。
-- **PostHog**: autocapture / pageview / session-recording を無効化・DNT 尊重。送るのは操作の種類と頻度のみ（`view_changed` / `task_added` / `practice_recorded`）。`track()` の props に内容を入れないこと。
+- **PostHog**: autocapture / pageview / session-recording を無効化・DNT 尊重。送るのは操作の種類と頻度のみ（`view_changed` / `task_added` / `practice_recorded` / `cat_photo_shared` / `cat_photo_saved`）。`track()` の props に内容を入れないこと。
 
 ---
 
