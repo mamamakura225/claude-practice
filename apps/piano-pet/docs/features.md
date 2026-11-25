@@ -16,7 +16,7 @@
 
 ## 画面とナビゲーション
 
-> 実装: [router.js](../js/router.js)・[app.js](../js/app.js) `render` ｜ テスト: e2e/navigation.spec.js
+> 実装: [router.js](../js/router.js)・[app.js](../js/app.js) `render` ｜ テスト: tests/router.test.js・e2e/navigation.spec.js
 
 - ハッシュベースの SPA。ボトムナビは **ホーム / きろく / ショップ / バッジ / スタンプ**
 - 記録入力（record）はナビに無く、ホームの「れんしゅうを きろくする」から開く。ナビはホームを選択状態に保つ（「なおす」からの編集中は きろく・#401）
@@ -182,7 +182,7 @@
 
 ### 記録の動画クリップ演出（#227）
 
-> Issue: #227 #296 #300 #303 #305 #400 ｜ 実装: [cat-video.js](../js/cat-video.js)・[app.js](../js/app.js) `celebrateRecord` ｜ テスト: tests/cat-video.test.js・e2e/clip.spec.js・e2e/streak-milestone.spec.js・e2e/reward-sequence.spec.js・e2e/sw-clip-cache.spec.js
+> Issue: #227 #296 #300 #303 #305 #400 ｜ 実装: [cat-video.js](../js/cat-video.js)・[app.js](../js/app.js) `celebrateRecord` ｜ テスト: tests/cat-video.test.js・e2e/clip.spec.js・e2e/reward-popup.spec.js・e2e/sw-clip-cache.spec.js
 
 **素材**
 
@@ -229,7 +229,7 @@
 
 ### ポップアップ演出
 
-> Issue: #261 #294 #309 #320 #323 #396 #400 ｜ 実装: [app.js](../js/app.js) `showPopup` ｜ テスト: e2e/reward-popup.spec.js・e2e/reward-sequence.spec.js・e2e/uiux-bugs.spec.js・e2e/shop.spec.js
+> Issue: #261 #294 #309 #320 #323 #396 #400 ｜ 実装: [app.js](../js/app.js) `showPopup` ｜ テスト: e2e/reward-popup.spec.js・e2e/shop.spec.js
 
 **種類**：獲得コイン（レベルアップもここに出す） ／ えさやり ／ きょうのおまけ ／ お休み券キープ ／ バッジ獲得
 
@@ -260,7 +260,7 @@
 
 ## きろく（記録履歴）
 
-> Issue: #122 #144 #145 #149 #236 #239 #261 #314 #319 #358 #360 #398 #401 #407 ｜ 実装: [app.js](../js/app.js) `render*`・[history.js](../js/history.js)（集計）・[history-view.js](../js/history-view.js)（HTML 組み立て） ｜ テスト: tests/history.test.js・tests/history-view.test.js・e2e/history-edit.spec.js・e2e/history-list.spec.js・e2e/history-settings.spec.js・e2e/calendar.spec.js・e2e/undo.spec.js
+> Issue: #122 #144 #145 #149 #236 #239 #261 #314 #319 #358 #360 #398 #401 #407 ｜ 実装: [app.js](../js/app.js) `render*`・[history.js](../js/history.js)（集計）・[history-view.js](../js/history-view.js)（HTML 組み立て） ｜ テスト: tests/history.test.js・tests/history-view.test.js・e2e/history-edit.spec.js・e2e/history-list.spec.js・e2e/history-settings.spec.js・e2e/undo.spec.js
 
 | 要素 | 内容 |
 |---|---|
@@ -957,7 +957,7 @@
 
 ## テストの方針とカバレッジ
 
-> Issue: #277 #289 #323 ｜ 実装: `vitest.config.js`・`playwright.config.js`
+> Issue: #277 #289 #323 #325 #429 ｜ 実装: `vitest.config.js`・`playwright.config.js`・`e2e/helpers.js`・`tests/helpers.js`
 
 | 層 | 対象 | 置き場所 |
 |---|---|---|
@@ -984,6 +984,10 @@
 
 - **クラウド同期は偽モジュールで通す（#277）**：`app.js` が `cloud.js` を動的 import するので、`page.route` で差し替えれば本番コードを変えずに実経路を通せる（`window.__cloudDoc`・`window.__onRemote`）。他の spec は Firestore を遮断している。エミュレータは CI の起動コストが高く、見たいのはマージ規則なので不採用
 - **#261 の退行ガードはページ内で観測する（#323）**：再現には、1回目のフェードアウト開始直後（約250ms の窓）に2回目を重ねる必要がある。固定の `waitForTimeout` は CI の遅れで静かに空振りするので、`MutationObserver` で「`--show` が外れた瞬間」を見る
+- **E2E の準備は `e2e/helpers.js` に寄せる（#429）**：spec は `@playwright/test` でなくここから `test` を import する。Firebase の遮断とオンボーディング済みが自動で効き、遮断の書き忘れで本番 doc に触れることがない
+- **「動画が出ない」はコインのポップアップで見る（#429）**：ポップアップは動画を見終わるまで出ない（#400）ので、固定時間を待たずに「出さないと決まった」ことが分かる
+- **定数表は写さず突き合わせる（#429）**：バッジの判定⇔カタログ、ショップ⇔猫の描画⇔画像の実体のように、実体どうしを比べる。一覧を写したテストは、追加のたびに直すだけで事故を捕まえない
+- **ローカルの workers は4まで（#325）**：既定のままだと http-server を奪い合って flaky になり、かえって遅い
 - **`Math.random` のモックは値域 `[0,1)` の中で**：`() => 1` は Fisher-Yates の範囲外スワップでバッグを壊す。`0.999` にする
 
 **まだ埋まっていない空白**
@@ -1001,15 +1005,15 @@
 
 | 機能 | 主な Issue | 仕様 | 実装（js/） | 単体（tests/） | E2E（e2e/） |
 |---|---|---|---|---|---|
-| ナビゲーション | #235 #399 #401 | [画面とナビゲーション](#画面とナビゲーション) | `router.js`・`app.js` | — | `navigation` |
+| ナビゲーション | #235 #399 #401 | [画面とナビゲーション](#画面とナビゲーション) | `router.js`・`app.js` | `router` | `navigation` |
 | ホーム・アバター | #121 #167 #396 | [ホーム](#ホーム) | `app.js`・`child-profile.js` | `child-profile` | `child-avatar`・`navigation` |
 | 初回オンボーディング | #141 #365 | [初回オンボーディング](#初回オンボーディング141) | `onboarding.js`・`onboarding-ui.js` | `onboarding` | `onboarding` |
 | 練習記録 | #117 #123 #164 #186 #260 #273 #428 | [練習記録](#練習記録) | `record-form.js`・`game.js`・`app.js` | `record-form`・`game` | `record`・`record-date`・`day-rollover` |
 | 曲の色 | #122 #165 #326 | [曲の色](#曲の色122-165) | `song-color.js`・`record-form.js` | `song-color` | — |
 | スタンプ音・サウンド | #139 #146 #154 | [サウンド](#サウンド) | `sound.js` | `sound` | — |
-| 記録の動画クリップ | #227 #296 #300 #305 | [記録の動画クリップ演出](#記録の動画クリップ演出227) | `cat-video.js`・`feed.js`・`app.js` | `cat-video`・`game`（`crossedDailyGoal`） | `clip`・`streak-milestone`・`reward-sequence` |
-| ポップアップ演出 | #261 #323 #396 #400 | [ポップアップ演出](#ポップアップ演出) | `app.js` | — | `reward-popup`・`reward-sequence`・`uiux-bugs`・`shop` |
-| きろく（履歴） | #144 #145 #236 #239 #360 #401 #407 | [きろく](#きろく記録履歴) | `history.js`・`history-view.js`・`app.js` | `history`・`history-view` | `history-list`・`history-settings`・`calendar` |
+| 記録の動画クリップ | #227 #296 #300 #305 | [記録の動画クリップ演出](#記録の動画クリップ演出227) | `cat-video.js`・`feed.js`・`app.js` | `cat-video`・`game`（`crossedDailyGoal`） | `clip`・`reward-popup` |
+| ポップアップ演出 | #261 #323 #396 #400 | [ポップアップ演出](#ポップアップ演出) | `app.js` | — | `reward-popup`・`shop` |
+| きろく（履歴） | #144 #145 #236 #239 #360 #401 #407 | [きろく](#きろく記録履歴) | `history.js`・`history-view.js`・`app.js` | `history`・`history-view` | `history-list`・`history-settings` |
 | 記録の編集・削除・取り消し | #314 #319 #358 #398 | [きろく](#きろく記録履歴)・[data-model.md](./data-model.md#削除の墓標-deleteddates319) | `app.js`・`game.js`・`storage.js` | `game`・`storage` | `history-edit`・`undo` |
 | ショップ（購入・えさやり） | #124 #250 #294 #360 #399 #421 | [ショップ](#ショップ) | `shop.js`・`feed.js`・`cat-video.js` | `shop`・`feed`・`cat-video` | `shop`・`navigation` |
 | なかよしレベル | #124 #216 | [なかよしレベルとご褒美](#なかよしレベルとご褒美124-216) | `feed.js`・`cat-image.js` | `feed`・`cat` | `shop`・`cat-interaction` |
@@ -1023,11 +1027,11 @@
 | 報酬・連続・おまけ | #148 #238 | [育成・報酬ロジック](#育成報酬ロジック) | `game.js` | `game` | `record`・`reward-popup`・`daily-goal` |
 | レッスン日 | #393 | [レッスン日](#レッスン日393) | `game.js`・`storage.js`・`lesson-settings.js` | `game`・`storage` | `lesson`・`day-rollover` |
 | せってい・親ゲート | #166 #182 #238 #401 | [せってい](#せってい親ゲートの内側) | `app.js`・`account.js` | `account` | `settings`・`daily-goal`・`history-settings` |
-| バックアップ／復元・初期化 | #140 #183 #381 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js` | `backup` | `backup` |
+| バックアップ／復元・初期化 | #140 #183 #381 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js` | `backup` | `backup`・`undo` |
 | がぞくコード | #233 | [data-model.md 7章](./data-model.md#7-がぞくコードdoc-id-の推測不能化233-段階1) | `account.js`・`cloud.js`・`app.js` | `account` | `cloud-code` |
 | 状態の正規化・移行 | #272 #311 #428 | [data-model.md 4・5章](./data-model.md#4-正規化と型の矯正) | `storage.js` | `storage` | — |
 | クラウド同期・マージ | #142 #242 #313 #358 #362 #374 #378 #381 | [data-model.md 6章](./data-model.md#6-クラウド同期) | `storage.js`・`cloud.js`・`cloud-queue.js`・`app.js` | `storage`・`cloud-queue` | `cloud-sync` |
-| エスケープ（XSS 対策） | #274 #312 | [requirements.md 受容しているリスク](./requirements.md#受容しているリスク258) | `html.js` | `html`・`cat` | — |
+| エスケープ（XSS 対策） | #274 #312 | [requirements.md 受容しているリスク](./requirements.md#受容しているリスク258) | `html.js` | `html`・`cat`・`history-view` | `record`・`dressup` |
 | アクセシビリティ・モーダル・テーマ | #151 #359 #397 #432 | [アクセシビリティ](#アクセシビリティ表示テーマ151) | `dialog.js`・`app.js`・`css/` | — | `a11y-dialogs`・`layout-theme`・`settings`・`uiux-bugs` |
 | 計測・監視（内容を送らない） | — | [requirements.md 4.2](./requirements.md#42-セキュリティとプライバシー) | `analytics.js`・`sentry.js`・`monitoring-config.js`（生成） | — | — |
 | SW のキャッシュ | #259 #289 #303 #317 #318 | [Service Worker](#service-worker-のキャッシュ戦略) | `sw.js`（生成）・`scripts/gen-sw.mjs` | `assets` | `sw-clip-cache` |
