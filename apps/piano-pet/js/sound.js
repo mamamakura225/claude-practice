@@ -57,12 +57,9 @@ const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11];
 
 // index(0始まり) のスタンプが鳴らす半音オフセットを返す（pure）。
 // ドレミ…と上がり、目標達成のマス（index === goal-1）は高いド(+12)で締める。
-// 設計判断: issue #139 の実装例は半音上昇(2^(i/12))だが、それでは「ドレミの音程感覚を
-// 養う」狙いが満たせないため、ダイアトニック（メジャー音階）を採用。目標マスは headline
-// 通り高いドへ解決させる（レ→ド の終止感を優先し、厳密な単調増加は要件としない）。
-// #238: 目標回数が可変（5〜20）になったため、途中マスは C メジャー音階を「1オクターブ内」に
-// 再配分して上る。旧実装は 12*floor(i/7) でオクターブを無制限に積み上げ、goal=20 では +31 半音
-// (甲高い)まで上がっていた。分母 (goal-1) で 0..6 のダイアトニック度へ正規化し +12 を超えさせない。
+// 半音ずつでなくメジャー音階にするのは「ドレミの音程感覚を養う」ため（厳密な単調増加は要件としない）。
+// 目標回数が変わっても（5〜20・#238）、途中マスは分母 (goal-1) で音階の 0..6 度へ割り当てて
+// 1オクターブに収める（甲高くしない）。
 export function stampSemitone(index, goal = 10) {
   const g = Math.max(1, Math.floor(goal) || 1);
   const i = Math.max(0, Math.floor(index) || 0);
@@ -167,11 +164,6 @@ export function playSound(name, state) {
   playNotes(audio, spec);
 }
 
-// 目標マスかどうか（最後の1マス）。stampSemitone と同じ index 正規化・しきい値を使う。
-function isGoalStamp(index, goal) {
-  return goal > 0 && (Math.max(0, Math.floor(index) || 0) >= goal - 1);
-}
-
 // index のスタンプで鳴らす note 配列を組み立てる（pure・テスト可能）。
 // 通常マスは主音＋1オクターブ下のボディの2音でやわらかい「ポン」。
 // 目標マス（最後の1マス）は単音ではなく Cメジャー主和音（ド・ミ・ソ）＋ボディで
@@ -179,7 +171,7 @@ function isGoalStamp(index, goal) {
 // 各 gain を下げて濁りを防ぎ、余韻が次のレベルアップ音に被るよう少し長めに鳴らす。
 export function stampNotes(index, goal = 10) {
   const f = stampFrequency(index, goal); // 主音（目標マスは高いド）
-  if (isGoalStamp(index, goal)) {
+  if (stampSemitone(index, goal) === 12) {
     return [
       N(f, 0, 0.3, 0.16, 'triangle'),               // ド（主音）
       N((f * 5) / 4, 0.01, 0.3, 0.13, 'triangle'),  // ミ（長三度）

@@ -57,14 +57,11 @@ export function enableDressup(stageEl, getLayout, onCommit) {
       const style = stageEl.querySelector('.cat')?.dataset.style;
       const id = item.dataset.item;
       const lpos = getLayout()[id];
-      const anchor = itemAnchorPct(id, style);
-      const pos = (lpos && lpos.x_pct != null)
-        ? { x_pct: lpos.x_pct, y_pct: lpos.y_pct }
-        : { ...(anchor ?? { x_pct: 50, y_pct: 50 }) };
-      const baseScale = itemAnchorScale(id, style) ?? 1;
+      const { x_pct, y_pct } = lpos?.x_pct != null ? lpos : itemAnchorPct(id, style);
+      const baseScale = itemAnchorScale(id, style);
       drag = {
         id, el: item, pointerId: e.pointerId,
-        pos, baseScale, curScale: parseFloat(item.dataset.scale) || baseScale,
+        pos: { x_pct, y_pct }, baseScale, curScale: parseFloat(item.dataset.scale) || baseScale,
         dirty: false, pinch: null,
       };
       item.classList.add('cat__item--grabbing');

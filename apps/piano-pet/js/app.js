@@ -1856,7 +1856,7 @@ async function shareCatPhoto() {
   try {
     const { renderCatCanvas, canvasToBlob } = await import('./cat-snapshot.js');
     const canvas = await renderCatCanvas(catEl, 600);
-    const blob = await canvasToBlob(canvas, 'image/png');
+    const blob = await canvasToBlob(canvas);
     if (!blob) return;
     // ファイル名・タイトルに曲名・こども名は入れない（PII規約）。
     const file = new File([blob], 'pianopet.png', { type: 'image/png' });

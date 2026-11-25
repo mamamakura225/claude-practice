@@ -88,20 +88,18 @@ export function setCloudDocId(accountId, docId) {
   }
 }
 
-// 推測不能な doc ID を生成する。crypto.randomUUID があれば優先、無ければ乱数16進で代替。
+// 推測不能な doc ID を生成する。randomUUID は安全なコンテキスト限定なので、無ければ乱数16進で代替。
 export function generateCloudDocId() {
-  const uuid = globalThis.crypto?.randomUUID?.();
+  const uuid = crypto.randomUUID?.();
   if (uuid) return `pp-${uuid}`;
-  const bytes = new Uint8Array(16);
-  if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes);
-  else for (let i = 0; i < bytes.length; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
   return `pp-${[...bytes].map((b) => b.toString(16).padStart(2, '0')).join('')}`;
 }
 
 // 入力されたコードが doc ID として妥当か（Firestore doc ID に使える文字・長さ）。
 // 手入力を想定するため前後空白は呼び出し側で trim してから渡す。
 export function isValidCloudDocId(value) {
-  return typeof value === 'string' && /^[A-Za-z0-9_-]{8,120}$/.test(value) && value !== '.' && value !== '..';
+  return typeof value === 'string' && /^[A-Za-z0-9_-]{8,120}$/.test(value);
 }
 
 // アカウントの Firestore ドキュメントID（collection `pianopet` 内）。

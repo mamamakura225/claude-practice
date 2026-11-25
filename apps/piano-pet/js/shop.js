@@ -1,10 +1,8 @@
 // ===== ショップの純粋ロジック =====
-// アイテムIDと装備時の見た目は cat.js の ITEMS / ITEM_ANCHOR_TYPE に対応する。
+// アイテムIDと装備時の見た目は cat-image.js の ITEM_BOX / ITEM_ANCHOR_TYPE に対応する。
 // slot は装備スロット（同一スロットは1つだけ装備できる）。
 // unlockLevel は購入解放に必要な「なかよしレベル」(#126・価格帯で割当)。判定は購入時のみ
 // （canBuy）に効き、装備・描画は所持/装備のみで判定＝affinity 低下でも所持品は保持される。
-// #216 で 8段階化した際、旧 Lv2/3/4/5（affinity 5/15/30/50）と等価な affinity 値の新レベル
-// 2/4/6/8 へ再マップ。既存ユーザーは同じ affinity で従来どおり購入できる（退行なし）。
 import { affinityLevel } from './feed.js';
 
 export const SHOP_ITEMS = [
@@ -96,7 +94,7 @@ export function isEquipped(state, id) {
 export function isUnlocked(state, id) {
   const item = itemById(id);
   if (!item) return false;
-  return affinityLevel(state.pet?.affinity ?? 0).level >= (item.unlockLevel ?? 1);
+  return affinityLevel(state.pet?.affinity ?? 0).level >= item.unlockLevel;
 }
 
 // 購入可否：未所持・実在アイテム・なかよしLv解放済み・コインが価格以上

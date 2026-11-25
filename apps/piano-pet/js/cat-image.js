@@ -1,18 +1,17 @@
 // ===== 猫プリレンダ画像表示（#167） =====
-// 猫本体を「なつき度3段階(tier) × 表情4種(mood) = 12枚」の透過PNGで差し替え表示する。
-// 演出（ハート・きらきら・Zzz・なかよしエンブレム）と衣装は猫本体に依存しない
-// オーバーレイSVG（viewBox 0 0 200 236）として画像の上に重ねる（#168きせかえの土台）。
-// 衣装の既定は全種が本体の前面（cat__front・#211）。#270 以降はユーザーが
-// アイテムごとに「まえ／うしろ」を選べ、うしろにしたものは背面レイヤーへ回る。
-import { affinityLevel } from './feed.js';
+// 猫本体は「スタイル × なつき度3段階(tier) × 表情5種(mood)」の透過WebPを差し替えて表示する。
+// 演出（ハート・きらきら・Zzz・なかよしエンブレム）と衣装は、猫本体に依存しない
+// オーバーレイSVG（viewBox 0 0 200 200）として画像に重ねる（#168）。
+// 衣装の既定は全種が本体の前面（cat__front・#211）。アイテムごとに「まえ／うしろ」を選べ、
+// うしろにしたものは背面レイヤーへ回る（#270）。
 import { escapeHtml } from './html.js';
 
 // ----- 画像セレクタ -----
 // スタイル＝猫種（#66）。未知値は 'tora'（茶トラ）にフォールバック＝既存ユーザー後方互換。
 export const CAT_STYLES = ['tora', 'shiro', 'russianblue'];
-export const IMG_TIERS = ['low', 'mid', 'high'];
+const IMG_TIERS = ['low', 'mid', 'high'];
 // hiss はなで反応の威嚇（シャー）専用。恒常表示には使わず演出中の一時差し替えのみ（#187）。
-export const IMG_MOODS = ['idle', 'happy', 'sleep', 'love', 'hiss'];
+const IMG_MOODS = ['idle', 'happy', 'sleep', 'love', 'hiss'];
 
 export function normalizeStyle(style) {
   return CAT_STYLES.includes(style) ? style : 'tora';
@@ -36,9 +35,9 @@ export function catImageSrc(style, tier, mood) {
 }
 
 // ----- 衣装アイテムのアンカー（viewBox 0 0 200 200・正方画像基準・固定1セット） -----
-// stage(成長段階)は廃止。プリレンダ画像は正方キャンバスに猫が中央やや下で描かれるため、
-// 画像内の頭・首・背・顔の実位置に合わせた座標を1セット持つ（#168 のドラッグ配置で微調整可能）。
-export const ANCHORS = {
+// 画像は正方キャンバスに猫が中央やや下で描かれるため、頭・首・背・顔の実位置に合わせた座標を
+// 1セット持つ（#168 のドラッグ配置で微調整可能）。
+const ANCHORS = {
   head: { x: 100, y: 46,  s: 0.90 },  // 頭頂（王冠・帽子・花）
   face: { x: 100, y: 72,  s: 0.85 },  // 顔中央（めがね）
   neck: { x: 100, y: 100, s: 0.80 },  // 首元（リボン・首輪・マフラー）
@@ -48,7 +47,7 @@ export const ANCHORS = {
 // スタイル別アンカー補正（#66）。立ち耳のロシアンブルー等で頭頂位置がずれる場合に
 // { russianblue: { head: { y: -6 } } } の形で加算する。値は納品画像の実測で決める
 // （ズレが小さければ空のまま。手動ドラッグ（#168）でも調整可能なので過剰に作らない）。
-export const STYLE_ANCHOR_OFFSETS = {};
+const STYLE_ANCHOR_OFFSETS = {};
 
 function anchorFor(style, type) {
   const a = ANCHORS[type];
@@ -59,7 +58,7 @@ function anchorFor(style, type) {
 // アイテムの既定アンカー位置（%・.catコンテナ basis）。#168 のスナップ吸着点に使う。
 // viewBox は 0 0 200 200 なので %換算は座標/2。
 export function itemAnchorPct(id, style = 'tora') {
-  if (isSceneItem(id)) return sceneDefaultPct(id);  // 置物は装着アンカー非依存（#226）
+  if (isSceneItem(id)) return { ...SCENE_DEFAULT_PCT[id] };  // 置物は装着アンカー非依存（#226）
   const type = ITEM_ANCHOR_TYPE[id];
   if (!type) return null;
   const a = anchorFor(style, type);
@@ -80,18 +79,15 @@ function n(v, d = 1) {
 }
 
 // ----- 衣装アイテム（水彩透過PNG・原点(0,0)＝アンカー基準で <image> を重ねる・#196） -----
-// 本体（プリレンダ水彩PNG）と画風を統一するため、手書きインラインSVGから水彩ラスターへ移行。
-// 各 box は旧SVGの描画範囲（描画座標系・原点はアンカー）に対応し、画像はこの box の縦横比で
-// `img/cat/items/{id}.webp`（透過・box×3＝#229・mood/tier 非依存で1 id 1枚）として作成する。
-// 画像フォーマットは #234 で PNG→WebP に移行（対応率実質100%・フォールバック無し）。
-// box を据え置くことで dressup の <g transform>・アンカー・スナップ（#168）は無改修。
+// box は描画範囲（原点はアンカー）。画像はこの box の縦横比で `img/cat/items/{id}.webp`
+// （透過・box×3＝#229・mood/tier 非依存で1 id 1枚）として作成する。
 const ITEM_BOX = {
   ribbon:      { x: -28, y: -16, w: 56,  h: 32 },
   collar:      { x: -40, y: -20, w: 80,  h: 47 },
   hat:         { x: -50, y: -50, w: 100, h: 65 },
   cape:        { x: -50, y: -24, w: 100, h: 112 },
   crown:       { x: -36, y: -18, w: 72,  h: 40 },
-  bowtie:      { x: -26, y: -30, w: 52,  h: 64 },   // ループリボン（縦長・🎀蝶結びと形で差別化）#191
+  bowtie:      { x: -26, y: -30, w: 52,  h: 64 },   // ループリボン（縦長・蝶結びと形で差別化）#191
   scarf:       { x: -42, y: -24, w: 84,  h: 72 },
   glasses:     { x: -42, y: -15, w: 84,  h: 30 },   // レンズ透明＋猫の目を残す #191
   flower:      { x: -22, y: -22, w: 44,  h: 44 },
@@ -114,7 +110,7 @@ const ITEM_BOX = {
   tophat:         { x: -34, y: -50, w: 68,  h: 60 },
   heartGlasses:   { x: -42, y: -17, w: 84,  h: 35 },   // ピンクのハート型レンズ（サングラス・まるめがねと形で差別化）
   medal:          { x: -14, y: -10, w: 28,  h: 86 },   // 首から下がるリボン付き金メダル
-  beeWings:       { x: -56, y: -30, w: 112, h: 56 },
+  beeWings:       { x: -56, y: -30, w: 112, h: 56 },   // 小さく透ける黄色のはね（天使・ちょうと差別化）
   // #299 追加（3回目）
   sailorHat:      { x: -38, y: -38, w: 76,  h: 52 },
   monocle:        { x: 4,   y: -14, w: 36,  h: 44 },   // 片目だけにかけるレンズ＋チェーン（face 中央から右目へ寄せる）
@@ -122,14 +118,7 @@ const ITEM_BOX = {
   pearls:         { x: -32, y: -12, w: 64,  h: 81 },   // U字に垂れる真珠（前面の弧のみ）
   stars:          { x: -58, y: -34, w: 116, h: 82 },
   dragonWings:    { x: -60, y: -20, w: 120, h: 46 },
-   // 小さく透ける黄色のはね（天使・ちょうと差別化）
 };
-
-function itemImage(id) {
-  const b = ITEM_BOX[id];
-  return `<image href="img/cat/items/${id}.webp" x="${b.x}" y="${b.y}" `+
-    `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`;
-}
 
 // ----- 最小タッチ領域（#215） -----
 // アイテムは <g scale> で拡縮するため、ピンチで小さくすると <image> のヒット領域もそのまま縮み掴みにくい。
@@ -146,14 +135,6 @@ function hitRectMarkup(b, scale) {
   return `<rect class="cat__item-hit" x="${n(cx - w / 2)}" y="${n(cy - h / 2)}" `+
     `width="${n(w)}" height="${n(h)}" fill="none" pointer-events="all" aria-hidden="true"/>`;
 }
-
-function itemHitRect(id, scale) {
-  return hitRectMarkup(ITEM_BOX[id], scale);
-}
-
-const ITEMS = Object.fromEntries(
-  Object.keys(ITEM_BOX).map((id) => [id, () => itemImage(id)])
-);
 
 const ITEM_ANCHOR_TYPE = {
   ribbon: 'neck',
@@ -190,8 +171,6 @@ const ITEM_ANCHOR_TYPE = {
   stars: 'back',
   dragonWings: 'back',
 };
-
-export const ITEM_IDS = Object.keys(ITEMS);
 
 // 描画の重なり順は「cape（back アンカー）が最下層 → アクセサリがその上」。前面・背面（#270）の
 // 両方でこの2グループ順に描く。アンカー種別を足すときは必ずどちらかに入れる（列挙漏れ＝無言で消える）。
@@ -238,7 +217,6 @@ const SCENE_DEFAULT_PCT = {
   tree:      { x_pct: 18, y_pct: 20 },
   lamp:      { x_pct: 9, y_pct: 48 },
 };
-const sceneDefaultPct = (id) => ({ ...(SCENE_DEFAULT_PCT[id] ?? { x_pct: 50, y_pct: 64 }) });
 
 export const SCENE_IDS = Object.keys(SCENE_BOX);
 
@@ -259,54 +237,38 @@ export function itemLayer(id, layout = {}) {
   return (v === 'front' || v === 'back') ? v : defaultItemLayer(id);
 }
 
-function sceneImage(id) {
-  const b = SCENE_BOX[id];
-  return `<image href="img/cat/scene/${id}.webp" x="${b.x}" y="${b.y}" `+
-    `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/>`;
+// 1アイテムの <g>。layout に座標があればその %（→viewBox 200系）、無ければ既定位置に置く（#168/#226）。
+// scale は絶対値（#205）：layout に scale があればその値、無ければ基準スケール。
+// 座標を持たず scale / layer だけの形もあるため、位置の有無は x_pct で判定する。
+// data-item / data-scale は、きせかえドラッグ／ピンチ（dressup.js）が掴んで動かすのに使う。
+function itemGroup(id, layout, style) {
+  const pos = layout[id];
+  const { x_pct, y_pct } = pos?.x_pct != null ? pos : itemAnchorPct(id, style);
+  const sc = pos?.scale ?? itemAnchorScale(id, style);
+  const [dir, b] = isSceneItem(id) ? ['scene', SCENE_BOX[id]] : ['items', ITEM_BOX[id]];
+  return `<g class="cat__item" data-item="${id}" data-scale="${n(sc, 3)}" `+
+    `transform="translate(${n(x_pct * 2)} ${n(y_pct * 2)}) scale(${n(sc, 3)})">${hitRectMarkup(b, sc)}`+
+    `<image href="img/cat/${dir}/${id}.webp" x="${b.x}" y="${b.y}" `+
+    `width="${b.w}" height="${b.h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true"/></g>`;
 }
 
-// 指定 layer の置物だけを <g transform> で描く。layout に座標があればその%、無ければ既定位置。
-// 各 <g> は装着系と同じ .cat__item クラスなので dressup.js が無改修で掴める。
-function sceneSvg(placedItems, layer, layout = {}) {
-  return (placedItems ?? [])
-    .filter((id) => SCENE_BOX[id] && itemLayer(id, layout) === layer)
-    .map((id) => {
-      const pos = layout[id];
-      const hasPos = pos && pos.x_pct != null;
-      const d = sceneDefaultPct(id);
-      const x = (hasPos ? pos.x_pct : d.x_pct) * 2;
-      const y = (hasPos ? pos.y_pct : d.y_pct) * 2;
-      const sc = pos?.scale ?? 1;
-      return `<g class="cat__item" data-item="${id}" data-scale="${n(sc, 3)}" `+
-        `transform="translate(${n(x)} ${n(y)}) scale(${n(sc, 3)})">${hitRectMarkup(SCENE_BOX[id], sc)}${sceneImage(id)}</g>`;
-    }).join('');
+// 指定 layer の置物
+function sceneSvg(placedItems, layer, layout) {
+  return placedItems.filter((id) => isSceneItem(id) && itemLayer(id, layout) === layer)
+    .map((id) => itemGroup(id, layout)).join('');
 }
 
-// 衣装を anchor 種別＋実効レイヤー（#270）でフィルタして配置する。既定は全種が前面（#211）。
-// layout に座標があればその %（→viewBox 200系）で、無ければ既定アンカーで配置する（#168）。
-// scale は絶対値（#205）：layout に scale があればその値、無ければアンカー基準 a.s。
-// スナップ時は座標を持たず scale のみ残す形があるため、位置の有無は x_pct で判定する。
-// 各 <g> は data-item / data-scale を持ち、きせかえドラッグ／ピンチ（dressup.js）が掴んで動かす。
-function itemsSvg(equippedItems, anchorTypes, layout = {}, style = 'tora', layer = 'front') {
-  const parts = (equippedItems ?? [])
-    .filter((id) => ITEMS[id] && anchorTypes.includes(ITEM_ANCHOR_TYPE[id]) && itemLayer(id, layout) === layer)
-    .map((id) => {
-      const a = anchorFor(style, ITEM_ANCHOR_TYPE[id]);
-      const pos = layout[id];
-      const hasPos = pos && pos.x_pct != null;
-      const x = hasPos ? pos.x_pct * 2 : a.x;
-      const y = hasPos ? pos.y_pct * 2 : a.y;
-      const sc = pos?.scale ?? a.s;
-      return `<g class="cat__item" data-item="${id}" data-scale="${n(sc, 3)}" `+
-        `transform="translate(${n(x)} ${n(y)}) scale(${n(sc, 3)})">${itemHitRect(id, sc)}${ITEMS[id]()}</g>`;
-    });
-  return parts.join('');
+// 指定 layer の衣装のうち、anchorTypes に付くもの
+function itemsSvg(equippedItems, anchorTypes, layout, style, layer) {
+  return equippedItems.filter((id) => anchorTypes.includes(ITEM_ANCHOR_TYPE[id]) && itemLayer(id, layout) === layer)
+    .map((id) => itemGroup(id, layout, style)).join('');
 }
 
-// ----- 演出オーバーレイ（猫本体に非依存・viewBox 0 0 200 236） -----
+// ----- 演出オーバーレイ（猫本体に非依存・viewBox 0 0 200 200） -----
+const HEART = 'M0 4 C -8 -7 -22 4 0 20 C 22 4 8 -7 0 4 Z';
+
 // ハート（喜ぶ時に浮かびあがる）。配置は外側 <g>・アニメは内側 <path> に分離。
 function heartsGroup() {
-  const heart = 'M0 4 C -8 -7 -22 4 0 20 C 22 4 8 -7 0 4 Z';
   const hearts = [
     { x: 70,  y: 70, delay: 0    },
     { x: 100, y: 52, delay: 0.18 },
@@ -315,7 +277,7 @@ function heartsGroup() {
   const groups = hearts.map(
     (p) =>
       `<g class="cat__heart-pos" transform="translate(${p.x} ${p.y})">`+
-      `<path class="cat__heart" d="${heart}" fill="#ff7a93" style="animation-delay:${p.delay}s"/>`+
+      `<path class="cat__heart" d="${HEART}" fill="#ff7a93" style="animation-delay:${p.delay}s"/>`+
       `</g>`
   ).join('');
   return `<g class="cat__hearts" aria-hidden="true">${groups}</g>`;
@@ -347,7 +309,6 @@ function sparklesGroup() {
 function bondEmblemGroup(level) {
   const lv = Number(level) || 0;
   if (lv < 2) return '';
-  const heart = 'M0 4 C -8 -7 -22 4 0 20 C 22 4 8 -7 0 4 Z';
   const sparkles = lv >= 5
     ? `<g class="cat__bond-sparkle" fill="#ffd34d">
          <circle cx="-15" cy="-9" r="2.4"/>
@@ -358,7 +319,7 @@ function bondEmblemGroup(level) {
   return `<g class="cat__bond" aria-hidden="true" transform="translate(32 34)">
     ${sparkles}
     <circle r="16" fill="#fff" stroke="#ffd0d9" stroke-width="2"/>
-    <g transform="translate(0 -4) scale(0.5)"><path d="${heart}" fill="#ff7a93"/></g>
+    <g transform="translate(0 -4) scale(0.5)"><path d="${HEART}" fill="#ff7a93"/></g>
   </g>`;
 }
 
@@ -378,7 +339,6 @@ function zzzGroup() {
  * mood : 'idle' | 'happy' | 'sleep' | 'love'（恒常表示は idle/sleep、happy/love は演出時の一時差替）
  * bond : なかよしレベル(1-8)。tier の導出とエンブレム表示に使う。
  * style: 猫スタイル（#66）。未知値・未指定は 'tora'。
- * stage 引数は後方互換のため受け取るが無視する（成長段階は廃止）。
  */
 export function catMarkup({ mood = 'idle', equippedItems = [], placedItems = [], name = 'ねこ', bond = 0, itemLayout = {}, style = 'tora' } = {}) {
   const s = normalizeStyle(style);
@@ -409,7 +369,7 @@ export function catMarkup({ mood = 'idle', equippedItems = [], placedItems = [],
   </div>`;
 }
 
-// ----- 画像プリロード（合意：現tierの4mood先行＋閾値2pt手前で次tierをprefetch） -----
+// ----- 画像プリロード（現tierの全mood先行＋閾値の手前で次tierをprefetch） -----
 const preloaded = new Set();
 
 function preloadSrc(src) {
@@ -440,7 +400,7 @@ export function tierToPrefetch(affinityValue) {
   return null;
 }
 
-// affinity が次 tier 境界の手前に来たら、次 tier の4枚をバックグラウンドで先読みして
+// affinity が次 tier 境界の手前に来たら、次 tier の全moodをバックグラウンドで先読みして
 // mood/tier 切替時のガタつきを防ぐ。
 export function prefetchNextTier(style, affinityValue) {
   const tier = tierToPrefetch(affinityValue);
@@ -454,31 +414,23 @@ const REACTION_CLASSES = [
   'cat--happy-hop', 'cat--happy-spin', 'cat--hiss',
 ];
 
-function bodyEl(catEl) {
-  return catEl?.querySelector?.('.cat__body') ?? null;
-}
 
 // 演出クラスを単発再生。連打でも毎回頭から再生されるよう一旦リセットしてリフローを挟む。
-// reactionMood 指定時は本体画像をその表情に差し替え、duration 後に data-mood の恒常表情へ戻す。
+// 本体画像を reactionMood の表情に差し替え、duration 後に data-mood の恒常表情へ戻す。
 function playClasses(catEl, classes, duration, reactionMood) {
   if (!catEl) return;
   catEl.classList.remove(...REACTION_CLASSES);
   void catEl.getBoundingClientRect();
   catEl.classList.add(...classes);
 
-  const body = bodyEl(catEl);
-  if (body && reactionMood) {
-    const tier = catEl.dataset.tier || 'low';
-    body.src = catImageSrc(catEl.dataset.style, tier, reactionMood);
-  }
+  const body = catEl.querySelector('.cat__body');
+  const { style, tier, mood } = catEl.dataset;
+  body.src = catImageSrc(style, tier, reactionMood);
 
   clearTimeout(catEl._catAnimTimer);
   catEl._catAnimTimer = setTimeout(() => {
     catEl.classList.remove(...classes);
-    if (body && reactionMood) {
-      const tier = catEl.dataset.tier || 'low';
-      body.src = catImageSrc(catEl.dataset.style, tier, catEl.dataset.mood || 'idle');
-    }
+    body.src = catImageSrc(style, tier, mood);
   }, duration);
 }
 
@@ -490,9 +442,9 @@ export function pickHappyVariant(rng = Math.random) {
   return HAPPY_VARIANTS[Math.floor(rng() * HAPPY_VARIANTS.length)];
 }
 
-/** 喜ぶアニメーションを単発再生（通常の練習記録・なで反応から呼ぶ）。表情は happy。 */
-export function playHappy(catEl, rng = Math.random) {
-  const variant = pickHappyVariant(rng);
+/** 喜ぶアニメーションを単発再生（通常の練習記録から呼ぶ）。表情は happy。 */
+export function playHappy(catEl) {
+  const variant = pickHappyVariant();
   const classes = variant ? ['cat--happy', `cat--happy-${variant}`] : ['cat--happy'];
   playClasses(catEl, classes, 1200, 'happy');
 }
@@ -502,17 +454,12 @@ export function playCelebrate(catEl) {
   playClasses(catEl, ['cat--celebrate'], 1700, 'happy');
 }
 
-// なでた時の反応。喜ぶ（だいすき表情）/ しっぽふりをランダムに出す。
-const PET_MOODS = ['happy', 'wiggle'];
-
 /** 威嚇（シャー）の反応。喜び演出は出さず、威嚇表情への一時差し替えのみ（#187） */
 export function playHiss(catEl) {
   playClasses(catEl, ['cat--hiss'], 1200, 'hiss');
 }
 
-/** 猫をなでた時の反応アニメーションを単発再生（#79 タッチ interaction） */
-export function playReaction(catEl, rng = Math.random) {
-  const mood = PET_MOODS[Math.floor(rng() * PET_MOODS.length)];
-  if (mood === 'happy') playClasses(catEl, ['cat--happy'], 1200, 'love');
-  else playClasses(catEl, ['cat--wiggle'], 1200, 'love');
+/** 猫をなでた時の反応（だいすき表情）。喜ぶ／しっぽふりをランダムに単発再生（#79） */
+export function playReaction(catEl) {
+  playClasses(catEl, [Math.random() < 0.5 ? 'cat--happy' : 'cat--wiggle'], 1200, 'love');
 }

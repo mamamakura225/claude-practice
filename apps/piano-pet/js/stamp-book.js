@@ -29,7 +29,7 @@ export const normalizeReward = (s) => String(s ?? '').trim().slice(0, REWARD_MAX
 
 const dayNumber = (date) => Math.floor(Date.parse(`${date}T00:00:00Z`) / 86400000);
 const dateOf = (n) => new Date(n * 86400000).toISOString().slice(0, 10);
-export const nextDay = (date) => dateOf(dayNumber(date) + 1);
+const nextDay = (date) => dateOf(dayNumber(date) + 1);
 // 書式は正しいが実在しない日付（2026-11-00 等・信頼できない入力）は数えない
 const realDate = (d) => Number.isFinite(dayNumber(d));
 

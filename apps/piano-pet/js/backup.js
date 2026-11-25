@@ -1,8 +1,9 @@
 // ===== データのバックアップ/復元（JSON 書き出し・読み込み・#140） =====
 // 認証なし・匿名クラウド同期のため、端末故障やブラウザデータ削除でデータが消えるリスクがある。
 // 親が state を JSON で手元に保存（export）し、いつでも復元（import）できるようにする安全弁。
-// このモジュールは純粋関数のみに保つ（ダウンロード/ファイル選択/クラウドpush/リロードは app.js 側）。
+// ダウンロード/ファイル選択/クラウドpush/リロードは app.js 側。
 import { SCHEMA_VERSION, migrate, normalizeState } from './storage.js';
+import { isValidCloudDocId } from './account.js';
 
 // バックアップファイルが piano-pet のものだと識別するためのマーカー。
 const APP_MARKER = 'piano-pet';
@@ -91,10 +92,8 @@ export function parseBackup(text) {
     return { ok: false, reason: 'future' };
   }
   // がぞくコード（#233）は任意。妥当な形式のときだけ返し、呼び出し側が保存先の合流に使う。
-  const code = typeof obj.cloudDocId === 'string' && /^[A-Za-z0-9_-]{8,120}$/.test(obj.cloudDocId)
-    ? obj.cloudDocId
-    : null;
-  return { ok: true, state: normalizeState(migrate(inner)), cloudDocId: code };
+  const cloudDocId = isValidCloudDocId(obj.cloudDocId) ? obj.cloudDocId : null;
+  return { ok: true, state: normalizeState(migrate(inner)), cloudDocId };
 }
 
 // 復元失敗理由を 5歳児＋親向けのひらがなメッセージにする。

@@ -42,8 +42,8 @@ export function xpProgress(totalXp) {
 export const DAILY_GOAL = 10;
 
 // 親が調整できる目標回数の範囲（#238）。
-export const MIN_DAILY_GOAL = 5;
-export const MAX_DAILY_GOAL = 20;
+const MIN_DAILY_GOAL = 5;
+const MAX_DAILY_GOAL = 20;
 
 // 目標達成ボーナスの閾値（#238で意図的に「固定10」に据え置き）。
 // 可変目標（pet.dailyGoal）とは分離する。recomputeState は全履歴に calcRewards を
@@ -333,12 +333,8 @@ export function recomputeState(state, spent = 0, today = todayStr()) {
   // 同日1件を入口で保証（運ばれてきた重複の二重清算を防ぐ・#316。重複なしなら元配列参照が返る）
   const sessions = mergeSameDaySessions(state.sessions ?? []);
 
-  // 元の並びは保ちつつ、再生は日付昇順で行う（同日の相対順は安定ソートで保持）
-  const order = sessions.map((_, i) => i)
-    .sort((a, b) => String(sessions[a].date).localeCompare(String(sessions[b].date)));
-
-  // 日付ごとの再生。練習記録の無いレッスン日も1日分の「練習した日」として並べる（#393）。
-  const bySessionDate = new Map(order.map((i) => [sessions[i].date, i]));
+  // 元の並びは保ちつつ、再生は日付昇順で行う。練習記録の無いレッスン日も1日分の「練習した日」として並べる（#393）。
+  const bySessionDate = new Map(sessions.map((s, i) => [s.date, i]));
   const lessons = new Set(lessonDaysUpTo(state.pet?.lessonDates, today));
   const dates = [...new Set([...bySessionDate.keys(), ...lessons])].sort();
 
