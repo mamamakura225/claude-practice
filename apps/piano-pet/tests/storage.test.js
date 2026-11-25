@@ -168,6 +168,7 @@ describe('normalizeState の型矯正（#272）', () => {
         sessions: [{ date: '2026-11-01', totalCount: Infinity, bonusCoins: '3' }],
       });
       expect(s.pet).toMatchObject({ coins: 10, affinity: 5, foodSpent: 0, xp: 0, level: 1 });
+      expect(normalizeState({ pet: { foodSpent: -500, affinity: -1 } }).pet).toMatchObject({ foodSpent: 0, affinity: 0 });   // 負だと再計算でコインが増える
       expect(s.streak).toMatchObject({ current: 3, freezes: 0 });
       expect(s.sessions[0]).toMatchObject({ totalCount: 0, bonusCoins: 3 });
       expect(recomputeState(s, 0, '2026-11-30').pet.coins).toBe(3);

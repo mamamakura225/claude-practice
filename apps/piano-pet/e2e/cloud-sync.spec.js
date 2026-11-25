@@ -1,4 +1,4 @@
-import { test, expect, session, makeState, seed, readLocal, importJson, backupOf, record, ymd } from './helpers.js';
+import { test, expect, session, makeState, seed, readLocal, importJson, backupOf, record, ymd, openSettings } from './helpers.js';
 
 // クラウド同期の取り込み経路（#142 初回 / #242 復帰時 resync / realtime）。
 // ./js/cloud.js への**リクエストを差し替えて偽モジュールを配り**、app.js の実経路を通す（アプリには手を入れない）。
@@ -25,7 +25,7 @@ export async function fetchCloud() {
   return doc;
 }
 export async function pushCloud(data) {
-  if (navigator.onLine === false) return;
+  if (navigator.onLine === false) return false;
   logPush('push:' + DOC_ID);
   window.__pushed = data;
   (window.__pushedAll ??= []).push(JSON.parse(JSON.stringify(data)));
@@ -35,6 +35,7 @@ export async function pushCloud(data) {
   window.__pushStarted = true;
   if (window.__holdPush) await new Promise(() => {});
   if (window.__pushDelay) await new Promise((r) => setTimeout(r, window.__pushDelay));
+  return true;
 }
 const __queue = createCloudQueue(pushCloud, { defaultDelay: window.__cloudDelay ?? 0 });
 export const pushCloudDebounced = __queue.pushCloudDebounced;
@@ -561,6 +562,63 @@ test.describe('クラウド同期の取り込み', () => {
         await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
       }
       await reloaded;   // 旧実装は ack を待ち続けて 60 秒止まる
+    });
+  }
+
+  // #384: 上書きがクラウドへ届いたかどうかを、次の起動で親に伝える
+  const UNSENT = 'まだ とどいていない';
+  async function resetAndReload(page, { lost }) {
+    const messages = [];
+    page.on('dialog', (d) => { messages.push(d.message()); d.accept(); });
+    await page.clock.install();
+    await useFakeCloud(page, { ...baseState() });
+    await seed(page, localSeed());
+    await page.goto('/');
+    await waitForSync(page);
+    await openSettings(page);
+    await page.evaluate((v) => { window.__pushStarted = false; window.__holdPush = v; }, lost);
+    const reloaded = page.waitForEvent('load');
+    await page.click('#resetBtn');
+    if (lost) {
+      await page.waitForFunction(() => window.__pushStarted);
+      await page.clock.fastForward(11000);   // 見切りは10秒
+    }
+    await reloaded;
+    return messages;
+  }
+
+  test('初期化がクラウドへ届かなかったら、次の起動で一度だけ伝える（#384）', async ({ page }) => {
+    const messages = await resetAndReload(page, { lost: true });
+    await expect.poll(() => messages.some((m) => m.includes(UNSENT))).toBe(true);
+    const before = messages.length;
+    await page.reload();
+    await waitForSync(page);
+    expect(messages.slice(before)).toEqual([]);
+  });
+
+  test('初期化がクラウドへ届いたら、何も伝えない（#384）', async ({ page }) => {
+    const messages = await resetAndReload(page, { lost: false });
+    await waitForSync(page);
+    expect(messages.some((m) => m.includes(UNSENT))).toBe(false);
+    expect(await page.evaluate(() => localStorage.getItem('piano-pet:overwrite-unsent'))).toBeNull();
+  });
+
+  for (const [btn, label] of [['#cloudMigrateBtn', 'うつす'], ['#cloudClearLegacyBtn', 'からにする']]) {
+    test(`ack が返らない回線でも「${label}」は上限時間内に失敗を伝える（#384）`, async ({ page }) => {
+      const migrated = btn === '#cloudClearLegacyBtn';
+      await page.clock.install();
+      await useFakeCloud(page, { ...baseState() });
+      await seed(page, localSeed(), migrated ? { 'piano-pet:cloud-ids': JSON.stringify({ data: 'pp-family-code-1234' }) } : {});
+      page.on('dialog', (d) => d.accept());
+      await page.goto('/');
+      await waitForSync(page);
+      await openSettings(page);
+      await page.evaluate(() => { window.__pushStarted = false; window.__holdPush = true; });
+      await page.click(btn);
+      await page.waitForFunction(() => window.__pushStarted);
+      await page.clock.fastForward(11000);
+      await expect(page.locator('#cloudStatus')).toHaveClass(/settings-menu__note--error/);
+      if (!migrated) expect(await page.evaluate(() => localStorage.getItem('piano-pet:cloud-ids'))).toBeNull();   // コードは保存しない
     });
   }
 

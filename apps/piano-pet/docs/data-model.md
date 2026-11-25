@@ -174,7 +174,7 @@
 |---|---|
 | `saved` 自体 | プレーンオブジェクトでなければ `DEFAULTS` |
 | `pet` / `streak` / `settings` / `pet.itemLayout` | プレーンオブジェクトでなければ既定（配列も弾く） |
-| `pet` の `level`/`xp`/`coins`/`affinity`/`foodSpent`・`streak` の `current`/`best`/`freezes`（#428） | 有限の数値にする（`asNumber`）。できなければ既定 |
+| `pet` の `level`/`xp`/`coins`/`affinity`/`foodSpent`・`streak` の `current`/`best`/`freezes`（#428） | 有限の数値にする（`asNumber`）。できなければ既定。`affinity`/`foodSpent` は 0 以上 |
 | `pet.itemLayout` の各エントリ（#428） | 数値でない座標・正の数値でない `scale`・未知の `layer` を落とす |
 | `streak.lastPracticeDate`（#428） | 実在する日付でなければ `null` |
 | `sessions` / `inventory` / `badges` / `pet.equippedItems` / `pet.placedItems` | 配列でなければ空配列 |
@@ -373,7 +373,9 @@
   4. debounce の保留（thunk が `null` を返す。送り先が切替前の旧 doc のため）
 - **ack は10秒で見切る（#381）**：`navigator.onLine` が true のまま不通の回線では `setDoc` が解決せず、reload へ進まない。`fetchCloud` の5秒より長いのは、短いほど上書きが弱まるため
   - 見切ったときの帰結：未送信の書き込みはリロードで捨てられ、次の初回同期は union。**復元は「マージ」に弱まり、初期化は実質取り消し**（ローカルは退避済み）。送信済みなら「置き換え」になる
-  - 見切ったことを親に伝える導線と、次回起動での再送は #384
+  - **届かなかったら親に伝える（#384）**：見切り・送信失敗・オフラインのときは `piano-pet:overwrite-unsent` に印を残し、次の起動で一度だけ案内する（reload 前に出すと無反応の時間が延びる）
+  - 不採用：次回起動で置き換えを再送する案。古い意図で、その後に他端末が記録したデータまで消しうる
+  - 同じ上限（`withinLimit`）を「あんぜんな ばしょに うつす」「ふるい ばしょを からにする」にも掛ける
 - **初期化は UI で行う（#183）**：Firestore を直接消す案は、親が端末だけで完結できないので不採用
 
 ## 9. マルチアカウント（アカウント分離・#182）
