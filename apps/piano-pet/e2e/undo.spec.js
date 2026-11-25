@@ -201,4 +201,25 @@ test.describe('取り消し（#398）', () => {
     await page.click('#restorePrevBtn');
     await expect(page.locator('#statCoins')).toHaveText('55', { timeout: 10000 });
   });
+
+  test('削除の猶予中に別の保存で確定しても、一覧の「なおす」は押した日の記録を開く（#428）', async ({ page }) => {
+    const session = (date, count) => ({ date, songs: [{ name: 'きらきらぼし', count }], totalCount: count });
+    await boot(page, { ...base({ sessions: [session('2026-01-03', 4), session('2026-01-02', 3), session('2026-01-01', 2)] }), badges: ['first_practice', 'practice_again', 'streak_3'] });
+    await page.goto('/#/history');
+    await expect(page.locator('.history-card')).toHaveCount(3);
+    page.once('dialog', (d) => d.accept());
+    await page.locator('.history-card').first().locator('[data-action="delete-session"]').click();
+    await expect(page.locator('#undoToast')).toBeVisible();
+    // アバターの変更（commitState）が、待っていた削除を確定する
+    await page.locator('#view-history .child-avatar').click();
+    await page.click('.avatar-grid__btn[data-avatar="rabbit"]');
+    await page.click('#avatarOverlay .settings-btn');
+    expect((await saved(page)).sessions).toHaveLength(2);
+    const best = await page.locator('#historyStreakBest').textContent();
+
+    await page.locator('.history-card[data-date="2026-01-02"] [data-action="edit-session"]').click();
+    await expect(page.locator('#recordDate')).toHaveValue('2026-01-02');
+    await expect(page.locator('#recordTotal')).toHaveText('3');
+    expect(best).toBe('2');   // 上の数字も消したあとの値に描き直っている
+  });
 });

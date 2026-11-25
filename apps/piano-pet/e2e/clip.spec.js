@@ -252,4 +252,24 @@ test.describe('記録の動画クリップ演出（#227）', () => {
     await page.waitForTimeout(500);
     await expect(page.locator('#catVideo')).toBeHidden();
   });
+
+  test('動画の読み込み中にホームを離れたら、見えないまま再生してポップアップを待たせない（#428）', async ({ page }) => {
+    let release;
+    const gate = new Promise((r) => { release = r; });
+    await page.route('**/video/*_record_*.mp4', async (route) => { await gate; await route.continue(); });
+    await page.addInitScript(() => { Math.random = () => 0.99; });   // 目標達成なので必ず動画
+    const primed = page.waitForRequest(/_record_.*mp4/);
+    await page.goto('/#/record');
+    await expect(page.locator('#view-record')).toBeVisible({ timeout: 10000 });
+    await addSong(page, 'きらきらぼし');
+    for (let i = 0; i < 10; i += 1) await page.click('#stampCard');
+    await primed;
+    await page.evaluate(() => {
+      document.getElementById('recordSubmitBtn').click();
+      document.querySelector('.nav-btn[data-nav="shop"]').click();
+    });
+    release();
+    await expect(page.locator('#coinPopup')).toBeVisible({ timeout: 3000 });
+    await expect(page.locator('body')).not.toHaveClass(/cat-clip-playing/);
+  });
 });

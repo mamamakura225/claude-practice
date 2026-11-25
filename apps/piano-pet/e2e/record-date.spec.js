@@ -114,4 +114,22 @@ test.describe('記録フォームの日付変更（#273）', () => {
     const draft = await page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet:stamp-draft')));
     expect(draft.stamps).toEqual(['ちょうちょう', 'ちょうちょう', 'ちょうちょう']);
   });
+
+  test('今日の記録を別の日へ動かしたら、今日の記録画面に古い回数が戻らない（#428）', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#goRecordBtn')).toBeVisible({ timeout: 10000 });
+    await recordToday(page, 5);
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#recordTotal')).toHaveText('5');   // 当日ぶんの復元（#186）
+    await page.click('.nav-btn[data-nav="history"]');
+    await page.locator('.history-card [data-action="edit-session"]').click();
+    const past = await daysAgo(page, 2);
+    await page.fill('#recordDate', past);
+    await page.click('#recordSubmitBtn');
+    await expect(page.locator(`.history-card[data-date="${past}"]`)).toBeVisible();
+
+    await page.click('.nav-btn[data-nav="home"]');
+    await page.click('#goRecordBtn');
+    await expect(page.locator('#recordTotal')).toHaveText('0');
+  });
 });

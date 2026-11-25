@@ -168,4 +168,15 @@ test.describe('押せる大きさとコントラスト（#397）', () => {
     expect(colors.desc).toBe('rgb(107, 91, 94)');    // --text-muted
     expect(colors.badge).toBe('rgb(184, 50, 79)');   // --pink-ink
   });
+
+  test('もどるボタンの読み上げ・ナビの選択・あかるさの役割が、見えているものと合う（#428）', async ({ page }) => {
+    await boot(page, { sessions: [{ date: '2026-01-01', songs: [{ name: 'きらきらぼし', count: 1 }], totalCount: 1 }] });
+    await page.goto('/#/record');
+    await expect(page.locator('#recordBackBtn')).toHaveAttribute('aria-label', 'ホームにもどる');
+    await expect(page.locator('.nav-btn.active')).toHaveAttribute('aria-current', 'page');
+    await page.click('.nav-btn[data-nav="history"]');
+    await page.locator('[data-action="edit-session"]').click();
+    await expect(page.locator('#recordBackBtn')).toHaveAttribute('aria-label', 'きろくにもどる');
+    await expect(page.locator('#themeSwitch')).toHaveAttribute('role', 'group');   // 中は aria-pressed のトグル（radio ではない）
+  });
 });
