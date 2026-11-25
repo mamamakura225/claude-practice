@@ -38,7 +38,11 @@ jobs:
           node-version: 20
       - run: npm install
       - run: npx playwright install --with-deps chromium firefox webkit
+      # 本番と同じ最小化済みの配信物（dist/）に対して走らせる（#430）
+      - run: npm run build
       - run: npm run test:e2e
+        env:
+          E2E_DIST: "1"
       - name: 失敗時のレポートを保存
         if: failure()
         uses: actions/upload-artifact@v7
@@ -56,6 +60,7 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      - run: npm run build
       - name: Lighthouse CI を実行
         uses: treosh/lighthouse-ci-action@v12
         with:
@@ -90,6 +95,7 @@ jobs:
           POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
       - run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+      # vercel.json の buildCommand（npm run build）が dist/ を作る。gen-config で書き換えた設定もここで入る
       - run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
       - run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
 
@@ -121,5 +127,6 @@ jobs:
           POSTHOG_KEY: ${{ secrets.POSTHOG_KEY }}
           POSTHOG_HOST: ${{ secrets.POSTHOG_HOST }}
       - run: vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      # vercel.json の buildCommand（npm run build）が dist/ を作る。gen-config で書き換えた設定もここで入る
       - run: vercel build --token=${{ secrets.VERCEL_TOKEN }}
       - run: vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }}

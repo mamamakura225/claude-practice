@@ -1,14 +1,19 @@
-// ===== Service Worker（ネットワーク優先＋オフラインフォールバック） =====
-const CACHE = 'piano-pet-95952b3c';
+// ===== Service Worker =====
+// キャッシュはコード用とメディア用の2つ（#259）。コードだけのデプロイで画像（約4MiB）を取り直さない。
+//   - コード（html/css/js/manifest）: network-first。取れないときだけキャッシュ
+//   - メディア（画像・音・アイコン・動画）: cache-first。中身が変わると MEDIA_CACHE の名前が変わる
+// 下の4つの定数は gen-sw が生成する（手で直さない）。
+const CODE_CACHE = 'piano-pet-code-26a09b86';
+const MEDIA_CACHE = 'piano-pet-media-b879623f';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=95952b3c',
-  './css/style.css?v=95952b3c',
+  './css/cat.css?v=26a09b86',
+  './css/style.css?v=26a09b86',
   './js/account.js',
   './js/analytics.js',
-  './js/app.js?v=95952b3c',
+  './js/app.js?v=26a09b86',
   './js/backup.js',
   './js/badges.js',
   './js/cat-image.js',
@@ -40,6 +45,9 @@ const APP_SHELL = [
   './js/stamp-view.js',
   './js/storage.js',
   './manifest.json',
+];
+
+const MEDIA_SHELL = [
   './icons/apple-touch-icon.png',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -152,51 +160,60 @@ const APP_SHELL = [
   './sounds/meow3.mp3',
 ];
 
+async function precacheCode() {
+  const cache = await caches.open(CODE_CACHE);
+  await cache.addAll(APP_SHELL);
+}
+
+// メディアは無いものだけ取る。ここで入れたものはそのまま使われ続ける（cache-first）ので、
+// HTTP キャッシュの古い版を焼かないよう必ずサーバへ確かめる（変わっていなければ 304 で済む）。
+async function precacheMedia() {
+  const cache = await caches.open(MEDIA_CACHE);
+  const have = new Set((await cache.keys()).map((r) => r.url));
+  const missing = MEDIA_SHELL.filter((p) => !have.has(new URL(p, self.location.href).href));
+  await cache.addAll(missing.map((p) => new Request(p, { cache: 'no-cache' })));
+}
+
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
-  );
+  event.waitUntil(Promise.all([precacheCode(), precacheMedia()]).then(() => self.skipWaiting()));
 });
 
 self.addEventListener('activate', (event) => {
+  const keep = [CODE_CACHE, MEDIA_CACHE];
   event.waitUntil(
     caches.keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((keys) => Promise.all(keys.filter((k) => !keep.includes(k)).map((k) => caches.delete(k))))
       .then(() => self.clients.claim())
   );
 });
 
-// 記録クリップ（#227/#300）は gen-sw のハッシュ入力に入っている（#318）ので、内容が変われば
-// CACHE 名が変わり旧キャッシュは activate で破棄される＝ cache-first でも古い版は返らない。
-// network-first のままだと再生のたびに全量（106〜172KB）を取り直し、cat-video.js の prime も
-// 効かない（キャッシュを読むのがオフライン時だけのため）。1秒の再生タイムアウトに間に合わず
-// 演出が出ないので cache-first にする（#303）。JS/HTML/CSS は import に版が付かず古い版が残る
-// ため network-first を維持する。
-const isClip = (pathname) => /\/video\/[^/]+\.mp4$/.test(pathname);
+// メディアの URL に版は付かないが、MEDIA_CACHE の名前は全メディア（precache しない動画も含む・#318）の
+// 中身から作るので、内容が変われば別キャッシュになり、旧キャッシュは activate で破棄される
+// ＝ cache-first でも古い版は返らない。動画は precache せず、初回再生時にここで入る（#227/#303）。
+// JS/HTML/CSS は import に版が付かず古い版が残るため network-first を維持する。
+const SCOPE_PATH = new URL('./', self.location.href).pathname;
+const isMedia = (pathname) =>
+  pathname.startsWith(SCOPE_PATH) && /^(?:img|icons|sounds|video)\//.test(pathname.slice(SCOPE_PATH.length));
 
-// 同一オリジン: network-first（オンラインは常に最新、失敗時のみキャッシュ）。
-// 取得成功時にキャッシュを更新するので、オフラインでも直近の内容で動く。
-// クリップのみ cache-first（上記）。外部オリジン（フォント等）: cache-first。
+// キーは URL 文字列にする。<video> は Range 付きで要求してくるので、Request のままだと
+// キャッシュを取りこぼす（保存できるのは 200 だけ）。
+async function mediaFirst(url) {
+  const cache = await caches.open(MEDIA_CACHE);
+  const cached = await cache.match(url.href);
+  if (cached) return cached;
+  const response = await fetch(url.href, { cache: 'no-cache' });
+  if (response.ok) cache.put(url.href, response.clone());
+  return response;
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
 
-  if (url.origin === self.location.origin && isClip(url.pathname)) {
-    // <video> は Range 付きで要求してくる。キーを URL 文字列にして Range の有無で
-    // キャッシュを取りこぼさないようにする（保存できるのは 200 だけ）。
-    event.respondWith(
-      caches.open(CACHE).then((cache) =>
-        cache.match(url.href).then((cached) => {
-          if (cached) return cached;
-          return fetch(url.href).then((response) => {
-            if (response.ok) cache.put(url.href, response.clone());
-            return response;
-          });
-        })
-      )
-    );
+  if (url.origin === self.location.origin && isMedia(url.pathname)) {
+    event.respondWith(mediaFirst(url));
     return;
   }
 
@@ -209,7 +226,7 @@ self.addEventListener('fetch', (event) => {
           // 保存するのは ok なレスポンスだけ（5xx/404 を焼くとオフライン時だけ白画面になる・#317）
           if (response.ok) {
             const copy = response.clone();
-            caches.open(CACHE).then((cache) => cache.put(request, copy));
+            caches.open(CODE_CACHE).then((cache) => cache.put(request, copy));
           }
           return response;
         })

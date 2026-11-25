@@ -13,7 +13,7 @@
 - `apps/piano-pet/` のソースを変えたら、**同じPRで requirements.md と該当する文書を更新する**（[CLAUDE.md](../../../CLAUDE.md)）
 - モジュール・テストファイルを足した／消したときは、features.md の[トレーサビリティ表](./features.md#トレーサビリティ表)も更新する
 - コードのコメントが参照している節名（features.md「記録の動画クリップ演出」「ポップアップ演出」「ねこスタンプちょう」、data-model.md「取り込み経路は3つあり、規則が同じではない」、requirements.md「受容しているリスク」）は、変えるならコード側も直す
-- 予算の枠の値と、枠をいつ・なぜ変えたかは [scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs) のコメントが正。文書には現状の表と、設計判断の根拠としての実測値（○→○ KiB）だけを書く
+- 予算の枠の値は [scripts/perf-budget.mjs](../../../scripts/perf-budget.mjs) が正（過去の変更の経緯は git の履歴）。文書には現状の表と、設計判断の根拠としての実測値（○→○ KiB）だけを書く
 
 ## 書き方
 

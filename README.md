@@ -21,12 +21,12 @@ claude-practice/
 ├── apps/
 │   ├── dtask/            # タスク管理アプリ（tests/・e2e/・docs/ 込み）
 │   └── piano-pet/        # ピアノ練習アプリ（tests/・e2e/・docs/ 込み）
-├── scripts/              # 共有: gen-sw / perf-budget / アセット列挙（piano-pet）と gen-firebase-config（両アプリ・CLAUDE.md が鉄則として参照）
+├── scripts/              # 共有: build / minify（配信物 dist/）・gen-sw / perf-budget / アセット列挙（piano-pet）と gen-firebase-config（両アプリ・CLAUDE.md が鉄則として参照）
 ├── docs/                 # 共有: リポジトリ横断ドキュメント（external-services.md 等）
 ├── package.json          # 共有: npm スクリプト
 ├── vitest.config.js      # 共有: 単体テスト（apps/*/tests を対象）
 ├── playwright.config.js  # 共有: E2E（各アプリを別ポートで配信し project で振り分け）
-├── vercel.json           # 共有: ルーティング（/dtask・/piano-pet）
+├── vercel.json           # 共有: ビルドとルーティング（/dtask・/piano-pet）
 └── .github/workflows/    # 共有: テスト & デプロイ
 ```
 
@@ -43,7 +43,7 @@ npm install
 ### テスト
 ```bash
 npm test           # Vitest 単体テスト（apps/*/tests）
-npm run test:e2e   # Playwright E2E テスト（http-serverは自動起動）
+npm run test:e2e   # Playwright E2E テスト（http-serverは自動起動。CI は E2E_DIST=1 で dist/ を配信）
 ```
 
 E2E は project ごとに配信元とデバイスが分かれる（[playwright.config.js](./playwright.config.js)）。絞るときは `--project` を指定する。
@@ -72,7 +72,7 @@ GitHub Actions（[.github/workflows/test.yml](./.github/workflows/test.yml)）�
 
 - `main` への push → 本番デプロイ
 - PR (mainターゲット) → プレビューデプロイ
-- リポジトリ全体を静的配信し、`vercel.json` の rewrite で `/dtask`・`/piano-pet` を各アプリへ振り分ける
+- `npm run build` が最小化した `dist/`（docs・テストは含めない）だけを静的配信し、`vercel.json` の rewrite で `/dtask`・`/piano-pet` を各アプリへ振り分ける
 
 ## 外部サービス / インフラ
 

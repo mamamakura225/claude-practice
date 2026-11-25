@@ -47,7 +47,14 @@ export function listAssets() {
   return assets;
 }
 
-// SW の precache（APP_SHELL）にも perf-budget のカテゴリにも入れないが、差し替えでキャッシュ名が
+// 配信アセットを SW のキャッシュ2つ（コード／メディア・#259）に分ける。メディアは cache-first なので、
+// 画像・音・アイコン（＝コードを変えても変わらないもの）だけにする。sw.js の isMedia と同じ規則。
+const MEDIA_DIRS = ['img', 'icons', 'sounds', 'video'];
+export const isMediaAsset = (rel) => MEDIA_DIRS.includes(rel.split('/')[0]);
+export const listCodeAssets = () => listAssets().filter((rel) => !isMediaAsset(rel));
+export const listMediaAssets = () => listAssets().filter(isMediaAsset);
+
+// SW の precache にも perf-budget のカテゴリにも入れないが、差し替えでメディアキャッシュの名前が
 // 変わるようハッシュにだけ載せるアセット（#318）。precache に入れない理由は #227（全クリップ＝#294 後は
 // 3.76 MiB を install 時に全部落とすと初回起動が重い）、予算に入れない理由も同じ（判定対象は起動をブロック
 // するテキスト資産）。perf-budget.mjs の orphan 検知（js/ だけが対象）には混ぜないこと。

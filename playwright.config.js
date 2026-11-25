@@ -4,6 +4,13 @@ import { defineConfig, devices } from '@playwright/test';
 const DTASK_PORT = 3000;
 const PIANO_PORT = 3100;
 
+// E2E_DIST=1 なら最小化済みの配信物（npm run build → dist/）を配る。CI は本番と同じものを検証するため
+// こちらで走らせる。ローカルの既定は今までどおりソースを直接配る（#430）。
+const DIST = !!process.env.E2E_DIST;
+const APPS_DIR = DIST ? './dist/apps' : './apps';
+// 起動済みのサーバーはどちらを配っているか区別できないので、dist を見るときは再利用しない。
+const reuseExistingServer = !process.env.CI && !DIST;
+
 export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
@@ -62,15 +69,15 @@ export default defineConfig({
   // テスト実行時に各アプリの http-server を自動起動・終了
   webServer: [
     {
-      command: `npx http-server ./apps/dtask -p ${DTASK_PORT} -c-1 --silent`,
+      command: `npx http-server ${APPS_DIR}/dtask -p ${DTASK_PORT} -c-1 --silent`,
       url: `http://localhost:${DTASK_PORT}`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 30000,
     },
     {
-      command: `npx http-server ./apps/piano-pet -p ${PIANO_PORT} -c-1 --silent`,
+      command: `npx http-server ${APPS_DIR}/piano-pet -p ${PIANO_PORT} -c-1 --silent`,
       url: `http://localhost:${PIANO_PORT}`,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer,
       timeout: 30000,
     },
   ],

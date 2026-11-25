@@ -54,6 +54,7 @@ E2E 未カバー：リストの D&D 並べ替え、スキップの Undo。
 
 - main への push と main 向け PR で起動
 - 単体ジョブ：`gen-sw:check` → `gen-config:check` → `perf-budget:check` → Vitest
+- E2E・Lighthouse は `npm run build` の `dist/`（最小化済み）を配信する
 - E2E ジョブ：Playwright（CI では `retries: 1`・`workers: 1`）
 - Lighthouse：トップ・dtask・piano-pet を計測。警告のみ（accessibility ≥ 0.95、他 ≥ 0.9）でデプロイは止めない
 - unit と e2e が両方通ったらデプロイ（→ [architecture.md](./architecture.md#設定デプロイ)）
