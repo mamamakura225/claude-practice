@@ -1027,7 +1027,7 @@
 | 報酬・連続・おまけ | #148 #238 | [育成・報酬ロジック](#育成報酬ロジック) | `game.js` | `game` | `record`・`reward-popup`・`daily-goal` |
 | レッスン日 | #393 | [レッスン日](#レッスン日393) | `game.js`・`storage.js`・`lesson-settings.js` | `game`・`storage` | `lesson`・`day-rollover` |
 | せってい・親ゲート | #166 #182 #238 #401 | [せってい](#せってい親ゲートの内側) | `app.js`・`account.js` | `account` | `settings`・`daily-goal`・`history-settings` |
-| バックアップ／復元・初期化 | #140 #183 #381 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js` | `backup` | `backup`・`undo` |
+| バックアップ／復元・初期化 | #140 #183 #381 #384 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js` | `backup` | `backup`・`undo` |
 | がぞくコード | #233 | [data-model.md 7章](./data-model.md#7-がぞくコードdoc-id-の推測不能化233-段階1) | `account.js`・`cloud.js`・`app.js` | `account` | `cloud-code` |
 | 状態の正規化・移行 | #272 #311 #428 | [data-model.md 4・5章](./data-model.md#4-正規化と型の矯正) | `storage.js` | `storage` | — |
 | クラウド同期・マージ | #142 #242 #313 #358 #362 #374 #378 #381 | [data-model.md 6章](./data-model.md#6-クラウド同期) | `storage.js`・`cloud.js`・`cloud-queue.js`・`app.js` | `storage`・`cloud-queue` | `cloud-sync` |

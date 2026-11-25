@@ -209,8 +209,8 @@ export function normalizeState(saved) {
       level: asNumber(pet.level, 1),
       xp: asNumber(pet.xp),
       coins: asNumber(pet.coins),
-      affinity: asNumber(pet.affinity),
-      foodSpent: asNumber(pet.foodSpent),
+      affinity: Math.max(0, asNumber(pet.affinity)),
+      foodSpent: Math.max(0, asNumber(pet.foodSpent)),   // 負だと再計算でコインが増える
       equippedItems: asArray(pet.equippedItems),
       placedItems: asArray(pet.placedItems),
       itemLayout: normalizeItemLayout(pet.itemLayout),

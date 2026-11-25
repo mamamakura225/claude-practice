@@ -3,17 +3,17 @@
 //   - コード（html/css/js/manifest）: network-first。取れないときだけキャッシュ
 //   - メディア（画像・音・アイコン・動画）: cache-first。中身が変わると MEDIA_CACHE の名前が変わる
 // 下の4つの定数は gen-sw が生成する（手で直さない）。
-const CODE_CACHE = 'piano-pet-code-30f016cd';
+const CODE_CACHE = 'piano-pet-code-60269836';
 const MEDIA_CACHE = 'piano-pet-media-3fc607ef';
 
 const APP_SHELL = [
   './',
   './index.html',
-  './css/cat.css?v=30f016cd',
-  './css/style.css?v=30f016cd',
+  './css/cat.css?v=60269836',
+  './css/style.css?v=60269836',
   './js/account.js',
   './js/analytics.js',
-  './js/app.js?v=30f016cd',
+  './js/app.js?v=60269836',
   './js/backup.js',
   './js/badges.js',
   './js/cat-image.js',
