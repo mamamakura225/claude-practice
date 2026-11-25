@@ -12,6 +12,14 @@ import { APP_DIR, isMediaAsset, listCodeAssets, listMediaAssets } from '../../..
 // video/*.mp4 が入っている（#318）ので MEDIA_CACHE 名が必ず動き古い版が残る心配はない。
 test.use({ serviceWorkers: 'allow' });
 
+// 本番 Firestore へつながない（届いた state で見た目が変わり、結果が回線しだいになる）。
+// SW からの取得にも効くよう page でなく context で遮る。
+test.beforeEach(async ({ context }) => {
+  for (const host of ['www.gstatic.com/firebasejs', 'firestore.googleapis.com', 'firebase.googleapis.com', 'identitytoolkit.googleapis.com']) {
+    await context.route(`**/${host}/**`, (route) => route.abort());
+  }
+});
+
 const CLIP = './video/cat_shiro_record_v1.mp4';
 
 /** アプリの prime / tryPlay と同じく <video> で読み込む。 */
@@ -171,9 +179,9 @@ test.describe('コードとメディアのキャッシュ（#259 #289）', () =>
     await context.setOffline(true);
     // setOffline は HTTP キャッシュを止めないが、配信は no-store 相当（-c-1）なので SW 以外からは返らない
     await page.reload();
-    await expect(page.locator('#catStage svg image').first()).toBeVisible();
+    await expect(page.locator('#catStage .cat__body')).toBeVisible();
     await page.goto('/?nazo=1');
-    await expect(page.locator('#catStage svg image').first()).toBeVisible();
+    await expect(page.locator('#catStage .cat__body')).toBeVisible();
     // 今の見た目では使っていない画像もオフラインで出る（全画像のオフライン保証・#66）
     const ok = await page.evaluate((paths) => Promise.all(paths.map((p) => fetch(p).then((r) => r.ok, () => false))), listMediaAssets());
     expect(ok.every(Boolean)).toBe(true);
@@ -188,7 +196,7 @@ test.describe('コードとメディアのキャッシュ（#259 #289）', () =>
 
     hits.length = 0;
     await page.reload();
-    await expect(page.locator('#catStage svg image').first()).toBeVisible();
+    await expect(page.locator('#catStage .cat__body')).toBeVisible();
     await page.evaluate(() => fetch('./img/stamp/paw.webp').then((r) => r.blob()));
     // アイコン類（favicon 等）はブラウザが SW を通さず直接取るので、アプリが使う画像だけを見る
     expect(hits.filter((p) => p.startsWith('/img/'))).toEqual([]);
