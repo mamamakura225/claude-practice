@@ -88,7 +88,7 @@
 
 ## 練習記録
 
-> Issue: #117 #123 #164 #186 #252 #260 #273 #398 #399 ｜ 実装: [record-form.js](../js/record-form.js)（純粋ロジック）・[app.js](../js/app.js) ｜ テスト: tests/record-form.test.js・tests/game.test.js・e2e/record.spec.js・e2e/record-date.spec.js・e2e/day-rollover.spec.js
+> Issue: #117 #123 #164 #186 #252 #260 #273 #398 #399 ｜ 実装: [record-form.js](../js/record-form.js)（純粋ロジック）・[record-screen.js](../js/record-screen.js)（画面・下書き・送信） ｜ テスト: tests/record-form.test.js・tests/game.test.js・e2e/record.spec.js・e2e/record-date.spec.js・e2e/day-rollover.spec.js
 
 ### モードの切り替え
 
@@ -733,7 +733,7 @@
 ### きょうのおまけ（#148）
 
 - その日の**最初の記録**で `BONUS_CHANCE`（20%）の確率で `BONUS_COINS`（3コイン）。当たったら専用のポップアップ（🎁）
-- 抽選は app.js（`rollDailyBonus`）。額は記録の `bonusCoins` に保存する（→ [data-model.md](./data-model.md#session)）
+- 抽選は record-screen.js（`rollDailyBonus`）。額は記録の `bonusCoins` に保存する（→ [data-model.md](./data-model.md#session)）
 - **設計判断**：練習しなくても得するログインボーナスは習慣化と矛盾するので不採用
 
 ### ストリーク（連続練習）とお休み券
@@ -899,10 +899,11 @@
 
 | モジュール | 持つもの |
 |---|---|
-| `state.js` | アプリ全体の `state`（live binding）と `setState` |
+| `state.js` | アプリ全体の `state`（live binding）・`setState`・`recomputed`、登録式の `commitState`（実体は app.js が `onCommit` で登録・#442） |
 | `cloud-sync.js` | クラウドとの接続・初回取り込み・realtime・復帰時 resync・上書きの送信（#439） |
 | `settings.js`（遅延） | 親ゲート・バックアップ／復元・初期化・がぞくコード・アカウント切替（#440）。目標回数・レッスン日・テーマは起動時やホーム・記録画面でも使うので app.js に残す |
 | `popups.js` | ごほうびのポップアップ（`showPopup` 系）・バッジ告知の順番待ち・記録後の猫の演出（`celebrateRecord`）・動画モジュールの先読み（#441）。ホームにいるかは呼び出し側が `isHome` で渡す |
+| `record-screen.js` | 記録フォーム・スタンプの下書き・まとめモード・送信（`submitRecord`/`finishRecord`）・「なおす」の開始（#442）。曲の色の割り当て（`buildSongColors`）と目標回数（`currentGoal`）はきろく・ホームでも使うので export する。画面の切り替え・きろくの描き直し・保存失敗の有無は `initRecordScreen` で受け取る |
 | `html.js` | エスケープに加えて `setText`・`downloadBlob`（分けたモジュールが共通で使う DOM の小道具） |
 
 **設計判断**
@@ -910,7 +911,8 @@
 - **state は live binding で共有する（#439）**：`export let state` を読む側は常にいまの値を見るので、移したコードの `state.x` をそのまま残せる（`getState()` に書き換えると移動の差分が読めなくなる）。代入は `setState` だけで、取り込んだ側で `state = …` と書くと TypeError になり、書き漏れが黙って古い値を作らない
 - **分けたモジュールは app.js を import しない**：循環 import を作らない。描画や保存など app.js 側の仕事が要るときは、`initLessonSettings({...})` と同じく起動時に関数を受け取る（`startCloudSync({ adopt, settled })`）
 - **クラウドの順序は app.js から持ち込まない（#242）**：休んでいた間のレッスン日の取りこみは、`resyncAndSettle` がクラウドを取り込み終えてから `settled` を呼ぶ。app.js 側は「取りこむ日があるか」だけを見る
-- 分けるとファイルごとに gzip するぶん `js-entry` がわずかに増える（#439 で 33.5→34.1 KiB）
+- **確定（`commitState`）の実体は app.js に残す（#442）**：取り消し待ちの削除（#398）・トースト・下書きの消去・きろくの描き直しと絡むので、手順ごと動かさず state.js には登録口だけ置く
+- 分けるとファイルごとに gzip するぶん `js-entry` がわずかに増える（#439 で 33.5→34.1、#441 で 32.2→32.9、#442 で 32.9→34.1 KiB）。app.js は 2,374→1,174 行
 - **せっていは丸ごと遅延にした（#440）**：⚙️ を押すまで要らない。`backup.js`・`dialog.js` は settings.js から静的に読むので、以前の「backup は読めたが dialog だけ読めない」ときの素の `hidden` 切り替えは無くなった（どちらも SW がプリキャッシュするので、読めないときは設定ごと開けない＝以前の backup 失敗時と同じ）。`js-entry` 34.1→32.2 KiB・`js-lazy` 16.4→19.0 KiB。E2E で `#importFile` に直接ファイルを渡していた復元のテストは、利用者と同じくせっていを開いてから渡す（開くまで受け口が無い）
 
 ## Service Worker のキャッシュ戦略
@@ -955,9 +957,9 @@
 |---|---:|---:|---:|---:|
 | html（`index.html`＋`manifest.json`） | 2 | 6.4 KiB | 7 KiB | 0.6 |
 | css | 2 | 8.7 KiB | 10 KiB | 1.3 |
-| js-entry（起動をブロック） | 20 | 32.2 KiB | 36 KiB | 3.8 |
+| js-entry（起動をブロック） | 22 | 34.1 KiB | 36 KiB | 1.9 |
 | js-lazy（遅延読込） | 16 | 19.0 KiB | 21 KiB | 2.0 |
-| **total（html＋css＋js-entry）** | — | **47.3 KiB** | **53 KiB** | 5.7 |
+| **total（html＋css＋js-entry）** | — | **49.2 KiB** | **53 KiB** | 3.8 |
 | icons | 5 | 39.0 KiB | — | 対象外 |
 | img（猫45・装着33・置物12・ねこスタンプ10＋肉球） | 101 | 4173 KiB（raw 4208） | — | 対象外 |
 | sounds | 4 | 103 KiB | — | 対象外 |
@@ -1029,13 +1031,13 @@
 | ナビゲーション | #235 #399 #401 | [画面とナビゲーション](#画面とナビゲーション) | `router.js`・`app.js` | `router` | `navigation` |
 | ホーム・アバター | #121 #167 #396 | [ホーム](#ホーム) | `app.js`・`child-profile.js`・`cat-image.js`（`moodForState`） | `child-profile`・`cat` | `child-avatar`・`navigation` |
 | 初回オンボーディング | #141 #365 | [初回オンボーディング](#初回オンボーディング141) | `onboarding.js`・`onboarding-ui.js` | `onboarding` | `onboarding` |
-| 練習記録 | #117 #123 #164 #186 #260 #273 #428 | [練習記録](#練習記録) | `record-form.js`・`game.js`・`app.js` | `record-form`・`game` | `record`・`record-date`・`day-rollover` |
+| 練習記録 | #117 #123 #164 #186 #260 #273 #428 | [練習記録](#練習記録) | `record-screen.js`・`record-form.js`・`game.js` | `record-form`・`game` | `record`・`record-date`・`day-rollover` |
 | 曲の色 | #122 #165 #326 | [曲の色](#曲の色122-165) | `song-color.js`・`record-form.js` | `song-color` | — |
 | スタンプ音・サウンド | #139 #146 #154 | [サウンド](#サウンド) | `sound.js` | `sound` | — |
 | 記録の動画クリップ | #227 #296 #300 #305 | [記録の動画クリップ演出](#記録の動画クリップ演出227) | `cat-video.js`・`feed.js`・`popups.js` | `cat-video`・`game`（`crossedDailyGoal`） | `clip`・`reward-popup` |
 | ポップアップ演出 | #261 #323 #396 #400 | [ポップアップ演出](#ポップアップ演出) | `popups.js` | — | `reward-popup`・`shop` |
 | きろく（履歴） | #144 #145 #236 #239 #360 #401 #407 | [きろく](#きろく記録履歴) | `history.js`・`history-view.js`・`app.js` | `history`・`history-view` | `history-list`・`history-settings` |
-| 記録の編集・削除・取り消し | #314 #319 #358 #398 | [きろく](#きろく記録履歴)・[data-model.md](./data-model.md#削除の墓標-deleteddates319) | `app.js`・`game.js`・`storage.js` | `game`・`storage` | `history-edit`・`undo` |
+| 記録の編集・削除・取り消し | #314 #319 #358 #398 | [きろく](#きろく記録履歴)・[data-model.md](./data-model.md#削除の墓標-deleteddates319) | `app.js`・`record-screen.js`（なおす）・`game.js`・`storage.js` | `game`・`storage` | `history-edit`・`undo` |
 | ショップ（購入・えさやり） | #124 #250 #294 #360 #399 #421 | [ショップ](#ショップ) | `shop.js`・`feed.js`・`cat-video.js` | `shop`・`feed`・`cat-video` | `shop`・`navigation` |
 | なかよしレベル | #124 #216 | [なかよしレベルとご褒美](#なかよしレベルとご褒美124-216) | `feed.js`・`cat-image.js` | `feed`・`cat` | `shop`・`cat-interaction` |
 | きせかえ・置物 | #126 #191 #226 #299 | [きせかえ アイテム](#きせかえ-アイテム装着全33種)・[置物](#置物シーン配置全12種226) | `shop.js`・`cat-image.js` | `shop`・`cat` | `shop`・`dressup` |
