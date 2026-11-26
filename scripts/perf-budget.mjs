@@ -30,7 +30,7 @@ const CHECK = process.argv.includes('--check');
 const BUDGETS_KIB = {
   html: 7,          // 実測 6.4
   css: 10,          // 実測 8.7
-  'js-entry': 36,   // 実測 34.1（#440 で設定を遅延へ移して 32.2 に減ったぶん締めた。#441 #442 の分割で 34.1）
+  'js-entry': 36,   // 実測 34.1（#440 で設定を遅延へ移して減ったぶん 37→36 に締めた。その後の分割 #441 #442 でファイルが増えて 34.1）
   'js-lazy': 21,    // 実測 19.0（#440 で設定 settings.js が入って 16.4 から増えた）
   total: 53,        // 実測 49.2（html + css + js-entry）
 };
