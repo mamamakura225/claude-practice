@@ -109,7 +109,7 @@
 #### 所持コインの導出
 
 - `coins = Math.max(0, 獲得総額 − spent)`。`recomputeState` が毎回この式で出し直す
-- `spent` ＝ `spentCoins`（所持アイテムの**現行価格**の合計）＋ `foodSpent`。[app.js](../js/app.js) `spentTotal` が計算して渡す
+- `spent` ＝ `spentCoins`（所持アイテムの**現行価格**の合計）＋ `foodSpent`。[shop.js](../js/shop.js) `spentTotal` が計算して渡す（単体テストあり・#325）
 - 価格を変えると既存ユーザーの残高が動く（→ [features.md の #250](./features.md#購入とコイン)）
 
 #### stampBook（#409）
@@ -216,7 +216,7 @@
 ### 6.1 起動シーケンス（ローカルファースト・#142）
 
 1. `loadState()` → `renderHome()` を**同期で**実行する。最初の描画はクラウドを待たない
-2. `initCloudSync` は `requestIdleCallback`（非対応なら `setTimeout`）で**アイドルまで遅らせる**。Firebase SDK はここで動的 import する
+2. `initCloudSync`（[cloud-sync.js](../js/cloud-sync.js)）は `requestIdleCallback`（非対応なら `setTimeout`）で**アイドルまで遅らせる**。Firebase SDK はここで動的 import する
 3. SDK が取れなくてもローカル動作は止めない（`online` 復帰で再試行）
 4. `fetchCloud`（上限5秒）は「doc が無い（`null`）」と「取れなかった（`undefined`）」を分けて返す（#362）
 

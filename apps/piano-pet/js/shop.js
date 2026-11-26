@@ -3,7 +3,7 @@
 // slot は装備スロット（同一スロットは1つだけ装備できる）。
 // unlockLevel は購入解放に必要な「なかよしレベル」(#126・価格帯で割当)。判定は購入時のみ
 // （canBuy）に効き、装備・描画は所持/装備のみで判定＝affinity 低下でも所持品は保持される。
-import { affinityLevel } from './feed.js';
+import { affinityLevel, foodSpent } from './feed.js';
 
 export const SHOP_ITEMS = [
   { id: 'ribbon', name: 'あかい リボン', price: 25, slot: 'neck', icon: '🎀', unlockLevel: 1 },
@@ -83,6 +83,12 @@ export function isOwned(state, id) {
 // 変えると次の recomputeState で既存ユーザーへ差額が反映される（#250 の設計判断・features.md）。
 export function spentCoins(state) {
   return (state.inventory ?? []).reduce((sum, id) => sum + (itemById(id)?.price ?? 0), 0);
+}
+
+// 装備購入＋えさやりに使ったコイン総額。全再計算（recomputeState）の spent 引数に使う。
+// 所持コイン = 獲得総額 - この値。どちらかが漏れると編集・削除で消費分が復活してしまう。
+export function spentTotal(state) {
+  return spentCoins(state) + foodSpent(state);
 }
 
 export function isEquipped(state, id) {
