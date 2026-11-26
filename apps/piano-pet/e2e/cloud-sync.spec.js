@@ -404,12 +404,15 @@ test.describe('クラウド同期の取り込み', () => {
 
     const backup = backupOf(baseState({ pet: { coins: 321 } }), { cloudDocId: 'pp-family-code-1234' });
     page.on('dialog', (d) => d.accept());
+    await openSettings(page);   // 読み込みの入口はせっていの中（settings.js は開くまで読まない・#440）
     await importJson(page, backup);
 
-    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet:cloud-ids') ?? '{}').data))
+    // 復元はすぐリロードするので、読みがリロードと重なっても次の回で読み直す（どちらの値もリロードをまたいで残る）
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet:cloud-ids') ?? '{}').data).catch(() => null))
       .toBe('pp-family-code-1234');
-    await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('__pushLog') ?? '[]')), { timeout: 10000 })
+    await expect.poll(() => page.evaluate(() => JSON.parse(sessionStorage.getItem('__pushLog') ?? '[]')).catch(() => []), { timeout: 10000 })
       .toContain('pushDoc:pp-family-code-1234');
+    await page.waitForLoadState();
     const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem('__pushLog') ?? '[]'));
     expect(log).not.toContain('push:data');   // 旧 doc へは一度も書かない
   });
@@ -509,6 +512,7 @@ test.describe('クラウド同期の取り込み', () => {
     });
     const backup = backupOf(days(session('2026-09-05', 2, 'Z')));
     page.on('dialog', (d) => d.accept());
+    await openSettings(page);   // 読み込みの入口はせっていの中（settings.js は開くまで読まない・#440）
     await importJson(page, backup);
     await page.waitForFunction(() => window.__pushStarted === true, null, { timeout: 10000 });
     await page.evaluate(() => window.__releaseFetch());
@@ -527,6 +531,7 @@ test.describe('クラウド同期の取り込み', () => {
     await page.waitForFunction(() => window.__fetching === true, null, { timeout: 10000 });
     const backup = backupOf(days(session('2026-09-05', 2, 'Z')));
     page.on('dialog', (d) => d.accept());
+    await openSettings(page);   // 読み込みの入口はせっていの中（settings.js は開くまで読まない・#440）
     await importJson(page, backup);
     await page.waitForFunction(() => window.__pushStarted === true, null, { timeout: 10000 });
     await page.evaluate(() => window.__releaseFetch());
@@ -545,7 +550,8 @@ test.describe('クラウド同期の取り込み', () => {
       await page.goto('/');
       await waitForSync(page);
       await page.evaluate(() => { window.__pushDelay = 60000; });   // ack が返らない
-      page.on('dialog', (d) => d.accept());
+      // リロード後の「とどかなかった」の知らせ（#384）はテストの終わりと重なることがあるので、閉じ損ねは無視する
+      page.on('dialog', (d) => d.accept().catch(() => {}));
       const reloaded = page.waitForEvent('load', { timeout: 14000 });   // 見切りは10秒
       if (kind === 'しょきか') {
         await page.click('#settingsToggle');
@@ -559,6 +565,7 @@ test.describe('クラウド同期の取り込み', () => {
       } else {
         const code = kind.includes('がぞく') ? { cloudDocId: 'pp-family-code-1234' } : {};
         const backup = JSON.stringify({ app: 'piano-pet', schemaVersion: 2, exportedAt: '2026-10-02T00:00:00.000Z', ...code, state: baseState() });
+        await openSettings(page);
         await page.setInputFiles('#importFile', { name: 'b.json', mimeType: 'application/json', buffer: Buffer.from(backup) });
       }
       await reloaded;   // 旧実装は ack を待ち続けて 60 秒止まる
