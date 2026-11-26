@@ -17,6 +17,14 @@ export function normalizeStyle(style) {
   return CAT_STYLES.includes(style) ? style : 'tora';
 }
 
+// ホームの猫の表情。最後の練習から2日以上あくと寝ている（today は 'YYYY-MM-DD'）
+export function moodForState(s, today) {
+  const last = s.streak.lastPracticeDate;
+  if (!last) return 'idle';
+  const diffDays = Math.floor((Date.parse(today) - Date.parse(last)) / 86400000);
+  return diffDays >= 2 ? 'sleep' : 'idle';
+}
+
 // 8段階「なかよしレベル」(#124・#216) を画像の3 tier に集約する。
 // 新しい閾値は作らず affinityLevel().level からの導出に一本化（旧 high=Lv5/mid=Lv3 と
 // 等価な affinity 値の新レベルへ再マップ：high は最上位 Lv8、mid は Lv3 以上）。

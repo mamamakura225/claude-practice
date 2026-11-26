@@ -17,6 +17,7 @@ import {
   unplaceItem,
   togglePlace,
   spentCoins,
+  spentTotal,
 } from '../js/shop.js';
 
 function makeState(overrides = {}) {
@@ -164,6 +165,17 @@ describe('spentCoins', () => {
   it('未所持・未知IDは 0 として扱う', () => {
     expect(spentCoins(makeState())).toBe(0);
     expect(spentCoins(makeState({ inventory: ['unknown'] }))).toBe(0);
+  });
+});
+
+// 全再計算の spent。えさの消費（pet.foodSpent）が漏れると、記録の編集・削除のたびにえさ代が戻る（#325）
+describe('spentTotal', () => {
+  it('所持アイテムの現行価格とえさに使ったコインを合わせる', () => {
+    expect(spentTotal(makeState({ inventory: ['ribbon', 'hat'], pet: { foodSpent: 12 } }))).toBe(25 + 40 + 12);
+  });
+
+  it('どちらも無ければ 0', () => {
+    expect(spentTotal(makeState())).toBe(0);
   });
 });
 

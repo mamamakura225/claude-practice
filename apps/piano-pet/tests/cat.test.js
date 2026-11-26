@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { CAT_STYLES, pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, SCENE_BOX, itemLayer, defaultItemLayer, tierToPrefetch } from '../js/cat-image.js';
+import { CAT_STYLES, moodForState, pickHappyVariant, catMarkup, tierFromBond, catImageSrc, itemAnchorPct, itemAnchorScale, isSceneItem, SCENE_IDS, SCENE_BOX, itemLayer, defaultItemLayer, tierToPrefetch } from '../js/cat-image.js';
 import { FOODS } from '../js/feed.js';
 import { SHOP_ITEMS } from '../js/shop.js';
 import { appFile } from './helpers.js';
@@ -12,6 +12,23 @@ describe('pickHappyVariant', () => {
     expect(pickHappyVariant(() => 0)).toBe('');     // floor(0 * 3) = 0
     expect(pickHappyVariant(() => 0.5)).toBe('hop'); // floor(1.5) = 1
     expect(pickHappyVariant(() => 0.99)).toBe('spin'); // floor(2.97) = 2
+  });
+});
+
+// ホームの猫の表情：最後の練習から2日以上あくと寝る（#325）
+describe('moodForState', () => {
+  const withLast = (lastPracticeDate) => ({ streak: { lastPracticeDate } });
+  it('まだ練習していなければ idle', () => {
+    expect(moodForState(withLast(null), '2026-11-26')).toBe('idle');
+  });
+  it('前日までの練習なら idle、2日あくと sleep', () => {
+    expect(moodForState(withLast('2026-11-26'), '2026-11-26')).toBe('idle');
+    expect(moodForState(withLast('2026-11-25'), '2026-11-26')).toBe('idle');
+    expect(moodForState(withLast('2026-11-24'), '2026-11-26')).toBe('sleep');
+  });
+  it('月をまたいでも日数で数える', () => {
+    expect(moodForState(withLast('2026-10-31'), '2026-11-01')).toBe('idle');
+    expect(moodForState(withLast('2026-10-30'), '2026-11-01')).toBe('sleep');
   });
 });
 

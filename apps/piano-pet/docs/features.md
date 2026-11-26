@@ -24,7 +24,7 @@
 
 ## ホーム
 
-> Issue: #121 #167 #187 #396 #399 #432 ｜ 実装: [app.js](../js/app.js)・[cat-image.js](../js/cat-image.js)・[child-profile.js](../js/child-profile.js) ｜ テスト: tests/child-profile.test.js・e2e/child-avatar.spec.js・e2e/navigation.spec.js
+> Issue: #121 #167 #187 #396 #399 #432 ｜ 実装: [app.js](../js/app.js)・[cat-image.js](../js/cat-image.js)・[child-profile.js](../js/child-profile.js) ｜ テスト: tests/child-profile.test.js・tests/cat.test.js・e2e/child-avatar.spec.js・e2e/navigation.spec.js
 
 **仕様**
 
@@ -67,7 +67,7 @@
 |---|---|---|
 | `idle` | 通常 | ゆっくり呼吸（scaleY） |
 | `happy` | 記録直後 | うれしい表情＋ぴょんと跳ねる・ハート |
-| `sleep` | 最後の練習から2日以上 | 目を閉じた表情＋Zzz |
+| `sleep` | 最後の練習から2日以上（`cat-image.js` `moodForState`） | 目を閉じた表情＋Zzz |
 | `love` | なでた時 | ハート目＋しっぽふり／喜ぶ |
 | `hiss` | なで反応で威嚇を引いた（#187） | 威嚇の表情だけ。喜びの演出は出さない |
 
@@ -893,6 +893,22 @@
 
 ---
 
+## app.js の分け方（#439〜）
+
+`app.js`（もとは約2,370行）を画面・役割ごとのモジュールへ分けている。挙動は変えない。
+
+| モジュール | 持つもの |
+|---|---|
+| `state.js` | アプリ全体の `state`（live binding）と `setState` |
+| `cloud-sync.js` | クラウドとの接続・初回取り込み・realtime・復帰時 resync・上書きの送信（#439） |
+
+**設計判断**
+
+- **state は live binding で共有する（#439）**：`export let state` を読む側は常にいまの値を見るので、移したコードの `state.x` をそのまま残せる（`getState()` に書き換えると移動の差分が読めなくなる）。代入は `setState` だけで、取り込んだ側で `state = …` と書くと TypeError になり、書き漏れが黙って古い値を作らない
+- **分けたモジュールは app.js を import しない**：循環 import を作らない。描画や保存など app.js 側の仕事が要るときは、`initLessonSettings({...})` と同じく起動時に関数を受け取る（`startCloudSync({ adopt, settled })`）
+- **クラウドの順序は app.js から持ち込まない（#242）**：休んでいた間のレッスン日の取りこみは、`resyncAndSettle` がクラウドを取り込み終えてから `settled` を呼ぶ。app.js 側は「取りこむ日があるか」だけを見る
+- 分けるとファイルごとに gzip するぶん `js-entry` がわずかに増える（#439 で 33.5→34.1 KiB）
+
 ## Service Worker のキャッシュ戦略
 
 > Issue: #259 #289 #303 #317 #318 ｜ 実装: [sw.js](../sw.js)（`gen-sw` が生成）・[scripts/gen-sw.mjs](../../../scripts/gen-sw.mjs) ｜ テスト: tests/assets.test.js・e2e/sw-clip-cache.spec.js・`gen-sw:check`（CI）
@@ -982,7 +998,7 @@
 
 **設計判断**
 
-- **クラウド同期は偽モジュールで通す（#277）**：`app.js` が `cloud.js` を動的 import するので、`page.route` で差し替えれば本番コードを変えずに実経路を通せる（`window.__cloudDoc`・`window.__onRemote`）。他の spec は Firestore を遮断している。エミュレータは CI の起動コストが高く、見たいのはマージ規則なので不採用
+- **クラウド同期は偽モジュールで通す（#277）**：`cloud-sync.js` が `cloud.js` を動的 import するので、`page.route` で差し替えれば本番コードを変えずに実経路を通せる（`window.__cloudDoc`・`window.__onRemote`）。他の spec は Firestore を遮断している。エミュレータは CI の起動コストが高く、見たいのはマージ規則なので不採用
 - **#261 の退行ガードはページ内で観測する（#323）**：再現には、1回目のフェードアウト開始直後（約250ms の窓）に2回目を重ねる必要がある。固定の `waitForTimeout` は CI の遅れで静かに空振りするので、`MutationObserver` で「`--show` が外れた瞬間」を見る
 - **E2E の準備は `e2e/helpers.js` に寄せる（#429）**：spec は `@playwright/test` でなくここから `test` を import する。Firebase の遮断とオンボーディング済みが自動で効き、遮断の書き忘れで本番 doc に触れることがない
 - **「動画が出ない」はコインのポップアップで見る（#429）**：ポップアップは動画を見終わるまで出ない（#400）ので、固定時間を待たずに「出さないと決まった」ことが分かる
@@ -1006,7 +1022,7 @@
 | 機能 | 主な Issue | 仕様 | 実装（js/） | 単体（tests/） | E2E（e2e/） |
 |---|---|---|---|---|---|
 | ナビゲーション | #235 #399 #401 | [画面とナビゲーション](#画面とナビゲーション) | `router.js`・`app.js` | `router` | `navigation` |
-| ホーム・アバター | #121 #167 #396 | [ホーム](#ホーム) | `app.js`・`child-profile.js` | `child-profile` | `child-avatar`・`navigation` |
+| ホーム・アバター | #121 #167 #396 | [ホーム](#ホーム) | `app.js`・`child-profile.js`・`cat-image.js`（`moodForState`） | `child-profile`・`cat` | `child-avatar`・`navigation` |
 | 初回オンボーディング | #141 #365 | [初回オンボーディング](#初回オンボーディング141) | `onboarding.js`・`onboarding-ui.js` | `onboarding` | `onboarding` |
 | 練習記録 | #117 #123 #164 #186 #260 #273 #428 | [練習記録](#練習記録) | `record-form.js`・`game.js`・`app.js` | `record-form`・`game` | `record`・`record-date`・`day-rollover` |
 | 曲の色 | #122 #165 #326 | [曲の色](#曲の色122-165) | `song-color.js`・`record-form.js` | `song-color` | — |
@@ -1027,10 +1043,10 @@
 | 報酬・連続・おまけ | #148 #238 | [育成・報酬ロジック](#育成報酬ロジック) | `game.js` | `game` | `record`・`reward-popup`・`daily-goal` |
 | レッスン日 | #393 | [レッスン日](#レッスン日393) | `game.js`・`storage.js`・`lesson-settings.js` | `game`・`storage` | `lesson`・`day-rollover` |
 | せってい・親ゲート | #166 #182 #238 #401 | [せってい](#せってい親ゲートの内側) | `app.js`・`account.js` | `account` | `settings`・`daily-goal`・`history-settings` |
-| バックアップ／復元・初期化 | #140 #183 #381 #384 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js` | `backup` | `backup`・`undo` |
-| がぞくコード | #233 | [data-model.md 7章](./data-model.md#7-がぞくコードdoc-id-の推測不能化233-段階1) | `account.js`・`cloud.js`・`app.js` | `account` | `cloud-code` |
+| バックアップ／復元・初期化 | #140 #183 #381 #384 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js`・`cloud-sync.js`（上書きの送信） | `backup` | `backup`・`undo` |
+| がぞくコード | #233 | [data-model.md 7章](./data-model.md#7-がぞくコードdoc-id-の推測不能化233-段階1) | `account.js`・`cloud.js`・`cloud-sync.js`・`app.js` | `account` | `cloud-code` |
 | 状態の正規化・移行 | #272 #311 #428 | [data-model.md 4・5章](./data-model.md#4-正規化と型の矯正) | `storage.js` | `storage` | — |
-| クラウド同期・マージ | #142 #242 #313 #358 #362 #374 #378 #381 | [data-model.md 6章](./data-model.md#6-クラウド同期) | `storage.js`・`cloud.js`・`cloud-queue.js`・`app.js` | `storage`・`cloud-queue` | `cloud-sync` |
+| クラウド同期・マージ | #142 #242 #313 #358 #362 #374 #378 #381 | [data-model.md 6章](./data-model.md#6-クラウド同期) | `cloud-sync.js`・`storage.js`・`cloud.js`・`cloud-queue.js`・`shop.js`（`spentTotal`） | `storage`・`cloud-queue`・`shop` | `cloud-sync` |
 | エスケープ（XSS 対策） | #274 #312 | [requirements.md 受容しているリスク](./requirements.md#受容しているリスク258) | `html.js` | `html`・`cat`・`history-view` | `record`・`dressup` |
 | アクセシビリティ・モーダル・テーマ | #151 #359 #397 #432 | [アクセシビリティ](#アクセシビリティ表示テーマ151) | `dialog.js`・`app.js`・`css/` | — | `a11y-dialogs`・`layout-theme`・`settings`・`uiux-bugs` |
 | 計測・監視（内容を送らない） | — | [requirements.md 4.2](./requirements.md#42-セキュリティとプライバシー) | `analytics.js`・`sentry.js`・`monitoring-config.js`（生成） | — | — |
