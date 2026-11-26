@@ -172,7 +172,7 @@
 
 ## 記録後のごほうび演出
 
-ホームで出す演出を `celebrateRecord`（[app.js](../js/app.js)）が出し分ける（#81 #227）。
+ホームで出す演出を `celebrateRecord`（[popups.js](../js/popups.js)）が出し分ける（#81 #227）。
 
 | その記録で起きたこと | 猫の演出 |
 |---|---|
@@ -182,7 +182,7 @@
 
 ### 記録の動画クリップ演出（#227）
 
-> Issue: #227 #296 #300 #303 #305 #400 ｜ 実装: [cat-video.js](../js/cat-video.js)・[app.js](../js/app.js) `celebrateRecord` ｜ テスト: tests/cat-video.test.js・e2e/clip.spec.js・e2e/reward-popup.spec.js・e2e/sw-clip-cache.spec.js
+> Issue: #227 #296 #300 #303 #305 #400 ｜ 実装: [cat-video.js](../js/cat-video.js)・[popups.js](../js/popups.js) `celebrateRecord`・`primeCatVideo` ｜ テスト: tests/cat-video.test.js・e2e/clip.spec.js・e2e/reward-popup.spec.js・e2e/sw-clip-cache.spec.js
 
 **素材**
 
@@ -229,7 +229,7 @@
 
 ### ポップアップ演出
 
-> Issue: #261 #294 #309 #320 #323 #396 #400 ｜ 実装: [app.js](../js/app.js) `showPopup` ｜ テスト: e2e/reward-popup.spec.js・e2e/shop.spec.js
+> Issue: #261 #294 #309 #320 #323 #396 #400 ｜ 実装: [popups.js](../js/popups.js) `showPopup` ｜ テスト: e2e/reward-popup.spec.js・e2e/shop.spec.js
 
 **種類**：獲得コイン（レベルアップもここに出す） ／ えさやり ／ きょうのおまけ ／ お休み券キープ ／ バッジ獲得
 
@@ -902,6 +902,7 @@
 | `state.js` | アプリ全体の `state`（live binding）と `setState` |
 | `cloud-sync.js` | クラウドとの接続・初回取り込み・realtime・復帰時 resync・上書きの送信（#439） |
 | `settings.js`（遅延） | 親ゲート・バックアップ／復元・初期化・がぞくコード・アカウント切替（#440）。目標回数・レッスン日・テーマは起動時やホーム・記録画面でも使うので app.js に残す |
+| `popups.js` | ごほうびのポップアップ（`showPopup` 系）・バッジ告知の順番待ち・記録後の猫の演出（`celebrateRecord`）・動画モジュールの先読み（#441）。ホームにいるかは呼び出し側が `isHome` で渡す |
 | `html.js` | エスケープに加えて `setText`・`downloadBlob`（分けたモジュールが共通で使う DOM の小道具） |
 
 **設計判断**
@@ -1031,8 +1032,8 @@
 | 練習記録 | #117 #123 #164 #186 #260 #273 #428 | [練習記録](#練習記録) | `record-form.js`・`game.js`・`app.js` | `record-form`・`game` | `record`・`record-date`・`day-rollover` |
 | 曲の色 | #122 #165 #326 | [曲の色](#曲の色122-165) | `song-color.js`・`record-form.js` | `song-color` | — |
 | スタンプ音・サウンド | #139 #146 #154 | [サウンド](#サウンド) | `sound.js` | `sound` | — |
-| 記録の動画クリップ | #227 #296 #300 #305 | [記録の動画クリップ演出](#記録の動画クリップ演出227) | `cat-video.js`・`feed.js`・`app.js` | `cat-video`・`game`（`crossedDailyGoal`） | `clip`・`reward-popup` |
-| ポップアップ演出 | #261 #323 #396 #400 | [ポップアップ演出](#ポップアップ演出) | `app.js` | — | `reward-popup`・`shop` |
+| 記録の動画クリップ | #227 #296 #300 #305 | [記録の動画クリップ演出](#記録の動画クリップ演出227) | `cat-video.js`・`feed.js`・`popups.js` | `cat-video`・`game`（`crossedDailyGoal`） | `clip`・`reward-popup` |
+| ポップアップ演出 | #261 #323 #396 #400 | [ポップアップ演出](#ポップアップ演出) | `popups.js` | — | `reward-popup`・`shop` |
 | きろく（履歴） | #144 #145 #236 #239 #360 #401 #407 | [きろく](#きろく記録履歴) | `history.js`・`history-view.js`・`app.js` | `history`・`history-view` | `history-list`・`history-settings` |
 | 記録の編集・削除・取り消し | #314 #319 #358 #398 | [きろく](#きろく記録履歴)・[data-model.md](./data-model.md#削除の墓標-deleteddates319) | `app.js`・`game.js`・`storage.js` | `game`・`storage` | `history-edit`・`undo` |
 | ショップ（購入・えさやり） | #124 #250 #294 #360 #399 #421 | [ショップ](#ショップ) | `shop.js`・`feed.js`・`cat-video.js` | `shop`・`feed`・`cat-video` | `shop`・`navigation` |
