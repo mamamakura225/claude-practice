@@ -1,15 +1,8 @@
 import { createRouter, hashFromView, NAV_VIEWS } from './router.js';
-import { escapeHtml } from './html.js';
-import { loadState, saveState, cloudFields, normalizeState, normalizeLessonDates, activeStorageKey } from './storage.js';
+import { escapeHtml, setText, downloadBlob } from './html.js';
+import { loadState, saveState, normalizeLessonDates, activeStorageKey } from './storage.js';
 import { state, setState } from './state.js';
-import {
-  getCloud, queueCloudPush, holdCloudPush, flushCloud, withinLimit, pushForOverwrite, takeUnsentMark,
-  stopCloudForOverwrite, resyncAndSettle, startCloudSync,
-} from './cloud-sync.js';
-import {
-  getAccounts, getActiveAccountId, setActiveAccount,
-  getCloudDocId, setCloudDocId, generateCloudDocId, isValidCloudDocId, legacyCloudDocIdFor,
-} from './account.js';
+import { queueCloudPush, holdCloudPush, flushCloud, takeUnsentMark, resyncAndSettle, startCloudSync } from './cloud-sync.js';
 import { todayStr, xpProgress, applySession, recomputeState, dailyProgress, crossedDailyGoal, mergeSameDaySessions, clampDailyGoal, rollDailyBonus, checkBadges, hasUncreditedLesson } from './game.js';
 import { catMarkup, moodForState, playHappy, playReaction, playCelebrate, playHiss, preloadTier, prefetchNextTier, tierFromBond, catImageSrc, CAT_STYLES, normalizeStyle, itemLayer } from './cat-image.js';
 import { isValidSession, collectSongs, MAX_ROW_COUNT, songsToRows, stampsToSongs, songsToStamps, combineSongs, pastSongNames, songTotals, normalizePraise, normalizeTempo } from './record-form.js';
@@ -196,11 +189,6 @@ function renderSoundToggle() {
   const on = isSoundOn(state);
   btn.setAttribute('aria-pressed', String(on));
   btn.textContent = on ? '🔊' : '🔇';
-}
-
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (el) el.textContent = value;
 }
 
 // 親が設定した1日の目標回数（#238）
@@ -1748,81 +1736,22 @@ function hasUnsentInput() {
   return JSON.stringify(stamps) !== JSON.stringify(songsToStamps(combineSongs(saved?.songs)));
 }
 
-// ===== せってい：データのバックアップ/復元（#140） =====
-const settingsOverlayEl = document.getElementById('settingsOverlay');
-const settingsGateEl = document.getElementById('settingsGate');
-const settingsMenuEl = document.getElementById('settingsMenu');
-const gateAnswerEl = document.getElementById('gateAnswer');
-const gateErrorEl = document.getElementById('gateError');
-const importFileEl = document.getElementById('importFile');
-const importStatusEl = document.getElementById('importStatus');
-
-// バックアップと親ゲートの出題は、設定オーバーレイを開くまで不要なので遅延読込（#284）。
-// import() の解決はブラウザがキャッシュするので、2回目以降は待ちなしで返る。
-let backupMod = null;
-const loadBackup = async () => (backupMod ??= await import('./backup.js'));
+// ===== せってい（親ゲートの内側）：設定オーバーレイを開くまで要らないので遅延読込（settings.js・#440） =====
 // モーダル共通の操作（#397）も開くときまで要らないので遅延読込。閉じる側は開いた後なので読込済み。
 let dialogMod = null;
 const loadDialog = async () => (dialogMod ??= await import('./dialog.js'));
 
-// ゲートの正解（openSettings のたびに作り直す）。
-let gateExpected = null;
-
+let settingsMod = null;
 async function openSettings() {
   // アカウント切替・読み込み・初期化は reload を伴い、pagehide で別アカウントの保存先へ確定してしまう（#398）
   applyPendingDelete();
-  const mod = await loadBackup().catch((err) => {   // 未キャッシュ＋回線断でだけ起きる
-    console.warn('せっていを ひらけません（バックアップ機能の よみこみに しっぱい）', err);
+  settingsMod ??= await import('./settings.js').catch((err) => {   // 未キャッシュ＋回線断でだけ起きる
+    console.warn('せっていを ひらけません（よみこみに しっぱい）', err);
     return null;
   });
-  if (!mod) return;
-  const dlg = await loadDialog().catch(() => null);
-  showLessonSettings();
-  showStampSettings();
-  const p = mod.makeGateProblem();
-  gateExpected = p.answer;
-  setText('gateA', p.a);
-  setText('gateB', p.b);
-  if (gateAnswerEl) gateAnswerEl.value = '';
-  if (gateErrorEl) gateErrorEl.hidden = true;
-  if (importStatusEl) importStatusEl.hidden = true;
-  if (settingsGateEl) settingsGateEl.hidden = false;   // 毎回ゲートから
-  if (settingsMenuEl) settingsMenuEl.hidden = true;
-  if (!settingsOverlayEl) return;
-  if (dlg) dlg.openDialog(settingsOverlayEl, { onClose: closeSettings, initial: gateAnswerEl });
-  else { settingsOverlayEl.hidden = false; gateAnswerEl?.focus(); }
+  settingsMod?.openSettings({ clearStampDraft, currentGoal, showLessonSettings, showStampSettings });
 }
-
-function closeSettings() {
-  if (!settingsOverlayEl) return;
-  if (dialogMod) dialogMod.closeDialog(settingsOverlayEl);
-  else settingsOverlayEl.hidden = true;
-}
-
-// 親ゲートの解答チェック。正解でメニューを開き、誤りなら再入力させる。
-function submitGate() {
-  if (Number(gateAnswerEl?.value) === gateExpected) {
-    if (settingsGateEl) settingsGateEl.hidden = true;
-    if (settingsMenuEl) settingsMenuEl.hidden = false;
-    renderAccountList();                   // アカウント切替の現在値を反映（#182）
-    const goalInput = document.getElementById('goalTargetInput');
-    if (goalInput) goalInput.value = String(currentGoal());  // 目標回数の現在値を反映（#238）
-    renderCloudSection();                  // クラウド保存先（がぞくコード）の現在値を反映（#233）
-    renderRestorePrev();                   // 読み込み・初期化の前へ戻す（#398）
-    if (settingsMenuEl) dialogMod?.focusIn(settingsMenuEl);   // ゲートが消えてフォーカスが body に落ちないように（#397）
-  } else if (gateErrorEl) {
-    gateErrorEl.hidden = false;
-    if (gateAnswerEl) gateAnswerEl.value = '';
-    gateAnswerEl?.focus();
-  }
-}
-
-function showImportStatus(msg, isError) {
-  if (!importStatusEl) return;
-  importStatusEl.textContent = msg;
-  importStatusEl.hidden = false;
-  importStatusEl.classList.toggle('settings-menu__note--error', !!isError);
-}
+document.getElementById('settingsToggle')?.addEventListener('click', openSettings);
 
 // 写真モード（#237）：飾った猫を1枚の画像にして共有／保存する。端末内完結・PII非送信。
 // Web Share（ファイル対応）があれば共有シート、無ければダウンロードにフォールバック。
@@ -1858,189 +1787,6 @@ async function shareCatPhoto() {
     photoBusy = false;
   }
 }
-
-function downloadBlob(blob, filename) {
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
-
-// 現行 state を JSON 化して a[download] でローカル保存（無害なので確認不要）。
-async function downloadBackup() {
-  // がぞくコード（#233）を同梱＝別端末で復元すると同じクラウド保存先に合流できる。
-  const { exportState, backupFilename } = await loadBackup();
-  const json = exportState(state, new Date(), getCloudDocId(getActiveAccountId()));
-  downloadBlob(new Blob([json], { type: 'application/json' }), backupFilename());
-  showImportStatus('ファイルを ほぞんしたよ！', false);
-}
-
-// 読み込み・初期化の直前のデータを退避し、「ひとつ まえの データに もどす」で戻せるようにする（#398）
-async function stashBeforeOverwrite() {
-  return (await loadBackup()).stashBeforeOverwrite(localStorage, activeStorageKey(), stashOwner());
-}
-const stashOwner = () => ({ account: getActiveAccountId(), doc: getCloudDocId(getActiveAccountId()) ?? null });
-const readStashedState = () => backupMod?.readStash(localStorage, stashOwner()) ?? null;
-function renderRestorePrev() {
-  const btn = document.getElementById('restorePrevBtn');
-  if (btn) btn.hidden = !readStashedState();
-}
-async function restorePrevData() {
-  const prev = readStashedState();
-  if (!prev) return;
-  const when = prev.at ? new Date(prev.at) : null;
-  const label = when ? `${when.getMonth() + 1}がつ${when.getDate()}にち ${when.getHours()}:${String(when.getMinutes()).padStart(2, '0')} の` : 'まえの';
-  if (!window.confirm(`${label} じょうたいに もどします（データを よみこむ・けす まえ）。そのあとに つけた きろくは きえます。いまの データと いれかわるので、もういちど おすと もどせます。よろしいですか？`)) return;
-  applyImportedState(prev.state);   // いまの データは退避されるので、もう一度押せば行き来できる
-}
-
-// 取り込み確定：①直前データを退避 ②ローカル保存 ③クラウド購読を解除
-// ④クラウドへ反映完了を待つ ⑤リロード。古いスナップショットの巻き戻しを断つ（#140 設計レビュー C/D）。
-// ②が書けなければ何も変えずにやめる（クラウドだけ置き換わって端末が元のままになるのを防ぐ・#428）。
-// code＝がぞくコード同梱の復元先（DATA_DOC は切替前の doc に固定のため・#358）。
-async function applyImportedState(imported, code = null) {
-  const revertStash = await stashBeforeOverwrite();   // 誤読込からの復旧用。退避の素性を元の保存先で残すため、コードの切替より前に（#398）
-  if (!saveState(imported)) {
-    revertStash();
-    showImportStatus('たんまつの あきが たりなくて ほぞんできませんでした。', true);
-    return;
-  }
-  stopCloudForOverwrite();
-  setState(imported);
-  const docId = code && setCloudDocId(getActiveAccountId(), code) ? code : null;
-  clearStampDraft();   // 前のデータの書きかけを、入れ替えたデータの記録にしない（#428）
-  await pushForOverwrite(docId);
-  window.location.reload();   // クリーンに再起動（状態変数の不整合・古い購読を一掃）
-}
-
-// ===== クラウド保存先の推測不能化（がぞくコード・#233 段階1） =====
-// 旧 doc ID は固定・推測可能だったため、ランダムな doc ID（がぞくコード）へ移す。
-// 自動移行にすると端末ごとに別コードが生まれて家族の同期が割れるので、**親が明示操作**で行い、
-// 他端末はコード入力（またはバックアップJSON取り込み）で同じ保存先に合流する。
-
-const MIGRATE_BACKUP_KEY = 'piano-pet-backup-before-migrate';
-
-function showCloudStatus(msg, isError) {
-  const el = document.getElementById('cloudStatus');
-  if (!el) return;
-  el.textContent = msg;
-  el.hidden = false;
-  el.classList.toggle('settings-menu__note--error', !!isError);
-}
-
-// 親ゲート内のクラウド保存先セクションの表示を現在値に合わせる。
-function renderCloudSection() {
-  const code = getCloudDocId(getActiveAccountId());
-  const notEl = document.getElementById('cloudNotMigrated');
-  const yesEl = document.getElementById('cloudMigrated');
-  if (notEl) notEl.hidden = !!code;
-  if (yesEl) yesEl.hidden = !code;
-  setText('cloudCodeValue', code ?? '—');
-  const status = document.getElementById('cloudStatus');
-  if (status) status.hidden = true;
-}
-
-// 移行：①ローカルへ退避 ②コード生成 ③新 doc へ現行データをコピー ④コード保存 ⑤リロード。
-// 旧 doc の中身はこの時点では消さない（他端末がまだ旧 doc を見ている可能性があるため、
-// 空にするのは全端末の合流後に親が明示操作で行う）。
-async function migrateCloudDoc() {
-  const cloud = getCloud();
-  if (!cloud) { showCloudStatus('オフラインの ときは うつせません。', true); return; }
-  const accountId = getActiveAccountId();
-  if (getCloudDocId(accountId)) return;
-  try {
-    const cur = localStorage.getItem(activeStorageKey());
-    if (cur) localStorage.setItem(MIGRATE_BACKUP_KEY, cur);   // 移行前の自動退避
-  } catch { /* 退避失敗は致命的でないので無視 */ }
-
-  const newId = generateCloudDocId();
-  const ok = await withinLimit(cloud.pushCloudDoc(newId, cloudFields(state)));   // 新 doc へコピー
-  if (!ok) { showCloudStatus('うつせませんでした。つうしんを かくにんしてね。', true); return; }
-  if (!setCloudDocId(accountId, newId)) { showCloudStatus('コードを ほぞんできませんでした。', true); return; }
-  window.location.reload();   // cloud.js の購読 doc を貼り直す
-}
-
-// 他端末で発行されたコードに合流する。ローカルデータは消さず、次回同期で union マージされる。
-function joinCloudDoc() {
-  const input = document.getElementById('cloudCodeInput');
-  const code = String(input?.value ?? '').trim();
-  if (!isValidCloudDocId(code)) { showCloudStatus('コードの かたちが ちがうみたい。', true); return; }
-  if (!setCloudDocId(getActiveAccountId(), code)) { showCloudStatus('コードを ほぞんできませんでした。', true); return; }
-  window.location.reload();
-}
-
-// 旧（推測可能な）doc を空にする。全端末が合流済みであることが前提なので確認を挟む。
-async function clearLegacyCloudDoc() {
-  const cloud = getCloud();
-  if (!cloud) { showCloudStatus('オフラインの ときは できません。', true); return; }
-  const ok = window.confirm(
-    'ふるい ばしょ（あてられる ID）の なかみを からに します。\n'
-    + 'ほかの たんまつが まだ コードを いれていない ばあい、その たんまつは データを よみこめなく なります。\n'
-    + 'すすめますか？',
-  );
-  if (!ok) return;
-  const done = await withinLimit(cloud.pushCloudDoc(legacyCloudDocIdFor(getActiveAccountId()), {}));
-  showCloudStatus(done ? 'ふるい ばしょを からに しました。' : 'できなかった かもしれません。つうしんを かくにんしてね。', !done);
-}
-
-// データ初期化（#183）：購入履歴・猫の状態・練習記録をすべて消して新品に戻す。
-function resetData() {
-  if (!window.confirm('ねこの じょうたい・アイテム・れんしゅうきろくが ぜんぶ きえて、さいしょから になります。よろしいですか？')) return;
-  applyImportedState(normalizeState({}));
-}
-
-// 選択ファイルを読んで検証。OK なら確認のうえ復元、NG なら理由をひらがなで表示。
-function handleImportFile(file) {
-  const reader = new FileReader();
-  reader.onload = async () => {
-    const { parseBackup, importErrorMessage } = await loadBackup();
-    const res = parseBackup(String(reader.result));
-    if (!res.ok) {
-      showImportStatus(importErrorMessage(res.reason), true);
-      return;
-    }
-    if (!window.confirm('いまの データは きえて、ファイルの データに なります。よろしいですか？')) return;
-    // バックアップに がぞくコード（#233）が入っていれば、同じクラウド保存先へ合流させる。
-    applyImportedState(res.state, res.cloudDocId);
-  };
-  reader.onerror = async () => showImportStatus((await loadBackup()).importErrorMessage('parse'), true);
-  reader.readAsText(file);
-}
-
-// ===== せってい：アカウント切替（マルチアカウント・#182） =====
-// 親ゲートの裏で、有効アカウント（娘／テスト用）を一覧表示し切り替える。切替は
-// localStorage の有効アカウントを書き換えてからページをリロードし、storage の参照キーと
-// cloud の購読 doc を新アカウントで貼り直す（import/reset と同じリロード方式）。
-function renderAccountList() {
-  const el = document.getElementById('accountList');
-  if (!el) return;
-  const activeId = getActiveAccountId();
-  el.innerHTML = getAccounts().map((a) => {
-    const isActive = a.id === activeId;
-    const right = isActive
-      ? '<span class="account-row__badge">いま これ ✓</span>'
-      : `<button type="button" class="settings-btn settings-btn--ghost account-switch" data-account="${escapeHtml(a.id)}">きりかえる</button>`;
-    return `<div class="account-row${isActive ? ' account-row--active' : ''}">
-      <span class="account-row__name">${escapeHtml(a.name)}</span>
-      ${right}
-    </div>`;
-  }).join('');
-}
-
-document.getElementById('accountList')?.addEventListener('click', (e) => {
-  const btn = e.target.closest('.account-switch');
-  if (!btn) return;
-  if (setActiveAccount(btn.dataset.account)) window.location.reload();
-});
-
-document.getElementById('settingsToggle')?.addEventListener('click', openSettings);
-settingsOverlayEl?.addEventListener('click', (e) => {
-  if (e.target.closest('[data-action="close-settings"]')) closeSettings();
-});
 
 // ===== じぶんの アイコン（こどもアバター・#121） =====
 const avatarOverlayEl = document.getElementById('avatarOverlay');
@@ -2098,37 +1844,6 @@ childNameInputEl?.addEventListener('input', () => {
     el.textContent = childNameInputEl.value;
   }
 });
-document.getElementById('gateSubmit')?.addEventListener('click', submitGate);
-gateAnswerEl?.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  e.preventDefault();
-  submitGate();
-});
-document.getElementById('exportBtn')?.addEventListener('click', downloadBackup);
-// クラウド保存先（がぞくコード・#233）
-document.getElementById('cloudMigrateBtn')?.addEventListener('click', migrateCloudDoc);
-document.getElementById('cloudJoinBtn')?.addEventListener('click', joinCloudDoc);
-document.getElementById('cloudClearLegacyBtn')?.addEventListener('click', clearLegacyCloudDoc);
-document.getElementById('cloudCopyBtn')?.addEventListener('click', async () => {
-  const code = getCloudDocId(getActiveAccountId());
-  if (!code) return;
-  try {
-    await navigator.clipboard.writeText(code);
-    showCloudStatus('コードを コピーしたよ！', false);
-  } catch {
-    showCloudStatus('コピーできませんでした。てで うつしてね。', true);
-  }
-});
-
-document.getElementById('importBtn')?.addEventListener('click', () => importFileEl?.click());
-document.getElementById('resetBtn')?.addEventListener('click', resetData);
-document.getElementById('restorePrevBtn')?.addEventListener('click', restorePrevData);
-importFileEl?.addEventListener('change', (e) => {
-  const file = e.target.files?.[0];
-  if (file) handleImportFile(file);
-  e.target.value = '';   // 同じファイルを連続選択しても change が発火するように
-});
-
 window.addEventListener('hashchange', () => router.syncFromHash(window.location.hash));
 
 // 初期表示
@@ -2136,7 +1851,7 @@ renderHome();
 router.syncFromHash(window.location.hash);
 
 // 前回の初期化・復元がクラウドへ届かなかったら一度だけ伝える（#384）
-if (takeUnsentMark()) loadBackup().then((m) => window.alert(m.OVERWRITE_UNSENT_MESSAGE)).catch(() => {});
+if (takeUnsentMark()) import('./backup.js').then((m) => window.alert(m.OVERWRITE_UNSENT_MESSAGE)).catch(() => {});
 
 // 初回起動なら使い方の案内を出す（renderHome 後に重ねる）。画面は未表示のときだけ読む（#365）
 if (!isOnboarded()) {

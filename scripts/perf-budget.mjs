@@ -30,9 +30,9 @@ const CHECK = process.argv.includes('--check');
 const BUDGETS_KIB = {
   html: 7,          // 実測 6.4
   css: 10,          // 実測 8.7
-  'js-entry': 37,   // 実測 33.5
-  'js-lazy': 18,    // 実測 16.2
-  total: 53,        // 実測 48.5（html + css + js-entry）
+  'js-entry': 36,   // 実測 32.2（#440 で設定を遅延へ移して 34.1 から減ったぶん締めた）
+  'js-lazy': 21,    // 実測 19.0（#440 で設定 settings.js が入って 16.4 から増えた）
+  total: 53,        // 実測 47.3（html + css + js-entry）
 };
 
 const KIB = 1024;

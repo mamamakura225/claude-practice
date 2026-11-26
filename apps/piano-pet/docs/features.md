@@ -809,7 +809,7 @@
 
 ## せってい（親ゲートの内側）
 
-> Issue: #140 #151 #166 #182 #183 #233 #238 #393 #398 #401 #409 ｜ 実装: [app.js](../js/app.js)・[backup.js](../js/backup.js)・[account.js](../js/account.js)・[lesson-settings.js](../js/lesson-settings.js)・[stamp-settings.js](../js/stamp-settings.js) ｜ テスト: tests/backup.test.js・tests/account.test.js・e2e/settings.spec.js・e2e/backup.spec.js・e2e/cloud-code.spec.js・e2e/daily-goal.spec.js・e2e/lesson.spec.js・e2e/history-settings.spec.js
+> Issue: #140 #151 #166 #182 #183 #233 #238 #393 #398 #401 #409 ｜ 実装: [settings.js](../js/settings.js)（親ゲート・バックアップ・がぞくコード・アカウント）・[app.js](../js/app.js)（目標回数・レッスン日・テーマ）・[backup.js](../js/backup.js)・[account.js](../js/account.js)・[lesson-settings.js](../js/lesson-settings.js)・[stamp-settings.js](../js/stamp-settings.js) ｜ テスト: tests/backup.test.js・tests/account.test.js・e2e/settings.spec.js・e2e/backup.spec.js・e2e/cloud-code.spec.js・e2e/daily-goal.spec.js・e2e/lesson.spec.js・e2e/history-settings.spec.js
 
 **入り方**：ホーム ⚙️ →「おうちのひとへ」オーバーレイ。1桁×1桁の掛け算（`makeGateProblem`）の**親ゲート**に正解したときだけメニューを開く。「×」は右上に常に出す（#401）。
 
@@ -901,6 +901,8 @@
 |---|---|
 | `state.js` | アプリ全体の `state`（live binding）と `setState` |
 | `cloud-sync.js` | クラウドとの接続・初回取り込み・realtime・復帰時 resync・上書きの送信（#439） |
+| `settings.js`（遅延） | 親ゲート・バックアップ／復元・初期化・がぞくコード・アカウント切替（#440）。目標回数・レッスン日・テーマは起動時やホーム・記録画面でも使うので app.js に残す |
+| `html.js` | エスケープに加えて `setText`・`downloadBlob`（分けたモジュールが共通で使う DOM の小道具） |
 
 **設計判断**
 
@@ -908,6 +910,7 @@
 - **分けたモジュールは app.js を import しない**：循環 import を作らない。描画や保存など app.js 側の仕事が要るときは、`initLessonSettings({...})` と同じく起動時に関数を受け取る（`startCloudSync({ adopt, settled })`）
 - **クラウドの順序は app.js から持ち込まない（#242）**：休んでいた間のレッスン日の取りこみは、`resyncAndSettle` がクラウドを取り込み終えてから `settled` を呼ぶ。app.js 側は「取りこむ日があるか」だけを見る
 - 分けるとファイルごとに gzip するぶん `js-entry` がわずかに増える（#439 で 33.5→34.1 KiB）
+- **せっていは丸ごと遅延にした（#440）**：⚙️ を押すまで要らない。`backup.js`・`dialog.js` は settings.js から静的に読むので、以前の「backup は読めたが dialog だけ読めない」ときの素の `hidden` 切り替えは無くなった（どちらも SW がプリキャッシュするので、読めないときは設定ごと開けない＝以前の backup 失敗時と同じ）。`js-entry` 34.1→32.2 KiB・`js-lazy` 16.4→19.0 KiB。E2E で `#importFile` に直接ファイルを渡していた復元のテストは、利用者と同じくせっていを開いてから渡す（開くまで受け口が無い）
 
 ## Service Worker のキャッシュ戦略
 
@@ -951,9 +954,9 @@
 |---|---:|---:|---:|---:|
 | html（`index.html`＋`manifest.json`） | 2 | 6.4 KiB | 7 KiB | 0.6 |
 | css | 2 | 8.7 KiB | 10 KiB | 1.3 |
-| js-entry（起動をブロック） | 18 | 33.5 KiB | 37 KiB | 3.5 |
-| js-lazy（遅延読込） | 15 | 16.2 KiB | 18 KiB | 1.8 |
-| **total（html＋css＋js-entry）** | — | **48.5 KiB** | **53 KiB** | 4.5 |
+| js-entry（起動をブロック） | 20 | 32.2 KiB | 36 KiB | 3.8 |
+| js-lazy（遅延読込） | 16 | 19.0 KiB | 21 KiB | 2.0 |
+| **total（html＋css＋js-entry）** | — | **47.3 KiB** | **53 KiB** | 5.7 |
 | icons | 5 | 39.0 KiB | — | 対象外 |
 | img（猫45・装着33・置物12・ねこスタンプ10＋肉球） | 101 | 4173 KiB（raw 4208） | — | 対象外 |
 | sounds | 4 | 103 KiB | — | 対象外 |
@@ -969,6 +972,7 @@
   - 遅延モジュールも SW のプリキャッシュには入れる（オフラインで動く）
 - **history.js の遅延化（#324）**：枠を上げるだけの案は、遅延化できる候補が残るうちは不採用。`shop.js` は `game.js` が静的 import するので分けられず、`analytics.js`/`sentry.js` は起動時のエラーを捕まえる目的が薄まる
 - **history-view.js（#382）**：state も DOM も触らない HTML 組み立てだけを遅延へ移した。`history.js` を re-export し、app.js はこれだけを読む
+- **起動ぶんを遅延へ移したら、両方の枠を動かす（#440）**：せってい（親ゲート・バックアップ・がぞくコード・アカウント）を `settings.js` へ分けて遅延にしたら、js-entry 34.1→32.2・total 49.2→47.3 と起動ぶんが減った一方、js-lazy は 16.4→19.0 で枠（18）を超えた（LF・最小化後 gzip）。予算の目的は起動の軽さなので js-lazy を 21 に上げ、同時に js-entry を 37→36 へ締めた（実測の約1割増し）。遅延の枠だけ上げると、枠が緩む一方になるため。total 53 は据え置き
 - **予算を上げるときの約束（CLAUDE.md ④）**：まず最小構成を徹底し、それでも超えるときだけ枠を動かす。`CLIPS` の9件をループ生成に畳む案は、パスが grep できなくなるので不採用
 
 ## テストの方針とカバレッジ
@@ -1042,9 +1046,9 @@
 | ねこスタンプちょう | #409 #410 #413 #415 #419 #423 | [ねこスタンプちょう](#ねこスタンプちょう409) | `stamp-book.js`・`stamp-view.js`・`stamp-settings.js`・`storage.js` | `stamp-book` | `stamp-book` |
 | 報酬・連続・おまけ | #148 #238 | [育成・報酬ロジック](#育成報酬ロジック) | `game.js` | `game` | `record`・`reward-popup`・`daily-goal` |
 | レッスン日 | #393 | [レッスン日](#レッスン日393) | `game.js`・`storage.js`・`lesson-settings.js` | `game`・`storage` | `lesson`・`day-rollover` |
-| せってい・親ゲート | #166 #182 #238 #401 | [せってい](#せってい親ゲートの内側) | `app.js`・`account.js` | `account` | `settings`・`daily-goal`・`history-settings` |
-| バックアップ／復元・初期化 | #140 #183 #381 #384 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`app.js`・`cloud-sync.js`（上書きの送信） | `backup` | `backup`・`undo` |
-| がぞくコード | #233 | [data-model.md 7章](./data-model.md#7-がぞくコードdoc-id-の推測不能化233-段階1) | `account.js`・`cloud.js`・`cloud-sync.js`・`app.js` | `account` | `cloud-code` |
+| せってい・親ゲート | #166 #182 #238 #401 | [せってい](#せってい親ゲートの内側) | `settings.js`・`app.js`（目標・レッスン日・テーマ）・`account.js` | `account` | `settings`・`daily-goal`・`history-settings` |
+| バックアップ／復元・初期化 | #140 #183 #381 #384 #398 | [data-model.md 8章](./data-model.md#8-バックアップ復元初期化) | `backup.js`・`settings.js`・`cloud-sync.js`（上書きの送信） | `backup` | `backup`・`undo` |
+| がぞくコード | #233 | [data-model.md 7章](./data-model.md#7-がぞくコードdoc-id-の推測不能化233-段階1) | `account.js`・`cloud.js`・`cloud-sync.js`・`settings.js` | `account` | `cloud-code` |
 | 状態の正規化・移行 | #272 #311 #428 | [data-model.md 4・5章](./data-model.md#4-正規化と型の矯正) | `storage.js` | `storage` | — |
 | クラウド同期・マージ | #142 #242 #313 #358 #362 #374 #378 #381 | [data-model.md 6章](./data-model.md#6-クラウド同期) | `cloud-sync.js`・`storage.js`・`cloud.js`・`cloud-queue.js`・`shop.js`（`spentTotal`） | `storage`・`cloud-queue`・`shop` | `cloud-sync` |
 | エスケープ（XSS 対策） | #274 #312 | [requirements.md 受容しているリスク](./requirements.md#受容しているリスク258) | `html.js` | `html`・`cat`・`history-view` | `record`・`dressup` |
