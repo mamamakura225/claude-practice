@@ -10,10 +10,11 @@ const badgeName = (page) => page.locator('#badgePopupName');
 
 test.describe('ごほうびのポップアップ', () => {
   test('お休み券で連続を守った記録は、コイン→お休み券→バッジ2枚の順に1つずつ出る', async ({ page }) => {
-    // 1日抜けているのを券1枚で救済。バッジは2つ同時に成立する（1つ目で連鎖が切れる退行を見る）
+    // 1日抜けているのを券1枚で救済。バッジは2つ同時に成立する（1つ目で連鎖が切れる退行を見る）。
+    // 「はじめて」は起動時に付くので、この記録で取れるのは 2にち目 と 5曲目
     await seed(page, makeState({
       streak: { current: 1, best: 1, lastPracticeDate: ymd(2), freezes: 1 },
-      sessions: [session(2)],
+      sessions: [{ ...session(2), songs: ['あ', 'い', 'う', 'え'].map((name) => ({ name, count: 1 })), totalCount: 4 }],
     }));
     await fixRandom(page, 0.999);
     await gotoHome(page);
@@ -30,9 +31,9 @@ test.describe('ごほうびのポップアップ', () => {
     await expect(freeze).toBeHidden();
 
     await expect(badge(page)).toHaveClass(SHOWN);
-    await expect(badgeName(page)).toHaveText('はじめての れんしゅう');
+    await expect(badgeName(page)).toHaveText('また れんしゅうしたね');
     // 2枚目は消えたあとも残る文字で見る（遅い環境で表示の瞬間を取りこぼさない）
-    await expect(badgeName(page)).toHaveText('また れんしゅうしたね', { timeout: 15000 });
+    await expect(badgeName(page)).toHaveText('いろいろな きょく', { timeout: 15000 });
   });
 
   test('きょうのおまけが当たると+3コインのポップアップが出る', async ({ page }) => {
@@ -53,11 +54,10 @@ test.describe('ごほうびのポップアップ', () => {
   });
 
   test('バッジが3つ以上取れたら、2つ目以降は1枚にまとめて出す（#400）', async ({ page }) => {
-    // 資格は満たしているがバッジ未取得＝この記録で一度に複数取れる
-    await seed(page, makeState({ sessions: [session(3, 100)] }));
+    // 初回に同じ曲を20回＝はじめて・同じ曲10回・1日20回の3つが一度に取れる
     await fixRandom(page, 0.999);
     await gotoHome(page);
-    await record(page, 3);
+    await record(page, 20);
     const gained = await page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).badges.length);
     expect(gained, 'この記録で一度に3つ以上取れる前提').toBeGreaterThanOrEqual(3);
     await expect(badgeName(page)).toContainText('・', { timeout: 20000 });
@@ -66,29 +66,32 @@ test.describe('ごほうびのポップアップ', () => {
   });
 
   test('続けて獲得したバッジは、前のものを置き換えず順に出る（#428）', async ({ page }) => {
-    // はなまる・ようす とも、あと1つで「ぜんぶ」がそろう
-    await seed(page, makeState({
-      streak: { current: 1, best: 1, lastPracticeDate: '2026-01-05' },
-      badges: ['first_practice', 'practice_again'],
-      sessions: [
-        { ...session('2026-01-05', 1), praise: 'hanamaru', tempo: 'slow' },
-        { ...session('2026-01-03', 1), praise: 'jouzu', tempo: 'normal' },
-        session('2026-01-01', 1),
-      ],
-    }));
-    await page.goto('/#/history');
-    const card = page.locator('.history-card[data-date="2026-01-01"]');
-    await expect(card).toBeVisible({ timeout: 10000 });
+    await gotoHome(page);
     await badgeName(page).evaluate((el) => {
       window.__names = [];
       new MutationObserver(() => window.__names.push([el.textContent, performance.now()])).observe(el, { childList: true });
     });
-    await card.locator('[data-id="ganbatta"]').click();
-    await card.locator('[data-id="fast"]').click();
-    await expect(badgeName(page)).toHaveText('さんしょく テンポ', { timeout: 6000 });
+    // 画面の操作では2回の獲得を同じ2秒に重ねられないので、アプリと同じモジュールを直接2回呼ぶ
+    await page.evaluate(async () => {
+      const { showBadgePopup } = await import('/js/popups.js');
+      showBadgePopup([{ icon: '1', name: 'ひとつめ' }]);
+      showBadgePopup([{ icon: '2', name: 'ふたつめ' }]);
+    });
+    await expect(badgeName(page)).toHaveText('ふたつめ', { timeout: 6000 });
     const names = await page.evaluate(() => window.__names);
-    expect(names.map(([n]) => n)).toEqual(['いろんな きもち', 'さんしょく テンポ']);
+    expect(names.map(([n]) => n)).toEqual(['ひとつめ', 'ふたつめ']);
     expect(names[1][1] - names[0][1]).toBeGreaterThan(2000);   // 1枚目も読める長さで出ている
+  });
+
+  test('条件を満たしているバッジは、起動した時点で一覧に付いている', async ({ page }) => {
+    // 足したばかりのバッジ（記録10日）を、バッジ未取得のまま持っている端末
+    await seed(page, makeState({ sessions: Array.from({ length: 10 }, (_, i) => session(i + 2, 1)) }));
+    await gotoHome(page);
+    await page.click('.nav-btn[data-nav="badges"]');
+    const card = page.locator('#badgeGrid .badge-card').filter({ hasText: 'きろく 10にち' });
+    await expect(card).not.toHaveClass(/badge-card--locked/);
+    await expect(badge(page)).toBeHidden();   // 起動時は告知しない
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('piano-pet')).badges)).toContain('days_10');
   });
 
   test('ポップアップはタップで次へ送れる（#400）', async ({ page }) => {

@@ -647,26 +647,6 @@ describe('checkBadges（#309・11種追加）', () => {
     expect(checkBadges(stateOf({ sessions: gapped }))).toContain('practice_again');
   });
 
-  it('tempo が3種そろうと tempo_all3 が取れる', () => {
-    const two = [
-      { date: day(1), totalCount: 1, tempo: 'slow' },
-      { date: day(2), totalCount: 1, tempo: 'fast' },
-    ];
-    expect(checkBadges(stateOf({ sessions: two }))).not.toContain('tempo_all3');
-    const three = [...two, { date: day(3), totalCount: 1, tempo: 'normal' }];
-    expect(checkBadges(stateOf({ sessions: three }))).toContain('tempo_all3');
-  });
-
-  it('praise が3種そろうと praise_all3 が取れる', () => {
-    const two = [
-      { date: day(1), totalCount: 1, praise: 'hanamaru' },
-      { date: day(2), totalCount: 1, praise: 'jouzu' },
-    ];
-    expect(checkBadges(stateOf({ sessions: two }))).not.toContain('praise_all3');
-    const three = [...two, { date: day(3), totalCount: 1, praise: 'ganbatta' }];
-    expect(checkBadges(stateOf({ sessions: three }))).toContain('praise_all3');
-  });
-
   it('1日10回以上の日が5日で goal_hit_5 が取れる（可変 dailyGoal ではなく固定閾値）', () => {
     const four = Array.from({ length: 4 }, (_, i) => ({ date: day(i + 1), totalCount: 10 }));
     expect(checkBadges(stateOf({ sessions: four }))).not.toContain('goal_hit_5');
@@ -727,6 +707,55 @@ describe('checkBadges（#309・11種追加）', () => {
   it('なかよしレベルが最高になると affinity_max が取れる', () => {
     expect(checkBadges(stateOf({ pet: { affinity: 41 } }))).not.toContain('affinity_max');
     expect(checkBadges(stateOf({ pet: { affinity: 42 } }))).toContain('affinity_max');
+  });
+
+  describe('目標の段（きろく日数・1日の回数・くりかえし・曲マスター）', () => {
+    const dated = (n, totalCount = 1) => Array.from({ length: n }, (_, i) => ({
+      date: new Date(Date.UTC(2026, 0, i + 1)).toISOString().slice(0, 10), totalCount,
+    }));
+    const oneDay = (songs) => stateOf({
+      sessions: [{ date: day(1), totalCount: songs.reduce((n, s) => n + s.count, 0), songs }],
+    });
+
+    it('連続5日で streak_5', () => {
+      expect(checkBadges(stateOf({ current: 4, best: 4 }))).not.toContain('streak_5');
+      expect(checkBadges(stateOf({ current: 1, best: 5 }))).toContain('streak_5');
+    });
+
+    it('記録した日数で days_10 / days_20', () => {
+      for (const n of [10, 20]) {
+        expect(checkBadges(stateOf({ sessions: dated(n - 1) }))).not.toContain(`days_${n}`);
+        expect(checkBadges(stateOf({ sessions: dated(n) }))).toContain(`days_${n}`);
+      }
+    });
+
+    it('1日20回で day_20（分けた日の合計では取れない）', () => {
+      expect(checkBadges(stateOf({ sessions: dated(2, 19) }))).not.toContain('day_20');
+      expect(checkBadges(stateOf({ sessions: dated(1, 20) }))).toContain('day_20');
+    });
+
+    it('同じ曲を1日10回で song_day_10（分割行は合算・別の曲や別の日は足さない）', () => {
+      expect(checkBadges(oneDay([{ name: 'あ', count: 9 }, { name: 'い', count: 9 }]))).not.toContain('song_day_10');
+      expect(checkBadges(oneDay([{ name: 'あ', count: 6 }, { name: ' あ ', count: 4 }]))).toContain('song_day_10');
+      const spread = dated(2, 9).map((s) => ({ ...s, songs: [{ name: 'あ', count: 9 }] }));
+      expect(checkBadges(stateOf({ sessions: spread }))).not.toContain('song_day_10');
+    });
+
+    it('累計300回で challenge_300', () => {
+      expect(checkBadges(stateOf({ sessions: dated(1, 299) }))).not.toContain('challenge_300');
+      expect(checkBadges(stateOf({ sessions: dated(1, 300) }))).toContain('challenge_300');
+    });
+
+    it('10回以上の日が20日で goal_hit_20', () => {
+      expect(checkBadges(stateOf({ sessions: dated(19, 10) }))).not.toContain('goal_hit_20');
+      expect(checkBadges(stateOf({ sessions: dated(20, 10) }))).toContain('goal_hit_20');
+    });
+
+    it('3曲を50回ずつで song_master_3', () => {
+      const two = [{ name: 'あ', count: 50 }, { name: 'い', count: 50 }];
+      expect(checkBadges(oneDay([...two, { name: 'う', count: 49 }]))).not.toContain('song_master_3');
+      expect(checkBadges(oneDay([...two, { name: 'う', count: 50 }]))).toContain('song_master_3');
+    });
   });
 
   describe('comeback（3日以上のブランクの後、3日以上連続で復帰）', () => {
