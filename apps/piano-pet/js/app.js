@@ -55,6 +55,13 @@ if (mergeSameDaySessions(state.sessions) !== state.sessions) {
   saveState(state);
 }
 
+// カタログに足したバッジは、条件を満たしていれば起動時に付ける（次の記録まで🔒のままにしない）
+const startupBadges = checkBadges(state);
+if (newlyEarned(state.badges, startupBadges).length) {
+  setState({ ...state, badges: startupBadges });
+  saveState(state);
+}
+
 // 装備・配置していないアイテムの座標を itemLayout から除く（#168/#226 ゴーストデータ防止）。
 // itemLayout は装着衣装と置物（#226）で共用するため、装備中 or 配置中のIDだけ残す。
 function cleanItemLayout({ itemLayout, equippedItems, placedItems }) {
@@ -586,16 +593,10 @@ function setSessionMark(kind, date, id) {
   const normalize = kind === 'tempo' ? normalizeTempo : normalizePraise;
   const sessions = state.sessions.map((s) => (s.date === date
     ? { ...s, [kind]: normalize(s[kind]) === id ? null : normalize(id) } : s));
-  // スタンプで praise_all3 / tempo_all3 が成立しうる。購入・えさやりと同じくその場で
-  // 再判定する（#320・設計判断は docs/features.md）。外す操作では剥がれない（checkBadges は state.badges 引継ぎ）。
-  const prevBadges = state.badges;
   setState({ ...state, sessions });
-  state.badges = checkBadges(state);
-  const gained = newlyEarned(prevBadges, state.badges);
   persist();
   queueCloudPush();
   renderHistory();
-  if (gained.length) setTimeout(() => showBadgePopup(gained), 300);
 }
 
 // ===== 記録履歴の編集・削除 =====

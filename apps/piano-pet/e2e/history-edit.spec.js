@@ -104,26 +104,4 @@ test.describe('きろくの編集・削除・スタンプ', () => {
     await expect(tempo).toHaveAttribute('aria-pressed', 'true');
     await expect(praise).toHaveAttribute('aria-pressed', 'false');
   });
-
-  // #320: 次の練習記録を待たず、スタンプを押したその場で判定する
-  test('3種の ようすが そろったその場でバッジが付き、外しても剥がれない（#320）', async ({ page }) => {
-    await gotoHome(page);
-    await openHistory(page);
-    const badge = page.locator('#badgeGrid .badge-card').filter({ hasText: 'さんしょく テンポ' });
-    await cards(page).nth(0).locator('.tempo-stamp').nth(0).click();
-    await cards(page).nth(1).locator('.tempo-stamp').nth(1).click();
-    await nav(page, 'badges');
-    await expect(badge).toHaveClass(/badge-card--locked/);   // 2種ではまだ
-
-    await nav(page, 'history');
-    const last = cards(page).nth(2).locator('.tempo-stamp').nth(2);
-    await last.click();
-    await expect(page.locator('#badgePopup')).toContainText('さんしょく テンポ');
-    await page.locator('#badgePopup').click();
-    await last.click();   // 外す
-    await expect(last).toHaveAttribute('aria-pressed', 'false');
-    expect((await readLocal(page)).badges).toContain('tempo_all3');
-    await nav(page, 'badges');
-    await expect(badge).not.toHaveClass(/badge-card--locked/);
-  });
 });

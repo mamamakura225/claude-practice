@@ -1,6 +1,6 @@
 // ===== ゲームロジック（純粋関数群） =====
 
-import { combineSongs, songTotals, isSongMaster, TEMPO_STAMPS, PRAISE_STAMPS } from './record-form.js';
+import { combineSongs, songTotals, isSongMaster } from './record-form.js';
 import { affinityLevel } from './feed.js';
 import { itemById } from './shop.js';
 
@@ -208,14 +208,18 @@ export function checkBadges(state) {
 
   const uniqueDays = new Set(sessions.map((r) => r.date)).size;
   if (uniqueDays >= 2) earned.add('practice_again');
+  if (uniqueDays >= 10) earned.add('days_10');
+  if (uniqueDays >= 20) earned.add('days_20');
 
   const totalCount = sessions.reduce((s, r) => s + (Number(r.totalCount) || 0), 0);
   if (totalCount >= 100) earned.add('challenge_100');
+  if (totalCount >= 300) earned.add('challenge_300');
   if (totalCount >= 500) earned.add('challenge_500');
   if (totalCount >= 1000) earned.add('challenge_1000');
 
   const bestStreak = Math.max(streak.current, streak.best);
   if (bestStreak >= 3) earned.add('streak_3');
+  if (bestStreak >= 5) earned.add('streak_5');
   if (bestStreak >= 7) earned.add('streak_7');
   if (bestStreak >= 14) earned.add('streak_14');
   if (bestStreak >= 30) earned.add('streak_30');
@@ -225,11 +229,15 @@ export function checkBadges(state) {
   if (uniqueDays >= 100) earned.add('days_100');
 
   // sessions は同日を1件にまとめてあるので totalCount はその日の合計そのもの
+  if (sessions.some((r) => (Number(r.totalCount) || 0) >= 20)) earned.add('day_20');
   if (sessions.some((r) => (Number(r.totalCount) || 0) >= 50)) earned.add('big_day');
+  // まとめの記録は1曲が複数行に分かれうるので、合算してから見る
+  if (sessions.some((r) => combineSongs(r.songs).some((s) => s.count >= 10))) earned.add('song_day_10');
 
   // 可変 pet.dailyGoal ではなく固定閾値を使う（#238と同じ理由＝目標変更で過去の資格が動かない）
   const goalDays = sessions.filter((r) => (Number(r.totalCount) || 0) >= GOAL_BONUS_THRESHOLD).length;
   if (goalDays >= 5) earned.add('goal_hit_5');
+  if (goalDays >= 20) earned.add('goal_hit_20');
 
   // 曲名は trim だけして比べる（song-color.js の songHue と同じ扱い＝別の色がつく曲は別の曲）
   const songNames = new Set();
@@ -250,13 +258,9 @@ export function checkBadges(state) {
   if (songNames.size >= 20) earned.add('songs_20');
   if (maxDaySongs >= 5) earned.add('repertoire_day_5');
 
-  if (songTotals(sessions).some((s) => isSongMaster(s.count))) earned.add('song_master_first');
-
-  const tempos = new Set(sessions.map((r) => r.tempo).filter(Boolean));
-  if (TEMPO_STAMPS.every((t) => tempos.has(t.id))) earned.add('tempo_all3');
-
-  const praises = new Set(sessions.map((r) => r.praise).filter(Boolean));
-  if (PRAISE_STAMPS.every((p) => praises.has(p.id))) earned.add('praise_all3');
+  const masters = songTotals(sessions).filter((s) => isSongMaster(s.count)).length;
+  if (masters >= 1) earned.add('song_master_first');
+  if (masters >= 3) earned.add('song_master_3');
 
   // equippedItems（装備中）は外すと減る可逆トグルなので使わない。inventory（所持）は
   // 購入を取り消す手段が無く単調増加＝一度取ったバッジが着せ替えで剥がれない（#309レビュー）。
