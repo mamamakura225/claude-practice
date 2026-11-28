@@ -4,7 +4,7 @@
 // 描画・保存・レッスン日の取りこみは app.js 側の仕事なので startCloudSync で受け取る。
 import { state } from './state.js';
 import { cloudFields, mergeCloud, mergeCloudInitial, cloudDigest, normalizeState } from './storage.js';
-import { recomputeState } from './game.js';
+import { recomputeState, checkBadges } from './game.js';
 import { spentTotal } from './shop.js';
 
 // クラウド同期モジュール（./cloud.js）。動的 import が成功したら入る。
@@ -82,6 +82,7 @@ function applyRemoteState(cloudData) {
     return;
   }
   const merged = mergeCloud(state, cloudData);
+  merged.badges = checkBadges(merged);   // 版の古い端末は新しいバッジを欠いて送ってくる
   if (cloudDigest(merged) === cloudDigest(state)) return;
   hooks.adopt(merged);
 }

@@ -242,7 +242,7 @@
 |---|---|---|---|
 | 初回取り込み | 起動後 idle の `fetchCloud`（1回） | `mergeCloudInitial`＝フィールド別にローカル優先（union） | 同日衝突で回数の**少ない方** |
 | 復帰時 resync（#242 #358） | `visibilitychange`→visible、`online` 復帰 | 同上（`reconcileInitialCloud`） | 同上。加えて**一方で外した装備・置物が戻る**ことがある |
-| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え）。自分のエコーはキー順をそろえた差分比較（`cloudDigest`・#428）でスキップ。`deletedDates` だけは union し、墓標の日付の記録は取り込まない（#319）。**印（`offlineDirty`）が立っている間は union**（#358） | **まだ送っていないローカルの変更**（debounce の待ち・既定2秒） |
+| realtime | `onSnapshot`（以降ずっと） | `applyRemoteState` → `mergeCloud`＝**cloud-wins**（`CLOUD_FIELDS` をまるごと差し替え。ただし `badges` は取り込み後に `checkBadges` で記録から導けるぶんを足し戻す）。自分のエコーはキー順をそろえた差分比較（`cloudDigest`・#428）でスキップ。`deletedDates` だけは union し、墓標の日付の記録は取り込まない（#319）。**印（`offlineDirty`）が立っている間は union**（#358） | **まだ送っていないローカルの変更**（debounce の待ち・既定2秒） |
 
 **設計判断**
 

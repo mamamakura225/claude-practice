@@ -146,6 +146,22 @@ test.describe('クラウド同期の取り込み', () => {
     expect(st.settings.soundOn).toBe(true);   // 端末ローカル設定はクラウドに無いので保持される
   });
 
+  test('realtime：旧版の端末がバッジを欠いて送っても、記録から導けるバッジは消えない', async ({ page }) => {
+    await useFakeCloud(page, null);
+    await seed(page, days(session('2026-01-01', 20, 'A')));
+    await page.goto('/');
+    await waitForSync(page);
+
+    // 新しいバッジを知らない端末が、同じ記録を古いバッジだけで送ってくる
+    await page.evaluate(() => {
+      const local = JSON.parse(localStorage.getItem('piano-pet'));
+      window.__onRemote({ ...local, pet: { ...local.pet, coins: 99 }, badges: ['first_practice'] });
+    });
+
+    await expect(page.locator('#statCoins')).toHaveText('99');   // 取り込みは済んでいる
+    expect((await readLocal(page)).badges).toEqual(expect.arrayContaining(['day_20', 'song_day_10']));
+  });
+
   test('クラウドが壊れたデータを返してもアプリは起動して動く（#272）', async ({ page }) => {
     // 認証なし doc（#258 段階2 以前）に第三者が書ける前提での防御。
     await useFakeCloud(page, {
